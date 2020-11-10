@@ -5,6 +5,7 @@ authors = ["CoBloX Team <team@coblox.tech>"]
 edition = "2018"
 
 [dependencies]
+anyhow = "1.0"
 elements = { version = "0.13", features = ["serde-feature"] }
 futures = "0.3.5"
 log = "0.4"

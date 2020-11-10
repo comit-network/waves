@@ -1,8 +1,7 @@
 use crate::json_rpc;
+use anyhow::Result;
 use reqwest::Url;
 use serde::Deserialize;
-
-pub type Result<T> = std::result::Result<T, Error>;
 
 pub const JSONRPC_VERSION: &str = "1.0";
 
@@ -36,12 +35,6 @@ impl Client {
 
         Ok(blockchain_info)
     }
-}
-
-#[derive(Debug, thiserror::Error)]
-pub enum Error {
-    #[error("JSON Rpc: ")]
-    JsonRpc(#[from] json_rpc::Error),
 }
 
 #[derive(Debug, Deserialize)]

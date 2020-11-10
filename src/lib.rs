@@ -12,9 +12,8 @@
 )]
 #![forbid(unsafe_code)]
 
-
-pub mod image;
 pub mod elementd_rpc;
+pub mod image;
 pub mod json_rpc;
 
 use reqwest::Url;
@@ -53,13 +52,10 @@ impl<'c> Elementsd<'c> {
             node_url: url,
         })
     }
-
 }
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, Clone, Copy, thiserror::Error)]
 pub enum Error {
-    #[error("Elements Rpc: ")]
-    ElementdRpc(#[from] elementd_rpc::Error),
     #[error("Url Parsing: ")]
     UrlParseError(#[from] url::ParseError),
     #[error("Docker port not exposed: ")]
