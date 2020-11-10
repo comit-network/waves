@@ -60,6 +60,6 @@ mod test {
 
         let network = client.network().await.unwrap();
 
-        assert_eq!(network, "regtest")
+        assert_eq!(network, "elementsregtest")
     }
 }

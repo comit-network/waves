@@ -1,3 +1,4 @@
+use crate::ELEMENTSD_RPC_PORT;
 use hex::encode;
 use hmac::{Hmac, Mac, NewMac};
 use rand::{thread_rng, Rng};
@@ -104,6 +105,7 @@ pub struct ElementsCoreImageArgs {
     pub print_to_console: bool,
     pub tx_index: bool,
     pub rpc_bind: String,
+    pub rpc_port: Option<u16>,
     pub rpc_allowip: String,
     pub rpc_auth: RpcAuth,
     pub accept_non_std_txn: Option<bool>,
@@ -120,6 +122,7 @@ impl Default for ElementsCoreImageArgs {
             rpc_auth: RpcAuth::new(String::from("elements")),
             tx_index: true,
             rpc_bind: "0.0.0.0".to_string(), // This allows to bind on all ports
+            rpc_port: Some(ELEMENTSD_RPC_PORT),
             rpc_allowip: "0.0.0.0/0".to_string(),
             accept_non_std_txn: Some(false),
             rest: true,
@@ -143,7 +146,7 @@ impl IntoIterator for ElementsCoreImageArgs {
 
         match self.network {
             Network::Testnet => args.push("-testnet".to_string()),
-            Network::Regtest => args.push("-regtest".to_string()),
+            Network::Regtest => args.push("-chain=elementsregtest".to_string()),
             Network::Mainnet => {}
         }
 
@@ -157,6 +160,10 @@ impl IntoIterator for ElementsCoreImageArgs {
 
         if !self.rpc_bind.is_empty() {
             args.push(format!("-rpcbind={}", self.rpc_bind));
+        }
+
+        if let Some(rpc_port) = self.rpc_port {
+            args.push(format!("-rpcport={}", rpc_port));
         }
 
         if self.print_to_console {
@@ -182,6 +189,9 @@ impl IntoIterator for ElementsCoreImageArgs {
         }
 
         args.push("-debug".into());
+
+        // make the default wallet rich
+        args.push("-initialfreecoins=2100000000000000".into());
 
         args.into_iter()
     }
