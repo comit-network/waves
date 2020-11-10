@@ -4,6 +4,7 @@ RUN set -ex \
 	&& apt-get update \
 	&& apt-get install -qq --no-install-recommends ca-certificates dirmngr gosu wget
 
+
 ENV ELEMENTS_VERSION 0.18.1.9
 ENV ELEMENTS_URL https://github.com/ElementsProject/elements/releases/download/elements-0.18.1.9/elements-0.18.1.9-x86_64-linux-gnu.tar.gz
 ENV ELEMENTS_SHA256 52f1993efdc52b1b9779040812bc622580c1240282e6cfc95a0d3333deaa2a2c
@@ -32,8 +33,6 @@ RUN mkdir "$ELEMENTS_DATA" \
 	&& chown -h elements:elements /home/elements/.elements
 
 VOLUME /data
-
-COPY elements.conf /elements/data/elements.conf
 
 COPY docker-entrypoint.sh /entrypoint.sh
 ENTRYPOINT ["bash", "/entrypoint.sh"]

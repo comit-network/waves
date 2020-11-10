@@ -1,3 +1,3 @@
-# elements-harness-rs
+# Project Droplet
 
-A simple library to start a elements container and setup a test environment.
+This repository contains code produced in the phase of Project Droplet. 
