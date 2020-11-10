@@ -14,7 +14,6 @@
 
 pub mod elementd_rpc;
 pub mod image;
-pub mod json_rpc;
 
 use reqwest::Url;
 use testcontainers::{clients, Container, Docker};
