@@ -4,7 +4,7 @@ use rand::{thread_rng, Rng};
 use sha2::Sha256;
 use std::fmt;
 use std::{collections::HashMap, env::var, thread::sleep, time::Duration};
-use testcontainers::core::{Port, Container, Docker, Image, WaitForMessage};
+use testcontainers::core::{Container, Docker, Image, Port, WaitForMessage};
 
 #[derive(Debug)]
 pub struct ElementsCore {
