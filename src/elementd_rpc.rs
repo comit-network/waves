@@ -1,7 +1,6 @@
 use crate::json_rpc;
 use reqwest::Url;
-use serde::{Deserialize};
-use elements::bitcoin::{Network};
+use serde::Deserialize;
 
 pub type Result<T> = std::result::Result<T, Error>;
 
@@ -19,7 +18,7 @@ impl Client {
         }
     }
 
-    pub async fn network(&self) -> Result<Network> {
+    pub async fn network(&self) -> Result<String> {
         let blockchain_info = self.blockchain_info().await?;
 
         Ok(blockchain_info.chain)
@@ -37,7 +36,6 @@ impl Client {
 
         Ok(blockchain_info)
     }
-
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -48,7 +46,7 @@ pub enum Error {
 
 #[derive(Debug, Deserialize)]
 struct BlockchainInfo {
-    chain: Network,
+    chain: String,
     mediantime: u32,
 }
 
@@ -69,7 +67,6 @@ mod test {
 
         let network = client.network().await.unwrap();
 
-        assert_eq!(network, Network::Regtest)
+        assert_eq!(network, "regtest")
     }
-
 }
