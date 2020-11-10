@@ -1,5 +1,5 @@
 [package]
-name = "droplet"
+name = "elements-harness"
 version = "0.1.0"
 authors = ["CoBloX Team <team@coblox.tech>"]
 edition = "2018"
@@ -14,7 +14,7 @@ hmac = "0.10"
 jsonrpc_client = { git = "https://github.com/thomaseizinger/rust-jsonrpc-client", rev = "8fe8c47ddde6d7d50afe49b3075f3a97dc7d52ab", features = ["reqwest"] }
 log = "0.4"
 rand = "0.7"
-reqwest = { version = "0.10", features = ["blocking", "json", "native-tls"] }
+reqwest = { version = "0.10" }
 serde = "1.0"
 serde_json = "1.0"
 sha2 = "0.9"

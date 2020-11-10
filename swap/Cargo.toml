@@ -1,0 +1,17 @@
+[package]
+name = "swap"
+version = "0.1.0"
+authors = ["CoBloX Team <team@coblox.tech>"]
+edition = "2018"
+
+[dependencies]
+bitcoin = "0.23"
+ecdsa_fun = { version = "0.3", features = ["libsecp_compat"] }
+elements = "0.13"
+elements-harness = { path = "../elements-harness" }
+wally = { path = "../../../extern-repos/wally" }
+
+[dev-dependencies]
+rand = "0.7"
+testcontainers = "0.11"
+tokio = { version = "0.2", default-features = false, features = ["blocking", "macros", "rt-core", "time"] }

@@ -1,8 +1,8 @@
 FROM debian:stretch-slim as builder
 
 RUN set -ex \
-	&& apt-get update \
-	&& apt-get install -qq --no-install-recommends ca-certificates dirmngr gosu wget
+        && apt-get update \
+        && apt-get install -qq --no-install-recommends ca-certificates dirmngr gosu wget
 
 
 ENV ELEMENTS_VERSION 0.18.1.9
@@ -11,14 +11,14 @@ ENV ELEMENTS_SHA256 52f1993efdc52b1b9779040812bc622580c1240282e6cfc95a0d3333deaa
 
 # install elements binaries
 RUN set -ex \
-	&& cd /tmp \
-	&& wget -qO elements.tar.gz "$ELEMENTS_URL" \
-	&& echo "$ELEMENTS_SHA256 elements.tar.gz" | sha256sum -c - \
-	&& mkdir bin \
-	&& tar -xzvf elements.tar.gz -C /tmp/bin --strip-components=2 "elements-$ELEMENTS_VERSION/bin/elements-cli" "elements-$ELEMENTS_VERSION/bin/elementsd" \
-	&& cd bin \
-	&& wget -qO gosu "https://github.com/tianon/gosu/releases/download/1.11/gosu-amd64" \
-	&& echo "0b843df6d86e270c5b0f5cbd3c326a04e18f4b7f9b8457fa497b0454c4b138d7 gosu" | sha256sum -c -
+        && cd /tmp \
+        && wget -qO elements.tar.gz "$ELEMENTS_URL" \
+        && echo "$ELEMENTS_SHA256 elements.tar.gz" | sha256sum -c - \
+        && mkdir bin \
+        && tar -xzvf elements.tar.gz -C /tmp/bin --strip-components=2 "elements-$ELEMENTS_VERSION/bin/elements-cli" "elements-$ELEMENTS_VERSION/bin/elementsd" \
+        && cd bin \
+        && wget -qO gosu "https://github.com/tianon/gosu/releases/download/1.11/gosu-amd64" \
+        && echo "0b843df6d86e270c5b0f5cbd3c326a04e18f4b7f9b8457fa497b0454c4b138d7 gosu" | sha256sum -c -
 
 FROM debian:stretch-slim
 COPY --from=builder "/tmp/bin" /usr/local/bin
@@ -28,9 +28,9 @@ RUN chmod +x /usr/local/bin/gosu && groupadd -r elements && useradd -r -m -g ele
 # create data directory
 ENV ELEMENTS_DATA /data
 RUN mkdir "$ELEMENTS_DATA" \
-	&& chown -R elements:elements "$ELEMENTS_DATA" \
-	&& ln -sfn "$ELEMENTS_DATA" /home/elements/.elements \
-	&& chown -h elements:elements /home/elements/.elements
+        && chown -R elements:elements "$ELEMENTS_DATA" \
+        && ln -sfn "$ELEMENTS_DATA" /home/elements/.elements \
+        && chown -h elements:elements /home/elements/.elements
 
 VOLUME /data
 

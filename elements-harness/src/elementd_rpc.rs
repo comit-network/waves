@@ -1,9 +1,16 @@
 use anyhow::Result;
+use elements::Transaction;
+use elements::{bitcoin::Txid, Address, AssetId};
 use serde::Deserialize;
+use std::collections::HashMap;
 
 #[jsonrpc_client::api(version = "1.0")]
 pub trait ElementsRpc {
     async fn getblockchaininfo(&self) -> BlockchainInfo;
+    async fn getnewaddress(&self) -> Address;
+    async fn sendtoaddress(&self, address: Address, amount: f64) -> Txid;
+    async fn dumpassetlabels(&self) -> HashMap<String, AssetId>;
+    async fn getrawtransaction(&self, txid: Txid) -> Transaction;
 }
 
 #[jsonrpc_client::implement_async(ElementsRpc)]
@@ -49,5 +56,37 @@ mod test {
         let network = blockchain_info.chain;
 
         assert_eq!(network, "elementsregtest")
+    }
+
+    #[tokio::test]
+    async fn send_to_generated_address() {
+        let tc_client = clients::Cli::default();
+        let (client, _container) = {
+            let blockchain = Elementsd::new(&tc_client, "0.18.1.9").unwrap();
+
+            (
+                Client::new(blockchain.node_url.clone().into_string()).unwrap(),
+                blockchain,
+            )
+        };
+
+        let address = client.getnewaddress().await.unwrap();
+        let txid = client.sendtoaddress(address, 1.0).await.unwrap();
+        let _tx = client.getrawtransaction(txid).await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn dump_labels() {
+        let tc_client = clients::Cli::default();
+        let (client, _container) = {
+            let blockchain = Elementsd::new(&tc_client, "0.18.1.9").unwrap();
+
+            (
+                Client::new(blockchain.node_url.clone().into_string()).unwrap(),
+                blockchain,
+            )
+        };
+
+        let _labels = client.dumpassetlabels().await.unwrap();
     }
 }

@@ -111,6 +111,7 @@ pub struct ElementsCoreImageArgs {
     pub accept_non_std_txn: Option<bool>,
     pub rest: bool,
     pub validatepegin: bool,
+    pub blindedaddresses: bool,
 }
 
 impl Default for ElementsCoreImageArgs {
@@ -127,6 +128,7 @@ impl Default for ElementsCoreImageArgs {
             accept_non_std_txn: Some(false),
             rest: true,
             validatepegin: false,
+            blindedaddresses: false,
         }
     }
 }
@@ -186,6 +188,12 @@ impl IntoIterator for ElementsCoreImageArgs {
             args.push("-validatepegin=1".to_string())
         } else {
             args.push("-validatepegin=0".to_string())
+        }
+
+        if self.blindedaddresses {
+            args.push("-blindedaddresses=1".to_string())
+        } else {
+            args.push("-blindedaddresses=0".to_string())
         }
 
         args.push("-debug".into());
