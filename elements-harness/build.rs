@@ -10,10 +10,8 @@ fn main() {
 
     let build_result = match output {
         Ok(output) => {
-            let stdout = String::from_utf8(output.stdout)
-                .unwrap_or_else(|_| String::from("Could not decode stdout"));
-            let stderr = String::from_utf8(output.stderr)
-                .unwrap_or_else(|_| String::from("Could not decode stderr"));
+            let stdout = String::from_utf8(output.stdout).unwrap();
+            let stderr = String::from_utf8(output.stderr).unwrap();
             format!("Stdout: {} \n Stderr: {}", stdout, stderr)
         }
         Err(error) => format!("Docker container not built: {}", error),
