@@ -33,8 +33,6 @@ RUN mkdir "$ELEMENTS_DATA" \
 
 VOLUME /data
 
-COPY elements.conf /elements/data/elements.conf
-
 COPY docker-entrypoint.sh /entrypoint.sh
 ENTRYPOINT ["bash", "/entrypoint.sh"]
 

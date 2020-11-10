@@ -2,9 +2,7 @@
 set -e
 
 if [[ "$1" == "elements-cli" || "$1" == "elementsd" ]]; then
-	ELEMENTS_DATA="/elements/data"
-
-	chown elements:elements "$ELEMENTS_DATA/elements.conf"
+	ELEMENTS_DATA="/data"
 
 	# ensure correct ownership and linking of data directory
 	# we do not update group ownership here, in case users want to mount
