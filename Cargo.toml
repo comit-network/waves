@@ -1,5 +1,5 @@
 [package]
-name = "elements-harness"
+name = "droplet"
 version = "0.1.0"
 authors = ["CoBloX Team <team@coblox.tech>"]
 edition = "2018"
