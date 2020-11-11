@@ -96,7 +96,6 @@ mod tests {
         };
 
         let script = address.script_pubkey();
-        dbg!(&script);
 
         let hash = hash160::Hash::hash(&pk.to_bytes());
         let script = Builder::new()
@@ -106,7 +105,6 @@ mod tests {
             .push_opcode(opcodes::all::OP_EQUALVERIFY)
             .push_opcode(opcodes::all::OP_CHECKSIG)
             .into_script();
-        dbg!(&script);
 
         let digest = tx_get_elements_signature_hash(
             &tx,
@@ -119,7 +117,6 @@ mod tests {
 
         let sig = ecdsa.sign(&sk, &digest.into_inner());
         let sig: bitcoin::secp256k1::Signature = sig.into();
-        dbg!(&sig);
 
         let mut serialized_signature = sig.serialize_der().to_vec();
         serialized_signature.push(SigHashType::All as u8);
