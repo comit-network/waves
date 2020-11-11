@@ -1,5 +1,4 @@
 use anyhow::Result;
-use elements::Transaction;
 use elements::{bitcoin::Txid, Address, AssetId};
 use serde::Deserialize;
 use std::collections::HashMap;
@@ -10,10 +9,11 @@ pub trait ElementsRpc {
     async fn getnewaddress(&self) -> Address;
     async fn sendtoaddress(&self, address: Address, amount: f64) -> Txid;
     async fn dumpassetlabels(&self) -> HashMap<String, AssetId>;
-    async fn getrawtransaction(&self, txid: Txid) -> Transaction;
+    async fn getrawtransaction(&self, txid: Txid) -> String;
+    async fn sendrawtransaction(&self, tx_hex: String) -> Txid;
 }
 
-#[jsonrpc_client::implement_async(ElementsRpc)]
+#[jsonrpc_client::implement(ElementsRpc)]
 #[derive(Debug)]
 pub struct Client {
     inner: reqwest::Client,
@@ -30,7 +30,7 @@ impl Client {
 }
 
 #[derive(Debug, Deserialize)]
-struct BlockchainInfo {
+pub struct BlockchainInfo {
     pub chain: String,
     mediantime: u32,
 }
@@ -39,11 +39,37 @@ struct BlockchainInfo {
 mod test {
     use super::*;
     use crate::Elementsd;
-    use testcontainers::clients;
+    use ecdsa_fun::nonce::Deterministic;
+    use ecdsa_fun::ECDSA;
+    use elements::bitcoin::blockdata::opcodes;
+    use elements::bitcoin::blockdata::script::Builder;
+    use elements::bitcoin::PublicKey;
+    use elements::bitcoin::Script;
+    use elements::bitcoin::SigHashType;
+    use elements::bitcoin_hashes::hash160;
+    use elements::bitcoin_hashes::Hash;
+    use elements::confidential::Asset;
+    use elements::confidential::Nonce;
+    use elements::confidential::Value;
+    use elements::encode::serialize_hex;
+    use elements::Address;
+    use elements::AddressParams;
+    use elements::AssetIssuance;
+    use elements::OutPoint;
+    use elements::Transaction;
+    use elements::TxIn;
+    use elements::TxInWitness;
+    use elements::TxOut;
+    use elements::TxOutWitness;
+    use hex::FromHex;
+    use rand::rngs::OsRng;
+    use sha2::Sha256;
+    use testcontainers::clients::Cli;
+    use wally::tx_get_elements_signature_hash;
 
     #[tokio::test]
     async fn get_network_info() {
-        let tc_client = clients::Cli::default();
+        let tc_client = Cli::default();
         let (client, _container) = {
             let blockchain = Elementsd::new(&tc_client, "0.18.1.9").unwrap();
             (
@@ -60,7 +86,7 @@ mod test {
 
     #[tokio::test]
     async fn send_to_generated_address() {
-        let tc_client = clients::Cli::default();
+        let tc_client = Cli::default();
         let (client, _container) = {
             let blockchain = Elementsd::new(&tc_client, "0.18.1.9").unwrap();
 
@@ -72,12 +98,12 @@ mod test {
 
         let address = client.getnewaddress().await.unwrap();
         let txid = client.sendtoaddress(address, 1.0).await.unwrap();
-        let _tx = client.getrawtransaction(txid).await.unwrap();
+        let _tx_hex = client.getrawtransaction(txid).await.unwrap();
     }
 
     #[tokio::test]
     async fn dump_labels() {
-        let tc_client = clients::Cli::default();
+        let tc_client = Cli::default();
         let (client, _container) = {
             let blockchain = Elementsd::new(&tc_client, "0.18.1.9").unwrap();
 

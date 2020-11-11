@@ -9,7 +9,9 @@ bitcoin = "0.23"
 ecdsa_fun = { version = "0.3", features = ["libsecp_compat"] }
 elements = "0.13"
 elements-harness = { path = "../elements-harness" }
-wally = { path = "../../../extern-repos/wally" }
+sha2 = "0.9"
+wally = { git = "https://github.com/thomaseizinger/wally/", branch = "master" }
+
 
 [dev-dependencies]
 rand = "0.7"
