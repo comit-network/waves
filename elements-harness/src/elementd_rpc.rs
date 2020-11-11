@@ -39,31 +39,6 @@ pub struct BlockchainInfo {
 mod test {
     use super::*;
     use crate::Elementsd;
-    use ecdsa_fun::nonce::Deterministic;
-    use ecdsa_fun::ECDSA;
-    use elements::bitcoin::blockdata::opcodes;
-    use elements::bitcoin::blockdata::script::Builder;
-    use elements::bitcoin::PublicKey;
-    use elements::bitcoin::Script;
-    use elements::bitcoin::SigHashType;
-    use elements::bitcoin_hashes::hash160;
-    use elements::bitcoin_hashes::Hash;
-    use elements::confidential::Asset;
-    use elements::confidential::Nonce;
-    use elements::confidential::Value;
-    use elements::encode::serialize_hex;
-    use elements::Address;
-    use elements::AddressParams;
-    use elements::AssetIssuance;
-    use elements::OutPoint;
-    use elements::Transaction;
-    use elements::TxIn;
-    use elements::TxInWitness;
-    use elements::TxOut;
-    use elements::TxOutWitness;
-    use hex::FromHex;
-    use rand::rngs::OsRng;
-    use sha2::Sha256;
     use testcontainers::clients::Cli;
     use wally::tx_get_elements_signature_hash;
 
