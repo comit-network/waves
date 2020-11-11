@@ -73,7 +73,6 @@ mod tests {
         let fee = 900_000u64;
 
         let new_address = client.getnewaddress().await.unwrap();
-        let new_address = address.clone();
         let output = TxOut {
             asset: Asset::Explicit(*bitcoin_asset_id),
             value: Value::Explicit(amount.as_sat() - fee),
@@ -111,7 +110,7 @@ mod tests {
 
         let digest = tx_get_elements_signature_hash(
             &tx,
-            vout,
+            0,
             &script,
             &Value::Explicit(amount.as_sat()),
             1,
