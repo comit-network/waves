@@ -151,6 +151,7 @@ mod tests {
         let labels = client.dumpassetlabels().await.unwrap();
         let bitcoin_asset_tag = "bitcoin";
         let bitcoin_asset_id = labels.get(bitcoin_asset_tag).unwrap();
+        let bitcoin_asset_id_bytes = bitcoin_asset_id.into_inner().0;
 
         let fund_sk = SecretKey::new(&mut thread_rng());
         let fund_pk = PublicKey::from_private_key(
@@ -208,15 +209,16 @@ mod tests {
             witness: TxInWitness::default(),
         };
 
-        let fee = 900_000u64;
+        let redeem_fee = 900_000u64;
+        let redeem_amount = fund_amount.as_sat() - redeem_fee;
 
-        let abf = [0x17u8; 32];
-        let asset_id = bitcoin_asset_id.into_inner().0;
-        let confidential_asset = asset_generator_from_bytes(&asset_id, &abf);
+        let redeem_vbf = SecretKey::new(&mut thread_rng());
 
-        let vbf = [0x17u8; 32];
-        let value = fund_amount.as_sat() - fee;
-        let value_commitment = asset_value_commitment(value, vbf, confidential_asset);
+        let redeem_abf = SecretKey::new(&mut thread_rng());
+        let redeem_asset = asset_generator_from_bytes(&bitcoin_asset_id_bytes, redeem_abf.as_ref());
+
+        let redeem_value_commitment =
+            asset_value_commitment(redeem_amount, *redeem_vbf.as_ref(), redeem_asset);
 
         let redeem_sk = SecretKey::new(&mut thread_rng());
         let redeem_pk = PublicKey::from_private_key(
@@ -244,30 +246,30 @@ mod tests {
             &AddressParams::ELEMENTS,
         );
 
-        let random_sk = SecretKey::new(&mut thread_rng());
+        // NOTE: This could be wrong
+        let ephemeral_sk = SecretKey::new(&mut thread_rng());
+
         let range_proof = asset_rangeproof(
-            value,
+            redeem_amount,
             redeem_blinding_pk.key,
-            random_sk,
-            asset_id,
-            abf,
-            vbf,
-            value_commitment,
+            ephemeral_sk,
+            bitcoin_asset_id_bytes,
+            *redeem_abf.as_ref(),
+            *redeem_vbf.as_ref(),
+            redeem_value_commitment,
             &redeem_address.script_pubkey(),
-            confidential_asset,
+            redeem_asset,
             1,
             0,
             52,
         );
-
-        let bytes = [1u8; 32];
 
         let (assets, abfs, _vbfs) = {
             fund_tx
                 .output
                 .iter()
                 .cloned()
-                .filter(|output| output.asset.is_confidential())
+                .filter(|output| output.asset.is_confidential()) // filter includes
                 .filter(|output| output.script_pubkey == fund_address.script_pubkey())
                 .map(|out| {
                     let range_proof = out.witness.rangeproof;
@@ -276,7 +278,7 @@ mod tests {
                     let asset_generator = out.asset.commitment().unwrap();
                     asset_unblind(
                         fund_pk.key,
-                        fund_blinding_sk,
+                        redeem_blinding_sk,
                         range_proof,
                         value_commitment.into(),
                         script,
@@ -295,20 +297,25 @@ mod tests {
                 )
         };
 
+        // NOTE: This is probably wrong
+        let bytes = SecretKey::new(&mut thread_rng());
+
         let surjection_proof = asset_surjectionproof(
-            asset_id,
-            abf,
-            confidential_asset,
-            bytes,
-            &b"bitcoin".to_vec(),
+            bitcoin_asset_id_bytes,
+            *redeem_abf.as_ref(),
+            redeem_asset,
+            *bytes.as_ref(),
+            // What if it's asset IDs and not tags?
+            // &b"bitcoin".to_vec(),
+            &elements::encode::serialize(&redeem_asset),
             &abfs,
             &assets,
             1,
         );
 
         let output = TxOut {
-            asset: confidential_asset,
-            value: value_commitment,
+            asset: redeem_asset,
+            value: redeem_value_commitment,
             nonce: Nonce::Null,
             script_pubkey: redeem_address.script_pubkey(),
             witness: TxOutWitness {
@@ -319,7 +326,7 @@ mod tests {
 
         let fee = TxOut {
             asset: Asset::Explicit(*bitcoin_asset_id),
-            value: Value::Explicit(fee),
+            value: Value::Explicit(redeem_fee),
             nonce: Nonce::Null,
             script_pubkey: Script::default(),
             witness: TxOutWitness::default(),
@@ -354,7 +361,6 @@ mod tests {
             &Message::from_slice(&digest.into_inner()).unwrap(),
             &fund_sk,
         );
-        let sig: bitcoin::secp256k1::Signature = sig.into();
 
         let mut serialized_signature = sig.serialize_der().to_vec();
         serialized_signature.push(SigHashType::All as u8);
