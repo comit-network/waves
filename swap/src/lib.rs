@@ -1,7 +1,9 @@
 #[cfg(test)]
 mod tests {
-    use ecdsa_fun::{nonce::Deterministic, ECDSA};
+    use elements::bitcoin::secp256k1::Message;
     use elements::bitcoin::secp256k1::SecretKey;
+    use elements::bitcoin::Network::Regtest;
+    use elements::bitcoin::PrivateKey;
     use elements::{
         bitcoin::{
             blockdata::{opcodes, script::Builder},
@@ -14,8 +16,7 @@ mod tests {
         TxOutWitness,
     };
     use elements_harness::{elementd_rpc::Client, elementd_rpc::ElementsRpc, Elementsd};
-    use rand::rngs::OsRng;
-    use sha2::Sha256;
+    use rand::thread_rng;
     use testcontainers::clients::Cli;
     use wally::{
         asset_generator_from_bytes, asset_rangeproof, asset_surjectionproof, asset_unblind,
@@ -24,6 +25,8 @@ mod tests {
 
     #[tokio::test]
     async fn sign_transaction_from_local_address_non_confidential() {
+        let secp = elements::bitcoin::secp256k1::Secp256k1::new();
+
         let tc_client = Cli::default();
         let (client, _container) = {
             let blockchain = Elementsd::new(&tc_client, "0.18.1.9").unwrap();
@@ -37,11 +40,15 @@ mod tests {
         let labels = client.dumpassetlabels().await.unwrap();
         let bitcoin_asset_id = labels.get("bitcoin").unwrap();
 
-        let sk = ecdsa_fun::fun::Scalar::random(&mut OsRng);
-
-        let ecdsa = ECDSA::<Deterministic<Sha256>>::default();
-        let pk = ecdsa.verification_key_for(&sk);
-        let pk = PublicKey::from_slice(&pk.to_bytes()).unwrap();
+        let sk = SecretKey::new(&mut thread_rng());
+        let pk = PublicKey::from_private_key(
+            &secp,
+            &PrivateKey {
+                compressed: true,
+                network: Regtest,
+                key: sk,
+            },
+        );
 
         let address = Address::p2wpkh(&pk, None, &AddressParams::ELEMENTS);
         let amount = bitcoin::Amount::ONE_BTC;
@@ -99,8 +106,6 @@ mod tests {
             output: vec![output, fee],
         };
 
-        let script = address.script_pubkey();
-
         let hash = hash160::Hash::hash(&pk.to_bytes());
         let script = Builder::new()
             .push_opcode(opcodes::all::OP_DUP)
@@ -119,8 +124,7 @@ mod tests {
             true,
         );
 
-        let sig = ecdsa.sign(&sk, &digest.into_inner());
-        let sig: bitcoin::secp256k1::Signature = sig.into();
+        let sig = secp.sign(&Message::from_slice(&digest.into_inner()).unwrap(), &sk);
 
         let mut serialized_signature = sig.serialize_der().to_vec();
         serialized_signature.push(SigHashType::All as u8);
@@ -132,6 +136,8 @@ mod tests {
 
     #[tokio::test]
     async fn sign_transaction_from_local_address_confidential() {
+        let secp = elements::bitcoin::secp256k1::Secp256k1::new();
+
         let tc_client = Cli::default();
         let (client, _container) = {
             let blockchain = Elementsd::new(&tc_client, "0.18.1.9").unwrap();
@@ -143,40 +149,56 @@ mod tests {
         };
 
         let labels = client.dumpassetlabels().await.unwrap();
-        let bitcoin_asset_id = labels.get("bitcoin").unwrap();
+        let bitcoin_asset_tag = "bitcoin";
+        let bitcoin_asset_id = labels.get(bitcoin_asset_tag).unwrap();
 
-        let sk = ecdsa_fun::fun::Scalar::random(&mut OsRng);
+        let fund_sk = SecretKey::new(&mut thread_rng());
+        let fund_pk = PublicKey::from_private_key(
+            &secp,
+            &PrivateKey {
+                compressed: true,
+                network: Regtest,
+                key: fund_sk,
+            },
+        );
 
-        let ecdsa = ECDSA::<Deterministic<Sha256>>::default();
-        let pk = ecdsa.verification_key_for(&sk);
-        let pk = PublicKey::from_slice(&pk.to_bytes()).unwrap();
+        let fund_blinding_sk = SecretKey::new(&mut thread_rng());
+        let fund_blinding_pk = PublicKey::from_private_key(
+            &secp,
+            &PrivateKey {
+                compressed: true,
+                network: Regtest,
+                key: fund_blinding_sk,
+            },
+        );
 
-        let blinding_sk = ecdsa_fun::fun::Scalar::random(&mut OsRng);
-        let blinding_pk = ecdsa.verification_key_for(&blinding_sk);
-        let blinding_pk = PublicKey::from_slice(&blinding_pk.to_bytes()).unwrap();
+        let fund_address = Address::p2wpkh(
+            &fund_pk,
+            Some(fund_blinding_pk.key),
+            &AddressParams::ELEMENTS,
+        );
+        let fund_amount = bitcoin::Amount::ONE_BTC;
 
-        let address = Address::p2wpkh(&pk, Some(blinding_pk.key), &AddressParams::ELEMENTS);
-        let amount = bitcoin::Amount::ONE_BTC;
-
-        let txid = client
-            .sendtoaddress(address.clone(), amount.as_btc())
+        let fund_txid = client
+            .sendtoaddress(fund_address.clone(), fund_amount.as_btc())
             .await
             .unwrap();
-        let tx_hex = client.getrawtransaction(txid).await.unwrap();
 
-        let tx: Transaction =
-            elements::encode::deserialize(&Vec::<u8>::from_hex(&tx_hex).unwrap()).unwrap();
-        let vout = tx
+        let fund_tx: Transaction = {
+            let tx_hex = client.getrawtransaction(fund_txid).await.unwrap();
+            elements::encode::deserialize(&Vec::<u8>::from_hex(&tx_hex).unwrap()).unwrap()
+        };
+        let fund_vout = fund_tx
             .output
             .iter()
-            .position(|output| output.script_pubkey == address.script_pubkey())
+            .position(|output| output.script_pubkey == fund_address.script_pubkey())
             .unwrap();
 
         #[allow(clippy::cast_possible_truncation)]
         let input = TxIn {
             previous_output: OutPoint {
-                txid,
-                vout: vout as u32,
+                txid: fund_txid,
+                vout: fund_vout as u32,
             },
             is_pegin: false,
             has_issuance: false,
@@ -188,33 +210,50 @@ mod tests {
 
         let fee = 900_000u64;
 
-        let new_address = client.getnewaddress().await.unwrap();
-
         let abf = [0x17u8; 32];
         let asset_id = bitcoin_asset_id.into_inner().0;
         let confidential_asset = asset_generator_from_bytes(&asset_id, &abf);
 
         let vbf = [0x17u8; 32];
-        let value = amount.as_sat() - fee;
+        let value = fund_amount.as_sat() - fee;
         let value_commitment = asset_value_commitment(value, vbf, confidential_asset);
 
-        let blinding_sk = ecdsa_fun::fun::Scalar::random(&mut OsRng);
-        let blinding_pk = ecdsa.verification_key_for(&blinding_sk);
-        let blinding_pk = PublicKey::from_slice(&blinding_pk.to_bytes()).unwrap();
+        let redeem_sk = SecretKey::new(&mut thread_rng());
+        let redeem_pk = PublicKey::from_private_key(
+            &secp,
+            &PrivateKey {
+                compressed: true,
+                network: Regtest,
+                key: redeem_sk,
+            },
+        );
 
-        let address = Address::p2wpkh(&pk, Some(blinding_pk.key), &AddressParams::ELEMENTS);
+        let redeem_blinding_sk = SecretKey::new(&mut thread_rng());
+        let redeem_blinding_pk = PublicKey::from_private_key(
+            &secp,
+            &PrivateKey {
+                compressed: true,
+                network: Regtest,
+                key: redeem_blinding_sk,
+            },
+        );
 
-        let random_private_key = ecdsa_fun::fun::Scalar::random(&mut OsRng);
+        let redeem_address = Address::p2wpkh(
+            &redeem_pk,
+            Some(redeem_blinding_pk.key),
+            &AddressParams::ELEMENTS,
+        );
 
+        let random_sk = SecretKey::new(&mut thread_rng());
         let range_proof = asset_rangeproof(
             value,
-            blinding_pk.key,
-            SecretKey::from_slice(&random_private_key.to_bytes()).unwrap(),
+            redeem_blinding_pk.key,
+            random_sk,
             asset_id,
             abf,
             vbf,
             value_commitment,
-            &address.script_pubkey(),
+            &redeem_address.script_pubkey(),
             confidential_asset,
             1,
             0,
@@ -223,20 +262,21 @@ mod tests {
 
         let bytes = [1u8; 32];
 
-        let (assets, abfs, vbfs) = {
-            tx.output
+        let (assets, abfs, _vbfs) = {
+            fund_tx
+                .output
                 .iter()
                 .cloned()
-                .filter(|output| output.asset.is_explicit())
-                .filter(|output| output.script_pubkey == address.script_pubkey())
+                .filter(|output| output.asset.is_confidential())
+                .filter(|output| output.script_pubkey == fund_address.script_pubkey())
                 .map(|out| {
                     let range_proof = out.witness.rangeproof;
                     let value_commitment = out.value.commitment().unwrap();
                     let script = out.script_pubkey;
                     let asset_generator = out.asset.commitment().unwrap();
                     asset_unblind(
-                        pk.key,
-                        SecretKey::from_slice(&blinding_sk.to_bytes()).unwrap(),
+                        fund_pk.key,
+                        fund_blinding_sk,
                         range_proof,
                         value_commitment.into(),
                         script,
@@ -270,7 +310,7 @@ mod tests {
             asset: confidential_asset,
             value: value_commitment,
             nonce: Nonce::Null,
-            script_pubkey: address.script_pubkey(),
+            script_pubkey: redeem_address.script_pubkey(),
             witness: TxOutWitness {
                 surjection_proof,
                 rangeproof: range_proof,
@@ -292,9 +332,7 @@ mod tests {
             output: vec![output, fee],
         };
 
-        let script = address.script_pubkey();
-
-        let hash = hash160::Hash::hash(&pk.to_bytes());
+        let hash = hash160::Hash::hash(&fund_pk.to_bytes());
         let script = Builder::new()
             .push_opcode(opcodes::all::OP_DUP)
             .push_opcode(opcodes::all::OP_HASH160)
@@ -307,17 +345,20 @@ mod tests {
             &tx,
             0,
             &script,
-            &Value::Explicit(amount.as_sat()),
+            &Value::Explicit(fund_amount.as_sat()),
             1,
             true,
         );
 
-        let sig = ecdsa.sign(&sk, &digest.into_inner());
+        let sig = secp.sign(
+            &Message::from_slice(&digest.into_inner()).unwrap(),
+            &fund_sk,
+        );
         let sig: bitcoin::secp256k1::Signature = sig.into();
 
         let mut serialized_signature = sig.serialize_der().to_vec();
         serialized_signature.push(SigHashType::All as u8);
-        tx.input[0].witness.script_witness = vec![serialized_signature, pk.to_bytes()];
+        tx.input[0].witness.script_witness = vec![serialized_signature, fund_pk.to_bytes()];
 
         let tx_hex = serialize_hex(&tx);
         let _tx = client.sendrawtransaction(tx_hex).await.unwrap();
