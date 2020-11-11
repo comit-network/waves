@@ -1,6 +1,7 @@
 #[cfg(test)]
 mod tests {
     use elements::bitcoin::secp256k1::Message;
+    use elements::bitcoin::secp256k1::PublicKey as SecpPublicKey;
     use elements::bitcoin::secp256k1::SecretKey;
     use elements::bitcoin::Network::Regtest;
     use elements::bitcoin::PrivateKey;
@@ -264,38 +265,27 @@ mod tests {
             52,
         );
 
-        let (assets, abfs, _vbfs) = {
-            fund_tx
-                .output
-                .iter()
-                .cloned()
-                .filter(|output| output.asset.is_confidential()) // filter includes
-                .filter(|output| output.script_pubkey == fund_address.script_pubkey())
-                .map(|out| {
-                    let range_proof = out.witness.rangeproof;
-                    let value_commitment = out.value.commitment().unwrap();
-                    let script = out.script_pubkey;
-                    let asset_generator = out.asset.commitment().unwrap();
-                    asset_unblind(
-                        fund_pk.key,
-                        redeem_blinding_sk,
-                        range_proof,
-                        value_commitment.into(),
-                        script,
-                        asset_generator.into(),
-                    )
-                    .unwrap()
-                })
-                .fold(
-                    (vec![], vec![], vec![]),
-                    |(mut assets, mut abfs, mut vbfs), (asset, abf, vbf, _)| {
-                        assets.extend_from_slice(&asset);
-                        abfs.extend_from_slice(&abf);
-                        vbfs.extend_from_slice(&vbf);
-                        (assets, abfs, vbfs)
-                    },
-                )
+        let (assets, abfs, vbfs, value_out) = {
+            let out = fund_tx.output[fund_vout].clone();
+            let range_proof = out.witness.rangeproof;
+            let value_commitment = out.value.commitment().unwrap();
+            let asset_generator = out.asset.commitment().unwrap();
+            let script = out.script_pubkey;
+            let sender_nonce = out.nonce.commitment().unwrap();
+            let sender_pk = SecpPublicKey::from_slice(&sender_nonce).unwrap();
+            asset_unblind(
+                sender_pk,
+                fund_blinding_sk,
+                range_proof,
+                value_commitment.into(),
+                script,
+                asset_generator.into(),
+            )
+            .unwrap()
         };
+
+        let abfs = abfs.to_vec();
+        let assets = assets.to_vec();
 
         // NOTE: This is probably wrong
         let bytes = SecretKey::new(&mut thread_rng());
