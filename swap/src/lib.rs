@@ -19,10 +19,7 @@ mod tests {
     use elements_harness::{elementd_rpc::Client, elementd_rpc::ElementsRpc, Elementsd};
     use rand::thread_rng;
     use testcontainers::clients::Cli;
-    use wally::{
-        asset_generator_from_bytes, asset_rangeproof, asset_surjectionproof, asset_unblind,
-        asset_value_commitment, tx_get_elements_signature_hash,
-    };
+    use wally::{asset_generator_from_bytes, asset_rangeproof, asset_surjectionproof, asset_unblind, asset_value_commitment, tx_get_elements_signature_hash, asset_final_vbf};
 
     #[tokio::test]
     async fn sign_transaction_from_local_address_non_confidential() {
@@ -248,24 +245,6 @@ mod tests {
             &AddressParams::ELEMENTS,
         );
 
-        // NOTE: This could be wrong
-        let ephemeral_sk = SecretKey::new(&mut thread_rng());
-
-        let range_proof = asset_rangeproof(
-            redeem_amount,
-            redeem_blinding_pk.key,
-            ephemeral_sk,
-            bitcoin_asset_id_bytes,
-            *redeem_abf.as_ref(),
-            *redeem_vbf.as_ref(),
-            redeem_value_commitment,
-            &redeem_address.script_pubkey(),
-            redeem_asset,
-            1,
-            0,
-            52,
-        );
-
         let (unblinded_asset_in, blinded_asset_in, abf_in, vbf_in, value_out) = {
             let out = fund_tx.output[fund_vout].clone();
             let range_proof = out.witness.rangeproof;
@@ -287,6 +266,30 @@ mod tests {
 
             (unblinded_asset, out.asset.commitment(), abf, vbf, value_out)
         };
+
+        let mut abfs = abf_in.to_vec();
+        abfs.extend(redeem_abf.as_ref());
+
+        let asset_final_vbf = asset_final_vbf(vec![fund_amount.as_sat(), redeem_amount], 1, abfs, vbf_in.to_vec());
+
+        // NOTE: This could be wrong
+        let ephemeral_sk = SecretKey::new(&mut thread_rng());
+
+        let range_proof = asset_rangeproof(
+            redeem_amount,
+            redeem_blinding_pk.key,
+            ephemeral_sk,
+            bitcoin_asset_id_bytes,
+            *redeem_abf.as_ref(),
+            asset_final_vbf,
+            redeem_value_commitment,
+            &redeem_address.script_pubkey(),
+            redeem_asset,
+            1,
+            0,
+            52,
+        );
+
 
         // NOTE: This is probably wrong
         let nonce_sk = SecretKey::new(&mut thread_rng());
