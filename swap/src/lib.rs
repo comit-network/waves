@@ -211,7 +211,8 @@ mod tests {
         let redeem_fee = 900_000u64;
         let redeem_amount = fund_amount.as_sat() - redeem_fee;
 
-        let redeem_vbf = SecretKey::new(&mut thread_rng());
+        // unused because we only have a single output
+        let _redeem_vbf = SecretKey::new(&mut thread_rng());
 
         let redeem_abf = SecretKey::new(&mut thread_rng());
         let redeem_asset = asset_generator_from_bytes(&bitcoin_asset_id_bytes, redeem_abf.as_ref());
@@ -242,7 +243,7 @@ mod tests {
             &AddressParams::ELEMENTS,
         );
 
-        let (unblinded_asset_in, blinded_asset_in, abf_in, vbf_in, value_out) = {
+        let (_unblinded_asset_in, blinded_asset_in, abf_in, vbf_in, _value_out) = {
             let out = fund_tx.output[fund_vout].clone();
             let range_proof = out.witness.rangeproof;
             let value_commitment = out.value.commitment().unwrap();
@@ -292,11 +293,12 @@ mod tests {
 
 
         // NOTE: This is probably wrong
+        // NOTE: I think it isn't.
         let nonce_sk = SecretKey::new(&mut thread_rng());
         let nonce = Nonce::Confidential(02, *nonce_sk.as_ref());
 
         let surjection_proof = asset_surjectionproof(
-            dbg!(bitcoin_asset_id_bytes),
+            bitcoin_asset_id_bytes,
             *redeem_abf.as_ref(),
             redeem_asset,
             *nonce_sk.as_ref(),
