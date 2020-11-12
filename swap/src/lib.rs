@@ -216,9 +216,6 @@ mod tests {
         let redeem_abf = SecretKey::new(&mut thread_rng());
         let redeem_asset = asset_generator_from_bytes(&bitcoin_asset_id_bytes, redeem_abf.as_ref());
 
-        let redeem_value_commitment =
-            asset_value_commitment(redeem_amount, *redeem_vbf.as_ref(), redeem_asset);
-
         let redeem_sk = SecretKey::new(&mut thread_rng());
         let redeem_pk = PublicKey::from_private_key(
             &secp,
@@ -271,6 +268,9 @@ mod tests {
         abfs.extend(redeem_abf.as_ref());
 
         let asset_final_vbf = asset_final_vbf(vec![fund_amount.as_sat(), redeem_amount], 1, abfs, vbf_in.to_vec());
+
+        let redeem_value_commitment =
+            asset_value_commitment(redeem_amount, asset_final_vbf, redeem_asset);
 
         // NOTE: This could be wrong
         let ephemeral_sk = SecretKey::new(&mut thread_rng());
