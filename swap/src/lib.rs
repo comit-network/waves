@@ -62,6 +62,7 @@ mod tests {
 
         let tx: Transaction =
             elements::encode::deserialize(&Vec::<u8>::from_hex(&tx_hex).unwrap()).unwrap();
+
         let vout = tx
             .output
             .iter()
@@ -265,7 +266,7 @@ mod tests {
             52,
         );
 
-        let (assets, abfs, vbfs, value_out) = {
+        let (unblinded_asset_in, blinded_asset_in, abf_in, vbf_in, value_out) = {
             let out = fund_tx.output[fund_vout].clone();
             let range_proof = out.witness.rangeproof;
             let value_commitment = out.value.commitment().unwrap();
@@ -273,7 +274,8 @@ mod tests {
             let script = out.script_pubkey;
             let sender_nonce = out.nonce.commitment().unwrap();
             let sender_pk = SecpPublicKey::from_slice(&sender_nonce).unwrap();
-            asset_unblind(
+
+            let (unblinded_asset, abf, vbf, value_out) = asset_unblind(
                 sender_pk,
                 fund_blinding_sk,
                 range_proof,
@@ -281,11 +283,10 @@ mod tests {
                 script,
                 asset_generator.into(),
             )
-            .unwrap()
-        };
+                .unwrap();
 
-        let abfs_in = abfs.to_vec();
-        let assets_in = dbg!(assets.to_vec());
+            (unblinded_asset, out.asset.commitment(), abf, vbf, value_out)
+        };
 
         // NOTE: This is probably wrong
         let nonce_sk = SecretKey::new(&mut thread_rng());
@@ -297,12 +298,8 @@ mod tests {
             redeem_asset,
             *nonce_sk.as_ref(),
             &bitcoin_asset_id_bytes.to_vec(),
-            &abfs_in,
-            &fund_tx.output[fund_vout]
-                .asset
-                .commitment()
-                .unwrap()
-                .to_vec(),
+            &abf_in.to_vec(),
+            &blinded_asset_in.unwrap().to_vec(),
             1,
         );
 

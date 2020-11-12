@@ -40,7 +40,6 @@ mod test {
     use super::*;
     use crate::Elementsd;
     use testcontainers::clients::Cli;
-    use wally::tx_get_elements_signature_hash;
 
     #[tokio::test]
     async fn get_network_info() {
