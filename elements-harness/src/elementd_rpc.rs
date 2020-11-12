@@ -1,4 +1,5 @@
 use anyhow::Result;
+use anyhow::Context;
 use elements::{bitcoin::Txid, Address, AssetId};
 use serde::Deserialize;
 use std::collections::HashMap;
@@ -26,6 +27,14 @@ impl Client {
             inner: reqwest::Client::new(),
             base_url: base_url.parse()?,
         })
+    }
+
+    pub async fn get_bitcoin_asset_id(&self) -> Result<AssetId> {
+        let labels = self.dumpassetlabels().await?;
+        let bitcoin_asset_tag = "bitcoin";
+        let bitcoin_asset_id = labels.get(bitcoin_asset_tag).context("failed to get asset id for bitcoin")?;
+
+        Ok(bitcoin_asset_id.clone())
     }
 }
 
