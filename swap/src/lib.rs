@@ -342,7 +342,7 @@ mod tests {
             &tx,
             0,
             &script,
-            &Value::Explicit(fund_amount.as_sat()),
+            &fund_tx.output[fund_vout].value,
             1,
             true,
         );
