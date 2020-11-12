@@ -284,29 +284,32 @@ mod tests {
             .unwrap()
         };
 
-        let abfs = abfs.to_vec();
-        let assets = assets.to_vec();
+        let abfs_in = abfs.to_vec();
+        let assets_in = dbg!(assets.to_vec());
 
         // NOTE: This is probably wrong
-        let bytes = SecretKey::new(&mut thread_rng());
+        let nonce_sk = SecretKey::new(&mut thread_rng());
+        let nonce = Nonce::Confidential(02, *nonce_sk.as_ref());
 
         let surjection_proof = asset_surjectionproof(
-            bitcoin_asset_id_bytes,
+            dbg!(bitcoin_asset_id_bytes),
             *redeem_abf.as_ref(),
             redeem_asset,
-            *bytes.as_ref(),
-            // What if it's asset IDs and not tags?
-            // &b"bitcoin".to_vec(),
-            &elements::encode::serialize(&redeem_asset),
-            &abfs,
-            &assets,
+            *nonce_sk.as_ref(),
+            &bitcoin_asset_id_bytes.to_vec(),
+            &abfs_in,
+            &fund_tx.output[fund_vout]
+                .asset
+                .commitment()
+                .unwrap()
+                .to_vec(),
             1,
         );
 
         let output = TxOut {
             asset: redeem_asset,
             value: redeem_value_commitment,
-            nonce: Nonce::Null,
+            nonce,
             script_pubkey: redeem_address.script_pubkey(),
             witness: TxOutWitness {
                 surjection_proof,
