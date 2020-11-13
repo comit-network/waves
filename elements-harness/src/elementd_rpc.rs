@@ -1,5 +1,6 @@
-use anyhow::Result;
 use anyhow::Context;
+use anyhow::Result;
+use elements::bitcoin::Amount;
 use elements::{bitcoin::Txid, Address, AssetId};
 use serde::Deserialize;
 use std::collections::HashMap;
@@ -8,10 +9,35 @@ use std::collections::HashMap;
 pub trait ElementsRpc {
     async fn getblockchaininfo(&self) -> BlockchainInfo;
     async fn getnewaddress(&self) -> Address;
-    async fn sendtoaddress(&self, address: Address, amount: f64) -> Txid;
+    async fn sendtoaddress(
+        &self,
+        address: Address,
+        amount: f64,
+        comment: Option<String>,
+        comment_to: Option<String>,
+        subtract_fee_from_amount: Option<bool>,
+        replaceable: Option<bool>,
+        conf_target: Option<u64>,
+        estimate_mode: Option<String>,
+        asset_id: Option<AssetId>,
+        ignore_blind_fail: bool,
+    ) -> Txid;
     async fn dumpassetlabels(&self) -> HashMap<String, AssetId>;
     async fn getrawtransaction(&self, txid: Txid) -> String;
     async fn sendrawtransaction(&self, tx_hex: String) -> Txid;
+    async fn issueasset(
+        &self,
+        asset_amount: f64,
+        token_amount: f64,
+        blind: bool,
+    ) -> IssueAssetResponse;
+    async fn getbalance(
+        &self,
+        dummy: Option<String>,
+        minconf: Option<u64>,
+        include_watchonly: Option<bool>,
+        asset_id: Option<AssetId>,
+    ) -> f64;
 }
 
 #[jsonrpc_client::implement(ElementsRpc)]
@@ -32,9 +58,35 @@ impl Client {
     pub async fn get_bitcoin_asset_id(&self) -> Result<AssetId> {
         let labels = self.dumpassetlabels().await?;
         let bitcoin_asset_tag = "bitcoin";
-        let bitcoin_asset_id = labels.get(bitcoin_asset_tag).context("failed to get asset id for bitcoin")?;
+        let bitcoin_asset_id = labels
+            .get(bitcoin_asset_tag)
+            .context("failed to get asset id for bitcoin")?;
 
         Ok(bitcoin_asset_id.clone())
+    }
+
+    pub async fn send_asset_to_address(
+        &self,
+        address: Address,
+        amount: Amount,
+        asset_id: Option<AssetId>,
+    ) -> Result<Txid> {
+        let txid = self
+            .sendtoaddress(
+                address,
+                amount.as_btc(),
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                asset_id,
+                true,
+            )
+            .await?;
+
+        Ok(txid)
     }
 }
 
@@ -42,6 +94,15 @@ impl Client {
 pub struct BlockchainInfo {
     pub chain: String,
     mediantime: u32,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct IssueAssetResponse {
+    pub txid: Txid,
+    pub vin: u8,
+    pub entropy: String,
+    pub asset: AssetId,
+    pub token: String,
 }
 
 #[cfg(all(test))]
@@ -80,7 +141,10 @@ mod test {
         };
 
         let address = client.getnewaddress().await.unwrap();
-        let txid = client.sendtoaddress(address, 1.0).await.unwrap();
+        let txid = client
+            .sendtoaddress(address, 1.0, None, None, None, None, None, None, None, true)
+            .await
+            .unwrap();
         let _tx_hex = client.getrawtransaction(txid).await.unwrap();
     }
 
@@ -97,5 +161,32 @@ mod test {
         };
 
         let _labels = client.dumpassetlabels().await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn issue_asset() {
+        let tc_client = Cli::default();
+        let (client, _container) = {
+            let blockchain = Elementsd::new(&tc_client, "0.18.1.9").unwrap();
+
+            (
+                Client::new(blockchain.node_url.clone().into_string()).unwrap(),
+                blockchain,
+            )
+        };
+
+        let expected_balance = 0.1;
+
+        let asset_id = client
+            .issueasset(expected_balance, 0.0, true)
+            .await
+            .unwrap()
+            .asset;
+        let balance = client
+            .getbalance(None, None, None, Some(asset_id))
+            .await
+            .unwrap();
+
+        assert_eq!(balance, expected_balance);
     }
 }

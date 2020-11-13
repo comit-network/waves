@@ -1,5 +1,6 @@
 #[cfg(test)]
 mod tests {
+    use bitcoin::Amount;
     use elements::bitcoin::secp256k1::Message;
     use elements::bitcoin::secp256k1::PublicKey as SecpPublicKey;
     use elements::bitcoin::secp256k1::SecretKey;
@@ -20,7 +21,6 @@ mod tests {
     use rand::thread_rng;
     use secp256k1::SECP256K1;
     use testcontainers::clients::Cli;
-    use wally::asset_unblind_with_nonce;
     use wally::{
         asset_final_vbf, asset_generator_from_bytes, asset_rangeproof, asset_surjectionproof,
         asset_unblind, asset_value_commitment, tx_get_elements_signature_hash,
@@ -57,7 +57,7 @@ mod tests {
         let amount = bitcoin::Amount::ONE_BTC;
 
         let txid = client
-            .sendtoaddress(address.clone(), amount.as_btc())
+            .send_asset_to_address(address.clone(), amount, None)
             .await
             .unwrap();
         let tx_hex = client.getrawtransaction(txid).await.unwrap();
@@ -183,7 +183,7 @@ mod tests {
         let fund_amount = bitcoin::Amount::ONE_BTC;
 
         let fund_txid = client
-            .sendtoaddress(fund_address.clone(), fund_amount.as_btc())
+            .send_asset_to_address(fund_address.clone(), fund_amount, None)
             .await
             .unwrap();
 
@@ -393,7 +393,7 @@ mod tests {
     fn unblind_asset_from_txout(
         out: TxOut,
         receiver_blinding_sk: SecretKey,
-    ) -> (AssetId, [u8; 33], [u8; 32], [u8; 32], u64) {
+    ) -> (AssetId, Asset, [u8; 32], [u8; 32], u64) {
         let range_proof = out.witness.rangeproof;
         let value_commitment = out.value.commitment().unwrap();
         let asset_generator = out.asset.commitment().unwrap();
@@ -413,33 +413,7 @@ mod tests {
 
         (
             AssetId::from_slice(&unblinded_asset).unwrap(),
-            out.asset.commitment().unwrap(),
-            abf,
-            vbf,
-            value_out,
-        )
-    }
-
-    fn unblind_asset_from_txout_with_nonce(
-        out: TxOut,
-        nonce: Nonce,
-    ) -> (AssetId, [u8; 33], [u8; 32], [u8; 32], u64) {
-        let range_proof = out.witness.rangeproof;
-        let value_commitment = out.value.commitment().unwrap();
-        let asset_generator = out.asset.commitment().unwrap();
-        let script = out.script_pubkey;
-
-        let (unblinded_asset, abf, vbf, value_out) = asset_unblind_with_nonce(
-            nonce.commitment().unwrap().into(),
-            range_proof,
-            value_commitment.into(),
-            script,
-            asset_generator.into(),
-        );
-
-        (
-            AssetId::from_slice(&unblinded_asset).unwrap(),
-            out.asset.commitment().unwrap(),
+            out.asset,
             abf,
             vbf,
             value_out,
@@ -475,11 +449,11 @@ mod tests {
         let fund_amount = bitcoin::Amount::ONE_BTC;
 
         let fund_0_txid = client
-            .sendtoaddress(fund_address_0.clone(), fund_amount.as_btc())
+            .send_asset_to_address(fund_address_0.clone(), fund_amount, None)
             .await
             .unwrap();
         let fund_1_txid = client
-            .sendtoaddress(fund_address_1.clone(), fund_amount.as_btc())
+            .send_asset_to_address(fund_address_1.clone(), fund_amount, None)
             .await
             .unwrap();
 
@@ -563,10 +537,13 @@ mod tests {
             .into_iter()
             .flatten()
             .collect::<Vec<_>>();
-        let blinded_assets_in = vec![asset_commitment_0.to_vec(), asset_commitment_1.to_vec()]
-            .into_iter()
-            .flatten()
-            .collect::<Vec<_>>();
+        let blinded_assets_in = vec![
+            asset_commitment_0.commitment().unwrap().to_vec(),
+            asset_commitment_1.commitment().unwrap().to_vec(),
+        ]
+        .into_iter()
+        .flatten()
+        .collect::<Vec<_>>();
 
         let surjection_proof = asset_surjectionproof(
             bitcoin_asset_id_bytes,
@@ -750,7 +727,7 @@ mod tests {
             *SecretKey::new(&mut thread_rng()).as_ref(),
             &unblinded_asset_id.into_inner().to_vec(),
             &abf.to_vec(),
-            &asset_commitment.to_vec(),
+            &asset_commitment.commitment().unwrap().to_vec(),
             1,
         );
 
@@ -826,5 +803,344 @@ mod tests {
 
         let tx_hex = serialize_hex(&spend_tx);
         let _txid = client.sendrawtransaction(tx_hex).await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn sign_transaction_with_two_asset_types() {
+        let secp = elements::bitcoin::secp256k1::Secp256k1::new();
+
+        let tc_client = Cli::default();
+        let (client, _container) = {
+            let blockchain = Elementsd::new(&tc_client, "0.18.1.9").unwrap();
+
+            (
+                Client::new(blockchain.node_url.clone().into_string()).unwrap(),
+                blockchain,
+            )
+        };
+
+        let litecoin_asset_id = client.issueasset(10.0, 0.0, true).await.unwrap().asset;
+        let bitcoin_asset_id = client.get_bitcoin_asset_id().await.unwrap();
+
+        let (fund_sk_bitcoin, fund_pk_bitcoin) = make_keypair();
+        let (fund_blinding_sk_bitcoin, fund_blinding_pk_bitcoin) = make_keypair();
+
+        let (fund_sk_litecoin, fund_pk_litecoin) = make_keypair();
+        let (fund_blinding_sk_litecoin, fund_blinding_pk_litecoin) = make_keypair();
+
+        let fund_address_bitcoin =
+            make_confidential_address(fund_pk_bitcoin, fund_blinding_pk_bitcoin);
+        let fund_address_litecoin =
+            make_confidential_address(fund_pk_litecoin, fund_blinding_pk_litecoin);
+
+        let fund_bitcoin_amount = bitcoin::Amount::ONE_BTC;
+        let fund_litecoin_amount = bitcoin::Amount::ONE_BTC;
+
+        let fund_bitcoin_txid = client
+            .send_asset_to_address(fund_address_bitcoin.clone(), fund_bitcoin_amount, None)
+            .await
+            .unwrap();
+        let fund_litecoin_txid = client
+            .send_asset_to_address(
+                fund_address_litecoin.clone(),
+                fund_litecoin_amount,
+                Some(litecoin_asset_id),
+            )
+            .await
+            .unwrap();
+
+        let fund_bitcoin_tx: Transaction = {
+            let tx_hex = client.getrawtransaction(fund_bitcoin_txid).await.unwrap();
+            elements::encode::deserialize(&Vec::<u8>::from_hex(&tx_hex).unwrap()).unwrap()
+        };
+        let fund_litecoin_tx: Transaction = {
+            let tx_hex = client.getrawtransaction(fund_litecoin_txid).await.unwrap();
+            elements::encode::deserialize(&Vec::<u8>::from_hex(&tx_hex).unwrap()).unwrap()
+        };
+        let fund_bitcoin_vout = fund_bitcoin_tx
+            .output
+            .iter()
+            .position(|output| output.script_pubkey == fund_address_bitcoin.script_pubkey())
+            .unwrap();
+        let fund_litecoin_vout = fund_litecoin_tx
+            .output
+            .iter()
+            .position(|output| output.script_pubkey == fund_address_litecoin.script_pubkey())
+            .unwrap();
+
+        let redeem_fee = Amount::from_sat(900_000);
+        let redeem_amount_bitcoin = fund_bitcoin_amount - redeem_fee;
+
+        let redeem_amount_litecoin = fund_litecoin_amount;
+
+        let redeem_abf_bitcoin = SecretKey::new(&mut thread_rng());
+        let redeem_abf_litecoin = SecretKey::new(&mut thread_rng());
+
+        let (_redeem_sk_bitcoin, redeem_pk_bitcoin) = make_keypair();
+        let (_redeem_blinding_sk_bitcoin, redeem_blinding_pk_bitcoin) = make_keypair();
+
+        let redeem_address_bitcoin =
+            make_confidential_address(redeem_pk_bitcoin, redeem_blinding_pk_bitcoin);
+
+        let (_redeem_sk_litecoin, redeem_pk_litecoin) = make_keypair();
+        let (_redeem_blinding_sk_litecoin, redeem_blinding_pk_litecoin) = make_keypair();
+
+        let redeem_address_litecoin =
+            make_confidential_address(redeem_pk_litecoin, redeem_blinding_pk_litecoin);
+
+        let tx_out_bitcoin = fund_bitcoin_tx.output[fund_bitcoin_vout].clone();
+        let tx_out_litecoin = fund_litecoin_tx.output[fund_litecoin_vout].clone();
+
+        let (
+            unblinded_asset_id_bitcoin,
+            asset_commitment_bitcoin,
+            abf_bitcoin,
+            vbf_bitcoin,
+            amount_in_bitcoin,
+        ) = unblind_asset_from_txout(tx_out_bitcoin, fund_blinding_sk_bitcoin);
+        let (
+            unblinded_asset_id_litecoin,
+            asset_commitment_litecoin,
+            abf_litecoin,
+            vbf_litecoin,
+            amount_in_litecoin,
+        ) = unblind_asset_from_txout(tx_out_litecoin, fund_blinding_sk_litecoin);
+
+        // TODO: Sort them
+        let abfs = vec![
+            abf_bitcoin.to_vec(),
+            abf_litecoin.to_vec(),
+            redeem_abf_bitcoin.as_ref().to_vec(),
+            redeem_abf_litecoin.as_ref().to_vec(),
+        ]
+        .into_iter()
+        .flatten()
+        .collect::<Vec<_>>();
+
+        let vbf_redeem_bitcoin = SecretKey::new(&mut thread_rng());
+        let vbfs = vec![
+            vbf_bitcoin.to_vec(),
+            vbf_litecoin.to_vec(),
+            vbf_redeem_bitcoin.as_ref().to_vec(),
+        ]
+        .into_iter()
+        .flatten()
+        .collect::<Vec<_>>();
+
+        let vbf_redeem_litecoin = asset_final_vbf(
+            vec![
+                amount_in_bitcoin,
+                amount_in_litecoin,
+                redeem_amount_bitcoin.as_sat(),
+                redeem_amount_litecoin.as_sat(),
+            ],
+            2,
+            abfs,
+            vbfs,
+        );
+
+        #[allow(clippy::cast_possible_truncation)]
+        let input_bitcoin = TxIn {
+            previous_output: OutPoint {
+                txid: fund_bitcoin_txid,
+                vout: fund_bitcoin_vout as u32,
+            },
+            is_pegin: false,
+            has_issuance: false,
+            script_sig: Default::default(),
+            sequence: 0xFFFF_FFFF,
+            asset_issuance: Default::default(),
+            witness: Default::default(),
+        };
+
+        let input_litecoin = TxIn {
+            previous_output: OutPoint {
+                txid: fund_litecoin_txid,
+                vout: fund_litecoin_vout as u32,
+            },
+            is_pegin: false,
+            has_issuance: false,
+            script_sig: Default::default(),
+            sequence: 0xFFFF_FFFF,
+            asset_issuance: Default::default(),
+            witness: Default::default(),
+        };
+
+        let inputs = vec![
+            (
+                unblinded_asset_id_bitcoin,
+                asset_commitment_bitcoin,
+                abf_bitcoin,
+            ),
+            (
+                unblinded_asset_id_litecoin,
+                asset_commitment_litecoin,
+                abf_litecoin,
+            ),
+        ];
+
+        let txout_bitcoin = make_txout(
+            redeem_amount_bitcoin,
+            redeem_address_bitcoin,
+            bitcoin_asset_id,
+            *redeem_abf_bitcoin.as_ref(),
+            *vbf_redeem_bitcoin.as_ref(),
+            &inputs,
+        );
+        let txout_litecoin = make_txout(
+            redeem_amount_litecoin,
+            redeem_address_litecoin,
+            litecoin_asset_id,
+            *redeem_abf_litecoin.as_ref(),
+            vbf_redeem_litecoin,
+            &inputs,
+        );
+
+        let fee = TxOut {
+            asset: Asset::Explicit(bitcoin_asset_id),
+            value: Value::Explicit(redeem_fee.as_sat()),
+            nonce: Nonce::Null,
+            script_pubkey: Script::default(),
+            witness: TxOutWitness::default(),
+        };
+
+        let mut redeem_tx = Transaction {
+            version: 2,
+            lock_time: 0,
+            input: vec![input_bitcoin, input_litecoin],
+            output: vec![txout_bitcoin, txout_litecoin, fee],
+        };
+
+        redeem_tx.input[0].witness.script_witness = {
+            let hash = hash160::Hash::hash(&fund_pk_bitcoin.to_bytes());
+            let script = Builder::new()
+                .push_opcode(opcodes::all::OP_DUP)
+                .push_opcode(opcodes::all::OP_HASH160)
+                .push_slice(&hash.into_inner())
+                .push_opcode(opcodes::all::OP_EQUALVERIFY)
+                .push_opcode(opcodes::all::OP_CHECKSIG)
+                .into_script();
+
+            let digest = tx_get_elements_signature_hash(
+                &redeem_tx,
+                0,
+                &script,
+                &fund_bitcoin_tx.output[fund_bitcoin_vout].value,
+                1,
+                true,
+            );
+
+            let sig = secp.sign(
+                &Message::from_slice(&digest.into_inner()).unwrap(),
+                &fund_sk_bitcoin,
+            );
+
+            let mut serialized_signature = sig.serialize_der().to_vec();
+            serialized_signature.push(SigHashType::All as u8);
+
+            vec![serialized_signature, fund_pk_bitcoin.to_bytes()]
+        };
+        redeem_tx.input[1].witness.script_witness = {
+            let hash = hash160::Hash::hash(&fund_pk_litecoin.to_bytes());
+            let script = Builder::new()
+                .push_opcode(opcodes::all::OP_DUP)
+                .push_opcode(opcodes::all::OP_HASH160)
+                .push_slice(&hash.into_inner())
+                .push_opcode(opcodes::all::OP_EQUALVERIFY)
+                .push_opcode(opcodes::all::OP_CHECKSIG)
+                .into_script();
+
+            let digest = tx_get_elements_signature_hash(
+                &redeem_tx,
+                1,
+                &script,
+                &fund_litecoin_tx.output[fund_litecoin_vout].value,
+                1,
+                true,
+            );
+
+            let sig = secp.sign(
+                &Message::from_slice(&digest.into_inner()).unwrap(),
+                &fund_sk_litecoin,
+            );
+
+            let mut serialized_signature = sig.serialize_der().to_vec();
+            serialized_signature.push(SigHashType::All as u8);
+
+            vec![serialized_signature, fund_pk_litecoin.to_bytes()]
+        };
+
+        let tx_hex = serialize_hex(&redeem_tx);
+        let _redeem_txid = client.sendrawtransaction(tx_hex).await.unwrap();
+    }
+
+    fn make_txout(
+        amount: Amount,
+        address: Address,
+        out_asset_id: AssetId,
+        out_abf: [u8; 32],
+        out_vbf: [u8; 32],
+        inputs: &[(AssetId, Asset, [u8; 32])],
+    ) -> TxOut {
+        let out_asset_id_bytes = out_asset_id.into_inner().0;
+
+        let out_asset = asset_generator_from_bytes(&out_asset_id_bytes, &out_abf);
+
+        let value_commitment = asset_value_commitment(amount.as_sat(), out_vbf, out_asset);
+
+        let sender_ephemeral_sk = SecretKey::new(&mut thread_rng());
+        let range_proof = asset_rangeproof(
+            amount.as_sat(),
+            address.blinding_pubkey.unwrap(),
+            sender_ephemeral_sk,
+            out_asset_id_bytes,
+            out_abf,
+            out_vbf,
+            value_commitment,
+            &address.script_pubkey(),
+            out_asset,
+            1,
+            0,
+            52,
+        );
+
+        let unblinded_assets_in = inputs
+            .iter()
+            .map(|(id, _, _)| id.into_inner().0.to_vec())
+            .flatten()
+            .collect();
+        let assets_in = inputs
+            .iter()
+            .map(|(_, asset, _)| asset.commitment().unwrap().to_vec())
+            .flatten()
+            .collect();
+        let abfs_in = inputs
+            .iter()
+            .map(|(_, _, abf)| abf.to_vec())
+            .flatten()
+            .collect();
+
+        let surjection_proof = asset_surjectionproof(
+            out_asset_id_bytes,
+            out_abf,
+            out_asset,
+            *SecretKey::new(&mut thread_rng()).as_ref(),
+            &unblinded_assets_in,
+            &abfs_in,
+            &assets_in,
+            inputs.len(),
+        );
+
+        let sender_ephemeral_pk = SecpPublicKey::from_secret_key(&SECP256K1, &sender_ephemeral_sk);
+        TxOut {
+            asset: out_asset,
+            value: value_commitment,
+            nonce: Nonce::from_commitment(&sender_ephemeral_pk.serialize()).unwrap(),
+            script_pubkey: address.script_pubkey(),
+            witness: TxOutWitness {
+                surjection_proof,
+                rangeproof: range_proof,
+            },
+        }
     }
 }
