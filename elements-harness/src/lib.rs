@@ -20,6 +20,7 @@ use testcontainers::{clients, Container, Docker};
 
 pub use crate::elementd_rpc::Client;
 use crate::image::ElementsCore;
+use testcontainers::core::Port;
 
 pub type Result<T> = std::result::Result<T, Error>;
 
@@ -34,7 +35,14 @@ pub struct Elementsd<'c> {
 impl<'c> Elementsd<'c> {
     /// Starts a new regtest elementsd container
     pub fn new(client: &'c clients::Cli, tag: &str) -> Result<Self> {
-        let container = client.run(ElementsCore::default().with_tag(tag));
+        let container = client.run(
+            ElementsCore::default()
+                .with_tag(tag)
+                .with_mapped_port(Port {
+                    local: 0,
+                    internal: ELEMENTSD_RPC_PORT,
+                }),
+        );
         let port = container
             .get_host_port(ELEMENTSD_RPC_PORT)
             .ok_or(Error::PortNotExposed(ELEMENTSD_RPC_PORT))?;
