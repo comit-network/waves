@@ -22,8 +22,8 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use std::{fmt, io};
 
-use encode::{self, Decodable, Encodable};
-use issuance::AssetId;
+use crate::encode::{self, Decodable, Encodable};
+use crate::issuance::AssetId;
 
 // Helper macro to implement various things for the various confidential
 // commitment types
