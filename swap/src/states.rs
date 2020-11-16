@@ -15,6 +15,7 @@ use crate::unblind_asset_from_txout;
 /// Sent from Alice to Bob, assuming Alice has bitcoin.
 pub struct Message0 {
     pub input: TxIn,
+    pub amount_in: Amount,
     pub asset_id_in: AssetId,
     pub asset_id_commitment_in: Asset,
     pub abf_in: SecretKey,
@@ -40,10 +41,12 @@ pub struct Message1 {
 }
 
 pub struct Alice0 {
+    pub amount_have: Amount,
     pub amount_want: Amount,
     pub input: TxIn,
     pub asset_id_have: AssetId,
     pub asset_id_want: AssetId,
+    pub amount_in: Amount,
     pub asset_id_commitment_in: Asset,
     pub abf_in: SecretKey,
     pub address_redeem: Address,
@@ -58,6 +61,7 @@ pub struct Alice0 {
 impl Alice0 {
     pub fn new<R>(
         rng: &mut R,
+        amount_have: Amount,
         amount_want: Amount,
         // TODO: Define struct
         input: (OutPoint, TxOut),
@@ -70,7 +74,7 @@ impl Alice0 {
     where
         R: RngCore + CryptoRng,
     {
-        let (asset_id_have, asset_id_commitment_in, abf_in, _vbf_in, _amount_in) =
+        let (asset_id_have, asset_id_commitment_in, abf_in, _vbf_in, amount_in) =
             unblind_asset_from_txout(input.1, input_blinding_sk);
 
         let input = TxIn {
@@ -90,10 +94,12 @@ impl Alice0 {
         let vbf_change = SecretKey::new(rng);
 
         Self {
+            amount_have,
             amount_want,
             input,
             asset_id_have,
             asset_id_want,
+            amount_in,
             asset_id_commitment_in,
             abf_in,
             address_redeem,
@@ -103,6 +109,23 @@ impl Alice0 {
             abf_change,
             vbf_change,
             fee,
+        }
+    }
+
+    pub fn compose(&self) -> Message0 {
+        Message0 {
+            input: self.input.clone(),
+            amount_in: self.amount_in,
+            asset_id_in: self.asset_id_have,
+            asset_id_commitment_in: self.asset_id_commitment_in,
+            abf_in: self.abf_in,
+            address_redeem: self.address_redeem.clone(),
+            abf_redeem: self.abf_redeem,
+            vbf_redeem: self.vbf_redeem,
+            address_change: self.address_change.clone(),
+            abf_change: self.abf_change,
+            vbf_change: self.vbf_change,
+            fee: self.fee,
         }
     }
 }
