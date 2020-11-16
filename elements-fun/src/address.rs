@@ -30,8 +30,7 @@ use bitcoin::hashes::Hash;
 use bitcoin::secp256k1;
 use bitcoin::util::base58;
 use bitcoin::PublicKey;
-#[cfg(feature = "serde")]
-use serde;
+use serde_crate as serde;
 
 /// Encoding error
 #[derive(Debug, PartialEq)]
@@ -686,7 +685,7 @@ mod test {
             "script round-trip failed for {}",
             addr,
         );
-        #[cfg(feature = "use-serde")]
+        #[cfg(feature = "serde")]
         assert_eq!(
             serde_json::from_value::<Address>(serde_json::to_value(&addr).unwrap())
                 .ok()
