@@ -7,10 +7,10 @@ edition = "2018"
 [dependencies]
 bitcoin = { version = "0.25", features = ["rand"] }
 secp256k1 = { version = "0.19.0", features = ["global-context"] }
-elements = "0.13"
+elements-fun = { path = "../elements-fun", features = ["serde-feature"] }
 elements-harness = { path = "../elements-harness" }
 sha2 = "0.9"
-wally = { git = "https://github.com/RCasatta/wally", branch = "master" }
+wally = { path = "../wally" }
 
 [dev-dependencies]
 rand = "0.6"

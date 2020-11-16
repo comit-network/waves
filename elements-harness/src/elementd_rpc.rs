@@ -1,7 +1,7 @@
 use anyhow::Context;
 use anyhow::Result;
-use elements::bitcoin::Amount;
-use elements::{bitcoin::Txid, Address, AssetId};
+use elements_fun::bitcoin::Amount;
+use elements_fun::{bitcoin::Txid, Address, AssetId};
 use serde::Deserialize;
 use std::collections::HashMap;
 

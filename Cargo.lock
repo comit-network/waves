@@ -288,13 +288,13 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "134951f4028bdadb9b84baf4232681efbf277da25144b9b0ad65df75946c422b"
 
 [[package]]
-name = "elements"
-version = "0.13.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8550a7279d75568178505c7f79eabc16d5ea4b10afcb90e8478eac77656fbc46"
+name = "elements-fun"
+version = "0.1.0"
 dependencies = [
  "bitcoin",
  "bitcoin_hashes 0.9.4",
+ "rand 0.6.5",
+ "ryu",
  "serde 1.0.117",
  "serde_json 0.9.10",
  "slip21",
@@ -306,7 +306,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-trait",
- "elements",
+ "elements-fun",
  "futures",
  "hex",
  "hmac 0.10.1",
@@ -1293,9 +1293,9 @@ checksum = "08d43f7aa6b08d49f382cde6a7982047c3426db949b1424bc4b7ec9ae12c6ce2"
 
 [[package]]
 name = "ryu"
-version = "1.0.5"
+version = "1.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "71d301d4193d031abdd79ff7e3dd721168a9572ef3fe51a1517aba235bd8f86e"
+checksum = "ed3d612bc64430efeb3f7ee6ef26d590dce0c43249217bddc62112540c7941e1"
 
 [[package]]
 name = "schannel"
@@ -1474,7 +1474,7 @@ name = "swap"
 version = "0.1.0"
 dependencies = [
  "bitcoin",
- "elements",
+ "elements-fun",
  "elements-harness",
  "rand 0.6.5",
  "secp256k1",
@@ -1764,9 +1764,8 @@ checksum = "b5a972e5669d67ba988ce3dc826706fb0a8b01471c088cb0b6110b805cc36aed"
 [[package]]
 name = "wally"
 version = "0.1.0"
-source = "git+https://github.com/RCasatta/wally?branch=master#efd261b1ef8428d5592f07e4696cdae7dea2f510"
 dependencies = [
- "elements",
+ "elements-fun",
  "hex",
  "libc",
  "wally-sys",

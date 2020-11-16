@@ -1,12 +1,12 @@
 #[cfg(test)]
 mod tests {
     use bitcoin::Amount;
-    use elements::bitcoin::secp256k1::Message;
-    use elements::bitcoin::secp256k1::PublicKey as SecpPublicKey;
-    use elements::bitcoin::secp256k1::SecretKey;
-    use elements::bitcoin::Network::Regtest;
-    use elements::bitcoin::PrivateKey;
-    use elements::{
+    use elements_fun::bitcoin::secp256k1::Message;
+    use elements_fun::bitcoin::secp256k1::PublicKey as SecpPublicKey;
+    use elements_fun::bitcoin::secp256k1::SecretKey;
+    use elements_fun::bitcoin::Network::Regtest;
+    use elements_fun::bitcoin::PrivateKey;
+    use elements_fun::{
         bitcoin::{
             blockdata::{opcodes, script::Builder},
             PublicKey, Script, SigHashType,
@@ -107,17 +107,17 @@ mod tests {
             .iter()
             .map(|(id, _, _)| id.into_inner().0.to_vec())
             .flatten()
-            .collect();
+            .collect::<Vec<_>>();
         let assets_in = inputs
             .iter()
             .map(|(_, asset, _)| asset.commitment().unwrap().to_vec())
             .flatten()
-            .collect();
+            .collect::<Vec<_>>();
         let abfs_in = inputs
             .iter()
             .map(|(_, _, abf)| abf.to_vec())
             .flatten()
-            .collect();
+            .collect::<Vec<_>>();
 
         let surjection_proof = asset_surjectionproof(
             out_asset_id_bytes,
@@ -145,7 +145,7 @@ mod tests {
 
     #[tokio::test]
     async fn sign_transaction_with_two_asset_types() {
-        let secp = elements::bitcoin::secp256k1::Secp256k1::new();
+        let secp = elements_fun::bitcoin::secp256k1::Secp256k1::new();
 
         let tc_client = Cli::default();
         let (client, _container) = {
@@ -190,11 +190,11 @@ mod tests {
 
         let fund_bitcoin_tx: Transaction = {
             let tx_hex = client.getrawtransaction(fund_bitcoin_txid).await.unwrap();
-            elements::encode::deserialize(&Vec::<u8>::from_hex(&tx_hex).unwrap()).unwrap()
+            elements_fun::encode::deserialize(&Vec::<u8>::from_hex(&tx_hex).unwrap()).unwrap()
         };
         let fund_litecoin_tx: Transaction = {
             let tx_hex = client.getrawtransaction(fund_litecoin_txid).await.unwrap();
-            elements::encode::deserialize(&Vec::<u8>::from_hex(&tx_hex).unwrap()).unwrap()
+            elements_fun::encode::deserialize(&Vec::<u8>::from_hex(&tx_hex).unwrap()).unwrap()
         };
         let fund_bitcoin_vout = fund_bitcoin_tx
             .output
