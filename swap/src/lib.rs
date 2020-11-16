@@ -20,7 +20,7 @@ mod tests {
     use rand::thread_rng;
     use secp256k1::SECP256K1;
     use testcontainers::clients::Cli;
-    use wally::{
+    use elements_fun::wally::{
         asset_final_vbf, asset_generator_from_bytes, asset_rangeproof, asset_surjectionproof,
         asset_unblind, asset_value_commitment, tx_get_elements_signature_hash,
     };

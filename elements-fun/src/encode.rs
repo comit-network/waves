@@ -21,7 +21,7 @@ use std::{error, fmt, io, mem};
 use bitcoin::consensus::encode as btcenc;
 use bitcoin::hashes::sha256;
 
-use transaction::{Transaction, TxIn, TxOut};
+use crate::transaction::{Transaction, TxIn, TxOut};
 
 pub use bitcoin::consensus::encode::MAX_VEC_SIZE;
 

@@ -23,9 +23,9 @@ use bitcoin::blockdata::script::{Instruction, Script};
 use bitcoin::hashes::Hash;
 use bitcoin::{self, Txid, VarInt};
 
-use confidential;
-use encode::{self, Decodable, Encodable};
-use issuance::AssetId;
+use crate::confidential;
+use crate::encode::{self, Decodable, Encodable};
+use crate::issuance::AssetId;
 
 /// Description of an asset issuance in a transaction input
 #[derive(Copy, Clone, Debug, Default, Eq, Hash, PartialEq, PartialOrd, Ord)]

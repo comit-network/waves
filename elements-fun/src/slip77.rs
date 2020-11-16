@@ -54,7 +54,7 @@ mod tests {
     use bitcoin::hashes::hex::FromHex;
     use bitcoin::secp256k1::SecretKey;
 
-    use address::Address;
+    use crate::address::Address;
 
     #[test]
     fn test_slip77() {

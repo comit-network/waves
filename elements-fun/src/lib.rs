@@ -23,16 +23,11 @@
 #![deny(non_camel_case_types)]
 #![deny(non_snake_case)]
 #![deny(unused_mut)]
-#![deny(missing_docs)]
+// #![deny(missing_docs)]
 
-pub extern crate bitcoin;
+pub use bitcoin;
 #[macro_use]
 pub extern crate bitcoin_hashes;
-extern crate slip21;
-#[cfg(feature = "serde")] extern crate serde;
-
-#[cfg(test)] extern crate rand;
-#[cfg(any(test, feature = "serde_json"))] extern crate serde_json;
 
 #[macro_use] mod internal_macros;
 pub mod address;
@@ -45,6 +40,7 @@ mod fast_merkle_root;
 pub mod issuance;
 mod transaction;
 pub mod slip77;
+pub mod wally;
 
 // export everything at the top level so it can be used as `elements::Transaction` etc.
 pub use address::{Address, AddressParams, AddressError};
