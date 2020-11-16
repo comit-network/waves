@@ -1,8 +1,18 @@
 use bitcoin::Amount;
 use elements_fun::bitcoin::secp256k1::PublicKey as SecpPublicKey;
+use elements_fun::confidential::Nonce;
+use elements_fun::wally::asset_generator_from_bytes;
+use elements_fun::wally::asset_rangeproof;
+use elements_fun::wally::asset_surjectionproof;
+use elements_fun::wally::asset_unblind;
+use elements_fun::wally::asset_value_commitment;
+use elements_fun::Address;
+use elements_fun::TxOutWitness;
 use elements_fun::{confidential::Asset, AssetId, TxOut};
+use rand::CryptoRng;
+use rand::RngCore;
 use secp256k1::SecretKey;
-use wally::asset_unblind;
+use secp256k1::SECP256K1;
 
 pub mod states;
 
@@ -40,14 +50,88 @@ pub fn unblind_asset_from_txout(
     )
 }
 
+pub fn make_txout<R>(
+    rng: &mut R,
+    amount: Amount,
+    address: Address,
+    out_asset_id: AssetId,
+    out_abf: [u8; 32],
+    out_vbf: [u8; 32],
+    inputs: &[(AssetId, Asset, SecretKey)],
+) -> TxOut
+where
+    R: RngCore + CryptoRng,
+{
+    let out_asset_id_bytes = out_asset_id.into_inner().0;
+
+    let out_asset = asset_generator_from_bytes(&out_asset_id_bytes, &out_abf);
+
+    let value_commitment = asset_value_commitment(amount.as_sat(), out_vbf, out_asset);
+
+    let sender_ephemeral_sk = SecretKey::new(rng);
+    let range_proof = asset_rangeproof(
+        amount.as_sat(),
+        address.blinding_pubkey.unwrap(),
+        sender_ephemeral_sk,
+        out_asset_id_bytes,
+        out_abf,
+        out_vbf,
+        value_commitment,
+        &address.script_pubkey(),
+        out_asset,
+        1,
+        0,
+        52,
+    );
+
+    let unblinded_assets_in = inputs
+        .iter()
+        .map(|(id, _, _)| id.into_inner().0.to_vec())
+        .flatten()
+        .collect::<Vec<_>>();
+    let assets_in = inputs
+        .iter()
+        .map(|(_, asset, _)| asset.commitment().unwrap().to_vec())
+        .flatten()
+        .collect::<Vec<_>>();
+    let abfs_in = inputs
+        .iter()
+        .map(|(_, _, abf)| abf.as_ref().to_vec())
+        .flatten()
+        .collect::<Vec<_>>();
+
+    let surjection_proof = asset_surjectionproof(
+        out_asset_id_bytes,
+        out_abf,
+        out_asset,
+        *SecretKey::new(rng).as_ref(),
+        &unblinded_assets_in,
+        &abfs_in,
+        &assets_in,
+        inputs.len(),
+    );
+
+    let sender_ephemeral_pk = SecpPublicKey::from_secret_key(&SECP256K1, &sender_ephemeral_sk);
+    TxOut {
+        asset: out_asset,
+        value: value_commitment,
+        nonce: Nonce::from_commitment(&sender_ephemeral_pk.serialize()).unwrap(),
+        script_pubkey: address.script_pubkey(),
+        witness: TxOutWitness {
+            surjection_proof,
+            rangeproof: range_proof,
+        },
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use bitcoin::Amount;
     use elements_fun::bitcoin::secp256k1::Message;
-    use elements_fun::bitcoin::secp256k1::PublicKey as SecpPublicKey;
     use elements_fun::bitcoin::secp256k1::SecretKey;
     use elements_fun::bitcoin::Network::Regtest;
     use elements_fun::bitcoin::PrivateKey;
+    use elements_fun::wally::{asset_final_vbf, tx_get_elements_signature_hash};
     use elements_fun::{
         bitcoin::{
             blockdata::{opcodes, script::Builder},
@@ -56,17 +140,14 @@ mod tests {
         bitcoin_hashes::{hash160, hex::FromHex, Hash},
         confidential::{Asset, Nonce, Value},
         encode::serialize_hex,
-        Address, AddressParams, AssetId, OutPoint, Transaction, TxIn, TxOut, TxOutWitness,
+        Address, AddressParams, OutPoint, Transaction, TxIn, TxOut, TxOutWitness,
     };
     use elements_harness::{elementd_rpc::Client, elementd_rpc::ElementsRpc, Elementsd};
     use rand::thread_rng;
     use secp256k1::SECP256K1;
     use testcontainers::clients::Cli;
-    use elements_fun::wally::{
-        asset_final_vbf, asset_generator_from_bytes, asset_rangeproof, asset_surjectionproof,
-        asset_value_commitment, tx_get_elements_signature_hash,
-    };
 
+    use crate::make_txout;
     use crate::unblind_asset_from_txout;
 
     fn make_keypair() -> (SecretKey, PublicKey) {
@@ -85,76 +166,6 @@ mod tests {
 
     fn make_confidential_address(pk: PublicKey, blinding_key: PublicKey) -> Address {
         Address::p2wpkh(&pk, Some(blinding_key.key), &AddressParams::ELEMENTS)
-    }
-
-    fn make_txout(
-        amount: Amount,
-        address: Address,
-        out_asset_id: AssetId,
-        out_abf: [u8; 32],
-        out_vbf: [u8; 32],
-        inputs: &[(AssetId, Asset, SecretKey)],
-    ) -> TxOut {
-        let out_asset_id_bytes = out_asset_id.into_inner().0;
-
-        let out_asset = asset_generator_from_bytes(&out_asset_id_bytes, &out_abf);
-
-        let value_commitment = asset_value_commitment(amount.as_sat(), out_vbf, out_asset);
-
-        let sender_ephemeral_sk = SecretKey::new(&mut thread_rng());
-        let range_proof = asset_rangeproof(
-            amount.as_sat(),
-            address.blinding_pubkey.unwrap(),
-            sender_ephemeral_sk,
-            out_asset_id_bytes,
-            out_abf,
-            out_vbf,
-            value_commitment,
-            &address.script_pubkey(),
-            out_asset,
-            1,
-            0,
-            52,
-        );
-
-        let unblinded_assets_in = inputs
-            .iter()
-            .map(|(id, _, _)| id.into_inner().0.to_vec())
-            .flatten()
-            .collect::<Vec<_>>();
-        let assets_in = inputs
-            .iter()
-            .map(|(_, asset, _)| asset.commitment().unwrap().to_vec())
-            .flatten()
-            .collect::<Vec<_>>();
-        let abfs_in = inputs
-            .iter()
-            .map(|(_, _, abf)| abf.as_ref().to_vec())
-            .flatten()
-            .collect::<Vec<_>>();
-
-        let surjection_proof = asset_surjectionproof(
-            out_asset_id_bytes,
-            out_abf,
-            out_asset,
-            *SecretKey::new(&mut thread_rng()).as_ref(),
-            &unblinded_assets_in,
-            &abfs_in,
-            &assets_in,
-            inputs.len(),
-        );
-
-        let sender_ephemeral_pk = SecpPublicKey::from_secret_key(&SECP256K1, &sender_ephemeral_sk);
-        TxOut {
-            asset: out_asset,
-            value: value_commitment,
-            nonce: Nonce::from_commitment(&sender_ephemeral_pk.serialize()).unwrap(),
-            script_pubkey: address.script_pubkey(),
-            witness: TxOutWitness {
-                surjection_proof,
-                rangeproof: range_proof,
-            },
-        }
     }
 
     #[tokio::test]
@@ -333,6 +344,7 @@ mod tests {
         ];
 
         let redeem_txout_bitcoin = make_txout(
+            &mut thread_rng(),
             redeem_amount_bitcoin,
             redeem_address_bitcoin.clone(),
             bitcoin_asset_id,
@@ -341,6 +353,7 @@ mod tests {
             &inputs,
         );
         let txout_litecoin = make_txout(
+            &mut thread_rng(),
             redeem_amount_litecoin,
             redeem_address_litecoin,
             litecoin_asset_id,
@@ -480,6 +493,7 @@ mod tests {
         let inputs = vec![(unblinded_asset_id_bitcoin, asset_commitment_bitcoin, abf)];
 
         let spend_output = make_txout(
+            &mut thread_rng(),
             spend_amount_bitcoin,
             spend_address_bitcoin,
             bitcoin_asset_id,
