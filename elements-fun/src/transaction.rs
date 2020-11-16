@@ -29,6 +29,7 @@ use crate::issuance::AssetId;
 
 /// Description of an asset issuance in a transaction input
 #[derive(Copy, Clone, Debug, Default, Eq, Hash, PartialEq, PartialOrd, Ord)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(crate = "serde_crate"))]
 pub struct AssetIssuance {
     /// Zero for a new asset issuance; otherwise a blinding factor for the input
     pub asset_blinding_nonce: [u8; 32],
@@ -39,13 +40,6 @@ pub struct AssetIssuance {
     /// Amount of inflation keys to issue
     pub inflation_keys: confidential::Value,
 }
-serde_struct_impl!(
-    AssetIssuance,
-    asset_blinding_nonce,
-    asset_entropy,
-    amount,
-    inflation_keys
-);
 impl_consensus_encoding!(
     AssetIssuance,
     asset_blinding_nonce,
@@ -56,14 +50,13 @@ impl_consensus_encoding!(
 
 /// A reference to a transaction output
 #[derive(Copy, Clone, Debug, Eq, Hash, PartialEq, PartialOrd, Ord)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(crate = "serde_crate"))]
 pub struct OutPoint {
     /// The referenced transaction's txid
     pub txid: Txid,
     /// The index of the referenced output in its transaction's vout
     pub vout: u32,
 }
-serde_struct_human_string_impl!(OutPoint, "an Elements OutPoint", txid, vout);
-
 impl Default for OutPoint {
     /// Coinbase outpoint
     fn default() -> OutPoint {
@@ -111,6 +104,7 @@ impl ::std::str::FromStr for OutPoint {
 
 /// Transaction input witness
 #[derive(Clone, Default, PartialEq, Eq, Debug, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(crate = "serde_crate"))]
 pub struct TxInWitness {
     /// Amount rangeproof
     pub amount_rangeproof: Vec<u8>,
@@ -121,13 +115,6 @@ pub struct TxInWitness {
     /// Pegin witness, basically the same thing
     pub pegin_witness: Vec<Vec<u8>>,
 }
-serde_struct_impl!(
-    TxInWitness,
-    amount_rangeproof,
-    inflation_keys_rangeproof,
-    script_witness,
-    pegin_witness
-);
 impl_consensus_encoding!(
     TxInWitness,
     amount_rangeproof,
@@ -175,6 +162,7 @@ pub struct PeginData<'tx> {
 
 /// A transaction input, which defines old coins to be consumed
 #[derive(Clone, PartialEq, Eq, Debug, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(crate = "serde_crate"))]
 pub struct TxIn {
     /// The reference to the previous output that is being used an an input
     pub previous_output: OutPoint,
@@ -197,16 +185,6 @@ pub struct TxIn {
     /// part of the txin.
     pub witness: TxInWitness,
 }
-serde_struct_impl!(
-    TxIn,
-    previous_output,
-    is_pegin,
-    has_issuance,
-    script_sig,
-    sequence,
-    asset_issuance,
-    witness
-);
 
 impl Encodable for TxIn {
     fn consensus_encode<S: io::Write>(&self, mut s: S) -> Result<usize, encode::Error> {
@@ -321,13 +299,13 @@ impl TxIn {
 
 /// Transaction output witness
 #[derive(Clone, Default, PartialEq, Eq, Debug, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(crate = "serde_crate"))]
 pub struct TxOutWitness {
     /// Surjection proof showing that the asset commitment is legitimate
     pub surjection_proof: Vec<u8>,
     /// Rangeproof showing that the value commitment is legitimate
     pub rangeproof: Vec<u8>,
 }
-serde_struct_impl!(TxOutWitness, surjection_proof, rangeproof);
 impl_consensus_encoding!(TxOutWitness, surjection_proof, rangeproof);
 
 impl TxOutWitness {
@@ -354,6 +332,7 @@ pub struct PegoutData<'txo> {
 
 /// Transaction output
 #[derive(Clone, Default, PartialEq, Eq, Debug, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(crate = "serde_crate"))]
 pub struct TxOut {
     /// Committed asset
     pub asset: confidential::Asset,
@@ -368,7 +347,6 @@ pub struct TxOut {
     /// part of the txin.
     pub witness: TxOutWitness,
 }
-serde_struct_impl!(TxOut, asset, value, nonce, script_pubkey, witness);
 
 impl Encodable for TxOut {
     fn consensus_encode<S: io::Write>(&self, mut s: S) -> Result<usize, encode::Error> {
@@ -533,6 +511,7 @@ impl TxOut {
 
 /// Elements transaction
 #[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(crate = "serde_crate"))]
 pub struct Transaction {
     /// Transaction version field (should always be 2)
     pub version: u32,
@@ -543,7 +522,6 @@ pub struct Transaction {
     /// Vector of outputs
     pub output: Vec<TxOut>,
 }
-serde_struct_impl!(Transaction, version, lock_time, input, output);
 
 impl Transaction {
     /// Whether the transaction is a coinbase tx
