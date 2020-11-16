@@ -1,3 +1,45 @@
+use bitcoin::Amount;
+use elements_fun::bitcoin::secp256k1::PublicKey as SecpPublicKey;
+use elements_fun::{confidential::Asset, AssetId, TxOut};
+use secp256k1::SecretKey;
+use wally::asset_unblind;
+
+pub mod states;
+
+pub fn unblind_asset_from_txout(
+    out: TxOut,
+    receiver_blinding_sk: SecretKey,
+) -> (AssetId, Asset, SecretKey, SecretKey, Amount) {
+    let range_proof = out.witness.rangeproof;
+    let value_commitment = out.value.commitment().unwrap();
+    let asset_generator = out.asset.commitment().unwrap();
+    let script = out.script_pubkey;
+    let sender_ephemeral_pk = out.nonce.commitment().unwrap();
+    let sender_ephemeral_pk = SecpPublicKey::from_slice(&sender_ephemeral_pk).unwrap();
+
+    let (unblinded_asset, abf, vbf, value_out) = asset_unblind(
+        sender_ephemeral_pk,
+        receiver_blinding_sk,
+        range_proof,
+        value_commitment.into(),
+        script,
+        asset_generator.into(),
+    )
+    .unwrap();
+
+    let abf = SecretKey::from_slice(&abf).unwrap();
+    let vbf = SecretKey::from_slice(&vbf).unwrap();
+    let value_out = Amount::from_sat(value_out);
+
+    (
+        AssetId::from_slice(&unblinded_asset).unwrap(),
+        out.asset,
+        abf,
+        vbf,
+        value_out,
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use bitcoin::Amount;
@@ -22,8 +64,10 @@ mod tests {
     use testcontainers::clients::Cli;
     use elements_fun::wally::{
         asset_final_vbf, asset_generator_from_bytes, asset_rangeproof, asset_surjectionproof,
-        asset_unblind, asset_value_commitment, tx_get_elements_signature_hash,
+        asset_value_commitment, tx_get_elements_signature_hash,
     };
+
+    use crate::unblind_asset_from_txout;
 
     fn make_keypair() -> (SecretKey, PublicKey) {
         let sk = SecretKey::new(&mut thread_rng());
@@ -43,43 +87,13 @@ mod tests {
         Address::p2wpkh(&pk, Some(blinding_key.key), &AddressParams::ELEMENTS)
     }
 
-    fn unblind_asset_from_txout(
-        out: TxOut,
-        receiver_blinding_sk: SecretKey,
-    ) -> (AssetId, Asset, [u8; 32], [u8; 32], u64) {
-        let range_proof = out.witness.rangeproof;
-        let value_commitment = out.value.commitment().unwrap();
-        let asset_generator = out.asset.commitment().unwrap();
-        let script = out.script_pubkey;
-        let sender_ephemeral_pk = out.nonce.commitment().unwrap();
-        let sender_ephemeral_pk = SecpPublicKey::from_slice(&sender_ephemeral_pk).unwrap();
-
-        let (unblinded_asset, abf, vbf, value_out) = asset_unblind(
-            sender_ephemeral_pk,
-            receiver_blinding_sk,
-            range_proof,
-            value_commitment.into(),
-            script,
-            asset_generator.into(),
-        )
-        .unwrap();
-
-        (
-            AssetId::from_slice(&unblinded_asset).unwrap(),
-            out.asset,
-            abf,
-            vbf,
-            value_out,
-        )
-    }
-
     fn make_txout(
         amount: Amount,
         address: Address,
         out_asset_id: AssetId,
         out_abf: [u8; 32],
         out_vbf: [u8; 32],
-        inputs: &[(AssetId, Asset, [u8; 32])],
+        inputs: &[(AssetId, Asset, SecretKey)],
     ) -> TxOut {
         let out_asset_id_bytes = out_asset_id.into_inner().0;
 
@@ -115,7 +129,7 @@ mod tests {
             .collect::<Vec<_>>();
         let abfs_in = inputs
             .iter()
-            .map(|(_, _, abf)| abf.to_vec())
+            .map(|(_, _, abf)| abf.as_ref().to_vec())
             .flatten()
             .collect::<Vec<_>>();
 
@@ -247,8 +261,8 @@ mod tests {
 
         // TODO: Sort them
         let abfs = vec![
-            abf_bitcoin.to_vec(),
-            abf_litecoin.to_vec(),
+            abf_bitcoin.as_ref().to_vec(),
+            abf_litecoin.as_ref().to_vec(),
             redeem_abf_bitcoin.as_ref().to_vec(),
             redeem_abf_litecoin.as_ref().to_vec(),
         ]
@@ -258,8 +272,8 @@ mod tests {
 
         let vbf_redeem_bitcoin = SecretKey::new(&mut thread_rng());
         let vbfs = vec![
-            vbf_bitcoin.to_vec(),
-            vbf_litecoin.to_vec(),
+            vbf_bitcoin.as_ref().to_vec(),
+            vbf_litecoin.as_ref().to_vec(),
             vbf_redeem_bitcoin.as_ref().to_vec(),
         ]
         .into_iter()
@@ -268,8 +282,8 @@ mod tests {
 
         let vbf_redeem_litecoin = asset_final_vbf(
             vec![
-                amount_in_bitcoin,
-                amount_in_litecoin,
+                amount_in_bitcoin.as_sat(),
+                amount_in_litecoin.as_sat(),
                 redeem_amount_bitcoin.as_sat(),
                 redeem_amount_litecoin.as_sat(),
             ],
@@ -437,13 +451,13 @@ mod tests {
                 redeem_blinding_sk_bitcoin,
             );
 
-        let mut abfs = abf.to_vec();
+        let mut abfs = abf.as_ref().to_vec();
         abfs.extend(spend_abf_bitcoin.as_ref());
 
-        let vbfs = vbf.to_vec();
+        let vbfs = vbf.as_ref().to_vec();
 
         let spend_vbf_bitcoin = asset_final_vbf(
-            vec![amount_in, spend_amount_bitcoin.as_sat()],
+            vec![amount_in.as_sat(), spend_amount_bitcoin.as_sat()],
             1,
             abfs,
             vbfs,
