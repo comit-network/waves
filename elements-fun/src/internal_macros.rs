@@ -36,13 +36,13 @@ macro_rules! impl_consensus_encoding {
 
 macro_rules! serde_struct_impl {
     ($name:ident, $($fe:ident),*) => (
-        #[cfg(feature = "use-serde")]
+        #[cfg(feature = "serde")]
         impl<'de> ::serde::Deserialize<'de> for $name {
             fn deserialize<D>(deserializer: D) -> Result<$name, D::Error>
             where
                 D: ::serde::de::Deserializer<'de>,
             {
-                use $crate::std::fmt::{self, Formatter};
+                use ::std::fmt::{self, Formatter};
                 use ::serde::de::IgnoredAny;
 
                 #[allow(non_camel_case_types)]

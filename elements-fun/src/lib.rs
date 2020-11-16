@@ -29,6 +29,8 @@ pub use bitcoin;
 #[macro_use]
 pub extern crate bitcoin_hashes;
 
+extern crate serde_crate as serde;
+
 #[macro_use] mod internal_macros;
 pub mod address;
 pub mod blech32;
