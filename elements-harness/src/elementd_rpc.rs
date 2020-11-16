@@ -9,6 +9,7 @@ use std::collections::HashMap;
 pub trait ElementsRpc {
     async fn getblockchaininfo(&self) -> BlockchainInfo;
     async fn getnewaddress(&self) -> Address;
+    #[allow(clippy::too_many_arguments)]
     async fn sendtoaddress(
         &self,
         address: Address,
@@ -62,7 +63,7 @@ impl Client {
             .get(bitcoin_asset_tag)
             .context("failed to get asset id for bitcoin")?;
 
-        Ok(bitcoin_asset_id.clone())
+        Ok(*bitcoin_asset_id)
     }
 
     pub async fn send_asset_to_address(
@@ -187,6 +188,8 @@ mod test {
             .await
             .unwrap();
 
-        assert_eq!(balance, expected_balance);
+        let error_margin = f64::EPSILON;
+
+        assert!((balance - expected_balance).abs() < error_margin)
     }
 }

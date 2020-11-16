@@ -11,7 +11,7 @@ elements = { version = "0.13", features = ["serde-feature"] }
 futures = "0.3.5"
 hex = "0.4.2"
 hmac = "0.10"
-jsonrpc_client = { git = "https://github.com/thomaseizinger/rust-jsonrpc-client", rev = "cd92eeea577c949f662bbab1e5a3a00c24cb078e", features = ["reqwest"] }
+jsonrpc_client = { git = "https://github.com/thomaseizinger/rust-jsonrpc-client", branch = "master", features = ["reqwest"] }
 log = "0.4"
 rand = "0.7"
 reqwest = { version = "0.10" }
