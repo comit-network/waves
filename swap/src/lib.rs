@@ -840,6 +840,7 @@ mod tests {
             .send_asset_to_address(fund_address_bitcoin.clone(), fund_bitcoin_amount, None)
             .await
             .unwrap();
+
         let fund_litecoin_txid = client
             .send_asset_to_address(
                 fund_address_litecoin.clone(),

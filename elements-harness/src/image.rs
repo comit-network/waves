@@ -212,7 +212,7 @@ impl Image for ElementsCore {
     type EntryPoint = std::convert::Infallible;
 
     fn descriptor(&self) -> String {
-        format!("coblox/elementsd:{}", self.tag)
+        format!("blockstream/elementsd:{}", self.tag)
     }
 
     fn wait_until_ready<D: Docker>(&self, container: &Container<'_, D, Self>) {
