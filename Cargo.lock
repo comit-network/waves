@@ -1764,7 +1764,7 @@ checksum = "b5a972e5669d67ba988ce3dc826706fb0a8b01471c088cb0b6110b805cc36aed"
 [[package]]
 name = "wally"
 version = "0.1.0"
-source = "git+https://github.com/thomaseizinger/wally/?branch=master#65a50ebac692c9c3467c20c65abcb6eaee3c9afe"
+source = "git+https://github.com/RCasatta/wally?branch=master#efd261b1ef8428d5592f07e4696cdae7dea2f510"
 dependencies = [
  "elements",
  "hex",
@@ -1775,7 +1775,7 @@ dependencies = [
 [[package]]
 name = "wally-sys"
 version = "0.1.0"
-source = "git+https://github.com/RCasatta/wally-sys#4a2f6740a18f96e7eeb73f29523757647077a069"
+source = "git+https://github.com/RCasatta/wally-sys?rev=4a2f6740a18f96e7eeb73f29523757647077a069#4a2f6740a18f96e7eeb73f29523757647077a069"
 dependencies = [
  "autotools",
  "bindgen",
