@@ -218,6 +218,7 @@ impl Default for ExtData {
 
 /// Elements block header
 #[derive(Clone, Debug, Default, Eq, Hash, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(crate = "serde_crate"))]
 pub struct BlockHeader {
     /// Version - should be 0x20000000 except when versionbits signalling
     pub version: u32,
@@ -232,15 +233,6 @@ pub struct BlockHeader {
     /// Block signature and dynamic federation-related data
     pub ext: ExtData,
 }
-serde_struct_impl!(
-    BlockHeader,
-    version,
-    prev_blockhash,
-    merkle_root,
-    time,
-    height,
-    ext
-);
 
 impl BlockHeader {
     /// Return the block hash.
@@ -368,13 +360,13 @@ impl Decodable for BlockHeader {
 
 /// Elements block
 #[derive(Clone, Debug, Default, Eq, Hash, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(crate = "serde_crate"))]
 pub struct Block {
     /// Header of the block
     pub header: BlockHeader,
     /// Complete list of transaction in the block
     pub txdata: Vec<Transaction>,
 }
-serde_struct_impl!(Block, header, txdata);
 impl_consensus_encoding!(Block, header, txdata);
 
 impl Block {
