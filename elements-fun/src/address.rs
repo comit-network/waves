@@ -33,8 +33,6 @@ use bitcoin::PublicKey;
 #[cfg(feature = "serde")]
 use serde;
 
-use blech32;
-
 /// Encoding error
 #[derive(Debug, PartialEq)]
 pub enum AddressError {
@@ -357,7 +355,7 @@ impl Address {
         let payload = if !blinded {
             bech32::decode(s).map_err(AddressError::Bech32)?.1
         } else {
-            blech32::decode(s).map_err(AddressError::Blech32)?.1
+            crate::blech32::decode(s).map_err(AddressError::Blech32)?.1
         };
 
         if payload.is_empty() {
@@ -530,7 +528,7 @@ impl fmt::Display for Address {
                     data.extend_from_slice(&witprog);
                     let mut b32_data = vec![witver];
                     b32_data.extend_from_slice(&data.to_base32());
-                    blech32::encode_to_fmt(fmt, &hrp, &b32_data)
+                    crate::blech32::encode_to_fmt(fmt, &hrp, &b32_data)
                 } else {
                     let mut bech32_writer = bech32::Bech32Writer::new(hrp, fmt)?;
                     bech32::WriteBase32::write_u5(&mut bech32_writer, witver)?;

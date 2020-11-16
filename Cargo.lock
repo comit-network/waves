@@ -293,11 +293,14 @@ version = "0.1.0"
 dependencies = [
  "bitcoin",
  "bitcoin_hashes 0.9.4",
+ "hex",
+ "libc",
  "rand 0.6.5",
  "ryu",
  "serde 1.0.117",
  "serde_json 0.9.10",
  "slip21",
+ "wally-sys",
 ]
 
 [[package]]
@@ -1481,7 +1484,6 @@ dependencies = [
  "sha2",
  "testcontainers",
  "tokio",
- "wally",
 ]
 
 [[package]]
@@ -1760,16 +1762,6 @@ name = "version_check"
 version = "0.9.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b5a972e5669d67ba988ce3dc826706fb0a8b01471c088cb0b6110b805cc36aed"
-
-[[package]]
-name = "wally"
-version = "0.1.0"
-dependencies = [
- "elements-fun",
- "hex",
- "libc",
- "wally-sys",
-]
 
 [[package]]
 name = "wally-sys"

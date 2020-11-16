@@ -4,6 +4,7 @@ version = "0.1.0"
 authors = ["CoBloX Team <team@coblox.tech>"]
 description = "Library with support for de/serialization, parsing and executing on data structures and network messages related to Elements"
 license = "CC0-1.0"
+edition = "2018"
 
 [features]
 default = [ "json-contract" ]
@@ -18,6 +19,9 @@ json-contract = [ "serde_json" ]
 [dependencies]
 bitcoin = "0.25"
 slip21 = "0.2.0"
+hex = "0.4.2"
+libc = "0.2.69"
+wally-sys = { git= "https://github.com/RCasatta/wally-sys", rev="4a2f6740a18f96e7eeb73f29523757647077a069" }
 
 # While this dependency is included in bitcoin, we need this to use the macros.
 # We should probably try keep this one in sync with the bitcoin version,

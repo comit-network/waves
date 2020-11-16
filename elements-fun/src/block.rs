@@ -26,9 +26,9 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 #[cfg(feature = "serde")]
 use std::fmt;
 
-use dynafed;
-use encode::{self, serialize, Decodable, Encodable};
-use Transaction;
+use crate::dynafed;
+use crate::encode::{self, serialize, Decodable, Encodable};
+use crate::Transaction;
 
 /// Data related to block signatures
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
@@ -311,7 +311,7 @@ impl BlockHeader {
                     current.calculate_root().into_inner(),
                     proposed.calculate_root().into_inner(),
                 ];
-                Some(::fast_merkle_root::fast_merkle_root(&leaves[..]))
+                Some(crate::fast_merkle_root::fast_merkle_root(&leaves[..]))
             }
         }
     }
