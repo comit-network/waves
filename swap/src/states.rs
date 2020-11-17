@@ -60,7 +60,6 @@ impl Alice0 {
     pub fn new(
         amount_alice: Amount,
         amount_bob: Amount,
-        // TODO: Define struct
         input: (OutPoint, TxOut),
         input_sk: SecretKey,
         input_blinding_sk: SecretKey,
@@ -155,8 +154,12 @@ impl Alice0 {
 
         let mut transaction = msg.transaction;
 
-        // TODO: verify this is the correct position
-        transaction.input[0].witness.script_witness = {
+        let input_index_alice = transaction
+            .input
+            .iter()
+            .position(|input| input.previous_output == self.input.previous_output)
+            .ok_or_else(|| anyhow!("transaction does not contain input_alice"))?;
+        transaction.input[input_index_alice].witness.script_witness = {
             let hash = hash160::Hash::hash(&input_pk_alice.serialize());
             let script = Builder::new()
                 .push_opcode(opcodes::all::OP_DUP)
@@ -168,7 +171,7 @@ impl Alice0 {
 
             let digest = tx_get_elements_signature_hash(
                 &transaction,
-                0, // todo: ensure that this is Alice's input
+                input_index_alice,
                 &script,
                 &fund_amount_alice,
                 1,
@@ -205,7 +208,6 @@ impl Bob0 {
     pub fn new(
         amount_alice: Amount,
         amount_bob: Amount,
-        // TODO: Define struct
         input: (OutPoint, TxOut),
         input_sk: SecretKey,
         input_blinding_sk: SecretKey,
@@ -382,8 +384,15 @@ impl Bob0 {
             ],
         };
 
+        let input_index_bob = transaction
+            .input
+            .iter()
+            .position(|input| input.previous_output == self.input.previous_output)
+            .ok_or_else(|| anyhow!("transaction does not contain bob's input"))?;
+
         Ok(Bob1 {
             transaction,
+            input_index_bob,
             input_sk: self.input_sk,
             input_as_txout_bob: self.input_as_txout.clone(),
         })
@@ -392,6 +401,7 @@ impl Bob0 {
 
 pub struct Bob1 {
     transaction: Transaction,
+    input_index_bob: usize,
     input_sk: SecretKey,
     input_as_txout_bob: TxOut,
 }
@@ -405,7 +415,9 @@ impl Bob1 {
         let fund_amount_bob = fund_bitcoin_tx_vout_bob.value;
 
         let mut transaction = self.transaction.clone();
-        transaction.input[1].witness.script_witness = {
+        transaction.input[self.input_index_bob]
+            .witness
+            .script_witness = {
             let hash = hash160::Hash::hash(&input_pk_bob.serialize());
             let script = Builder::new()
                 .push_opcode(opcodes::all::OP_DUP)
@@ -417,7 +429,7 @@ impl Bob1 {
 
             let digest = tx_get_elements_signature_hash(
                 &self.transaction,
-                1, // todo: ensure that this is Bob;s input
+                self.input_index_bob,
                 &script,
                 &fund_amount_bob,
                 1,
@@ -441,7 +453,6 @@ impl Bob1 {
 
 #[cfg(test)]
 mod tests {
-
     use crate::make_confidential_address;
     use crate::states::{Alice0, Bob0};
     use anyhow::{anyhow, Result};
