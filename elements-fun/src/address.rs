@@ -30,7 +30,6 @@ use bitcoin::hashes::Hash;
 use bitcoin::secp256k1;
 use bitcoin::util::base58;
 use bitcoin::PublicKey;
-use serde_crate as serde;
 
 /// Encoding error
 #[derive(Debug, PartialEq)]
