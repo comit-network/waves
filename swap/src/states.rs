@@ -31,11 +31,7 @@ pub struct Message0 {
     input_as_txout: TxOut,
     input_blinding_sk: SecretKey,
     address_redeem: Address,
-    abf_redeem: SecretKey,
-    vbf_redeem: SecretKey,
     address_change: Address,
-    abf_change: SecretKey,
-    vbf_change: SecretKey,
     fee: Amount,
 }
 
@@ -54,19 +50,14 @@ pub struct Alice0 {
     asset_id_bob: AssetId,
     address_redeem: Address,
     blinding_sk_redeem: SecretKey,
-    abf_redeem: SecretKey,
-    vbf_redeem: SecretKey,
     address_change: Address,
     blinding_sk_change: SecretKey,
-    abf_change: SecretKey,
-    vbf_change: SecretKey,
     fee: Amount,
 }
 
 impl Alice0 {
     #[allow(clippy::too_many_arguments)]
-    pub fn new<R>(
-        rng: &mut R,
+    pub fn new(
         amount_alice: Amount,
         amount_bob: Amount,
         // TODO: Define struct
@@ -79,10 +70,7 @@ impl Alice0 {
         address_change: Address,
         blinding_sk_change: SecretKey,
         fee: Amount,
-    ) -> Self
-    where
-        R: RngCore + CryptoRng,
-    {
+    ) -> Self {
         let input_as_txout = input.1;
         let input = TxIn {
             previous_output: input.0,
@@ -94,12 +82,6 @@ impl Alice0 {
             witness: Default::default(),
         };
 
-        let abf_redeem = SecretKey::new(rng);
-        let vbf_redeem = SecretKey::new(rng);
-
-        let abf_change = SecretKey::new(rng);
-        let vbf_change = SecretKey::new(rng);
-
         Self {
             redeem_amount_alice: amount_alice,
             redeem_amount_bob: amount_bob,
@@ -110,12 +92,8 @@ impl Alice0 {
             asset_id_bob,
             address_redeem,
             blinding_sk_redeem,
-            abf_redeem,
-            vbf_redeem,
             address_change,
             blinding_sk_change,
-            abf_change,
-            vbf_change,
             fee,
         }
     }
@@ -126,11 +104,7 @@ impl Alice0 {
             input_as_txout: self.input_as_txout.clone(),
             input_blinding_sk: self.input_blinding_sk,
             address_redeem: self.address_redeem.clone(),
-            abf_redeem: self.abf_redeem,
-            vbf_redeem: self.vbf_redeem,
             address_change: self.address_change.clone(),
-            abf_change: self.abf_change,
-            vbf_change: self.vbf_change,
             fee: self.fee,
         }
     }
@@ -154,7 +128,7 @@ impl Alice0 {
                 asset_id == &expected_redeem_asset_id_alice
                     && amount == &expected_redeem_amount_alice
             })
-            .ok_or_else(|| anyhow!("wrong change_output_alice"))?;
+            .ok_or_else(|| anyhow!("wrong redeem_output_alice"))?;
 
         let (expected_change_asset_id_alice, _, _, _, input_amount_alice) =
             unblind_asset_from_txout(self.input_as_txout.clone(), self.input_blinding_sk);
@@ -223,17 +197,12 @@ pub struct Bob0 {
     input_blinding_sk: SecretKey,
     asset_id_alice: AssetId,
     address_redeem: Address,
-    abf_redeem: SecretKey,
-    vbf_redeem: SecretKey,
     address_change: Address,
-    abf_change: SecretKey,
-    vbf_change: SecretKey,
 }
 
 impl Bob0 {
     #[allow(clippy::too_many_arguments)]
-    pub fn new<R>(
-        rng: &mut R,
+    pub fn new(
         amount_alice: Amount,
         amount_bob: Amount,
         // TODO: Define struct
@@ -243,10 +212,7 @@ impl Bob0 {
         asset_id_alice: AssetId,
         address_redeem: Address,
         address_change: Address,
-    ) -> Self
-    where
-        R: RngCore + CryptoRng,
-    {
+    ) -> Self {
         let input_as_txout = input.1;
 
         let input = TxIn {
@@ -259,12 +225,6 @@ impl Bob0 {
             witness: Default::default(),
         };
 
-        let abf_redeem = SecretKey::new(rng);
-        let vbf_redeem = SecretKey::new(rng);
-
-        let abf_change = SecretKey::new(rng);
-        let vbf_change = SecretKey::new(rng);
-
         Self {
             redeem_amount_alice: amount_alice,
             redeem_amount_bob: amount_bob,
@@ -274,11 +234,7 @@ impl Bob0 {
             input_blinding_sk,
             asset_id_alice,
             address_redeem,
-            abf_redeem,
-            vbf_redeem,
             address_change,
-            abf_change,
-            vbf_change,
         }
     }
 
@@ -296,24 +252,31 @@ impl Bob0 {
         let (asset_id_bob, asset_id_commitment_in_bob, abf_in_bob, vbf_in_bob, amount_in_bob) =
             unblind_asset_from_txout(self.input_as_txout.clone(), self.input_blinding_sk);
 
+        let abf_redeem_alice = SecretKey::new(rng);
+        let abf_redeem_bob = SecretKey::new(rng);
+        let abf_change_alice = SecretKey::new(rng);
+        let abf_change_bob = SecretKey::new(rng);
         let abfs = vec![
             abf_in_alice.as_ref().to_vec(),
             abf_in_bob.as_ref().to_vec(),
-            msg.abf_redeem.as_ref().to_vec(),
-            self.abf_redeem.as_ref().to_vec(),
-            msg.abf_change.as_ref().to_vec(),
-            self.abf_change.as_ref().to_vec(),
+            abf_redeem_alice.as_ref().to_vec(),
+            abf_redeem_bob.as_ref().to_vec(),
+            abf_change_alice.as_ref().to_vec(),
+            abf_change_bob.as_ref().to_vec(),
         ]
         .into_iter()
         .flatten()
         .collect::<Vec<_>>();
 
+        let vbf_redeem_alice = SecretKey::new(rng);
+        let vbf_redeem_bob = SecretKey::new(rng);
+        let vbf_change_alice = SecretKey::new(rng);
         let vbfs = vec![
             vbf_in_alice.as_ref().to_vec(),
             vbf_in_bob.as_ref().to_vec(),
-            msg.vbf_redeem.as_ref().to_vec(),
-            self.vbf_redeem.as_ref().to_vec(),
-            msg.vbf_change.as_ref().to_vec(),
+            vbf_redeem_alice.as_ref().to_vec(),
+            vbf_redeem_bob.as_ref().to_vec(),
+            vbf_change_alice.as_ref().to_vec(),
         ]
         .into_iter()
         .flatten()
@@ -342,8 +305,8 @@ impl Bob0 {
             self.redeem_amount_alice,
             msg.address_redeem,
             asset_id_bob,
-            *msg.abf_redeem.as_ref(),
-            *msg.vbf_redeem.as_ref(),
+            *abf_redeem_alice.as_ref(),
+            *vbf_redeem_alice.as_ref(),
             &inputs,
             redeem_ephemeral_key_alice,
         )?;
@@ -354,8 +317,8 @@ impl Bob0 {
             self.redeem_amount_bob,
             self.address_redeem.clone(),
             self.asset_id_alice,
-            *self.abf_redeem.as_ref(),
-            *self.vbf_redeem.as_ref(),
+            *abf_redeem_bob.as_ref(),
+            *vbf_redeem_bob.as_ref(),
             &inputs,
             redeem_ephemeral_key_bob,
         )?;
@@ -366,8 +329,8 @@ impl Bob0 {
             change_amount_alice,
             msg.address_change,
             self.asset_id_alice,
-            *msg.abf_change.as_ref(),
-            *msg.vbf_change.as_ref(),
+            *abf_change_alice.as_ref(),
+            *vbf_change_alice.as_ref(),
             &inputs,
             change_ephemeral_key_alice,
         )?;
@@ -392,7 +355,7 @@ impl Bob0 {
             change_amount_bob,
             self.address_change.clone(),
             asset_id_bob,
-            *self.abf_change.as_ref(),
+            *abf_change_bob.as_ref(),
             vbf_change_bob,
             &inputs,
             change_ephemeral_key_bob,
@@ -421,46 +384,16 @@ impl Bob0 {
 
         Ok(Bob1 {
             transaction,
-            input_bob,
             input_sk: self.input_sk,
-            input_blinding_sk: self.input_blinding_sk,
             input_as_txout_bob: self.input_as_txout.clone(),
-            asset_id_bob,
-            asset_id_commitment_in_bob,
-            abf_in_bob,
-            address_redeem_bob: self.address_redeem.clone(),
-            address_change_bob: self.address_change.clone(),
-            abf_redeem: self.abf_redeem,
-            vbf_redeem: self.vbf_redeem,
-            abf_change: self.abf_change,
-            vbf_change: self.vbf_change,
-            redeem_ephemeral_key_alice,
-            redeem_ephemeral_key_bob,
-            change_ephemeral_key_alice,
-            change_ephemeral_key_bob,
         })
     }
 }
 
 pub struct Bob1 {
-    pub transaction: Transaction,
-    pub input_bob: TxIn,
-    pub input_sk: SecretKey,
-    pub input_blinding_sk: SecretKey,
-    pub input_as_txout_bob: TxOut,
-    pub asset_id_bob: AssetId,
-    pub asset_id_commitment_in_bob: Asset,
-    pub abf_in_bob: SecretKey,
-    pub address_redeem_bob: Address,
-    pub address_change_bob: Address,
-    pub abf_redeem: SecretKey,
-    pub vbf_redeem: SecretKey,
-    pub abf_change: SecretKey,
-    pub vbf_change: SecretKey,
-    pub redeem_ephemeral_key_alice: SecretKey,
-    pub redeem_ephemeral_key_bob: SecretKey,
-    pub change_ephemeral_key_alice: SecretKey,
-    pub change_ephemeral_key_bob: SecretKey,
+    transaction: Transaction,
+    input_sk: SecretKey,
+    input_as_txout_bob: TxOut,
 }
 
 impl Bob1 {
@@ -604,7 +537,6 @@ mod tests {
         .unwrap();
 
         let alice = Alice0::new(
-            &mut thread_rng(),
             amount_alice,
             amount_bob,
             input_alice,
@@ -619,7 +551,6 @@ mod tests {
         );
 
         let bob = Bob0::new(
-            &mut thread_rng(),
             amount_alice,
             amount_bob,
             input_bob,
