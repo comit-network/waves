@@ -63,6 +63,7 @@ pub fn make_txout<R>(
     out_abf: [u8; 32],
     out_vbf: [u8; 32],
     inputs: &[(AssetId, Asset, SecretKey)],
+    sender_ephemeral_sk: SecretKey,
 ) -> TxOut
 where
     R: RngCore + CryptoRng,
@@ -73,7 +74,6 @@ where
 
     let value_commitment = asset_value_commitment(amount.as_sat(), out_vbf, out_asset);
 
-    let sender_ephemeral_sk = SecretKey::new(rng);
     let range_proof = asset_rangeproof(
         amount.as_sat(),
         address.blinding_pubkey.unwrap(),
@@ -372,6 +372,7 @@ mod tests {
             *redeem_abf_bitcoin.as_ref(),
             *vbf_redeem_bitcoin.as_ref(),
             &inputs,
+            SecretKey::new(&mut thread_rng()),
         );
         let txout_litecoin = make_txout(
             &mut thread_rng(),
@@ -381,6 +382,7 @@ mod tests {
             *redeem_abf_litecoin.as_ref(),
             vbf_redeem_litecoin,
             &inputs,
+            SecretKey::new(&mut thread_rng()),
         );
 
         let fee = TxOut {
@@ -523,6 +525,7 @@ mod tests {
             *spend_abf_bitcoin.as_ref(),
             spend_vbf_bitcoin,
             &inputs,
+            SecretKey::new(&mut thread_rng()),
         );
 
         let fee = TxOut {
