@@ -217,12 +217,14 @@ pub fn asset_blinding_key_to_ec_private_key(
 pub fn asset_unblind(
     pub_key: secp256k1::PublicKey,
     priv_key: secp256k1::SecretKey,
-    proof: Vec<u8>,
-    commitment: Vec<u8>,
-    extra: bitcoin::Script,
-    generator: Vec<u8>,
+    proof: &[u8],
+    value: ValueCommitment,
+    extra: &bitcoin::Script,
+    generator: AssetCommitment,
 ) -> Result<([u8; 32], [u8; 32], [u8; 32], u64), String> {
     let pub_key = pub_key.serialize();
+    let commitment = value.commitment();
+    let generator = generator.commitment();
 
     let mut asset_out = [0u8; 32];
     let mut abf_out = [0u8; 32];
@@ -495,6 +497,7 @@ mod tests {
     use bitcoin::Script;
 
     use crate::transaction::ExplicitValue;
+    use hex::FromHex;
     use std::str::FromStr;
 
     const _CA_PREFIX_LIQUID: u32 = 0x0c;
@@ -579,18 +582,18 @@ mod tests {
             .unwrap()
             .into();
         let asset_commitment =
-            hex::decode("0b9d043d60286407330e12001e539559f6227c9999abf251b7497bba53ac20cd70")
+            FromHex::from_hex("0b9d043d60286407330e12001e539559f6227c9999abf251b7497bba53ac20cd70")
                 .unwrap();
         let value_commitment =
-            hex::decode("09b67565b370abf41d81fe0ed6378e7228e9ae01d1b72b69582f83db1fca522148")
+            FromHex::from_hex("09b67565b370abf41d81fe0ed6378e7228e9ae01d1b72b69582f83db1fca522148")
                 .unwrap();
 
         let (asset, abf, vbf, value) = asset_unblind(
             sender_pk,
             our_sk,
-            rangeproof,
+            &rangeproof,
             value_commitment,
-            script,
+            &script,
             asset_commitment,
         )
         .unwrap();
