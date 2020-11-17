@@ -5,13 +5,14 @@ authors = ["CoBloX Team <team@coblox.tech>"]
 edition = "2018"
 
 [dependencies]
+anyhow = "1.0"
 bitcoin = { version = "0.25", features = ["rand"] }
 secp256k1 = { version = "0.19.0", features = ["global-context"] }
 elements-fun = { path = "../elements-fun", features = ["serde"] }
 elements-harness = { path = "../elements-harness" }
 sha2 = "0.9"
+rand = "0.6"
 
 [dev-dependencies]
-rand = "0.6"
 testcontainers = "0.11"
 tokio = { version = "0.2", default-features = false, features = ["blocking", "macros", "rt-core", "time"] }
