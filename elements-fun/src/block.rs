@@ -217,7 +217,11 @@ impl Default for ExtData {
 
 /// Elements block header
 #[derive(Clone, Debug, Default, Eq, Hash, PartialEq)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(crate = "serde_crate"))]
+#[cfg_attr(
+    feature = "serde",
+    derive(serde::Serialize, serde::Deserialize),
+    serde(crate = "serde_crate")
+)]
 pub struct BlockHeader {
     /// Version - should be 0x20000000 except when versionbits signalling
     pub version: u32,
@@ -359,7 +363,11 @@ impl Decodable for BlockHeader {
 
 /// Elements block
 #[derive(Clone, Debug, Default, Eq, Hash, PartialEq)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(crate = "serde_crate"))]
+#[cfg_attr(
+    feature = "serde",
+    derive(serde::Serialize, serde::Deserialize),
+    serde(crate = "serde_crate")
+)]
 pub struct Block {
     /// Header of the block
     pub header: BlockHeader,

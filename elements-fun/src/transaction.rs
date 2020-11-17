@@ -29,7 +29,11 @@ use crate::issuance::AssetId;
 
 /// Description of an asset issuance in a transaction input
 #[derive(Copy, Clone, Debug, Default, Eq, Hash, PartialEq, PartialOrd, Ord)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(crate = "serde_crate"))]
+#[cfg_attr(
+    feature = "serde",
+    derive(serde::Serialize, serde::Deserialize),
+    serde(crate = "serde_crate")
+)]
 pub struct AssetIssuance {
     /// Zero for a new asset issuance; otherwise a blinding factor for the input
     pub asset_blinding_nonce: [u8; 32],
@@ -50,7 +54,11 @@ impl_consensus_encoding!(
 
 /// A reference to a transaction output
 #[derive(Copy, Clone, Debug, Eq, Hash, PartialEq, PartialOrd, Ord)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(crate = "serde_crate"))]
+#[cfg_attr(
+    feature = "serde",
+    derive(serde::Serialize, serde::Deserialize),
+    serde(crate = "serde_crate")
+)]
 pub struct OutPoint {
     /// The referenced transaction's txid
     pub txid: Txid,
@@ -104,7 +112,11 @@ impl ::std::str::FromStr for OutPoint {
 
 /// Transaction input witness
 #[derive(Clone, Default, PartialEq, Eq, Debug, Hash)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(crate = "serde_crate"))]
+#[cfg_attr(
+    feature = "serde",
+    derive(serde::Serialize, serde::Deserialize),
+    serde(crate = "serde_crate")
+)]
 pub struct TxInWitness {
     /// Amount rangeproof
     pub amount_rangeproof: Vec<u8>,
@@ -162,7 +174,11 @@ pub struct PeginData<'tx> {
 
 /// A transaction input, which defines old coins to be consumed
 #[derive(Clone, PartialEq, Eq, Debug, Hash)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(crate = "serde_crate"))]
+#[cfg_attr(
+    feature = "serde",
+    derive(serde::Serialize, serde::Deserialize),
+    serde(crate = "serde_crate")
+)]
 pub struct TxIn {
     /// The reference to the previous output that is being used an an input
     pub previous_output: OutPoint,
@@ -299,7 +315,11 @@ impl TxIn {
 
 /// Transaction output witness
 #[derive(Clone, Default, PartialEq, Eq, Debug, Hash)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(crate = "serde_crate"))]
+#[cfg_attr(
+    feature = "serde",
+    derive(serde::Serialize, serde::Deserialize),
+    serde(crate = "serde_crate")
+)]
 pub struct TxOutWitness {
     /// Surjection proof showing that the asset commitment is legitimate
     pub surjection_proof: Vec<u8>,
@@ -332,7 +352,11 @@ pub struct PegoutData<'txo> {
 
 /// Transaction output
 #[derive(Clone, Default, PartialEq, Eq, Debug, Hash)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(crate = "serde_crate"))]
+#[cfg_attr(
+    feature = "serde",
+    derive(serde::Serialize, serde::Deserialize),
+    serde(crate = "serde_crate")
+)]
 pub struct TxOut {
     /// Committed asset
     pub asset: confidential::Asset,
@@ -511,7 +535,11 @@ impl TxOut {
 
 /// Elements transaction
 #[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(crate = "serde_crate"))]
+#[cfg_attr(
+    feature = "serde",
+    derive(serde::Serialize, serde::Deserialize),
+    serde(crate = "serde_crate")
+)]
 pub struct Transaction {
     /// Transaction version field (should always be 2)
     pub version: u32,
