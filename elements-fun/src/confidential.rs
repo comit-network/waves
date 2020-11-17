@@ -63,6 +63,17 @@ macro_rules! impl_confidential_commitment {
             }
         }
 
+        impl hex::FromHex for $name {
+            type Error = encode::Error;
+
+            fn from_hex<T: AsRef<[u8]>>(hex: T) -> Result<Self, Self::Error> {
+                let bytes = Vec::<u8>::from_hex(hex)
+                    .map_err(|_| encode::Error::ParseFailed("failed to parse as hex"))?; // TODO: Proper error handling
+
+                Ok($name::from_slice(&bytes)?)
+            }
+        }
+
         impl Encodable for $name {
             fn consensus_encode<S: io::Write>(&self, mut s: S) -> Result<usize, encode::Error> {
                 self.0.consensus_encode(&mut s)

@@ -56,5 +56,5 @@ pub use issuance::{AssetId, ContractHash};
 pub use transaction::{
     AssetIssuance, ConfidentialAssetIssuance, ConfidentialTxOut, ExplicitAsset,
     ExplicitAssetIssuance, ExplicitTxOut, ExplicitValue, OutPoint, PeginData, PegoutData,
-    Transaction, TxIn, TxInWitness, TxOut, TxOutWitness,
+    Transaction, TxIn, TxInWitness, TxOut, TxOutWitness, UnblindedTxOut,
 };
