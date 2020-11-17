@@ -357,6 +357,16 @@ impl TxOutWitness {
     pub fn is_empty(&self) -> bool {
         self.surjection_proof.is_empty() && self.rangeproof.is_empty()
     }
+
+    pub fn encoded_length(&self) -> usize {
+        let sp_len = self.surjection_proof.len();
+        let rp_len = self.rangeproof.len();
+
+        let sp_enc_length = VarInt(sp_len as u64).len() + sp_len;
+        let rp_enc_length = VarInt(rp_len as u64).len() + rp_len;
+
+        sp_enc_length + rp_enc_length
+    }
 }
 
 /// Information about a pegout
@@ -633,10 +643,7 @@ impl Transaction {
                         + VarInt(output.script_pubkey.len() as u64).len() as usize
                         + output.script_pubkey.len())
                     + if witness_flag {
-                        VarInt(output.witness.surjection_proof.len() as u64).len() as usize
-                            + output.witness.surjection_proof.len()
-                            + VarInt(output.witness.rangeproof.len() as u64).len() as usize
-                            + output.witness.rangeproof.len()
+                        output.witness.encoded_length()
                     } else {
                         0
                     }
