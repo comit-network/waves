@@ -56,6 +56,11 @@ pub struct Message1 {
     pub vbf_redeem: SecretKey,
     pub abf_change: SecretKey,
     pub witness_stack_bob: Vec<Vec<u8>>,
+
+    pub redeem_ephemeral_key_alice: SecretKey,
+    pub redeem_ephemeral_key_bob: SecretKey,
+    pub change_ephemeral_key_alice: SecretKey,
+    pub change_ephemeral_key_bob: SecretKey,
 }
 
 pub struct Alice0 {
@@ -211,6 +216,7 @@ impl Alice0 {
             *self.abf_redeem.as_ref(),
             *self.vbf_redeem.as_ref(),
             &inputs,
+            msg.redeem_ephemeral_key_alice,
         );
 
         let redeem_output_bob = make_txout(
@@ -221,6 +227,7 @@ impl Alice0 {
             *msg.abf_redeem.as_ref(),
             *msg.vbf_redeem.as_ref(),
             &inputs,
+            msg.redeem_ephemeral_key_bob,
         );
 
         let change_output_alice = make_txout(
@@ -231,6 +238,7 @@ impl Alice0 {
             *self.abf_change.as_ref(),
             *self.vbf_change.as_ref(),
             &inputs,
+            msg.change_ephemeral_key_alice,
         );
 
         let vbf_change_bob = asset_final_vbf(
@@ -254,6 +262,7 @@ impl Alice0 {
             *msg.abf_change.as_ref(),
             vbf_change_bob,
             &inputs,
+            msg.change_ephemeral_key_bob,
         );
 
         let fee = TxOut {
@@ -276,8 +285,6 @@ impl Alice0 {
                 fee,
             ],
         };
-
-        dbg!(serialize_hex(&transaction));
 
         // extract signature from message and put it into the right spot
         // TODO: verify this is the correct position
@@ -438,6 +445,7 @@ impl Bob0 {
             (asset_id_bob, asset_id_commitment_in_bob, abf_in_bob),
         ];
 
+        let redeem_ephemeral_key_alice = SecretKey::new(rng);
         let redeem_output_alice = make_txout(
             rng,
             self.redeem_amount_alice,
@@ -446,8 +454,10 @@ impl Bob0 {
             *msg.abf_redeem.as_ref(),
             *msg.vbf_redeem.as_ref(),
             &inputs,
+            redeem_ephemeral_key_alice,
         );
 
+        let redeem_ephemeral_key_bob = SecretKey::new(rng);
         let redeem_output_bob = make_txout(
             rng,
             self.redeem_amount_bob,
@@ -456,8 +466,10 @@ impl Bob0 {
             *self.abf_redeem.as_ref(),
             *self.vbf_redeem.as_ref(),
             &inputs,
+            redeem_ephemeral_key_bob,
         );
 
+        let change_ephemeral_key_alice = SecretKey::new(rng);
         let change_output_alice = make_txout(
             rng,
             change_amount_alice,
@@ -466,6 +478,7 @@ impl Bob0 {
             *msg.abf_change.as_ref(),
             *msg.vbf_change.as_ref(),
             &inputs,
+            change_ephemeral_key_alice,
         );
 
         let vbf_change_bob = asset_final_vbf(
@@ -481,6 +494,8 @@ impl Bob0 {
             abfs,
             vbfs,
         );
+
+        let change_ephemeral_key_bob = SecretKey::new(rng);
         let change_output_bob = make_txout(
             rng,
             change_amount_bob,
@@ -489,6 +504,7 @@ impl Bob0 {
             *self.abf_change.as_ref(),
             vbf_change_bob,
             &inputs,
+            change_ephemeral_key_bob,
         );
 
         let fee = TxOut {
@@ -529,6 +545,10 @@ impl Bob0 {
             vbf_redeem: self.vbf_redeem,
             abf_change: self.abf_change,
             vbf_change: self.vbf_change,
+            redeem_ephemeral_key_alice,
+            redeem_ephemeral_key_bob,
+            change_ephemeral_key_alice,
+            change_ephemeral_key_bob,
         }
     }
 }
@@ -548,6 +568,10 @@ pub struct Bob1 {
     pub vbf_redeem: SecretKey,
     pub abf_change: SecretKey,
     pub vbf_change: SecretKey,
+    pub redeem_ephemeral_key_alice: SecretKey,
+    pub redeem_ephemeral_key_bob: SecretKey,
+    pub change_ephemeral_key_alice: SecretKey,
+    pub change_ephemeral_key_bob: SecretKey,
 }
 
 impl Bob1 {
@@ -602,6 +626,11 @@ impl Bob1 {
             // bob's input information
             input_as_txout: self.input_as_txout_bob.clone(),
             input_blinding_sk: self.input_blinding_sk,
+
+            redeem_ephemeral_key_alice: self.redeem_ephemeral_key_alice,
+            redeem_ephemeral_key_bob: self.redeem_ephemeral_key_bob,
+            change_ephemeral_key_alice: self.change_ephemeral_key_alice,
+            change_ephemeral_key_bob: self.change_ephemeral_key_bob,
         }
     }
 }
@@ -732,7 +761,8 @@ mod tests {
         let bob1 = bob.interpret(&mut thread_rng(), message0);
         let message1 = bob1.compose();
         let transaction = alice.interpret(&mut thread_rng(), message1).unwrap();
-        client.send_raw_transaction(&transaction).await.unwrap();
+        let txid = client.send_raw_transaction(&transaction).await.unwrap();
+        dbg!(txid);
     }
 
     fn extract_input(tx: Transaction, address: Address) -> Result<(OutPoint, TxOut)> {
