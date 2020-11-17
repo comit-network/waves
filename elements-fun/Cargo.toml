@@ -29,7 +29,7 @@ bitcoin_hashes = "0.9.0"
 
 # Used for ContractHash::from_json_contract.
 serde_json = { version = "1", optional = true }
-serde-crate = { package = "serde", version = "1", optional = true }
+serde-crate = { package = "serde", version = "1", optional = true, features = ["derive"] }
 
 [dev-dependencies]
 rand = "0.6.5"
