@@ -158,25 +158,23 @@ pub fn make_confidential_address() -> (Address, SecretKey, PublicKey, SecretKey,
 
 #[cfg(test)]
 mod tests {
-    use crate::make_keypair;
     use bitcoin::Amount;
     use elements_fun::bitcoin::secp256k1::Message;
     use elements_fun::bitcoin::secp256k1::SecretKey;
-    use elements_fun::bitcoin::PrivateKey;
+
     use elements_fun::wally::{asset_final_vbf, tx_get_elements_signature_hash};
     use elements_fun::{
         bitcoin::{
             blockdata::{opcodes, script::Builder},
-            PublicKey, Script, SigHashType,
+            Script, SigHashType,
         },
         bitcoin_hashes::{hash160, hex::FromHex, Hash},
         confidential::{Asset, Nonce, Value},
         encode::serialize_hex,
-        Address, AddressParams, OutPoint, Transaction, TxIn, TxOut, TxOutWitness,
+        OutPoint, Transaction, TxIn, TxOut, TxOutWitness,
     };
     use elements_harness::{elementd_rpc::Client, elementd_rpc::ElementsRpc, Elementsd};
     use rand::thread_rng;
-    use secp256k1::SECP256K1;
     use testcontainers::clients::Cli;
 
     use crate::make_confidential_address;
@@ -205,14 +203,14 @@ mod tests {
             fund_sk_bitcoin,
             fund_pk_bitcoin,
             fund_blinding_sk_bitcoin,
-            fund_blinding_pk_bitcoin,
+            _fund_blinding_pk_bitcoin,
         ) = make_confidential_address();
         let (
             fund_address_litecoin,
             fund_sk_litecoin,
             fund_pk_litecoin,
             fund_blinding_sk_litecoin,
-            fund_blinding_pk_litecoin,
+            _fund_blinding_pk_litecoin,
         ) = make_confidential_address();
 
         let fund_bitcoin_amount = bitcoin::Amount::ONE_BTC;
@@ -264,15 +262,15 @@ mod tests {
             redeem_sk_bitcoin,
             redeem_pk_bitcoin,
             redeem_blinding_sk_bitcoin,
-            redeem_blinding_pk_bitcoin,
+            _redeem_blinding_pk_bitcoin,
         ) = make_confidential_address();
 
         let (
             redeem_address_litecoin,
-            redeem_sk_litecoin,
-            redeem_pk_litecoin,
-            redeem_blinding_sk_litecoin,
-            redeem_blinding_pk_litecoin,
+            _redeem_sk_litecoin,
+            _redeem_pk_litecoin,
+            _redeem_blinding_sk_litecoin,
+            _redeem_blinding_pk_litecoin,
         ) = make_confidential_address();
 
         let tx_out_bitcoin = fund_bitcoin_tx.output[fund_bitcoin_vout].clone();
@@ -478,9 +476,9 @@ mod tests {
         let (
             spend_address_bitcoin,
             _spend_sk_bitcoin,
-            spend_pk_bitcoin,
+            _spend_pk_bitcoin,
             _spend_blinding_sk_bitcoin,
-            spend_blinding_pk_bitcoin,
+            _spend_blinding_pk_bitcoin,
         ) = make_confidential_address();
 
         let (unblinded_asset_id_bitcoin, asset_commitment_bitcoin, abf, vbf, amount_in) =
