@@ -127,6 +127,7 @@ pub struct TxInWitness {
     /// Pegin witness, basically the same thing
     pub pegin_witness: Vec<Vec<u8>>,
 }
+
 impl_consensus_encoding!(
     TxInWitness,
     amount_rangeproof,
@@ -142,6 +143,29 @@ impl TxInWitness {
             && self.inflation_keys_rangeproof.is_empty()
             && self.script_witness.is_empty()
             && self.pegin_witness.is_empty()
+    }
+
+    pub fn encoded_length(&self) -> usize {
+        let amount_rp_len = self.amount_rangeproof.len();
+        let inflation_keys_rp_len = self.inflation_keys_rangeproof.len();
+        let script_w = &self.script_witness;
+        let pegin_w = &self.pegin_witness;
+
+        let amount_enc_length = VarInt(amount_rp_len as u64).len() as usize + amount_rp_len;
+        let inflation_keys_enc_length =
+            VarInt(inflation_keys_rp_len as u64).len() as usize + inflation_keys_rp_len;
+        let script_w_enc_length = VarInt(script_w.len() as u64).len() as usize
+            + script_w
+                .iter()
+                .map(|wit| VarInt(wit.len() as u64).len() as usize + wit.len())
+                .sum::<usize>();
+        let pegin_w_enc_length = VarInt(pegin_w.len() as u64).len() as usize
+            + pegin_w
+                .iter()
+                .map(|wit| VarInt(wit.len() as u64).len() as usize + wit.len())
+                .sum::<usize>();
+
+        amount_enc_length + inflation_keys_enc_length + script_w_enc_length + pegin_w_enc_length
     }
 }
 
@@ -591,25 +615,7 @@ impl Transaction {
                 } else {
                     0
                 }) + if witness_flag {
-                    VarInt(input.witness.amount_rangeproof.len() as u64).len() as usize
-                        + input.witness.amount_rangeproof.len()
-                        + VarInt(input.witness.inflation_keys_rangeproof.len() as u64).len()
-                            as usize
-                        + input.witness.inflation_keys_rangeproof.len()
-                        + VarInt(input.witness.script_witness.len() as u64).len() as usize
-                        + input
-                            .witness
-                            .script_witness
-                            .iter()
-                            .map(|wit| VarInt(wit.len() as u64).len() as usize + wit.len())
-                            .sum::<usize>()
-                        + VarInt(input.witness.pegin_witness.len() as u64).len() as usize
-                        + input
-                            .witness
-                            .pegin_witness
-                            .iter()
-                            .map(|wit| VarInt(wit.len() as u64).len() as usize + wit.len())
-                            .sum::<usize>()
+                    input.witness.encoded_length()
                 } else {
                     0
                 }
