@@ -23,7 +23,6 @@ use std::str::FromStr;
 #[allow(unused_imports, deprecated)]
 use std::ascii::AsciiExt;
 
-use bitcoin;
 use bitcoin::bech32::{self, u5, FromBase32, ToBase32};
 use bitcoin::blockdata::{opcodes, script};
 use bitcoin::hashes::Hash;

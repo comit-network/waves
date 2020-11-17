@@ -32,7 +32,8 @@ pub extern crate bitcoin_hashes;
 #[cfg(feature = "serde")]
 extern crate serde_crate as serde;
 
-#[macro_use] mod internal_macros;
+#[macro_use]
+mod internal_macros;
 pub mod address;
 pub mod blech32;
 mod block;
@@ -41,16 +42,19 @@ pub mod dynafed;
 pub mod encode;
 mod fast_merkle_root;
 pub mod issuance;
-mod transaction;
 pub mod slip77;
+mod transaction;
 pub mod wally;
 
 // export everything at the top level so it can be used as `elements::Transaction` etc.
-pub use address::{Address, AddressParams, AddressError};
-pub use transaction::{OutPoint, PeginData, PegoutData, TxIn, TxOut, TxInWitness, TxOutWitness, Transaction, AssetIssuance};
-pub use block::{BlockHeader, Block};
-pub use block::ExtData as BlockExtData;
 pub use ::bitcoin::consensus::encode::VarInt;
+pub use address::{Address, AddressError, AddressParams};
+pub use block::ExtData as BlockExtData;
+pub use block::{Block, BlockHeader};
 pub use fast_merkle_root::fast_merkle_root;
 pub use issuance::{AssetId, ContractHash};
-
+pub use transaction::{
+    AssetIssuance, ConfidentialAssetIssuance, ConfidentialTxOut, ExplicitAsset,
+    ExplicitAssetIssuance, ExplicitTxOut, ExplicitValue, OutPoint, PeginData, PegoutData,
+    Transaction, TxIn, TxInWitness, TxOut, TxOutWitness, UnblindedTxOut,
+};

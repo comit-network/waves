@@ -5,7 +5,6 @@
 
 use bitcoin::hashes::{hmac, sha256, sha256d, Hash, HashEngine};
 use bitcoin::{self, secp256k1};
-use slip21;
 
 const SLIP77_DERIVATION: &str = "SLIP-0077";
 

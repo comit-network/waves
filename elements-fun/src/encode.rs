@@ -79,6 +79,13 @@ impl From<btcenc::Error> for Error {
     }
 }
 
+#[doc(hidden)]
+impl From<io::Error> for Error {
+    fn from(e: io::Error) -> Self {
+        Error::Bitcoin(btcenc::Error::Io(e))
+    }
+}
+
 /// Data which can be encoded in a consensus-consistent way
 pub trait Encodable {
     /// Encode an object with a well-defined format, should only ever error if
@@ -90,7 +97,7 @@ pub trait Encodable {
 /// Data which can be encoded in a consensus-consistent way
 pub trait Decodable: Sized {
     /// Decode an object with a well-defined format
-    fn consensus_decode<D: io::Read>(d: D) -> Result<Self, Error>;
+    fn consensus_decode<D: io::BufRead>(d: D) -> Result<Self, Error>;
 }
 
 /// Encode an object into a vector
@@ -137,7 +144,7 @@ impl Encodable for sha256::Midstate {
 }
 
 impl Decodable for sha256::Midstate {
-    fn consensus_decode<D: io::Read>(d: D) -> Result<Self, Error> {
+    fn consensus_decode<D: io::BufRead>(d: D) -> Result<Self, Error> {
         Ok(Self::from_inner(<[u8; 32]>::consensus_decode(d)?))
     }
 }
@@ -152,7 +159,7 @@ macro_rules! impl_upstream {
         }
 
         impl Decodable for $type {
-            fn consensus_decode<D: io::Read>(mut d: D) -> Result<Self, Error> {
+            fn consensus_decode<D: io::BufRead>(mut d: D) -> Result<Self, Error> {
                 Ok(btcenc::Decodable::consensus_decode(&mut d)?)
             }
         }
@@ -162,6 +169,7 @@ impl_upstream!(u8);
 impl_upstream!(u32);
 impl_upstream!(u64);
 impl_upstream!([u8; 32]);
+impl_upstream!([u8; 33]);
 impl_upstream!(Vec<u8>);
 impl_upstream!(Vec<Vec<u8>>);
 impl_upstream!(btcenc::VarInt);
@@ -188,7 +196,7 @@ macro_rules! impl_vec {
 
         impl Decodable for Vec<$type> {
             #[inline]
-            fn consensus_decode<D: io::Read>(mut d: D) -> Result<Self, Error> {
+            fn consensus_decode<D: io::BufRead>(mut d: D) -> Result<Self, Error> {
                 let len = btcenc::VarInt::consensus_decode(&mut d)?.0;
                 let byte_size = (len as usize)
                     .checked_mul(mem::size_of::<$type>())

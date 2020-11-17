@@ -16,7 +16,6 @@
 
 use std::io;
 
-use bitcoin;
 use bitcoin::hashes::{sha256, sha256d, Hash};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -463,7 +462,7 @@ impl Encodable for Params {
 }
 
 impl Decodable for Params {
-    fn consensus_decode<D: io::Read>(mut d: D) -> Result<Self, encode::Error> {
+    fn consensus_decode<D: io::BufRead>(mut d: D) -> Result<Self, encode::Error> {
         let ser_type: u8 = Decodable::consensus_decode(&mut d)?;
         match ser_type {
             0 => Ok(Params::Null),
@@ -490,7 +489,6 @@ impl Decodable for Params {
 mod tests {
     use super::*;
 
-    use bitcoin;
     use bitcoin::hashes::hex::ToHex;
     use bitcoin::hashes::sha256;
 

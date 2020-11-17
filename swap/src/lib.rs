@@ -4,16 +4,15 @@ use elements_fun::bitcoin::secp256k1::PublicKey as SecpPublicKey;
 use elements_fun::bitcoin::Network::Regtest;
 use elements_fun::bitcoin::PrivateKey;
 use elements_fun::bitcoin::PublicKey;
-use elements_fun::confidential::Nonce;
+use elements_fun::confidential::{AssetCommitment, NonceCommitment};
 use elements_fun::wally::asset_generator_from_bytes;
 use elements_fun::wally::asset_rangeproof;
 use elements_fun::wally::asset_surjectionproof;
-use elements_fun::wally::asset_unblind;
 use elements_fun::wally::asset_value_commitment;
-use elements_fun::Address;
 use elements_fun::AddressParams;
 use elements_fun::TxOutWitness;
-use elements_fun::{confidential::Asset, AssetId, TxOut};
+use elements_fun::{Address, ConfidentialTxOut};
+use elements_fun::{AssetId, TxOut};
 use rand::thread_rng;
 use rand::CryptoRng;
 use rand::RngCore;
@@ -22,49 +21,15 @@ use secp256k1::SECP256K1;
 
 pub mod states;
 
-pub fn unblind_asset_from_txout(
-    out: TxOut,
-    receiver_blinding_sk: SecretKey,
-) -> (AssetId, Asset, SecretKey, SecretKey, Amount) {
-    let range_proof = out.witness.rangeproof;
-    let value_commitment = out.value.commitment().unwrap();
-    let asset_generator = out.asset.commitment().unwrap();
-    let script = out.script_pubkey;
-    let sender_ephemeral_pk = out.nonce.commitment().unwrap();
-    let sender_ephemeral_pk =
-        SecpPublicKey::from_slice(&sender_ephemeral_pk).expect("commitment is a public key");
-
-    let (unblinded_asset, abf, vbf, value_out) = asset_unblind(
-        sender_ephemeral_pk,
-        receiver_blinding_sk,
-        range_proof,
-        value_commitment.into(),
-        script,
-        asset_generator.into(),
-    )
-    .unwrap();
-
-    let abf = SecretKey::from_slice(&abf).unwrap();
-    let vbf = SecretKey::from_slice(&vbf).unwrap();
-    let value_out = Amount::from_sat(value_out);
-
-    (
-        AssetId::from_slice(&unblinded_asset).unwrap(),
-        out.asset,
-        abf,
-        vbf,
-        value_out,
-    )
-}
-
-pub fn make_txout<R>(
+#[allow(clippy::too_many_arguments)]
+fn make_txout<R>(
     rng: &mut R,
     amount: Amount,
     address: Address,
     out_asset_id: AssetId,
     out_abf: [u8; 32],
     out_vbf: [u8; 32],
-    inputs: &[(AssetId, Asset, SecretKey)],
+    inputs: &[(AssetId, AssetCommitment, SecretKey)],
     sender_ephemeral_sk: SecretKey,
 ) -> Result<TxOut>
 where
@@ -98,7 +63,7 @@ where
         .collect::<Vec<_>>();
     let assets_in = inputs
         .iter()
-        .map(|(_, asset, _)| asset.commitment().unwrap().to_vec())
+        .map(|(_, asset, _)| asset.commitment().to_vec())
         .flatten()
         .collect::<Vec<_>>();
     let abfs_in = inputs
@@ -119,16 +84,18 @@ where
     );
 
     let sender_ephemeral_pk = SecpPublicKey::from_secret_key(&SECP256K1, &sender_ephemeral_sk);
-    Ok(TxOut {
+    Ok(TxOut::Confidential(ConfidentialTxOut {
         asset: out_asset,
         value: value_commitment,
-        nonce: Nonce::from_commitment(&sender_ephemeral_pk.serialize())?,
+        nonce: Some(NonceCommitment::from_slice(
+            &sender_ephemeral_pk.serialize(),
+        )?),
         script_pubkey: address.script_pubkey(),
         witness: TxOutWitness {
             surjection_proof,
             rangeproof: range_proof,
         },
-    })
+    }))
 }
 
 pub fn make_keypair() -> (SecretKey, PublicKey) {
@@ -170,9 +137,9 @@ mod tests {
             Script, SigHashType,
         },
         bitcoin_hashes::{hash160, hex::FromHex, Hash},
-        confidential::{Asset, Nonce, Value},
         encode::serialize_hex,
-        OutPoint, Transaction, TxIn, TxOut, TxOutWitness,
+        ExplicitAsset, ExplicitTxOut, ExplicitValue, OutPoint, Transaction, TxIn, TxOut,
+        UnblindedTxOut,
     };
     use elements_harness::{elementd_rpc::Client, elementd_rpc::ElementsRpc, Elementsd};
     use rand::thread_rng;
@@ -180,7 +147,6 @@ mod tests {
 
     use crate::make_confidential_address;
     use crate::make_txout;
-    use crate::unblind_asset_from_txout;
 
     #[tokio::test]
     async fn sign_transaction_with_two_asset_types() {
@@ -242,12 +208,12 @@ mod tests {
         let fund_bitcoin_vout = fund_bitcoin_tx
             .output
             .iter()
-            .position(|output| output.script_pubkey == fund_address_bitcoin.script_pubkey())
+            .position(|output| output.script_pubkey() == &fund_address_bitcoin.script_pubkey())
             .unwrap();
         let fund_litecoin_vout = fund_litecoin_tx
             .output
             .iter()
-            .position(|output| output.script_pubkey == fund_address_litecoin.script_pubkey())
+            .position(|output| output.script_pubkey() == &fund_address_litecoin.script_pubkey())
             .unwrap();
 
         let redeem_fee = Amount::from_sat(900_000);
@@ -274,23 +240,29 @@ mod tests {
             _redeem_blinding_pk_litecoin,
         ) = make_confidential_address();
 
-        let tx_out_bitcoin = fund_bitcoin_tx.output[fund_bitcoin_vout].clone();
-        let tx_out_litecoin = fund_litecoin_tx.output[fund_litecoin_vout].clone();
+        let tx_out_bitcoin = fund_bitcoin_tx.output[fund_bitcoin_vout]
+            .as_confidential()
+            .unwrap()
+            .clone();
+        let tx_out_litecoin = fund_litecoin_tx.output[fund_litecoin_vout]
+            .as_confidential()
+            .unwrap()
+            .clone();
 
-        let (
-            unblinded_asset_id_bitcoin,
-            asset_commitment_bitcoin,
-            abf_bitcoin,
-            vbf_bitcoin,
-            amount_in_bitcoin,
-        ) = unblind_asset_from_txout(tx_out_bitcoin, fund_blinding_sk_bitcoin);
-        let (
-            unblinded_asset_id_litecoin,
-            asset_commitment_litecoin,
-            abf_litecoin,
-            vbf_litecoin,
-            amount_in_litecoin,
-        ) = unblind_asset_from_txout(tx_out_litecoin, fund_blinding_sk_litecoin);
+        let UnblindedTxOut {
+            asset: unblinded_asset_id_bitcoin,
+            original_asset: asset_commitment_bitcoin,
+            asset_blinding_factor: abf_bitcoin,
+            value_blinding_factor: vbf_bitcoin,
+            value: amount_in_bitcoin,
+        } = tx_out_bitcoin.unblind(fund_blinding_sk_bitcoin).unwrap();
+        let UnblindedTxOut {
+            asset: unblinded_asset_id_litecoin,
+            original_asset: asset_commitment_litecoin,
+            asset_blinding_factor: abf_litecoin,
+            value_blinding_factor: vbf_litecoin,
+            value: amount_in_litecoin,
+        } = tx_out_litecoin.unblind(fund_blinding_sk_litecoin).unwrap();
 
         let abfs = vec![
             abf_bitcoin.as_ref().to_vec(),
@@ -314,8 +286,8 @@ mod tests {
 
         let vbf_redeem_litecoin = asset_final_vbf(
             vec![
-                amount_in_bitcoin.as_sat(),
-                amount_in_litecoin.as_sat(),
+                amount_in_bitcoin,
+                amount_in_litecoin,
                 redeem_amount_bitcoin.as_sat(),
                 redeem_amount_litecoin.as_sat(),
             ],
@@ -355,12 +327,12 @@ mod tests {
             (
                 unblinded_asset_id_bitcoin,
                 asset_commitment_bitcoin,
-                abf_bitcoin,
+                SecretKey::from_slice(&abf_bitcoin).unwrap(),
             ),
             (
                 unblinded_asset_id_litecoin,
                 asset_commitment_litecoin,
-                abf_litecoin,
+                SecretKey::from_slice(&abf_litecoin).unwrap(),
             ),
         ];
 
@@ -387,13 +359,11 @@ mod tests {
         )
         .unwrap();
 
-        let fee = TxOut {
-            asset: Asset::Explicit(bitcoin_asset_id),
-            value: Value::Explicit(redeem_fee.as_sat()),
-            nonce: Nonce::Null,
+        let fee = TxOut::Explicit(ExplicitTxOut {
+            asset: ExplicitAsset(bitcoin_asset_id),
+            value: ExplicitValue(redeem_fee.as_sat()),
             script_pubkey: Script::default(),
-            witness: TxOutWitness::default(),
-        };
+        });
 
         let mut redeem_tx = Transaction {
             version: 2,
@@ -416,7 +386,10 @@ mod tests {
                 &redeem_tx,
                 0,
                 &script,
-                &fund_bitcoin_tx.output[fund_bitcoin_vout].value,
+                &fund_bitcoin_tx.output[fund_bitcoin_vout]
+                    .as_confidential()
+                    .unwrap()
+                    .value,
                 1,
                 true,
             );
@@ -445,7 +418,10 @@ mod tests {
                 &redeem_tx,
                 1,
                 &script,
-                &fund_litecoin_tx.output[fund_litecoin_vout].value,
+                &fund_litecoin_tx.output[fund_litecoin_vout]
+                    .as_confidential()
+                    .unwrap()
+                    .value,
                 1,
                 true,
             );
@@ -469,7 +445,7 @@ mod tests {
         let redeem_vout_bitcoin = redeem_tx
             .output
             .iter()
-            .position(|output| output.script_pubkey == redeem_address_bitcoin.script_pubkey())
+            .position(|output| output.script_pubkey() == &redeem_address_bitcoin.script_pubkey())
             .unwrap();
 
         let spend_fee_bitcoin = Amount::from_sat(900_000);
@@ -485,11 +461,18 @@ mod tests {
             _spend_blinding_pk_bitcoin,
         ) = make_confidential_address();
 
-        let (unblinded_asset_id_bitcoin, asset_commitment_bitcoin, abf, vbf, amount_in) =
-            unblind_asset_from_txout(
-                redeem_tx.output[redeem_vout_bitcoin].clone(),
-                redeem_blinding_sk_bitcoin,
-            );
+        let UnblindedTxOut {
+            asset: unblinded_asset_id_bitcoin,
+            original_asset: asset_commitment_bitcoin,
+            asset_blinding_factor: abf,
+            value_blinding_factor: vbf,
+            value: amount_in,
+        } = redeem_tx.output[redeem_vout_bitcoin]
+            .as_confidential()
+            .unwrap()
+            .clone()
+            .unblind(redeem_blinding_sk_bitcoin)
+            .unwrap();
 
         let mut abfs = abf.as_ref().to_vec();
         abfs.extend(spend_abf_bitcoin.as_ref());
@@ -497,7 +480,7 @@ mod tests {
         let vbfs = vbf.as_ref().to_vec();
 
         let spend_vbf_bitcoin = asset_final_vbf(
-            vec![amount_in.as_sat(), spend_amount_bitcoin.as_sat()],
+            vec![amount_in, spend_amount_bitcoin.as_sat()],
             1,
             abfs,
             vbfs,
@@ -517,7 +500,11 @@ mod tests {
             witness: Default::default(),
         };
 
-        let inputs = vec![(unblinded_asset_id_bitcoin, asset_commitment_bitcoin, abf)];
+        let inputs = vec![(
+            unblinded_asset_id_bitcoin,
+            asset_commitment_bitcoin,
+            SecretKey::from_slice(&abf).unwrap(),
+        )];
 
         let spend_output = make_txout(
             &mut thread_rng(),
@@ -531,13 +518,11 @@ mod tests {
         )
         .unwrap();
 
-        let fee = TxOut {
-            asset: Asset::Explicit(bitcoin_asset_id),
-            value: Value::Explicit(spend_fee_bitcoin.as_sat()),
-            nonce: Nonce::Null,
+        let fee = TxOut::Explicit(ExplicitTxOut {
+            asset: ExplicitAsset(bitcoin_asset_id),
+            value: ExplicitValue(spend_fee_bitcoin.as_sat()),
             script_pubkey: Script::default(),
-            witness: TxOutWitness::default(),
-        };
+        });
 
         let mut spend_tx = Transaction {
             version: 2,
@@ -560,7 +545,7 @@ mod tests {
                 &spend_tx,
                 0,
                 &script,
-                &redeem_txout_bitcoin.value,
+                &redeem_txout_bitcoin.as_confidential().unwrap().value,
                 1,
                 true,
             );

@@ -17,7 +17,6 @@
 
 use std::io;
 
-use bitcoin;
 use bitcoin::blockdata::script::Script;
 use bitcoin::hashes::{sha256, Hash};
 use bitcoin::{BlockHash, VarInt};
@@ -218,7 +217,11 @@ impl Default for ExtData {
 
 /// Elements block header
 #[derive(Clone, Debug, Default, Eq, Hash, PartialEq)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(crate = "serde_crate"))]
+#[cfg_attr(
+    feature = "serde",
+    derive(serde_crate::Serialize, serde_crate::Deserialize),
+    serde(crate = "serde_crate")
+)]
 pub struct BlockHeader {
     /// Version - should be 0x20000000 except when versionbits signalling
     pub version: u32,
@@ -327,7 +330,7 @@ impl Encodable for BlockHeader {
 }
 
 impl Decodable for BlockHeader {
-    fn consensus_decode<D: io::Read>(mut d: D) -> Result<Self, encode::Error> {
+    fn consensus_decode<D: io::BufRead>(mut d: D) -> Result<Self, encode::Error> {
         let mut version: u32 = Decodable::consensus_decode(&mut d)?;
         let is_dyna = if version >> 31 == 1 {
             version &= 0x7fff_ffff;
@@ -360,7 +363,11 @@ impl Decodable for BlockHeader {
 
 /// Elements block
 #[derive(Clone, Debug, Default, Eq, Hash, PartialEq)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize), serde(crate = "serde_crate"))]
+#[cfg_attr(
+    feature = "serde",
+    derive(serde::Serialize, serde::Deserialize),
+    serde(crate = "serde_crate")
+)]
 pub struct Block {
     /// Header of the block
     pub header: BlockHeader,
@@ -394,8 +401,6 @@ impl Block {
 
 #[cfg(test)]
 mod tests {
-    use Block;
-
     use super::*;
 
     #[test]
