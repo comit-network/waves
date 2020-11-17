@@ -21,6 +21,8 @@ use std::{fmt, io};
 use bitcoin::blockdata::opcodes;
 use bitcoin::blockdata::script::{Instruction, Script};
 use bitcoin::hashes::Hash;
+use bitcoin::secp256k1::PublicKey;
+use bitcoin::secp256k1::SecretKey;
 use bitcoin::{self, Txid, VarInt};
 
 use crate::confidential::AssetCommitment;
@@ -28,6 +30,7 @@ use crate::confidential::NonceCommitment;
 use crate::confidential::ValueCommitment;
 use crate::encode::{self, Decodable, Encodable, Error};
 use crate::issuance::AssetId;
+use crate::wally::asset_unblind;
 
 // TODO: Is `Default` really useful here?
 /// Description of an asset issuance in a transaction input
@@ -721,7 +724,59 @@ impl ConfidentialTxOut {
             + VarInt(self.script_pubkey.len() as u64).len() as usize
             + self.script_pubkey.len()
     }
+
+    pub fn unblind(&self, blinding_key: SecretKey) -> Result<UnblindedTxOut, UnblindError> {
+        let sender_ephemeral_pk = self.nonce.ok_or(UnblindError::MissingNonce)?.commitment();
+        let sender_ephemeral_pk = PublicKey::from_slice(&sender_ephemeral_pk)
+            .map_err(|_| UnblindError::InvalidPublicKey)?;
+
+        let (unblinded_asset, abf, vbf, value_out) = asset_unblind(
+            sender_ephemeral_pk,
+            blinding_key,
+            &self.witness.rangeproof,
+            self.value,
+            &self.script_pubkey,
+            self.asset,
+        )
+        .map_err(|_| UnblindError::Wally)?;
+
+        Ok(UnblindedTxOut {
+            asset: AssetId::from_slice(&unblinded_asset).unwrap(),
+            original_asset: self.asset,
+            asset_blinding_factor: abf,
+            value_blinding_factor: vbf,
+            value: value_out,
+        })
+    }
 }
+
+pub struct UnblindedTxOut {
+    pub asset: AssetId,
+    pub value: u64,
+    pub original_asset: AssetCommitment,
+    pub asset_blinding_factor: [u8; 32],
+    pub value_blinding_factor: [u8; 32],
+}
+
+#[derive(Debug)]
+pub enum UnblindError {
+    MissingNonce,
+    InvalidPublicKey,
+    Wally,
+}
+
+impl fmt::Display for UnblindError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
+        match self {
+            UnblindError::MissingNonce => write!(f, "no nonce in txout"),
+            UnblindError::InvalidPublicKey => write!(f, "failed to create public key from nonce"),
+            UnblindError::Wally => write!(f, "libwally error"),
+        }
+    }
+}
+
+// TODO: Implement source
+impl std::error::Error for UnblindError {}
 
 impl Encodable for TxOut {
     fn consensus_encode<S: io::Write>(&self, mut s: S) -> Result<usize, encode::Error> {

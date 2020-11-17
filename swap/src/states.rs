@@ -1,4 +1,4 @@
-use crate::{make_txout, unblind_asset_from_txout};
+use crate::make_txout;
 use anyhow::{anyhow, Context, Result};
 use bitcoin::{Amount, Script};
 use elements_fun::{
@@ -10,7 +10,7 @@ use elements_fun::{
     bitcoin_hashes::{hash160, Hash},
     wally::{asset_final_vbf, tx_get_elements_signature_hash},
     Address, AssetId, ExplicitAsset, ExplicitTxOut, ExplicitValue, OutPoint, Transaction, TxIn,
-    TxOut,
+    TxOut, UnblindedTxOut,
 };
 use rand::{CryptoRng, RngCore};
 use secp256k1::{PublicKey as SecpPublicKey, SecretKey};
@@ -108,53 +108,60 @@ impl Alice0 {
             .iter()
             .filter(|output| output.script_pubkey() == &self.address_redeem.script_pubkey())
             .map(|output| {
-                let (asset_id, _, _, _, amount) = unblind_asset_from_txout(
-                    output
-                        .as_confidential()
-                        .context("not a confidential txout")?
-                        .clone(),
-                    self.blinding_sk_redeem,
-                );
+                let UnblindedTxOut {
+                    asset: asset_id,
+                    value: amount,
+                    ..
+                } = output
+                    .as_confidential()
+                    .context("not a confidential txout")?
+                    .clone()
+                    .unblind(self.blinding_sk_redeem)?;
 
                 Result::<_>::Ok((asset_id, amount))
             })
             .find(|res| match res {
                 Ok((asset_id, amount)) => {
                     asset_id == &expected_redeem_asset_id_alice
-                        && amount == &expected_redeem_amount_alice
+                        && amount == &expected_redeem_amount_alice.as_sat()
                 }
                 Err(_) => false,
             })
             .ok_or_else(|| anyhow!("wrong redeem_output_alice"))??;
 
-        let (expected_change_asset_id_alice, _, _, _, input_amount_alice) =
-            unblind_asset_from_txout(
-                self.input_as_txout
-                    .as_confidential()
-                    .context("not a confidential txout")?
-                    .clone(),
-                self.input_blinding_sk,
-            );
-        let expected_change_amount_alice = input_amount_alice - self.redeem_amount_bob - self.fee;
+        let UnblindedTxOut {
+            asset: expected_change_asset_id_alice,
+            value: input_amount_alice,
+            ..
+        } = self
+            .input_as_txout
+            .as_confidential()
+            .context("not a confidential txout")?
+            .clone()
+            .unblind(self.input_blinding_sk)?;
+        let expected_change_amount_alice =
+            Amount::from_sat(input_amount_alice) - self.redeem_amount_bob - self.fee;
         msg.transaction
             .output
             .iter()
             .filter(|output| output.script_pubkey() == &self.address_change.script_pubkey())
             .map(|output| {
-                let (asset_id, _, _, _, amount) = unblind_asset_from_txout(
-                    output
-                        .as_confidential()
-                        .context("not a confidential txout")?
-                        .clone(),
-                    self.blinding_sk_change,
-                );
+                let UnblindedTxOut {
+                    asset: asset_id,
+                    value: amount,
+                    ..
+                } = output
+                    .as_confidential()
+                    .context("not a confidential txout")?
+                    .clone()
+                    .unblind(self.blinding_sk_change)?;
 
                 Result::<_>::Ok((asset_id, amount))
             })
             .find(|res| match res {
                 Ok((asset_id, amount)) => {
                     asset_id == &expected_change_asset_id_alice
-                        && amount == &expected_change_amount_alice
+                        && amount == &expected_change_amount_alice.as_sat()
                 }
                 Err(_) => false,
             })
@@ -260,27 +267,30 @@ impl Bob0 {
     where
         R: RngCore + CryptoRng,
     {
-        let (
-            asset_id_alice,
-            asset_id_commitment_in_alice,
-            abf_in_alice,
-            vbf_in_alice,
-            amount_in_alice,
-        ) = unblind_asset_from_txout(
-            msg.input_as_txout
-                .as_confidential()
-                .context("not a confidential txout")?
-                .clone(),
-            msg.input_blinding_sk,
-        );
-        let (asset_id_bob, asset_id_commitment_in_bob, abf_in_bob, vbf_in_bob, amount_in_bob) =
-            unblind_asset_from_txout(
-                self.input_as_txout
-                    .as_confidential()
-                    .context("not a confidential txout")?
-                    .clone(),
-                self.input_blinding_sk,
-            );
+        let UnblindedTxOut {
+            asset: asset_id_alice,
+            original_asset: asset_id_commitment_in_alice,
+            asset_blinding_factor: abf_in_alice,
+            value_blinding_factor: vbf_in_alice,
+            value: amount_in_alice,
+        } = msg
+            .input_as_txout
+            .as_confidential()
+            .context("not a confidential txout")?
+            .clone()
+            .unblind(msg.input_blinding_sk)?;
+        let UnblindedTxOut {
+            asset: asset_id_bob,
+            original_asset: asset_id_commitment_in_bob,
+            asset_blinding_factor: abf_in_bob,
+            value_blinding_factor: vbf_in_bob,
+            value: amount_in_bob,
+        } = self
+            .input_as_txout
+            .as_confidential()
+            .context("not a confidential txout")?
+            .clone()
+            .unblind(self.input_blinding_sk)?;
 
         let abf_redeem_alice = SecretKey::new(rng);
         let abf_redeem_bob = SecretKey::new(rng);
@@ -312,12 +322,12 @@ impl Bob0 {
         .flatten()
         .collect::<Vec<_>>();
 
-        let change_amount_alice = amount_in_alice
+        let change_amount_alice = Amount::from_sat(amount_in_alice)
             .checked_sub(self.redeem_amount_bob)
             .map(|amount| amount.checked_sub(msg.fee))
             .flatten()
             .ok_or_else(|| anyhow!("alice provided wrong amounts for the asset she's selling"))?;
-        let change_amount_bob = amount_in_bob
+        let change_amount_bob = Amount::from_sat(amount_in_bob)
             .checked_sub(self.redeem_amount_alice)
             .ok_or_else(|| anyhow!("alice provided wrong amounts for the asset she's buying"))?;
 
@@ -325,8 +335,16 @@ impl Bob0 {
         let input_bob = self.input.clone();
 
         let inputs = vec![
-            (asset_id_alice, asset_id_commitment_in_alice, abf_in_alice),
-            (asset_id_bob, asset_id_commitment_in_bob, abf_in_bob),
+            (
+                asset_id_alice,
+                asset_id_commitment_in_alice,
+                SecretKey::from_slice(&abf_in_alice)?,
+            ),
+            (
+                asset_id_bob,
+                asset_id_commitment_in_bob,
+                SecretKey::from_slice(&abf_in_bob)?,
+            ),
         ];
 
         let redeem_ephemeral_key_alice = SecretKey::new(rng);
@@ -367,8 +385,8 @@ impl Bob0 {
 
         let vbf_change_bob = asset_final_vbf(
             vec![
-                amount_in_alice.as_sat(),
-                amount_in_bob.as_sat(),
+                amount_in_alice,
+                amount_in_bob,
                 self.redeem_amount_alice.as_sat(),
                 self.redeem_amount_bob.as_sat(),
                 change_amount_alice.as_sat(),
@@ -486,7 +504,6 @@ mod tests {
     use crate::{
         make_confidential_address, make_txout,
         states::{Alice0, Bob0},
-        unblind_asset_from_txout,
     };
     use anyhow::{anyhow, Result};
     use elements_fun::bitcoin::{Network, PrivateKey, PublicKey, Txid};
@@ -671,17 +688,20 @@ mod tests {
         let previous_output_tx = client.get_raw_transaction(previous_output.txid).await?;
         let previous_output = previous_output_tx.output[previous_output.vout as usize].clone();
 
-        let (asset_id, asset_id_commitment_in, abf_in, vbf_in, amount_in) =
-            unblind_asset_from_txout(
-                previous_output
-                    .as_confidential()
-                    .context("not a confidential txout")?
-                    .clone(),
-                previous_output_blinding_sk,
-            );
+        let UnblindedTxOut {
+            asset: asset_id,
+            original_asset: asset_id_commitment_in,
+            asset_blinding_factor: abf_in,
+            value_blinding_factor: vbf_in,
+            value: amount_in,
+        } = previous_output
+            .as_confidential()
+            .context("not a confidential txout")?
+            .clone()
+            .unblind(previous_output_blinding_sk)?;
 
-        let fee = Amount::from_sat(900_000);
-        let amount_out = amount_in - fee;
+        let fee = 900_000;
+        let amount_out = Amount::from_sat(amount_in - fee);
 
         let abf_out = SecretKey::new(&mut thread_rng());
 
@@ -689,11 +709,15 @@ mod tests {
         abfs.extend(abf_out.as_ref());
 
         let vbfs = vbf_in.as_ref().to_vec();
-        let vbf_out = asset_final_vbf(vec![amount_in.as_sat(), amount_out.as_sat()], 1, abfs, vbfs);
+        let vbf_out = asset_final_vbf(vec![amount_in, amount_out.as_sat()], 1, abfs, vbfs);
 
         let move_address = client.getnewaddress().await?;
 
-        let inputs = vec![(asset_id, asset_id_commitment_in, abf_in)];
+        let inputs = vec![(
+            asset_id,
+            asset_id_commitment_in,
+            SecretKey::from_slice(&abf_in)?,
+        )];
         let output = make_txout(
             &mut thread_rng(),
             amount_out,
@@ -707,7 +731,7 @@ mod tests {
 
         let fee = TxOut::Explicit(ExplicitTxOut {
             asset: ExplicitAsset(asset_id),
-            value: ExplicitValue(fee.as_sat()),
+            value: ExplicitValue(fee),
             script_pubkey: Script::default(),
         });
 
