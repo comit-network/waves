@@ -1,7 +1,9 @@
 use anyhow::Context;
 use anyhow::Result;
 use elements_fun::bitcoin::Amount;
-use elements_fun::{bitcoin::Txid, Address, AssetId};
+use elements_fun::bitcoin_hashes::hex::FromHex;
+use elements_fun::encode::serialize_hex;
+use elements_fun::{bitcoin::Txid, Address, AssetId, Transaction};
 use serde::Deserialize;
 use std::collections::HashMap;
 
@@ -87,6 +89,19 @@ impl Client {
             )
             .await?;
 
+        Ok(txid)
+    }
+
+    pub async fn get_raw_transaction(&self, txid: Txid) -> Result<Transaction> {
+        let tx_hex = self.getrawtransaction(txid).await?;
+        let tx = elements_fun::encode::deserialize(&Vec::<u8>::from_hex(&tx_hex).unwrap())?;
+
+        Ok(tx)
+    }
+
+    pub async fn send_raw_transaction(&self, tx: &Transaction) -> Result<Txid> {
+        let tx_hex = serialize_hex(tx);
+        let txid = self.sendrawtransaction(tx_hex).await?;
         Ok(txid)
     }
 }
