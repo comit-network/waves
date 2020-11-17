@@ -163,7 +163,6 @@ mod tests {
     use bitcoin::Amount;
     use elements_fun::bitcoin::secp256k1::Message;
     use elements_fun::bitcoin::secp256k1::SecretKey;
-
     use elements_fun::wally::{asset_final_vbf, tx_get_elements_signature_hash};
     use elements_fun::{
         bitcoin::{
@@ -293,7 +292,6 @@ mod tests {
             amount_in_litecoin,
         ) = unblind_asset_from_txout(tx_out_litecoin, fund_blinding_sk_litecoin);
 
-        // TODO: Sort them
         let abfs = vec![
             abf_bitcoin.as_ref().to_vec(),
             abf_litecoin.as_ref().to_vec(),
