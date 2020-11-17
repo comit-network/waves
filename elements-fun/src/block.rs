@@ -17,7 +17,6 @@
 
 use std::io;
 
-use bitcoin;
 use bitcoin::blockdata::script::Script;
 use bitcoin::hashes::{sha256, Hash};
 use bitcoin::{BlockHash, VarInt};
@@ -394,8 +393,6 @@ impl Block {
 
 #[cfg(test)]
 mod tests {
-    use Block;
-
     use super::*;
 
     #[test]
