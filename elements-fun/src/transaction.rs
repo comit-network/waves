@@ -753,7 +753,7 @@ impl ConfidentialTxOut {
 pub struct UnblindedTxOut {
     pub asset: AssetId,
     pub value: u64,
-    pub original_asset: AssetCommitment,
+    pub original_asset: AssetCommitment, // TODO: should we actually return this?
     pub asset_blinding_factor: [u8; 32],
     pub value_blinding_factor: [u8; 32],
 }
