@@ -12,6 +12,7 @@ use elements_fun::bitcoin_hashes::Hash;
 use elements_fun::confidential::Asset;
 use elements_fun::confidential::Nonce;
 use elements_fun::confidential::Value;
+use elements_fun::encode::serialize_hex;
 use elements_fun::wally::{asset_final_vbf, tx_get_elements_signature_hash};
 use elements_fun::Address;
 use elements_fun::AssetId;
@@ -211,6 +212,7 @@ impl Alice0 {
             *self.vbf_redeem.as_ref(),
             &inputs,
         );
+
         let redeem_output_bob = make_txout(
             rng,
             self.redeem_amount_bob,
@@ -275,7 +277,7 @@ impl Alice0 {
             ],
         };
 
-        dbg!(&transaction);
+        dbg!(serialize_hex(&transaction));
 
         // extract signature from message and put it into the right spot
         // TODO: verify this is the correct position
@@ -445,6 +447,7 @@ impl Bob0 {
             *msg.vbf_redeem.as_ref(),
             &inputs,
         );
+
         let redeem_output_bob = make_txout(
             rng,
             self.redeem_amount_bob,
@@ -509,6 +512,8 @@ impl Bob0 {
             ],
         };
 
+        dbg!(serialize_hex(&transaction));
+
         Bob1 {
             transaction,
             input_bob,
@@ -553,8 +558,6 @@ impl Bob1 {
         let fund_bitcoin_tx_vout_bob = self.input_as_txout_bob.clone();
         let fund_amount_bob = fund_bitcoin_tx_vout_bob.value;
 
-        dbg!(&self.transaction);
-
         let witness_stack = {
             let hash = hash160::Hash::hash(&input_pk_bob.serialize());
             let script = Builder::new()
@@ -592,7 +595,7 @@ impl Bob1 {
             abf_in: self.abf_in_bob,
             address_redeem: self.address_redeem_bob.clone(),
             address_change: self.address_change_bob.clone(),
-            abf_redeem: self.abf_in_bob,
+            abf_redeem: self.abf_redeem,
             vbf_redeem: self.vbf_redeem,
             abf_change: self.abf_change,
             witness_stack_bob: witness_stack,
