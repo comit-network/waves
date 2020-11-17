@@ -237,7 +237,6 @@ mod test {
     use super::*;
 
     use bitcoin::bech32::ToBase32;
-    use rand;
 
     #[test]
     fn test_polymod_sanity() {

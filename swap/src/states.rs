@@ -364,9 +364,9 @@ impl Bob0 {
         let transaction = Transaction {
             version: 2,
             lock_time: 0,
-            input: vec![input_alice, input_bob.clone()],
+            input: vec![input_alice, input_bob],
             output: vec![
-                redeem_output_alice.clone(),
+                redeem_output_alice,
                 redeem_output_bob,
                 change_output_alice,
                 change_output_bob,
@@ -384,7 +384,7 @@ impl Bob0 {
             transaction,
             input_index_bob,
             input_sk: self.input_sk,
-            input_as_txout_bob: self.input_as_txout.clone(),
+            input_as_txout_bob: self.input_as_txout,
         })
     }
 }

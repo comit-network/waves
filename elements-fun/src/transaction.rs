@@ -734,11 +734,9 @@ impl Decodable for Transaction {
 
 #[cfg(test)]
 mod tests {
-    use bitcoin;
     use bitcoin::hashes::hex::FromHex;
 
     use super::*;
-    use confidential;
     use encode::serialize;
 
     #[test]
