@@ -219,7 +219,7 @@ impl Default for ExtData {
 #[derive(Clone, Debug, Default, Eq, Hash, PartialEq)]
 #[cfg_attr(
     feature = "serde",
-    derive(serde::Serialize, serde::Deserialize),
+    derive(serde_crate::Serialize, serde_crate::Deserialize),
     serde(crate = "serde_crate")
 )]
 pub struct BlockHeader {
