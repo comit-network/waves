@@ -1,29 +1,19 @@
-use crate::make_txout;
-use crate::unblind_asset_from_txout;
+use crate::{make_txout, unblind_asset_from_txout};
 use anyhow::{anyhow, Result};
-use bitcoin::Amount;
-use bitcoin::Script;
-use elements_fun::bitcoin::blockdata::opcodes;
-use elements_fun::bitcoin::blockdata::script::Builder;
-use elements_fun::bitcoin::secp256k1::Message;
-use elements_fun::bitcoin::SigHashType;
-use elements_fun::bitcoin_hashes::hash160;
-use elements_fun::bitcoin_hashes::Hash;
-use elements_fun::confidential::Asset;
-use elements_fun::confidential::Nonce;
-use elements_fun::confidential::Value;
-use elements_fun::wally::{asset_final_vbf, tx_get_elements_signature_hash};
-use elements_fun::Address;
-use elements_fun::AssetId;
-use elements_fun::OutPoint;
-use elements_fun::Transaction;
-use elements_fun::TxIn;
-use elements_fun::TxOut;
-use elements_fun::TxOutWitness;
-use rand::CryptoRng;
-use rand::RngCore;
-use secp256k1::PublicKey;
-use secp256k1::SecretKey;
+use bitcoin::{Amount, Script};
+use elements_fun::{
+    bitcoin::{
+        blockdata::{opcodes, script::Builder},
+        secp256k1::Message,
+        SigHashType,
+    },
+    bitcoin_hashes::{hash160, Hash},
+    confidential::{Asset, Nonce, Value},
+    wally::{asset_final_vbf, tx_get_elements_signature_hash},
+    Address, AssetId, OutPoint, Transaction, TxIn, TxOut, TxOutWitness,
+};
+use rand::{CryptoRng, RngCore};
+use secp256k1::{PublicKey as SecpPublicKey, SecretKey};
 
 /// Sent from Alice to Bob, assuming Alice has bitcoin.
 pub struct Message0 {
@@ -149,7 +139,7 @@ impl Alice0 {
             .ok_or_else(|| anyhow!("wrong change_output_alice"))?;
 
         // sign yourself and put signature in right spot
-        let input_pk_alice = PublicKey::from_secret_key(&secp, &self.input_sk);
+        let input_pk_alice = SecpPublicKey::from_secret_key(&secp, &self.input_sk);
         let fund_amount_alice = self.input_as_txout.value;
 
         let mut transaction = msg.transaction;
@@ -410,7 +400,7 @@ impl Bob1 {
     pub fn compose(&self) -> Message1 {
         let secp = elements_fun::bitcoin::secp256k1::Secp256k1::new();
 
-        let input_pk_bob = PublicKey::from_secret_key(&secp, &self.input_sk);
+        let input_pk_bob = SecpPublicKey::from_secret_key(&secp, &self.input_sk);
         let fund_bitcoin_tx_vout_bob = self.input_as_txout_bob.clone();
         let fund_amount_bob = fund_bitcoin_tx_vout_bob.value;
 
@@ -453,13 +443,18 @@ impl Bob1 {
 
 #[cfg(test)]
 mod tests {
-    use crate::make_confidential_address;
-    use crate::states::{Alice0, Bob0};
+    use super::*;
+    use crate::{
+        make_confidential_address, make_txout,
+        states::{Alice0, Bob0},
+        unblind_asset_from_txout,
+    };
     use anyhow::{anyhow, Result};
-    use elements_fun::{Address, OutPoint, Transaction, TxOut};
-    use elements_harness::elementd_rpc::ElementsRpc;
-    use elements_harness::{Client, Elementsd};
+    use elements_fun::bitcoin::{Network, PrivateKey, PublicKey, Txid};
+    use elements_fun::encode::serialize_hex;
+    use elements_harness::{elementd_rpc::ElementsRpc, Client, Elementsd};
     use rand::thread_rng;
+    use secp256k1::{Message, SecretKey, SECP256K1};
     use testcontainers::clients::Cli;
 
     #[tokio::test]
@@ -474,8 +469,8 @@ mod tests {
             )
         };
 
-        let asset_id_bob = client.issueasset(10.0, 0.0, true).await.unwrap().asset;
         let asset_id_alice = client.get_bitcoin_asset_id().await.unwrap();
+        let asset_id_bob = client.issueasset(10.0, 0.0, true).await.unwrap().asset;
 
         // fund keypairs and addresses
         let (
@@ -503,10 +498,26 @@ mod tests {
         ) = make_confidential_address();
         let (
             final_address_bob,
-            _final_sk_bob,
+            final_sk_bob,
             _final_pk_bob,
-            _final_blinding_sk_bob,
+            final_blinding_sk_bob,
             _final_blinding_pk_bob,
+        ) = make_confidential_address();
+
+        // change keypairs and addresses
+        let (
+            change_address_alice,
+            change_sk_alice,
+            _change_pk_alice,
+            change_blinding_sk_alice,
+            _change_blinding_pk_alice,
+        ) = make_confidential_address();
+        let (
+            change_address_bob,
+            _change_sk_bob,
+            _change_pk_bob,
+            _change_blinding_sk_bob,
+            _change_blinding_pk_bob,
         ) = make_confidential_address();
 
         // initial funding
@@ -536,13 +547,13 @@ mod tests {
         let fee = bitcoin::Amount::from_sat(900_000);
 
         let input_alice = extract_input(
-            client.get_raw_transaction(fund_alice_txid).await.unwrap(),
+            &client.get_raw_transaction(fund_alice_txid).await.unwrap(),
             fund_address_alice,
         )
         .unwrap();
 
         let input_bob = extract_input(
-            client.get_raw_transaction(fund_bob_txid).await.unwrap(),
+            &client.get_raw_transaction(fund_bob_txid).await.unwrap(),
             fund_address_bob,
         )
         .unwrap();
@@ -556,8 +567,8 @@ mod tests {
             asset_id_bob,
             final_address_alice.clone(),
             final_blinding_sk_alice,
-            final_address_alice,
-            final_blinding_sk_alice,
+            change_address_alice.clone(),
+            change_blinding_sk_alice,
             fee,
         );
 
@@ -569,17 +580,141 @@ mod tests {
             fund_blinding_sk_bob,
             asset_id_alice,
             final_address_bob.clone(),
-            final_address_bob,
+            change_address_bob.clone(),
         );
 
         let message0 = alice.compose();
         let bob1 = bob.interpret(&mut thread_rng(), message0).unwrap();
         let message1 = bob1.compose();
-        let transaction = alice.interpret(message1).unwrap();
-        let _txid = client.send_raw_transaction(&transaction).await.unwrap();
+
+        let tx = alice.interpret(message1).unwrap();
+        let _txid = client.send_raw_transaction(&tx).await.unwrap();
+
+        let (final_output_bob, _) = extract_input(&tx, final_address_bob).unwrap();
+        let _txid = move_output_to_wallet(
+            &client,
+            final_output_bob,
+            final_sk_bob,
+            final_blinding_sk_bob,
+        )
+        .await
+        .unwrap();
+
+        let (change_output_alice, _) = extract_input(&tx, change_address_alice).unwrap();
+        let _txid = move_output_to_wallet(
+            &client,
+            change_output_alice,
+            change_sk_alice,
+            change_blinding_sk_alice,
+        )
+        .await
+        .unwrap();
     }
 
-    fn extract_input(tx: Transaction, address: Address) -> Result<(OutPoint, TxOut)> {
+    // TODO: Only works with Bitcoin. Support other assets
+    async fn move_output_to_wallet(
+        client: &Client,
+        previous_output: OutPoint,
+        previous_output_sk: SecretKey,
+        previous_output_blinding_sk: SecretKey,
+    ) -> Result<Txid> {
+        #[allow(clippy::cast_possible_truncation)]
+        let input = TxIn {
+            previous_output,
+            is_pegin: false,
+            has_issuance: false,
+            script_sig: Default::default(),
+            sequence: 0xFFFF_FFFF,
+            asset_issuance: Default::default(),
+            witness: Default::default(),
+        };
+
+        let previous_output_tx = client.get_raw_transaction(previous_output.txid).await?;
+        let previous_output = previous_output_tx.output[previous_output.vout as usize].clone();
+
+        let (asset_id, asset_id_commitment_in, abf_in, vbf_in, amount_in) =
+            unblind_asset_from_txout(previous_output.clone(), previous_output_blinding_sk);
+
+        let fee = Amount::from_sat(900_000);
+        let amount_out = amount_in - fee;
+
+        let abf_out = SecretKey::new(&mut thread_rng());
+
+        let mut abfs = abf_in.as_ref().to_vec();
+        abfs.extend(abf_out.as_ref());
+
+        let vbfs = vbf_in.as_ref().to_vec();
+        let vbf_out = asset_final_vbf(vec![amount_in.as_sat(), amount_out.as_sat()], 1, abfs, vbfs);
+
+        let move_address = client.getnewaddress().await?;
+
+        let inputs = vec![(asset_id, asset_id_commitment_in, abf_in)];
+        let output = make_txout(
+            &mut thread_rng(),
+            amount_out,
+            move_address,
+            asset_id,
+            *abf_out.as_ref(),
+            vbf_out,
+            &inputs,
+            SecretKey::new(&mut thread_rng()),
+        )?;
+
+        let fee = TxOut {
+            asset: Asset::Explicit(asset_id),
+            value: Value::Explicit(fee.as_sat()),
+            nonce: Nonce::Null,
+            script_pubkey: Script::default(),
+            witness: TxOutWitness::default(),
+        };
+
+        let mut tx = Transaction {
+            version: 2,
+            lock_time: 0,
+            input: vec![input],
+            output: vec![output.clone(), fee],
+        };
+
+        let previous_output_pk = PublicKey::from_private_key(
+            &SECP256K1,
+            &PrivateKey {
+                compressed: true,
+                network: Network::Regtest,
+                key: previous_output_sk,
+            },
+        );
+
+        tx.input[0].witness.script_witness = {
+            let hash = hash160::Hash::hash(&previous_output_pk.to_bytes());
+            let script = Builder::new()
+                .push_opcode(opcodes::all::OP_DUP)
+                .push_opcode(opcodes::all::OP_HASH160)
+                .push_slice(&hash.into_inner())
+                .push_opcode(opcodes::all::OP_EQUALVERIFY)
+                .push_opcode(opcodes::all::OP_CHECKSIG)
+                .into_script();
+
+            let digest =
+                tx_get_elements_signature_hash(&tx, 0, &script, &previous_output.value, 1, true);
+
+            let sig = SECP256K1.sign(
+                &Message::from_slice(&digest.into_inner())?,
+                &previous_output_sk,
+            );
+
+            let mut serialized_signature = sig.serialize_der().to_vec();
+            serialized_signature.push(SigHashType::All as u8);
+
+            vec![serialized_signature, previous_output_pk.to_bytes()]
+        };
+
+        let tx_hex = serialize_hex(&tx);
+        let txid = client.sendrawtransaction(tx_hex).await?;
+
+        Ok(txid)
+    }
+
+    fn extract_input(tx: &Transaction, address: Address) -> Result<(OutPoint, TxOut)> {
         let vout = tx
             .output
             .iter()

@@ -128,7 +128,7 @@ impl Default for ElementsCoreImageArgs {
             accept_non_std_txn: Some(false),
             rest: true,
             validatepegin: false,
-            blindedaddresses: false,
+            blindedaddresses: true,
         }
     }
 }
