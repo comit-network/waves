@@ -16,7 +16,6 @@
 
 use std::io;
 
-use bitcoin;
 use bitcoin::hashes::{sha256, sha256d, Hash};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -490,7 +489,6 @@ impl Decodable for Params {
 mod tests {
     use super::*;
 
-    use bitcoin;
     use bitcoin::hashes::hex::ToHex;
     use bitcoin::hashes::sha256;
 

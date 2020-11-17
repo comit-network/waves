@@ -57,6 +57,7 @@ pub fn unblind_asset_from_txout(
     )
 }
 
+#[allow(clippy::too_many_arguments)]
 pub fn make_txout<R>(
     rng: &mut R,
     amount: Amount,
