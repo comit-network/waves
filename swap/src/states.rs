@@ -1,6 +1,6 @@
 use crate::make_txout;
 use crate::unblind_asset_from_txout;
-use anyhow::{bail, Result};
+use anyhow::{anyhow, Result};
 use bitcoin::Amount;
 use bitcoin::Script;
 use elements_fun::bitcoin::blockdata::opcodes;
@@ -12,7 +12,6 @@ use elements_fun::bitcoin_hashes::Hash;
 use elements_fun::confidential::Asset;
 use elements_fun::confidential::Nonce;
 use elements_fun::confidential::Value;
-use elements_fun::encode::serialize_hex;
 use elements_fun::wally::{asset_final_vbf, tx_get_elements_signature_hash};
 use elements_fun::Address;
 use elements_fun::AssetId;
@@ -28,59 +27,44 @@ use secp256k1::SecretKey;
 
 /// Sent from Alice to Bob, assuming Alice has bitcoin.
 pub struct Message0 {
-    pub input: TxIn,
-    pub input_as_txout: TxOut,
-    pub input_blinding_sk: SecretKey,
-    pub address_redeem: Address,
-    pub abf_redeem: SecretKey,
-    pub vbf_redeem: SecretKey,
-    pub address_change: Address,
-    pub abf_change: SecretKey,
-    pub vbf_change: SecretKey,
-    pub fee: Amount,
+    input: TxIn,
+    input_as_txout: TxOut,
+    input_blinding_sk: SecretKey,
+    address_redeem: Address,
+    abf_redeem: SecretKey,
+    vbf_redeem: SecretKey,
+    address_change: Address,
+    abf_change: SecretKey,
+    vbf_change: SecretKey,
+    fee: Amount,
 }
 
 /// Sent from Bob to Alice.
 pub struct Message1 {
-    pub input: TxIn,
-    // Bob's input
-    pub input_as_txout: TxOut,
-    pub input_blinding_sk: SecretKey,
-
-    pub asset_id_in: AssetId,
-    pub asset_id_commitment_in: Asset,
-    pub abf_in: SecretKey,
-    pub address_redeem: Address,
-    pub address_change: Address,
-    pub abf_redeem: SecretKey,
-    pub vbf_redeem: SecretKey,
-    pub abf_change: SecretKey,
-    pub witness_stack_bob: Vec<Vec<u8>>,
-
-    pub redeem_ephemeral_key_alice: SecretKey,
-    pub redeem_ephemeral_key_bob: SecretKey,
-    pub change_ephemeral_key_alice: SecretKey,
-    pub change_ephemeral_key_bob: SecretKey,
+    transaction: Transaction,
 }
 
 pub struct Alice0 {
-    pub redeem_amount_alice: Amount,
-    pub redeem_amount_bob: Amount,
-    pub input: TxIn,
-    pub input_as_txout: TxOut,
-    pub input_sk: SecretKey,
-    pub input_blinding_sk: SecretKey,
-    pub asset_id_bob: AssetId,
-    pub address_redeem: Address,
-    pub abf_redeem: SecretKey,
-    pub vbf_redeem: SecretKey,
-    pub address_change: Address,
-    pub abf_change: SecretKey,
-    pub vbf_change: SecretKey,
-    pub fee: Amount,
+    redeem_amount_alice: Amount,
+    redeem_amount_bob: Amount,
+    input: TxIn,
+    input_as_txout: TxOut,
+    input_sk: SecretKey,
+    input_blinding_sk: SecretKey,
+    asset_id_bob: AssetId,
+    address_redeem: Address,
+    blinding_sk_redeem: SecretKey,
+    abf_redeem: SecretKey,
+    vbf_redeem: SecretKey,
+    address_change: Address,
+    blinding_sk_change: SecretKey,
+    abf_change: SecretKey,
+    vbf_change: SecretKey,
+    fee: Amount,
 }
 
 impl Alice0 {
+    #[allow(clippy::too_many_arguments)]
     pub fn new<R>(
         rng: &mut R,
         amount_alice: Amount,
@@ -91,7 +75,9 @@ impl Alice0 {
         input_blinding_sk: SecretKey,
         asset_id_bob: AssetId,
         address_redeem: Address,
+        blinding_sk_redeem: SecretKey,
         address_change: Address,
+        blinding_sk_change: SecretKey,
         fee: Amount,
     ) -> Self
     where
@@ -123,9 +109,11 @@ impl Alice0 {
             input_blinding_sk,
             asset_id_bob,
             address_redeem,
+            blinding_sk_redeem,
             abf_redeem,
             vbf_redeem,
             address_change,
+            blinding_sk_change,
             abf_change,
             vbf_change,
             fee,
@@ -147,153 +135,51 @@ impl Alice0 {
         }
     }
 
-    pub fn interpret<R>(self, rng: &mut R, msg: Message1) -> Result<Transaction>
-    where
-        R: RngCore + CryptoRng,
-    {
+    pub fn interpret(self, msg: Message1) -> Result<Transaction> {
         let secp = elements_fun::bitcoin::secp256k1::Secp256k1::new();
 
-        // todo verify that what received was expected
+        let expected_redeem_asset_id_alice = self.asset_id_bob;
+        let expected_redeem_amount_alice = self.redeem_amount_alice;
+        msg.transaction
+            .output
+            .iter()
+            .filter(|output| output.script_pubkey == self.address_redeem.script_pubkey())
+            .map(|output| {
+                let (asset_id, _, _, _, amount) =
+                    unblind_asset_from_txout(output.clone(), self.blinding_sk_redeem);
 
-        let (asset_id_bob, asset_id_commitment_in_bob, abf_in_bob, vbf_in_bob, amount_in_bob) =
-            unblind_asset_from_txout(msg.input_as_txout, msg.input_blinding_sk);
+                (asset_id, amount)
+            })
+            .find(|(asset_id, amount)| {
+                asset_id == &expected_redeem_asset_id_alice
+                    && amount == &expected_redeem_amount_alice
+            })
+            .ok_or_else(|| anyhow!("wrong change_output_alice"))?;
 
-        if asset_id_bob != self.asset_id_bob {
-            bail!(
-                "Bob provided wrong asset: expected {}, got {}",
-                self.asset_id_bob,
-                asset_id_bob
-            )
-        }
+        let (expected_change_asset_id_alice, _, _, _, input_amount_alice) =
+            unblind_asset_from_txout(self.input_as_txout.clone(), self.input_blinding_sk);
+        let expected_change_amount_alice = input_amount_alice - self.redeem_amount_bob - self.fee;
+        msg.transaction
+            .output
+            .iter()
+            .filter(|output| output.script_pubkey == self.address_change.script_pubkey())
+            .map(|output| {
+                let (asset_id, _, _, _, amount) =
+                    unblind_asset_from_txout(output.clone(), self.blinding_sk_change);
 
-        let (
-            asset_id_alice,
-            asset_id_commitment_in_alice,
-            abf_in_alice,
-            vbf_in_alice,
-            amount_in_alice,
-        ) = unblind_asset_from_txout(self.input_as_txout.clone(), self.input_blinding_sk);
-
-        let abfs = vec![
-            abf_in_alice.as_ref().to_vec(),
-            abf_in_bob.as_ref().to_vec(),
-            self.abf_redeem.as_ref().to_vec(),
-            msg.abf_redeem.as_ref().to_vec(),
-            self.abf_change.as_ref().to_vec(),
-            msg.abf_change.as_ref().to_vec(),
-        ]
-        .into_iter()
-        .flatten()
-        .collect::<Vec<_>>();
-
-        let vbfs = vec![
-            vbf_in_alice.as_ref().to_vec(),
-            vbf_in_bob.as_ref().to_vec(),
-            self.vbf_redeem.as_ref().to_vec(),
-            msg.vbf_redeem.as_ref().to_vec(),
-            self.vbf_change.as_ref().to_vec(),
-        ]
-        .into_iter()
-        .flatten()
-        .collect::<Vec<_>>();
-
-        let change_amount_alice = amount_in_alice - self.redeem_amount_bob - self.fee;
-        let change_amount_bob = amount_in_bob - self.redeem_amount_alice;
-
-        let input_alice = self.input.clone();
-        let input_bob = msg.input;
-
-        let inputs = vec![
-            (asset_id_alice, asset_id_commitment_in_alice, abf_in_alice),
-            (asset_id_bob, asset_id_commitment_in_bob, abf_in_bob),
-        ];
-
-        let redeem_output_alice = make_txout(
-            rng,
-            self.redeem_amount_alice,
-            self.address_redeem,
-            asset_id_bob,
-            *self.abf_redeem.as_ref(),
-            *self.vbf_redeem.as_ref(),
-            &inputs,
-            msg.redeem_ephemeral_key_alice,
-        );
-
-        let redeem_output_bob = make_txout(
-            rng,
-            self.redeem_amount_bob,
-            msg.address_redeem.clone(),
-            asset_id_alice,
-            *msg.abf_redeem.as_ref(),
-            *msg.vbf_redeem.as_ref(),
-            &inputs,
-            msg.redeem_ephemeral_key_bob,
-        );
-
-        let change_output_alice = make_txout(
-            rng,
-            change_amount_alice,
-            self.address_change,
-            asset_id_alice,
-            *self.abf_change.as_ref(),
-            *self.vbf_change.as_ref(),
-            &inputs,
-            msg.change_ephemeral_key_alice,
-        );
-
-        let vbf_change_bob = asset_final_vbf(
-            vec![
-                amount_in_alice.as_sat(),
-                amount_in_bob.as_sat(),
-                self.redeem_amount_alice.as_sat(),
-                self.redeem_amount_bob.as_sat(),
-                change_amount_alice.as_sat(),
-                change_amount_bob.as_sat(),
-            ],
-            2,
-            abfs,
-            vbfs,
-        );
-        let change_output_bob = make_txout(
-            rng,
-            change_amount_bob,
-            msg.address_change.clone(),
-            asset_id_bob,
-            *msg.abf_change.as_ref(),
-            vbf_change_bob,
-            &inputs,
-            msg.change_ephemeral_key_bob,
-        );
-
-        let fee = TxOut {
-            asset: Asset::Explicit(asset_id_alice),
-            value: Value::Explicit(self.fee.as_sat()),
-            nonce: Nonce::Null,
-            script_pubkey: Script::default(),
-            witness: TxOutWitness::default(),
-        };
-
-        let mut transaction = Transaction {
-            version: 2,
-            lock_time: 0,
-            input: vec![input_alice, input_bob.clone()],
-            output: vec![
-                redeem_output_alice.clone(),
-                redeem_output_bob,
-                change_output_alice,
-                change_output_bob,
-                fee,
-            ],
-        };
-
-        // extract signature from message and put it into the right spot
-        // TODO: verify this is the correct position
-        transaction.input[1].witness.script_witness = msg.witness_stack_bob;
+                (asset_id, amount)
+            })
+            .find(|(asset_id, amount)| {
+                asset_id == &expected_change_asset_id_alice
+                    && amount == &expected_change_amount_alice
+            })
+            .ok_or_else(|| anyhow!("wrong change_output_alice"))?;
 
         // sign yourself and put signature in right spot
         let input_pk_alice = PublicKey::from_secret_key(&secp, &self.input_sk);
-        let fund_bitcoin_tx_vout_alice = self.input_as_txout.clone();
-        let fund_amount_alice = fund_bitcoin_tx_vout_alice.value;
+        let fund_amount_alice = self.input_as_txout.value;
+
+        let mut transaction = msg.transaction;
 
         // TODO: verify this is the correct position
         transaction.input[0].witness.script_witness = {
@@ -329,22 +215,23 @@ impl Alice0 {
 }
 
 pub struct Bob0 {
-    pub redeem_amount_alice: Amount,
-    pub redeem_amount_bob: Amount,
-    pub input: TxIn,
-    pub input_as_txout: TxOut,
-    pub input_sk: SecretKey,
-    pub input_blinding_sk: SecretKey,
-    pub asset_id_alice: AssetId,
-    pub address_redeem: Address,
-    pub abf_redeem: SecretKey,
-    pub vbf_redeem: SecretKey,
-    pub address_change: Address,
-    pub abf_change: SecretKey,
-    pub vbf_change: SecretKey,
+    redeem_amount_alice: Amount,
+    redeem_amount_bob: Amount,
+    input: TxIn,
+    input_as_txout: TxOut,
+    input_sk: SecretKey,
+    input_blinding_sk: SecretKey,
+    asset_id_alice: AssetId,
+    address_redeem: Address,
+    abf_redeem: SecretKey,
+    vbf_redeem: SecretKey,
+    address_change: Address,
+    abf_change: SecretKey,
+    vbf_change: SecretKey,
 }
 
 impl Bob0 {
+    #[allow(clippy::too_many_arguments)]
     pub fn new<R>(
         rng: &mut R,
         amount_alice: Amount,
@@ -395,19 +282,17 @@ impl Bob0 {
         }
     }
 
-    pub fn interpret<R>(self, rng: &mut R, msg: Message0) -> Bob1
+    pub fn interpret<R>(self, rng: &mut R, msg: Message0) -> Result<Bob1>
     where
         R: RngCore + CryptoRng,
     {
-        // TODO: Verify amounts and assets
-
         let (
             asset_id_alice,
             asset_id_commitment_in_alice,
             abf_in_alice,
             vbf_in_alice,
             amount_in_alice,
-        ) = unblind_asset_from_txout(msg.input_as_txout, msg.input_blinding_sk);
+        ) = unblind_asset_from_txout(msg.input_as_txout.clone(), msg.input_blinding_sk);
         let (asset_id_bob, asset_id_commitment_in_bob, abf_in_bob, vbf_in_bob, amount_in_bob) =
             unblind_asset_from_txout(self.input_as_txout.clone(), self.input_blinding_sk);
 
@@ -434,8 +319,14 @@ impl Bob0 {
         .flatten()
         .collect::<Vec<_>>();
 
-        let change_amount_alice = amount_in_alice - self.redeem_amount_bob - msg.fee;
-        let change_amount_bob = amount_in_bob - self.redeem_amount_alice;
+        let change_amount_alice = amount_in_alice
+            .checked_sub(self.redeem_amount_bob)
+            .map(|amount| amount.checked_sub(msg.fee))
+            .flatten()
+            .ok_or_else(|| anyhow!("alice provided wrong amounts for the asset she's selling"))?;
+        let change_amount_bob = amount_in_bob
+            .checked_sub(self.redeem_amount_alice)
+            .ok_or_else(|| anyhow!("alice provided wrong amounts for the asset she's buying"))?;
 
         let input_alice = msg.input;
         let input_bob = self.input.clone();
@@ -455,7 +346,7 @@ impl Bob0 {
             *msg.vbf_redeem.as_ref(),
             &inputs,
             redeem_ephemeral_key_alice,
-        );
+        )?;
 
         let redeem_ephemeral_key_bob = SecretKey::new(rng);
         let redeem_output_bob = make_txout(
@@ -467,7 +358,7 @@ impl Bob0 {
             *self.vbf_redeem.as_ref(),
             &inputs,
             redeem_ephemeral_key_bob,
-        );
+        )?;
 
         let change_ephemeral_key_alice = SecretKey::new(rng);
         let change_output_alice = make_txout(
@@ -479,7 +370,7 @@ impl Bob0 {
             *msg.vbf_change.as_ref(),
             &inputs,
             change_ephemeral_key_alice,
-        );
+        )?;
 
         let vbf_change_bob = asset_final_vbf(
             vec![
@@ -505,7 +396,7 @@ impl Bob0 {
             vbf_change_bob,
             &inputs,
             change_ephemeral_key_bob,
-        );
+        )?;
 
         let fee = TxOut {
             asset: Asset::Explicit(self.asset_id_alice),
@@ -528,9 +419,7 @@ impl Bob0 {
             ],
         };
 
-        dbg!(serialize_hex(&transaction));
-
-        Bob1 {
+        Ok(Bob1 {
             transaction,
             input_bob,
             input_sk: self.input_sk,
@@ -549,7 +438,7 @@ impl Bob0 {
             redeem_ephemeral_key_bob,
             change_ephemeral_key_alice,
             change_ephemeral_key_bob,
-        }
+        })
     }
 }
 
@@ -582,7 +471,8 @@ impl Bob1 {
         let fund_bitcoin_tx_vout_bob = self.input_as_txout_bob.clone();
         let fund_amount_bob = fund_bitcoin_tx_vout_bob.value;
 
-        let witness_stack = {
+        let mut transaction = self.transaction.clone();
+        transaction.input[1].witness.script_witness = {
             let hash = hash160::Hash::hash(&input_pk_bob.serialize());
             let script = Builder::new()
                 .push_opcode(opcodes::all::OP_DUP)
@@ -612,26 +502,7 @@ impl Bob1 {
             vec![serialized_signature, input_pk_bob.serialize().to_vec()]
         };
 
-        Message1 {
-            input: self.input_bob.clone(),
-            asset_id_in: self.asset_id_bob,
-            asset_id_commitment_in: self.asset_id_commitment_in_bob,
-            abf_in: self.abf_in_bob,
-            address_redeem: self.address_redeem_bob.clone(),
-            address_change: self.address_change_bob.clone(),
-            abf_redeem: self.abf_redeem,
-            vbf_redeem: self.vbf_redeem,
-            abf_change: self.abf_change,
-            witness_stack_bob: witness_stack,
-            // bob's input information
-            input_as_txout: self.input_as_txout_bob.clone(),
-            input_blinding_sk: self.input_blinding_sk,
-
-            redeem_ephemeral_key_alice: self.redeem_ephemeral_key_alice,
-            redeem_ephemeral_key_bob: self.redeem_ephemeral_key_bob,
-            change_ephemeral_key_alice: self.change_ephemeral_key_alice,
-            change_ephemeral_key_bob: self.change_ephemeral_key_bob,
-        }
+        Message1 { transaction }
     }
 }
 
@@ -683,7 +554,7 @@ mod tests {
             final_address_alice,
             _final_sk_alice,
             _final_pk_alice,
-            _final_blinding_sk_alice,
+            final_blinding_sk_alice,
             _final_blinding_pk_alice,
         ) = make_confidential_address();
         let (
@@ -741,7 +612,9 @@ mod tests {
             fund_blinding_sk_alice,
             asset_id_bob,
             final_address_alice.clone(),
+            final_blinding_sk_alice,
             final_address_alice,
+            final_blinding_sk_alice,
             fee,
         );
 
@@ -758,11 +631,10 @@ mod tests {
         );
 
         let message0 = alice.compose();
-        let bob1 = bob.interpret(&mut thread_rng(), message0);
+        let bob1 = bob.interpret(&mut thread_rng(), message0).unwrap();
         let message1 = bob1.compose();
-        let transaction = alice.interpret(&mut thread_rng(), message1).unwrap();
-        let txid = client.send_raw_transaction(&transaction).await.unwrap();
-        dbg!(txid);
+        let transaction = alice.interpret(message1).unwrap();
+        let _txid = client.send_raw_transaction(&transaction).await.unwrap();
     }
 
     fn extract_input(tx: Transaction, address: Address) -> Result<(OutPoint, TxOut)> {
