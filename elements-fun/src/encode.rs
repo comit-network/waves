@@ -79,6 +79,13 @@ impl From<btcenc::Error> for Error {
     }
 }
 
+#[doc(hidden)]
+impl From<io::Error> for Error {
+    fn from(e: io::Error) -> Self {
+        Error::Bitcoin(btcenc::Error::Io(e))
+    }
+}
+
 /// Data which can be encoded in a consensus-consistent way
 pub trait Encodable {
     /// Encode an object with a well-defined format, should only ever error if
@@ -162,6 +169,7 @@ impl_upstream!(u8);
 impl_upstream!(u32);
 impl_upstream!(u64);
 impl_upstream!([u8; 32]);
+impl_upstream!([u8; 33]);
 impl_upstream!(Vec<u8>);
 impl_upstream!(Vec<Vec<u8>>);
 impl_upstream!(btcenc::VarInt);

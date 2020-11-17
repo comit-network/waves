@@ -54,6 +54,7 @@ pub use block::{Block, BlockHeader};
 pub use fast_merkle_root::fast_merkle_root;
 pub use issuance::{AssetId, ContractHash};
 pub use transaction::{
-    AssetIssuance, OutPoint, PeginData, PegoutData, Transaction, TxIn, TxInWitness, TxOut,
-    TxOutWitness,
+    AssetIssuance, ConfidentialAssetIssuance, ConfidentialTxOut, ExplicitAsset,
+    ExplicitAssetIssuance, ExplicitTxOut, ExplicitValue, OutPoint, PeginData, PegoutData,
+    Transaction, TxIn, TxInWitness, TxOut, TxOutWitness,
 };

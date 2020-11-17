@@ -23,109 +23,66 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::{fmt, io};
 
 use crate::encode::{self, Decodable, Encodable};
-use crate::issuance::AssetId;
 
 // Helper macro to implement various things for the various confidential
 // commitment types
 macro_rules! impl_confidential_commitment {
-    ($name:ident, $inner:ty, $prefixA:expr, $prefixB:expr) => {
-        impl_confidential_commitment!($name, $inner, $prefixA, $prefixB, |x| x);
-    };
-    ($name:ident, $inner:ty, $prefixA:expr, $prefixB:expr, $explicit_fn:expr) => {
+    ($name:ident, $prefixA:expr, $prefixB:expr) => {
         impl $name {
-            /// Create from commitment.
-            pub fn from_commitment(bytes: &[u8]) -> Result<$name, encode::Error> {
-                if bytes.len() != 33 {
+            pub const fn is_valid_prefix(tag: u8) -> bool {
+                tag == $prefixA || tag == $prefixB
+            }
+
+            pub fn new(tag: u8, commitment: &[u8]) -> Result<Self, encode::Error> {
+                if commitment.len() != 32 {
                     return Err(encode::Error::ParseFailed(
-                        "commitments must be 33 bytes long",
+                        "commitments must be 32 bytes long",
                     ));
                 }
-                let prefix = bytes[0];
-                if prefix != $prefixA && prefix != $prefixB {
-                    return Err(encode::Error::InvalidConfidentialPrefix(prefix));
+
+                if !Self::is_valid_prefix(tag) {
+                    return Err(encode::Error::InvalidConfidentialPrefix(tag));
                 }
-                let mut c = [0; 32];
-                c.copy_from_slice(&bytes[1..]);
-                Ok($name::Confidential(prefix, c))
+                let mut bytes = [0u8; 33];
+                bytes[0] = tag;
+                bytes[1..].copy_from_slice(&commitment);
+
+                Ok(Self(bytes))
             }
 
-            /// Check if the object is null.
-            pub fn is_null(&self) -> bool {
-                matches!(*self, $name::Null)
+            pub fn from_slice(bytes: &[u8]) -> Result<$name, encode::Error> {
+                Self::new(bytes[0], &bytes[1..])
             }
 
-            /// Check if the object is explicit.
-            pub fn is_explicit(&self) -> bool {
-                matches!(*self, $name::Explicit(_))
+            pub fn commitment(&self) -> [u8; 33] {
+                self.0
             }
 
-            /// Check if the object is confidential.
-            pub fn is_confidential(&self) -> bool {
-                matches!(*self, $name::Explicit(_))
-            }
-
-            /// Returns the explicit inner value.
-            /// Returns [None] if [is_explicit] returns false.
-            pub fn explicit(&self) -> Option<$inner> {
-                match *self {
-                    $name::Explicit(i) => Some(i),
-                    _ => None,
-                }
-            }
-
-            /// Returns the confidential commitment in case of a confidential value.
-            /// Returns [None] if [is_confidential] returns false.
-            pub fn commitment(&self) -> Option<[u8; 33]> {
-                match *self {
-                    $name::Confidential(p, c) => {
-                        let mut res = [0; 33];
-                        res[0] = p;
-                        res[1..].copy_from_slice(&c[..]);
-                        Some(res)
-                    }
-                    _ => None,
-                }
-            }
-        }
-
-        impl Default for $name {
-            fn default() -> Self {
-                $name::Null
+            pub fn encoded_length(&self) -> usize {
+                33
             }
         }
 
         impl Encodable for $name {
             fn consensus_encode<S: io::Write>(&self, mut s: S) -> Result<usize, encode::Error> {
-                match *self {
-                    $name::Null => 0u8.consensus_encode(s),
-                    $name::Explicit(n) => {
-                        1u8.consensus_encode(&mut s)?;
-                        // Apply $explicit_fn to allow `Value` to swap the amount bytes
-                        Ok(1 + $explicit_fn(n).consensus_encode(&mut s)?)
-                    }
-                    $name::Confidential(prefix, bytes) => {
-                        Ok(prefix.consensus_encode(&mut s)? + bytes.consensus_encode(&mut s)?)
-                    }
-                }
+                self.0.consensus_encode(&mut s)
             }
         }
 
         impl Decodable for $name {
             fn consensus_decode<D: io::BufRead>(mut d: D) -> Result<$name, encode::Error> {
-                let prefix = u8::consensus_decode(&mut d)?;
-                match prefix {
-                    0 => Ok($name::Null),
-                    1 => {
-                        // Apply $explicit_fn to allow `Value` to swap the amount bytes
-                        let explicit = $explicit_fn(Decodable::consensus_decode(&mut d)?);
-                        Ok($name::Explicit(explicit))
-                    }
-                    p if p == $prefixA || p == $prefixB => {
-                        let commitment = <[u8; 32]>::consensus_decode(&mut d)?;
-                        Ok($name::Confidential(p, commitment))
-                    }
-                    p => return Err(encode::Error::InvalidConfidentialPrefix(p)),
+                let bytes = <[u8; 33]>::consensus_decode(&mut d)?;
+
+                Ok(Self::new(bytes[0], &bytes[1..])?)
+            }
+        }
+
+        impl fmt::Display for $name {
+            fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+                for b in self.0.iter() {
+                    write!(f, "{:02x}", b)?;
                 }
+                Ok(())
             }
         }
 
@@ -134,21 +91,8 @@ macro_rules! impl_confidential_commitment {
             fn serialize<S: Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
                 use serde::ser::SerializeSeq;
 
-                let seq_len = if *self == $name::Null { 1 } else { 2 };
-                let mut seq = s.serialize_seq(Some(seq_len))?;
-
-                match *self {
-                    $name::Null => seq.serialize_element(&0u8)?,
-                    $name::Explicit(n) => {
-                        seq.serialize_element(&1u8)?;
-                        // Apply $explicit_fn to allow `Value` to swap the amount bytes
-                        seq.serialize_element(&$explicit_fn(n))?;
-                    }
-                    $name::Confidential(prefix, bytes) => {
-                        seq.serialize_element(&prefix)?;
-                        seq.serialize_element(&bytes)?;
-                    }
-                }
+                let mut seq = s.serialize_seq(Some(33))?;
+                seq.serialize_element(self.0.as_ref())?;
                 seq.end()
             }
         }
@@ -176,26 +120,15 @@ macro_rules! impl_confidential_commitment {
                             return Err(A::Error::custom("missing prefix"));
                         };
 
-                        match prefix {
-                            0 => Ok($name::Null),
-                            1 => {
-                                // Apply $explicit_fn to allow `Value` to swap the amount bytes
-                                match access.next_element()? {
-                                    Some(x) => Ok($name::Explicit($explicit_fn(x))),
-                                    None => Err(A::Error::custom("missing commitment")),
-                                }
-                            }
-                            p if p == $prefixA || p == $prefixB => match access.next_element()? {
-                                Some(y) => Ok($name::Confidential(p, y)),
-                                None => Err(A::Error::custom("missing commitment")),
-                            },
-                            p => {
-                                return Err(A::Error::custom(format!(
-                                    "invalid commitment, invalid prefix: 0x{:02x}",
-                                    p
-                                )))
-                            }
+                        if prefix != $prefixA && prefix != $prefixB {
+                            return Err(A::Error::custom("missing commitment"));
                         }
+
+                        let bytes = access
+                            .next_element::<[u8; 32]>()?
+                            .ok_or_else(|| A::Error::custom("missing commitment"))?;
+
+                        Ok($name::new(prefix, &bytes).map_err(A::Error::custom)?)
                     }
                 }
 
@@ -205,192 +138,42 @@ macro_rules! impl_confidential_commitment {
     };
 }
 
-/// A CT commitment to an amount
 #[derive(Copy, Clone, Debug, Eq, Hash, PartialEq, PartialOrd, Ord)]
-pub enum Value {
-    /// No value
-    Null,
-    /// Value is explicitly encoded
-    Explicit(u64),
-    // Split commitments into a 1-byte prefix and 32-byte commitment, because
-    // they're easy enough to separate and Rust stdlib treats 32-byte arrays
-    // much much better than 33-byte arrays.
-    /// Value is committed
-    Confidential(u8, [u8; 32]),
-}
-impl_confidential_commitment!(Value, u64, 0x08, 0x09, u64::swap_bytes);
+pub struct AssetCommitment([u8; 33]);
 
-impl Value {
-    /// Serialized length, in bytes
-    pub fn encoded_length(&self) -> usize {
-        match *self {
-            Value::Null => 1,
-            Value::Explicit(..) => 9,
-            Value::Confidential(..) => 33,
-        }
-    }
-}
-
-impl fmt::Display for Value {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
-            Value::Null => f.write_str("null"),
-            Value::Explicit(n) => write!(f, "{}", n),
-            Value::Confidential(prefix, bytes) => {
-                write!(f, "{:02x}", prefix)?;
-                for b in bytes.iter() {
-                    write!(f, "{:02x}", b)?;
-                }
-                Ok(())
-            }
-        }
-    }
-}
-
-/// A CT commitment to an asset
 #[derive(Copy, Clone, Debug, Eq, Hash, PartialEq, PartialOrd, Ord)]
-pub enum Asset {
-    /// No value
-    Null,
-    /// Asset entropy is explicitly encoded
-    Explicit(AssetId),
-    /// Asset is committed
-    Confidential(u8, [u8; 32]),
-}
-impl_confidential_commitment!(Asset, AssetId, 0x0a, 0x0b);
+pub struct ValueCommitment([u8; 33]);
 
-impl Asset {
-    /// Serialized length, in bytes
-    pub fn encoded_length(&self) -> usize {
-        match *self {
-            Asset::Null => 1,
-            Asset::Explicit(..) => 33,
-            Asset::Confidential(..) => 33,
-        }
-    }
-}
-
-impl fmt::Display for Asset {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
-            Asset::Null => f.write_str("null"),
-            Asset::Explicit(n) => write!(f, "{}", n),
-            Asset::Confidential(prefix, bytes) => {
-                write!(f, "{:02x}", prefix)?;
-                for b in bytes.iter() {
-                    write!(f, "{:02x}", b)?;
-                }
-                Ok(())
-            }
-        }
-    }
-}
-
-/// A CT commitment to an output nonce (i.e. a public key)
+// TODO: Rename to nonce once other one is deleted
 #[derive(Copy, Clone, Debug, Eq, Hash, PartialEq, PartialOrd, Ord)]
-pub enum Nonce {
-    /// No value
-    Null,
-    /// There should be no such thing as an "explicit nonce", but Elements will deserialize
-    /// such a thing (and insists that its size be 32 bytes). So we stick a 32-byte type here
-    /// that implements all the traits we need.
-    Explicit([u8; 32]),
-    /// Nonce is committed
-    Confidential(u8, [u8; 32]),
-}
-impl_confidential_commitment!(Nonce, [u8; 32], 0x02, 0x03);
+pub struct NonceCommitment([u8; 33]);
 
-impl Nonce {
-    /// Serialized length, in bytes
-    pub fn encoded_length(&self) -> usize {
-        match *self {
-            Nonce::Null => 1,
-            Nonce::Explicit(..) => 33,
-            Nonce::Confidential(..) => 33,
-        }
-    }
-}
-
-impl fmt::Display for Nonce {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match *self {
-            Nonce::Null => f.write_str("null"),
-            Nonce::Explicit(n) => {
-                for b in n.iter() {
-                    write!(f, "{:02x}", b)?;
-                }
-                Ok(())
-            }
-            Nonce::Confidential(prefix, bytes) => {
-                write!(f, "{:02x}", prefix)?;
-                for b in bytes.iter() {
-                    write!(f, "{:02x}", b)?;
-                }
-                Ok(())
-            }
-        }
-    }
-}
+impl_confidential_commitment!(AssetCommitment, 0x0a, 0x0b);
+impl_confidential_commitment!(ValueCommitment, 0x08, 0x09);
+impl_confidential_commitment!(NonceCommitment, 0x02, 0x03);
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use bitcoin::hashes::sha256;
-
-    #[test]
-    fn encode_length() {
-        let vals = [
-            Value::Null,
-            Value::Explicit(1000),
-            Value::Confidential(0x08, [1; 32]),
-        ];
-        for v in &vals[..] {
-            let mut x = vec![];
-            assert_eq!(v.consensus_encode(&mut x).unwrap(), v.encoded_length());
-            assert_eq!(x.len(), v.encoded_length());
-        }
-
-        let nonces = [
-            Nonce::Null,
-            Nonce::Explicit([0; 32]),
-            Nonce::Confidential(0x02, [1; 32]),
-        ];
-        for v in &nonces[..] {
-            let mut x = vec![];
-            assert_eq!(v.consensus_encode(&mut x).unwrap(), v.encoded_length());
-            assert_eq!(x.len(), v.encoded_length());
-        }
-
-        let assets = [
-            Asset::Null,
-            Asset::Explicit(AssetId::from_inner(sha256::Midstate::from_inner([0; 32]))),
-            Asset::Confidential(0x0a, [1; 32]),
-        ];
-        for v in &assets[..] {
-            let mut x = vec![];
-            assert_eq!(v.consensus_encode(&mut x).unwrap(), v.encoded_length());
-            assert_eq!(x.len(), v.encoded_length());
-        }
-    }
 
     #[test]
     fn commitments() {
-        let x = Value::Confidential(0x08, [1; 32]);
-        let mut commitment = x.commitment().unwrap();
-        assert_eq!(x, Value::from_commitment(&commitment[..]).unwrap());
+        let x = ValueCommitment::new(0x08, &[1; 32]).unwrap();
+        let mut commitment = x.commitment();
+        assert_eq!(x, ValueCommitment::from_slice(&commitment[..]).unwrap());
         commitment[0] = 42;
-        assert!(Value::from_commitment(&commitment[..]).is_err());
+        assert!(ValueCommitment::from_slice(&commitment[..]).is_err());
 
-        let x = Asset::Confidential(0x0a, [1; 32]);
-        let mut commitment = x.commitment().unwrap();
-        assert_eq!(x, Asset::from_commitment(&commitment[..]).unwrap());
+        let x = AssetCommitment::new(0x0a, &[1; 32]).unwrap();
+        let mut commitment = x.commitment();
+        assert_eq!(x, AssetCommitment::from_slice(&commitment[..]).unwrap());
         commitment[0] = 42;
-        assert!(Asset::from_commitment(&commitment[..]).is_err());
+        assert!(AssetCommitment::from_slice(&commitment[..]).is_err());
 
-        let x = Nonce::Confidential(0x02, [1; 32]);
-        let mut commitment = x.commitment().unwrap();
-        assert_eq!(x, Nonce::from_commitment(&commitment[..]).unwrap());
+        let x = NonceCommitment::new(0x02, &[1; 32]).unwrap();
+        let mut commitment = x.commitment();
+        assert_eq!(x, NonceCommitment::from_slice(&commitment[..]).unwrap());
         commitment[0] = 42;
-        assert!(Nonce::from_commitment(&commitment[..]).is_err());
+        assert!(NonceCommitment::from_slice(&commitment[..]).is_err());
     }
 }

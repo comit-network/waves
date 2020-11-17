@@ -4,16 +4,16 @@ use elements_fun::bitcoin::secp256k1::PublicKey as SecpPublicKey;
 use elements_fun::bitcoin::Network::Regtest;
 use elements_fun::bitcoin::PrivateKey;
 use elements_fun::bitcoin::PublicKey;
-use elements_fun::confidential::Nonce;
+use elements_fun::confidential::{AssetCommitment, NonceCommitment};
 use elements_fun::wally::asset_generator_from_bytes;
 use elements_fun::wally::asset_rangeproof;
 use elements_fun::wally::asset_surjectionproof;
 use elements_fun::wally::asset_unblind;
 use elements_fun::wally::asset_value_commitment;
-use elements_fun::Address;
 use elements_fun::AddressParams;
 use elements_fun::TxOutWitness;
-use elements_fun::{confidential::Asset, AssetId, TxOut};
+use elements_fun::{Address, ConfidentialTxOut};
+use elements_fun::{AssetId, TxOut};
 use rand::thread_rng;
 use rand::CryptoRng;
 use rand::RngCore;
@@ -23,14 +23,14 @@ use secp256k1::SECP256K1;
 pub mod states;
 
 pub fn unblind_asset_from_txout(
-    out: TxOut,
+    out: ConfidentialTxOut,
     receiver_blinding_sk: SecretKey,
-) -> (AssetId, Asset, SecretKey, SecretKey, Amount) {
+) -> (AssetId, AssetCommitment, SecretKey, SecretKey, Amount) {
     let range_proof = out.witness.rangeproof;
-    let value_commitment = out.value.commitment().unwrap();
-    let asset_generator = out.asset.commitment().unwrap();
+    let value_commitment = out.value.commitment();
+    let asset_generator = out.asset.commitment();
     let script = out.script_pubkey;
-    let sender_ephemeral_pk = out.nonce.commitment().unwrap();
+    let sender_ephemeral_pk = out.nonce.unwrap().commitment();
     let sender_ephemeral_pk =
         SecpPublicKey::from_slice(&sender_ephemeral_pk).expect("commitment is a public key");
 
@@ -65,7 +65,7 @@ pub fn make_txout<R>(
     out_asset_id: AssetId,
     out_abf: [u8; 32],
     out_vbf: [u8; 32],
-    inputs: &[(AssetId, Asset, SecretKey)],
+    inputs: &[(AssetId, AssetCommitment, SecretKey)],
     sender_ephemeral_sk: SecretKey,
 ) -> Result<TxOut>
 where
@@ -99,7 +99,7 @@ where
         .collect::<Vec<_>>();
     let assets_in = inputs
         .iter()
-        .map(|(_, asset, _)| asset.commitment().unwrap().to_vec())
+        .map(|(_, asset, _)| asset.commitment().to_vec())
         .flatten()
         .collect::<Vec<_>>();
     let abfs_in = inputs
@@ -120,16 +120,18 @@ where
     );
 
     let sender_ephemeral_pk = SecpPublicKey::from_secret_key(&SECP256K1, &sender_ephemeral_sk);
-    Ok(TxOut {
+    Ok(TxOut::Confidential(ConfidentialTxOut {
         asset: out_asset,
         value: value_commitment,
-        nonce: Nonce::from_commitment(&sender_ephemeral_pk.serialize())?,
+        nonce: Some(NonceCommitment::from_slice(
+            &sender_ephemeral_pk.serialize(),
+        )?),
         script_pubkey: address.script_pubkey(),
         witness: TxOutWitness {
             surjection_proof,
             rangeproof: range_proof,
         },
-    })
+    }))
 }
 
 pub fn make_keypair() -> (SecretKey, PublicKey) {
@@ -171,9 +173,8 @@ mod tests {
             Script, SigHashType,
         },
         bitcoin_hashes::{hash160, hex::FromHex, Hash},
-        confidential::{Asset, Nonce, Value},
         encode::serialize_hex,
-        OutPoint, Transaction, TxIn, TxOut, TxOutWitness,
+        ExplicitAsset, ExplicitTxOut, ExplicitValue, OutPoint, Transaction, TxIn, TxOut,
     };
     use elements_harness::{elementd_rpc::Client, elementd_rpc::ElementsRpc, Elementsd};
     use rand::thread_rng;
@@ -243,12 +244,12 @@ mod tests {
         let fund_bitcoin_vout = fund_bitcoin_tx
             .output
             .iter()
-            .position(|output| output.script_pubkey == fund_address_bitcoin.script_pubkey())
+            .position(|output| output.script_pubkey() == &fund_address_bitcoin.script_pubkey())
             .unwrap();
         let fund_litecoin_vout = fund_litecoin_tx
             .output
             .iter()
-            .position(|output| output.script_pubkey == fund_address_litecoin.script_pubkey())
+            .position(|output| output.script_pubkey() == &fund_address_litecoin.script_pubkey())
             .unwrap();
 
         let redeem_fee = Amount::from_sat(900_000);
@@ -275,8 +276,14 @@ mod tests {
             _redeem_blinding_pk_litecoin,
         ) = make_confidential_address();
 
-        let tx_out_bitcoin = fund_bitcoin_tx.output[fund_bitcoin_vout].clone();
-        let tx_out_litecoin = fund_litecoin_tx.output[fund_litecoin_vout].clone();
+        let tx_out_bitcoin = fund_bitcoin_tx.output[fund_bitcoin_vout]
+            .as_confidential()
+            .unwrap()
+            .clone();
+        let tx_out_litecoin = fund_litecoin_tx.output[fund_litecoin_vout]
+            .as_confidential()
+            .unwrap()
+            .clone();
 
         let (
             unblinded_asset_id_bitcoin,
@@ -388,13 +395,11 @@ mod tests {
         )
         .unwrap();
 
-        let fee = TxOut {
-            asset: Asset::Explicit(bitcoin_asset_id),
-            value: Value::Explicit(redeem_fee.as_sat()),
-            nonce: Nonce::Null,
+        let fee = TxOut::Explicit(ExplicitTxOut {
+            asset: ExplicitAsset(bitcoin_asset_id),
+            value: ExplicitValue(redeem_fee.as_sat()),
             script_pubkey: Script::default(),
-            witness: TxOutWitness::default(),
-        };
+        });
 
         let mut redeem_tx = Transaction {
             version: 2,
@@ -417,7 +422,10 @@ mod tests {
                 &redeem_tx,
                 0,
                 &script,
-                &fund_bitcoin_tx.output[fund_bitcoin_vout].value,
+                &fund_bitcoin_tx.output[fund_bitcoin_vout]
+                    .as_confidential()
+                    .unwrap()
+                    .value,
                 1,
                 true,
             );
@@ -446,7 +454,10 @@ mod tests {
                 &redeem_tx,
                 1,
                 &script,
-                &fund_litecoin_tx.output[fund_litecoin_vout].value,
+                &fund_litecoin_tx.output[fund_litecoin_vout]
+                    .as_confidential()
+                    .unwrap()
+                    .value,
                 1,
                 true,
             );
@@ -470,7 +481,7 @@ mod tests {
         let redeem_vout_bitcoin = redeem_tx
             .output
             .iter()
-            .position(|output| output.script_pubkey == redeem_address_bitcoin.script_pubkey())
+            .position(|output| output.script_pubkey() == &redeem_address_bitcoin.script_pubkey())
             .unwrap();
 
         let spend_fee_bitcoin = Amount::from_sat(900_000);
@@ -488,7 +499,10 @@ mod tests {
 
         let (unblinded_asset_id_bitcoin, asset_commitment_bitcoin, abf, vbf, amount_in) =
             unblind_asset_from_txout(
-                redeem_tx.output[redeem_vout_bitcoin].clone(),
+                redeem_tx.output[redeem_vout_bitcoin]
+                    .as_confidential()
+                    .unwrap()
+                    .clone(),
                 redeem_blinding_sk_bitcoin,
             );
 
@@ -532,13 +546,11 @@ mod tests {
         )
         .unwrap();
 
-        let fee = TxOut {
-            asset: Asset::Explicit(bitcoin_asset_id),
-            value: Value::Explicit(spend_fee_bitcoin.as_sat()),
-            nonce: Nonce::Null,
+        let fee = TxOut::Explicit(ExplicitTxOut {
+            asset: ExplicitAsset(bitcoin_asset_id),
+            value: ExplicitValue(spend_fee_bitcoin.as_sat()),
             script_pubkey: Script::default(),
-            witness: TxOutWitness::default(),
-        };
+        });
 
         let mut spend_tx = Transaction {
             version: 2,
@@ -561,7 +573,7 @@ mod tests {
                 &spend_tx,
                 0,
                 &script,
-                &redeem_txout_bitcoin.value,
+                &redeem_txout_bitcoin.as_confidential().unwrap().value,
                 1,
                 true,
             );
