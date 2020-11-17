@@ -1,5 +1,8 @@
 use bitcoin::Amount;
 use elements_fun::bitcoin::secp256k1::PublicKey as SecpPublicKey;
+use elements_fun::bitcoin::Network::Regtest;
+use elements_fun::bitcoin::PrivateKey;
+use elements_fun::bitcoin::PublicKey;
 use elements_fun::confidential::Nonce;
 use elements_fun::wally::asset_generator_from_bytes;
 use elements_fun::wally::asset_rangeproof;
@@ -7,8 +10,10 @@ use elements_fun::wally::asset_surjectionproof;
 use elements_fun::wally::asset_unblind;
 use elements_fun::wally::asset_value_commitment;
 use elements_fun::Address;
+use elements_fun::AddressParams;
 use elements_fun::TxOutWitness;
 use elements_fun::{confidential::Asset, AssetId, TxOut};
+use rand::thread_rng;
 use rand::CryptoRng;
 use rand::RngCore;
 use secp256k1::SecretKey;
@@ -124,12 +129,39 @@ where
     }
 }
 
+pub fn make_keypair() -> (SecretKey, PublicKey) {
+    let sk = SecretKey::new(&mut thread_rng());
+    let pk = PublicKey::from_private_key(
+        &SECP256K1,
+        &PrivateKey {
+            compressed: true,
+            network: Regtest,
+            key: sk,
+        },
+    );
+
+    (sk, pk)
+}
+
+pub fn make_confidential_address() -> (Address, SecretKey, PublicKey, SecretKey, PublicKey) {
+    let (sk, pk) = make_keypair();
+    let (blinding_sk, blinding_pk) = make_keypair();
+
+    (
+        Address::p2wpkh(&pk, Some(blinding_pk.key), &AddressParams::ELEMENTS),
+        sk,
+        pk,
+        blinding_sk,
+        blinding_pk,
+    )
+}
+
 #[cfg(test)]
 mod tests {
+    use crate::make_keypair;
     use bitcoin::Amount;
     use elements_fun::bitcoin::secp256k1::Message;
     use elements_fun::bitcoin::secp256k1::SecretKey;
-    use elements_fun::bitcoin::Network::Regtest;
     use elements_fun::bitcoin::PrivateKey;
     use elements_fun::wally::{asset_final_vbf, tx_get_elements_signature_hash};
     use elements_fun::{
@@ -147,26 +179,9 @@ mod tests {
     use secp256k1::SECP256K1;
     use testcontainers::clients::Cli;
 
+    use crate::make_confidential_address;
     use crate::make_txout;
     use crate::unblind_asset_from_txout;
-
-    fn make_keypair() -> (SecretKey, PublicKey) {
-        let sk = SecretKey::new(&mut thread_rng());
-        let pk = PublicKey::from_private_key(
-            &SECP256K1,
-            &PrivateKey {
-                compressed: true,
-                network: Regtest,
-                key: sk,
-            },
-        );
-
-        (sk, pk)
-    }
-
-    fn make_confidential_address(pk: PublicKey, blinding_key: PublicKey) -> Address {
-        Address::p2wpkh(&pk, Some(blinding_key.key), &AddressParams::ELEMENTS)
-    }
 
     #[tokio::test]
     async fn sign_transaction_with_two_asset_types() {
@@ -185,16 +200,20 @@ mod tests {
         let litecoin_asset_id = client.issueasset(10.0, 0.0, true).await.unwrap().asset;
         let bitcoin_asset_id = client.get_bitcoin_asset_id().await.unwrap();
 
-        let (fund_sk_bitcoin, fund_pk_bitcoin) = make_keypair();
-        let (fund_blinding_sk_bitcoin, fund_blinding_pk_bitcoin) = make_keypair();
-
-        let (fund_sk_litecoin, fund_pk_litecoin) = make_keypair();
-        let (fund_blinding_sk_litecoin, fund_blinding_pk_litecoin) = make_keypair();
-
-        let fund_address_bitcoin =
-            make_confidential_address(fund_pk_bitcoin, fund_blinding_pk_bitcoin);
-        let fund_address_litecoin =
-            make_confidential_address(fund_pk_litecoin, fund_blinding_pk_litecoin);
+        let (
+            fund_address_bitcoin,
+            fund_sk_bitcoin,
+            fund_pk_bitcoin,
+            fund_blinding_sk_bitcoin,
+            fund_blinding_pk_bitcoin,
+        ) = make_confidential_address();
+        let (
+            fund_address_litecoin,
+            fund_sk_litecoin,
+            fund_pk_litecoin,
+            fund_blinding_sk_litecoin,
+            fund_blinding_pk_litecoin,
+        ) = make_confidential_address();
 
         let fund_bitcoin_amount = bitcoin::Amount::ONE_BTC;
         let fund_litecoin_amount = bitcoin::Amount::ONE_BTC;
@@ -240,17 +259,21 @@ mod tests {
         let redeem_abf_bitcoin = SecretKey::new(&mut thread_rng());
         let redeem_abf_litecoin = SecretKey::new(&mut thread_rng());
 
-        let (redeem_sk_bitcoin, redeem_pk_bitcoin) = make_keypair();
-        let (redeem_blinding_sk_bitcoin, redeem_blinding_pk_bitcoin) = make_keypair();
+        let (
+            redeem_address_bitcoin,
+            redeem_sk_bitcoin,
+            redeem_pk_bitcoin,
+            redeem_blinding_sk_bitcoin,
+            redeem_blinding_pk_bitcoin,
+        ) = make_confidential_address();
 
-        let redeem_address_bitcoin =
-            make_confidential_address(redeem_pk_bitcoin, redeem_blinding_pk_bitcoin);
-
-        let (_redeem_sk_litecoin, redeem_pk_litecoin) = make_keypair();
-        let (_redeem_blinding_sk_litecoin, redeem_blinding_pk_litecoin) = make_keypair();
-
-        let redeem_address_litecoin =
-            make_confidential_address(redeem_pk_litecoin, redeem_blinding_pk_litecoin);
+        let (
+            redeem_address_litecoin,
+            redeem_sk_litecoin,
+            redeem_pk_litecoin,
+            redeem_blinding_sk_litecoin,
+            redeem_blinding_pk_litecoin,
+        ) = make_confidential_address();
 
         let tx_out_bitcoin = fund_bitcoin_tx.output[fund_bitcoin_vout].clone();
         let tx_out_litecoin = fund_litecoin_tx.output[fund_litecoin_vout].clone();
@@ -452,11 +475,13 @@ mod tests {
 
         let spend_abf_bitcoin = SecretKey::new(&mut thread_rng());
 
-        let (_spend_sk_bitcoin, spend_pk_bitcoin) = make_keypair();
-        let (_spend_blinding_sk_bitcoin, spend_blinding_pk_bitcoin) = make_keypair();
-
-        let spend_address_bitcoin =
-            make_confidential_address(spend_pk_bitcoin, spend_blinding_pk_bitcoin);
+        let (
+            spend_address_bitcoin,
+            _spend_sk_bitcoin,
+            spend_pk_bitcoin,
+            _spend_blinding_sk_bitcoin,
+            spend_blinding_pk_bitcoin,
+        ) = make_confidential_address();
 
         let (unblinded_asset_id_bitcoin, asset_commitment_bitcoin, abf, vbf, amount_in) =
             unblind_asset_from_txout(
