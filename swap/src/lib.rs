@@ -1,3 +1,4 @@
+use anyhow::Result;
 use bitcoin::Amount;
 use elements_fun::bitcoin::secp256k1::PublicKey as SecpPublicKey;
 use elements_fun::bitcoin::Network::Regtest;
@@ -30,7 +31,8 @@ pub fn unblind_asset_from_txout(
     let asset_generator = out.asset.commitment().unwrap();
     let script = out.script_pubkey;
     let sender_ephemeral_pk = out.nonce.commitment().unwrap();
-    let sender_ephemeral_pk = SecpPublicKey::from_slice(&sender_ephemeral_pk).unwrap();
+    let sender_ephemeral_pk =
+        SecpPublicKey::from_slice(&sender_ephemeral_pk).expect("commitment is a public key");
 
     let (unblinded_asset, abf, vbf, value_out) = asset_unblind(
         sender_ephemeral_pk,
@@ -64,7 +66,7 @@ pub fn make_txout<R>(
     out_vbf: [u8; 32],
     inputs: &[(AssetId, Asset, SecretKey)],
     sender_ephemeral_sk: SecretKey,
-) -> TxOut
+) -> Result<TxOut>
 where
     R: RngCore + CryptoRng,
 {
@@ -117,16 +119,16 @@ where
     );
 
     let sender_ephemeral_pk = SecpPublicKey::from_secret_key(&SECP256K1, &sender_ephemeral_sk);
-    TxOut {
+    Ok(TxOut {
         asset: out_asset,
         value: value_commitment,
-        nonce: Nonce::from_commitment(&sender_ephemeral_pk.serialize()).unwrap(),
+        nonce: Nonce::from_commitment(&sender_ephemeral_pk.serialize())?,
         script_pubkey: address.script_pubkey(),
         witness: TxOutWitness {
             surjection_proof,
             rangeproof: range_proof,
         },
-    }
+    })
 }
 
 pub fn make_keypair() -> (SecretKey, PublicKey) {
@@ -373,7 +375,8 @@ mod tests {
             *vbf_redeem_bitcoin.as_ref(),
             &inputs,
             SecretKey::new(&mut thread_rng()),
-        );
+        )
+        .unwrap();
         let txout_litecoin = make_txout(
             &mut thread_rng(),
             redeem_amount_litecoin,
@@ -383,7 +386,8 @@ mod tests {
             vbf_redeem_litecoin,
             &inputs,
             SecretKey::new(&mut thread_rng()),
-        );
+        )
+        .unwrap();
 
         let fee = TxOut {
             asset: Asset::Explicit(bitcoin_asset_id),
@@ -526,7 +530,8 @@ mod tests {
             spend_vbf_bitcoin,
             &inputs,
             SecretKey::new(&mut thread_rng()),
-        );
+        )
+        .unwrap();
 
         let fee = TxOut {
             asset: Asset::Explicit(bitcoin_asset_id),
