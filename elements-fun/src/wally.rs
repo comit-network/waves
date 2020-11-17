@@ -8,9 +8,10 @@ use std::ptr;
 
 use std::fmt;
 
-use crate::confidential::{Asset, Value};
 use bitcoin::hashes::{sha256d, Hash};
 
+use crate::confidential::{AssetCommitment, ValueCommitment};
+use crate::encode::Encodable;
 use std::borrow::Cow;
 use std::ffi::{CStr, CString};
 use std::os::raw::c_char;
@@ -100,11 +101,11 @@ pub fn bip39_mnemonic_to_seed(mnemonic: &str, passphrase: &str) -> Option<[u8; B
 
 /// Calculate the signature hash for a specific index of
 /// an Elements transaction.
-pub fn tx_get_elements_signature_hash(
+pub fn tx_get_elements_signature_hash<V: Encodable>(
     tx: &crate::Transaction,
     index: usize,
     script_code: &bitcoin::Script,
-    value: &crate::confidential::Value,
+    value: &V, // TODO: Is this really the best way to do it?
     sighash: u32,
     segwit: bool,
 ) -> sha256d::Hash {
@@ -308,7 +309,7 @@ pub fn ec_public_key_from_private_key(priv_key: secp256k1::SecretKey) -> secp256
     secp256k1::PublicKey::from_slice(&pub_key[..]).unwrap() // TODO return Result?
 }
 
-pub fn asset_generator_from_bytes(asset: &[u8; 32], abf: &[u8; 32]) -> Asset {
+pub fn asset_generator_from_bytes(asset: &[u8; 32], abf: &[u8; 32]) -> AssetCommitment {
     let mut generator = [0u8; 33];
     let ret = unsafe {
         ffi::wally_asset_generator_from_bytes(
@@ -322,10 +323,8 @@ pub fn asset_generator_from_bytes(asset: &[u8; 32], abf: &[u8; 32]) -> Asset {
     };
     assert_eq!(ret, ffi::WALLY_OK);
 
-    let prefix = generator[0];
-    let mut suffix = [0u8; 32];
-    suffix.copy_from_slice(&generator[1..]);
-    Asset::Confidential(prefix, suffix)
+    AssetCommitment::new(generator[0], &generator[1..])
+        .expect("asset commitment from libwally is always correct")
 }
 
 pub fn asset_final_vbf(
@@ -353,7 +352,11 @@ pub fn asset_final_vbf(
     final_vbf
 }
 
-pub fn asset_value_commitment(value: u64, vbf: [u8; 32], generator: Asset) -> Value {
+pub fn asset_value_commitment(
+    value: u64,
+    vbf: [u8; 32],
+    generator: AssetCommitment,
+) -> ValueCommitment {
     let mut value_commitment = [0u8; 33];
 
     let generator = crate::encode::serialize(&generator);
@@ -371,10 +374,9 @@ pub fn asset_value_commitment(value: u64, vbf: [u8; 32], generator: Asset) -> Va
         )
     };
     assert_eq!(ret, ffi::WALLY_OK);
-    let prefix = value_commitment[0];
-    let mut suffix = [0u8; 32];
-    suffix.copy_from_slice(&value_commitment[1..]);
-    Value::Confidential(prefix, suffix)
+
+    ValueCommitment::new(value_commitment[0], &value_commitment[1..])
+        .expect("value commitment from libwally is always valid")
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -385,9 +387,9 @@ pub fn asset_rangeproof(
     asset: [u8; 32],
     abf: [u8; 32],
     vbf: [u8; 32],
-    commitment: Value,
+    commitment: ValueCommitment,
     extra: &bitcoin::Script,
-    generator: Asset,
+    generator: AssetCommitment,
     min_value: u64,
     exp: i32,
     min_bits: i32,
@@ -434,7 +436,7 @@ pub fn asset_rangeproof(
 pub fn asset_surjectionproof(
     output_asset: [u8; 32],
     output_abf: [u8; 32],
-    output_generator: Asset,
+    output_generator: AssetCommitment,
     bytes: [u8; 32],
     assets: &[u8],
     abfs: &[u8],
@@ -492,6 +494,7 @@ mod tests {
     use bitcoin::secp256k1;
     use bitcoin::Script;
 
+    use crate::transaction::ExplicitValue;
     use std::str::FromStr;
 
     const _CA_PREFIX_LIQUID: u32 = 0x0c;
@@ -622,7 +625,7 @@ mod tests {
         assert_eq!(format!("{}", tx.txid()), txid_str);
 
         // output #1 is my change
-        let change = tx.output[1].clone();
+        let change = tx.output[1].as_confidential().unwrap().clone();
 
         // from the node recover confidential_key
         // ./src/elements-cli -chain=liquidv1 getaddressinfo Gt4eUKv82VuFPExmX5mqEDXkKuQ1Euzb6J | jq -r .confidential
@@ -687,7 +690,7 @@ mod tests {
 
         let vec = hex::decode("0ba4fd25e0e2108e55aec683810a8652f9b067242419a1f7cc0f01f92b4b078252")
             .unwrap();
-        let generator: crate::confidential::Asset = crate::encode::deserialize(&vec).unwrap();
+        let generator = crate::encode::deserialize::<AssetCommitment>(&vec).unwrap();
 
         let commitment = asset_value_commitment(10000, vbf, generator);
         assert_eq!(
@@ -732,7 +735,7 @@ mod tests {
             crate::encode::deserialize(&hex::decode(tx_hex).unwrap()).unwrap();
 
         let sighash_all = 1;
-        let value = Value::Explicit(1000);
+        let value = ExplicitValue(1000u64);
         let result =
             tx_get_elements_signature_hash(&tx, 0, &Script::default(), &value, sighash_all, true);
 
@@ -750,7 +753,7 @@ mod tests {
         let tx: crate::Transaction =
             crate::encode::deserialize(&hex::decode(tx_hex).unwrap()).unwrap();
         println!("{}", tx.txid());
-        for output in tx.output {
+        for output in tx.output.iter().filter_map(|o| o.as_confidential()) {
             println!("surj size: {}", output.witness.surjection_proof.len());
             println!("rangeproof size: {}", output.witness.rangeproof.len());
         }

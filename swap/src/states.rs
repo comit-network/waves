@@ -1,5 +1,5 @@
 use crate::{make_txout, unblind_asset_from_txout};
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Context, Result};
 use bitcoin::{Amount, Script};
 use elements_fun::{
     bitcoin::{
@@ -8,9 +8,9 @@ use elements_fun::{
         SigHashType,
     },
     bitcoin_hashes::{hash160, Hash},
-    confidential::{Asset, Nonce, Value},
     wally::{asset_final_vbf, tx_get_elements_signature_hash},
-    Address, AssetId, OutPoint, Transaction, TxIn, TxOut, TxOutWitness,
+    Address, AssetId, ExplicitAsset, ExplicitTxOut, ExplicitValue, OutPoint, Transaction, TxIn,
+    TxOut,
 };
 use rand::{CryptoRng, RngCore};
 use secp256k1::{PublicKey as SecpPublicKey, SecretKey};
@@ -106,41 +106,67 @@ impl Alice0 {
         msg.transaction
             .output
             .iter()
-            .filter(|output| output.script_pubkey == self.address_redeem.script_pubkey())
+            .filter(|output| output.script_pubkey() == &self.address_redeem.script_pubkey())
             .map(|output| {
-                let (asset_id, _, _, _, amount) =
-                    unblind_asset_from_txout(output.clone(), self.blinding_sk_redeem);
+                let (asset_id, _, _, _, amount) = unblind_asset_from_txout(
+                    output
+                        .as_confidential()
+                        .context("not a confidential txout")?
+                        .clone(),
+                    self.blinding_sk_redeem,
+                );
 
-                (asset_id, amount)
+                Result::<_>::Ok((asset_id, amount))
             })
-            .find(|(asset_id, amount)| {
-                asset_id == &expected_redeem_asset_id_alice
-                    && amount == &expected_redeem_amount_alice
+            .find(|res| match res {
+                Ok((asset_id, amount)) => {
+                    asset_id == &expected_redeem_asset_id_alice
+                        && amount == &expected_redeem_amount_alice
+                }
+                Err(_) => false,
             })
-            .ok_or_else(|| anyhow!("wrong redeem_output_alice"))?;
+            .ok_or_else(|| anyhow!("wrong redeem_output_alice"))??;
 
         let (expected_change_asset_id_alice, _, _, _, input_amount_alice) =
-            unblind_asset_from_txout(self.input_as_txout.clone(), self.input_blinding_sk);
+            unblind_asset_from_txout(
+                self.input_as_txout
+                    .as_confidential()
+                    .context("not a confidential txout")?
+                    .clone(),
+                self.input_blinding_sk,
+            );
         let expected_change_amount_alice = input_amount_alice - self.redeem_amount_bob - self.fee;
         msg.transaction
             .output
             .iter()
-            .filter(|output| output.script_pubkey == self.address_change.script_pubkey())
+            .filter(|output| output.script_pubkey() == &self.address_change.script_pubkey())
             .map(|output| {
-                let (asset_id, _, _, _, amount) =
-                    unblind_asset_from_txout(output.clone(), self.blinding_sk_change);
+                let (asset_id, _, _, _, amount) = unblind_asset_from_txout(
+                    output
+                        .as_confidential()
+                        .context("not a confidential txout")?
+                        .clone(),
+                    self.blinding_sk_change,
+                );
 
-                (asset_id, amount)
+                Result::<_>::Ok((asset_id, amount))
             })
-            .find(|(asset_id, amount)| {
-                asset_id == &expected_change_asset_id_alice
-                    && amount == &expected_change_amount_alice
+            .find(|res| match res {
+                Ok((asset_id, amount)) => {
+                    asset_id == &expected_change_asset_id_alice
+                        && amount == &expected_change_amount_alice
+                }
+                Err(_) => false,
             })
-            .ok_or_else(|| anyhow!("wrong change_output_alice"))?;
+            .ok_or_else(|| anyhow!("wrong change_output_alice"))??;
 
         // sign yourself and put signature in right spot
         let input_pk_alice = SecpPublicKey::from_secret_key(&secp, &self.input_sk);
-        let fund_amount_alice = self.input_as_txout.value;
+        let fund_amount_alice = self
+            .input_as_txout
+            .as_confidential()
+            .context("not a confidential txout")?
+            .value;
 
         let mut transaction = msg.transaction;
 
@@ -240,9 +266,21 @@ impl Bob0 {
             abf_in_alice,
             vbf_in_alice,
             amount_in_alice,
-        ) = unblind_asset_from_txout(msg.input_as_txout.clone(), msg.input_blinding_sk);
+        ) = unblind_asset_from_txout(
+            msg.input_as_txout
+                .as_confidential()
+                .context("not a confidential txout")?
+                .clone(),
+            msg.input_blinding_sk,
+        );
         let (asset_id_bob, asset_id_commitment_in_bob, abf_in_bob, vbf_in_bob, amount_in_bob) =
-            unblind_asset_from_txout(self.input_as_txout.clone(), self.input_blinding_sk);
+            unblind_asset_from_txout(
+                self.input_as_txout
+                    .as_confidential()
+                    .context("not a confidential txout")?
+                    .clone(),
+                self.input_blinding_sk,
+            );
 
         let abf_redeem_alice = SecretKey::new(rng);
         let abf_redeem_bob = SecretKey::new(rng);
@@ -353,13 +391,11 @@ impl Bob0 {
             change_ephemeral_key_bob,
         )?;
 
-        let fee = TxOut {
-            asset: Asset::Explicit(self.asset_id_alice),
-            value: Value::Explicit(msg.fee.as_sat()),
-            nonce: Nonce::Null,
+        let fee = TxOut::Explicit(ExplicitTxOut {
+            asset: ExplicitAsset(self.asset_id_alice),
+            value: ExplicitValue(msg.fee.as_sat()),
             script_pubkey: Script::default(),
-            witness: TxOutWitness::default(),
-        };
+        });
 
         let transaction = Transaction {
             version: 2,
@@ -397,12 +433,15 @@ pub struct Bob1 {
 }
 
 impl Bob1 {
-    pub fn compose(&self) -> Message1 {
+    pub fn compose(&self) -> Result<Message1> {
         let secp = elements_fun::bitcoin::secp256k1::Secp256k1::new();
 
         let input_pk_bob = SecpPublicKey::from_secret_key(&secp, &self.input_sk);
         let fund_bitcoin_tx_vout_bob = self.input_as_txout_bob.clone();
-        let fund_amount_bob = fund_bitcoin_tx_vout_bob.value;
+        let fund_amount_bob = fund_bitcoin_tx_vout_bob
+            .as_confidential()
+            .context("not a confidential txout")?
+            .value;
 
         let mut transaction = self.transaction.clone();
         transaction.input[self.input_index_bob]
@@ -437,7 +476,7 @@ impl Bob1 {
             vec![serialized_signature, input_pk_bob.serialize().to_vec()]
         };
 
-        Message1 { transaction }
+        Ok(Message1 { transaction })
     }
 }
 
@@ -585,7 +624,7 @@ mod tests {
 
         let message0 = alice.compose();
         let bob1 = bob.interpret(&mut thread_rng(), message0).unwrap();
-        let message1 = bob1.compose();
+        let message1 = bob1.compose().unwrap();
 
         let tx = alice.interpret(message1).unwrap();
         let _txid = client.send_raw_transaction(&tx).await.unwrap();
@@ -633,7 +672,13 @@ mod tests {
         let previous_output = previous_output_tx.output[previous_output.vout as usize].clone();
 
         let (asset_id, asset_id_commitment_in, abf_in, vbf_in, amount_in) =
-            unblind_asset_from_txout(previous_output.clone(), previous_output_blinding_sk);
+            unblind_asset_from_txout(
+                previous_output
+                    .as_confidential()
+                    .context("not a confidential txout")?
+                    .clone(),
+                previous_output_blinding_sk,
+            );
 
         let fee = Amount::from_sat(900_000);
         let amount_out = amount_in - fee;
@@ -660,13 +705,11 @@ mod tests {
             SecretKey::new(&mut thread_rng()),
         )?;
 
-        let fee = TxOut {
-            asset: Asset::Explicit(asset_id),
-            value: Value::Explicit(fee.as_sat()),
-            nonce: Nonce::Null,
+        let fee = TxOut::Explicit(ExplicitTxOut {
+            asset: ExplicitAsset(asset_id),
+            value: ExplicitValue(fee.as_sat()),
             script_pubkey: Script::default(),
-            witness: TxOutWitness::default(),
-        };
+        });
 
         let mut tx = Transaction {
             version: 2,
@@ -694,8 +737,17 @@ mod tests {
                 .push_opcode(opcodes::all::OP_CHECKSIG)
                 .into_script();
 
-            let digest =
-                tx_get_elements_signature_hash(&tx, 0, &script, &previous_output.value, 1, true);
+            let digest = tx_get_elements_signature_hash(
+                &tx,
+                0,
+                &script,
+                &previous_output
+                    .as_confidential()
+                    .context("not a confidential txout")?
+                    .value,
+                1,
+                true,
+            );
 
             let sig = SECP256K1.sign(
                 &Message::from_slice(&digest.into_inner())?,
@@ -718,7 +770,7 @@ mod tests {
         let vout = tx
             .output
             .iter()
-            .position(|output| output.script_pubkey == address.script_pubkey())
+            .position(|output| output.script_pubkey() == &address.script_pubkey())
             .ok_or_else(|| anyhow!("Tx doesn't pay to address"))?;
 
         let outpoint = OutPoint {
