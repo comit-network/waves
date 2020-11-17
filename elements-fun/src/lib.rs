@@ -29,6 +29,7 @@ pub use bitcoin;
 #[macro_use]
 pub extern crate bitcoin_hashes;
 
+#[cfg(feature = "serde")]
 extern crate serde_crate as serde;
 
 #[macro_use] mod internal_macros;
