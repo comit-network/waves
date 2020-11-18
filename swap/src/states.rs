@@ -1,6 +1,7 @@
 use crate::make_txout;
 use anyhow::{anyhow, Context, Result};
 use bitcoin::Amount;
+use elements_fun::confidential::{AssetBlindingFactor, ValueBlindingFactor};
 use elements_fun::{
     bitcoin::{
         blockdata::{opcodes, script::Builder},
@@ -290,31 +291,31 @@ impl Bob0 {
             value: amount_in_bob,
         } = bob_txout.unblind(self.input_blinding_sk)?;
 
-        let abf_redeem_alice = SecretKey::new(rng);
-        let abf_redeem_bob = SecretKey::new(rng);
-        let abf_change_alice = SecretKey::new(rng);
-        let abf_change_bob = SecretKey::new(rng);
+        let abf_redeem_alice = AssetBlindingFactor::new(rng);
+        let abf_redeem_bob = AssetBlindingFactor::new(rng);
+        let abf_change_alice = AssetBlindingFactor::new(rng);
+        let abf_change_bob = AssetBlindingFactor::new(rng);
         let abfs = vec![
-            abf_in_alice.as_ref().to_vec(),
-            abf_in_bob.as_ref().to_vec(),
-            abf_redeem_alice.as_ref().to_vec(),
-            abf_redeem_bob.as_ref().to_vec(),
-            abf_change_alice.as_ref().to_vec(),
-            abf_change_bob.as_ref().to_vec(),
+            abf_in_alice.into_inner().to_vec(),
+            abf_in_bob.into_inner().to_vec(),
+            abf_redeem_alice.into_inner().to_vec(),
+            abf_redeem_bob.into_inner().to_vec(),
+            abf_change_alice.into_inner().to_vec(),
+            abf_change_bob.into_inner().to_vec(),
         ]
         .into_iter()
         .flatten()
         .collect::<Vec<_>>();
 
-        let vbf_redeem_alice = SecretKey::new(rng);
-        let vbf_redeem_bob = SecretKey::new(rng);
-        let vbf_change_alice = SecretKey::new(rng);
+        let vbf_redeem_alice = ValueBlindingFactor::new(rng);
+        let vbf_redeem_bob = ValueBlindingFactor::new(rng);
+        let vbf_change_alice = ValueBlindingFactor::new(rng);
         let vbfs = vec![
-            vbf_in_alice.as_ref().to_vec(),
-            vbf_in_bob.as_ref().to_vec(),
-            vbf_redeem_alice.as_ref().to_vec(),
-            vbf_redeem_bob.as_ref().to_vec(),
-            vbf_change_alice.as_ref().to_vec(),
+            vbf_in_alice.into_inner().to_vec(),
+            vbf_in_bob.into_inner().to_vec(),
+            vbf_redeem_alice.into_inner().to_vec(),
+            vbf_redeem_bob.into_inner().to_vec(),
+            vbf_change_alice.into_inner().to_vec(),
         ]
         .into_iter()
         .flatten()
@@ -333,16 +334,8 @@ impl Bob0 {
         let input_bob = self.input.clone();
 
         let inputs = vec![
-            (
-                asset_id_alice,
-                alice_txout.asset,
-                SecretKey::from_slice(&abf_in_alice)?,
-            ),
-            (
-                asset_id_bob,
-                bob_txout.asset,
-                SecretKey::from_slice(&abf_in_bob)?,
-            ),
+            (asset_id_alice, alice_txout.asset, abf_in_alice),
+            (asset_id_bob, bob_txout.asset, abf_in_bob),
         ];
 
         let redeem_ephemeral_key_alice = SecretKey::new(rng);
@@ -351,8 +344,8 @@ impl Bob0 {
             self.redeem_amount_alice,
             msg.address_redeem,
             asset_id_bob,
-            *abf_redeem_alice.as_ref(),
-            *vbf_redeem_alice.as_ref(),
+            abf_redeem_alice,
+            vbf_redeem_alice,
             &inputs,
             redeem_ephemeral_key_alice,
         )?;
@@ -363,8 +356,8 @@ impl Bob0 {
             self.redeem_amount_bob,
             self.address_redeem.clone(),
             self.asset_id_alice,
-            *abf_redeem_bob.as_ref(),
-            *vbf_redeem_bob.as_ref(),
+            abf_redeem_bob,
+            vbf_redeem_bob,
             &inputs,
             redeem_ephemeral_key_bob,
         )?;
@@ -375,8 +368,8 @@ impl Bob0 {
             change_amount_alice,
             msg.address_change,
             self.asset_id_alice,
-            *abf_change_alice.as_ref(),
-            *vbf_change_alice.as_ref(),
+            abf_change_alice,
+            vbf_change_alice,
             &inputs,
             change_ephemeral_key_alice,
         )?;
@@ -401,7 +394,7 @@ impl Bob0 {
             change_amount_bob,
             self.address_change.clone(),
             asset_id_bob,
-            *abf_change_bob.as_ref(),
+            abf_change_bob,
             vbf_change_bob,
             &inputs,
             change_ephemeral_key_bob,
@@ -697,23 +690,23 @@ mod tests {
         let fee = 900_000;
         let amount_out = Amount::from_sat(amount_in - fee);
 
-        let abf_out = SecretKey::new(&mut thread_rng());
+        let abf_out = AssetBlindingFactor::new(&mut thread_rng());
 
-        let mut abfs = abf_in.as_ref().to_vec();
-        abfs.extend(abf_out.as_ref());
+        let mut abfs = abf_in.into_inner().to_vec();
+        abfs.extend(&abf_out.into_inner());
 
-        let vbfs = vbf_in.as_ref().to_vec();
+        let vbfs = vbf_in.into_inner().to_vec();
         let vbf_out = asset_final_vbf(vec![amount_in, amount_out.as_sat()], 1, abfs, vbfs);
 
         let move_address = client.getnewaddress().await?;
 
-        let inputs = vec![(asset_id, txout.asset, SecretKey::from_slice(&abf_in)?)];
+        let inputs = vec![(asset_id, txout.asset, abf_in)];
         let output = make_txout(
             &mut thread_rng(),
             amount_out,
             move_address,
             asset_id,
-            *abf_out.as_ref(),
+            abf_out,
             vbf_out,
             &inputs,
             SecretKey::new(&mut thread_rng()),
