@@ -2,7 +2,7 @@
 name = "elements-fun"
 version = "0.1.0"
 authors = ["CoBloX Team <team@coblox.tech>"]
-description = "Library with support for de/serialization, parsing and executing on data structures and network messages related to Elements"
+description = "Make it fun to work with the elements blockchain!"
 license = "CC0-1.0"
 edition = "2018"
 
