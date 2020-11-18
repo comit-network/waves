@@ -902,9 +902,7 @@ impl TxOut {
             _ => TxOutWitness::default().encoded_length(),
         }
     }
-}
 
-impl TxOut {
     /// Whether this data represents nulldata (OP_RETURN followed by pushes,
     /// not necessarily minimal)
     pub fn is_null_data(&self) -> bool {
