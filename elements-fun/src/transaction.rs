@@ -25,9 +25,9 @@ use bitcoin::secp256k1::PublicKey;
 use bitcoin::secp256k1::SecretKey;
 use bitcoin::{self, Txid, VarInt};
 
-use crate::confidential::AssetCommitment;
 use crate::confidential::NonceCommitment;
 use crate::confidential::ValueCommitment;
+use crate::confidential::{AssetBlindingFactor, AssetCommitment, ValueBlindingFactor};
 use crate::encode::{self, Decodable, Encodable, Error};
 use crate::issuance::AssetId;
 use crate::wally::asset_unblind;
@@ -1076,7 +1076,7 @@ impl ConfidentialTxOut {
         .map_err(|_| UnblindError::Wally)?;
 
         Ok(UnblindedTxOut {
-            asset: AssetId::from_slice(&unblinded_asset).unwrap(),
+            asset: unblinded_asset,
             asset_blinding_factor: abf,
             value_blinding_factor: vbf,
             value: value_out,
@@ -1088,8 +1088,8 @@ impl ConfidentialTxOut {
 pub struct UnblindedTxOut {
     pub asset: AssetId,
     pub value: u64,
-    pub asset_blinding_factor: [u8; 32],
-    pub value_blinding_factor: [u8; 32],
+    pub asset_blinding_factor: AssetBlindingFactor,
+    pub value_blinding_factor: ValueBlindingFactor,
 }
 
 #[derive(Debug)]

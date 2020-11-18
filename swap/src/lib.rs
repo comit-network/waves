@@ -4,7 +4,9 @@ use elements_fun::bitcoin::secp256k1::PublicKey as SecpPublicKey;
 use elements_fun::bitcoin::Network::Regtest;
 use elements_fun::bitcoin::PrivateKey;
 use elements_fun::bitcoin::PublicKey;
-use elements_fun::confidential::{AssetCommitment, NonceCommitment};
+use elements_fun::confidential::{
+    AssetBlindingFactor, AssetCommitment, NonceCommitment, ValueBlindingFactor,
+};
 use elements_fun::wally::asset_generator_from_bytes;
 use elements_fun::wally::asset_rangeproof;
 use elements_fun::wally::asset_surjectionproof;
@@ -27,9 +29,9 @@ fn make_txout<R>(
     amount: Amount,
     address: Address,
     out_asset_id: AssetId,
-    out_abf: [u8; 32],
-    out_vbf: [u8; 32],
-    inputs: &[(AssetId, AssetCommitment, SecretKey)],
+    out_abf: AssetBlindingFactor,
+    out_vbf: ValueBlindingFactor,
+    inputs: &[(AssetId, AssetCommitment, AssetBlindingFactor)],
     sender_ephemeral_sk: SecretKey,
 ) -> Result<TxOut>
 where
@@ -66,11 +68,7 @@ where
         .map(|(_, asset, _)| asset.commitment().to_vec())
         .flatten()
         .collect::<Vec<_>>();
-    let abfs_in = inputs
-        .iter()
-        .map(|(_, _, abf)| abf.as_ref().to_vec())
-        .flatten()
-        .collect::<Vec<_>>();
+    let abfs_in = inputs.iter().map(|(_, _, abf)| *abf).collect::<Vec<_>>();
 
     let surjection_proof = asset_surjectionproof(
         out_asset_id_bytes,
@@ -146,6 +144,7 @@ mod tests {
 
     use crate::make_confidential_address;
     use crate::make_txout;
+    use elements_fun::confidential::{AssetBlindingFactor, ValueBlindingFactor};
 
     #[tokio::test]
     async fn sign_transaction_with_two_asset_types() {
@@ -220,8 +219,8 @@ mod tests {
 
         let redeem_amount_litecoin = fund_litecoin_amount;
 
-        let redeem_abf_bitcoin = SecretKey::new(&mut thread_rng());
-        let redeem_abf_litecoin = SecretKey::new(&mut thread_rng());
+        let redeem_abf_bitcoin = AssetBlindingFactor::new(&mut thread_rng());
+        let redeem_abf_litecoin = AssetBlindingFactor::new(&mut thread_rng());
 
         let (
             redeem_address_bitcoin,
@@ -262,20 +261,20 @@ mod tests {
         } = tx_out_litecoin.unblind(fund_blinding_sk_litecoin).unwrap();
 
         let abfs = vec![
-            abf_bitcoin.as_ref().to_vec(),
-            abf_litecoin.as_ref().to_vec(),
-            redeem_abf_bitcoin.as_ref().to_vec(),
-            redeem_abf_litecoin.as_ref().to_vec(),
+            abf_bitcoin.into_inner().to_vec(),
+            abf_litecoin.into_inner().to_vec(),
+            redeem_abf_bitcoin.into_inner().to_vec(),
+            redeem_abf_litecoin.into_inner().to_vec(),
         ]
         .into_iter()
         .flatten()
         .collect::<Vec<_>>();
 
-        let vbf_redeem_bitcoin = SecretKey::new(&mut thread_rng());
+        let vbf_redeem_bitcoin = ValueBlindingFactor::new(&mut thread_rng());
         let vbfs = vec![
-            vbf_bitcoin.as_ref().to_vec(),
-            vbf_litecoin.as_ref().to_vec(),
-            vbf_redeem_bitcoin.as_ref().to_vec(),
+            vbf_bitcoin.into_inner().to_vec(),
+            vbf_litecoin.into_inner().to_vec(),
+            vbf_redeem_bitcoin.into_inner().to_vec(),
         ]
         .into_iter()
         .flatten()
@@ -324,12 +323,12 @@ mod tests {
             (
                 unblinded_asset_id_bitcoin,
                 tx_out_bitcoin.asset,
-                SecretKey::from_slice(&abf_bitcoin).unwrap(),
+                abf_bitcoin,
             ),
             (
                 unblinded_asset_id_litecoin,
                 tx_out_litecoin.asset,
-                SecretKey::from_slice(&abf_litecoin).unwrap(),
+                abf_litecoin,
             ),
         ];
 
@@ -338,8 +337,8 @@ mod tests {
             redeem_amount_bitcoin,
             redeem_address_bitcoin.clone(),
             bitcoin_asset_id,
-            *redeem_abf_bitcoin.as_ref(),
-            *vbf_redeem_bitcoin.as_ref(),
+            redeem_abf_bitcoin,
+            vbf_redeem_bitcoin,
             &inputs,
             SecretKey::new(&mut thread_rng()),
         )
@@ -349,7 +348,7 @@ mod tests {
             redeem_amount_litecoin,
             redeem_address_litecoin,
             litecoin_asset_id,
-            *redeem_abf_litecoin.as_ref(),
+            redeem_abf_litecoin,
             vbf_redeem_litecoin,
             &inputs,
             SecretKey::new(&mut thread_rng()),
@@ -444,7 +443,7 @@ mod tests {
         let spend_fee_bitcoin = Amount::from_sat(900_000);
         let spend_amount_bitcoin = redeem_amount_bitcoin - spend_fee_bitcoin;
 
-        let spend_abf_bitcoin = SecretKey::new(&mut thread_rng());
+        let spend_abf_bitcoin = AssetBlindingFactor::new(&mut thread_rng());
 
         let (
             spend_address_bitcoin,
@@ -465,10 +464,10 @@ mod tests {
             value: amount_in,
         } = tx_out_bitcoin.unblind(redeem_blinding_sk_bitcoin).unwrap();
 
-        let mut abfs = abf.as_ref().to_vec();
-        abfs.extend(spend_abf_bitcoin.as_ref());
+        let mut abfs = abf.into_inner().to_vec();
+        abfs.extend(&spend_abf_bitcoin.into_inner());
 
-        let vbfs = vbf.as_ref().to_vec();
+        let vbfs = vbf.into_inner().to_vec();
 
         let spend_vbf_bitcoin = asset_final_vbf(
             vec![amount_in, spend_amount_bitcoin.as_sat()],
@@ -491,18 +490,14 @@ mod tests {
             witness: Default::default(),
         };
 
-        let inputs = vec![(
-            unblinded_asset_id_bitcoin,
-            tx_out_bitcoin.asset,
-            SecretKey::from_slice(&abf).unwrap(),
-        )];
+        let inputs = vec![(unblinded_asset_id_bitcoin, tx_out_bitcoin.asset, abf)];
 
         let spend_output = make_txout(
             &mut thread_rng(),
             spend_amount_bitcoin,
             spend_address_bitcoin,
             bitcoin_asset_id,
-            *spend_abf_bitcoin.as_ref(),
+            spend_abf_bitcoin,
             spend_vbf_bitcoin,
             &inputs,
             SecretKey::new(&mut thread_rng()),
