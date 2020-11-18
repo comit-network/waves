@@ -2,15 +2,17 @@
 //! Links to libwally methods used.
 //!
 
-use crate::bitcoin;
 use crate::bitcoin::secp256k1;
+use crate::{bitcoin, AssetId};
 use std::ptr;
 
 use std::fmt;
 
 use bitcoin::hashes::{sha256d, Hash};
 
-use crate::confidential::{AssetCommitment, ValueCommitment};
+use crate::confidential::{
+    AssetBlindingFactor, AssetCommitment, ValueBlindingFactor, ValueCommitment,
+};
 use crate::encode::Encodable;
 use std::borrow::Cow;
 use std::ffi::{CStr, CString};
@@ -221,7 +223,7 @@ pub fn asset_unblind(
     value: ValueCommitment,
     extra: &bitcoin::Script,
     generator: AssetCommitment,
-) -> Result<([u8; 32], [u8; 32], [u8; 32], u64), String> {
+) -> Result<(AssetId, AssetBlindingFactor, ValueBlindingFactor, u64), String> {
     let pub_key = pub_key.serialize();
     let commitment = value.commitment();
     let generator = generator.commitment();
@@ -256,7 +258,12 @@ pub fn asset_unblind(
     if ret != ffi::WALLY_OK {
         Err("asset_unblind not ok".to_string())
     } else {
-        Ok((asset_out, abf_out, vbf_out, value_out))
+        Ok((
+            AssetId::from_slice(&asset_out).expect("libwally always returns value asset IDs"),
+            abf_out.into(),
+            vbf_out.into(),
+            value_out,
+        ))
     }
 }
 
@@ -311,7 +318,9 @@ pub fn ec_public_key_from_private_key(priv_key: secp256k1::SecretKey) -> secp256
     secp256k1::PublicKey::from_slice(&pub_key[..]).unwrap() // TODO return Result?
 }
 
-pub fn asset_generator_from_bytes(asset: &[u8; 32], abf: &[u8; 32]) -> AssetCommitment {
+pub fn asset_generator_from_bytes(asset: &[u8; 32], abf: &AssetBlindingFactor) -> AssetCommitment {
+    let abf = abf.into_inner();
+
     let mut generator = [0u8; 33];
     let ret = unsafe {
         ffi::wally_asset_generator_from_bytes(
@@ -334,7 +343,7 @@ pub fn asset_final_vbf(
     num_inputs: usize,
     abf: Vec<u8>,
     vbf: Vec<u8>,
-) -> [u8; 32] {
+) -> ValueBlindingFactor {
     let mut final_vbf = [0u8; 32];
 
     let ret = unsafe {
@@ -351,15 +360,16 @@ pub fn asset_final_vbf(
         )
     };
     assert_eq!(ret, ffi::WALLY_OK);
-    final_vbf
+    final_vbf.into()
 }
 
 pub fn asset_value_commitment(
     value: u64,
-    vbf: [u8; 32],
+    vbf: ValueBlindingFactor,
     generator: AssetCommitment,
 ) -> ValueCommitment {
     let mut value_commitment = [0u8; 33];
+    let vbf = vbf.into_inner();
 
     let generator = crate::encode::serialize(&generator);
     assert_eq!(generator.len(), 33);
@@ -387,8 +397,8 @@ pub fn asset_rangeproof(
     pub_key: secp256k1::PublicKey,
     priv_key: secp256k1::SecretKey,
     asset: [u8; 32],
-    abf: [u8; 32],
-    vbf: [u8; 32],
+    abf: AssetBlindingFactor,
+    vbf: ValueBlindingFactor,
     commitment: ValueCommitment,
     extra: &bitcoin::Script,
     generator: AssetCommitment,
@@ -401,6 +411,8 @@ pub fn asset_rangeproof(
     let pub_key = pub_key.serialize();
     let commitment = crate::encode::serialize(&commitment); // should check commitment and generator are confidential
     let generator = crate::encode::serialize(&generator);
+    let abf = abf.into_inner();
+    let vbf = vbf.into_inner();
 
     let ret = unsafe {
         ffi::wally_asset_rangeproof(
@@ -437,11 +449,11 @@ pub fn asset_rangeproof(
 #[allow(clippy::too_many_arguments)]
 pub fn asset_surjectionproof(
     output_asset: [u8; 32],
-    output_abf: [u8; 32],
+    output_abf: AssetBlindingFactor,
     output_generator: AssetCommitment,
     bytes: [u8; 32],
     assets: &[u8],
-    abfs: &[u8],
+    abfs: &[AssetBlindingFactor],
     generators: &[u8],
     num_inputs: usize,
 ) -> Vec<u8> {
@@ -449,6 +461,12 @@ pub fn asset_surjectionproof(
     let ret = unsafe { ffi::wally_asset_surjectionproof_size(num_inputs, &mut proof_size) };
     assert_eq!(ret, ffi::WALLY_OK);
 
+    let output_abf = output_abf.into_inner();
+    let abfs = abfs
+        .iter()
+        .map(|abf| abf.into_inner().to_vec())
+        .flatten()
+        .collect::<Vec<_>>();
     let output_generator = crate::encode::serialize(&output_generator);
 
     let mut proof = [0u8; 8259];
@@ -599,19 +617,23 @@ mod tests {
         .unwrap();
 
         assert_eq!(
-            asset.to_vec(),
-            hex::decode("25b251070e29ca19043cf33ccd7324e2ddab03ecc4ae0b5e77c4fc0e5cf6c95a")
+            asset,
+            AssetId::from_hex("25b251070e29ca19043cf33ccd7324e2ddab03ecc4ae0b5e77c4fc0e5cf6c95a")
                 .unwrap()
         );
         assert_eq!(
-            abf.to_vec(),
-            hex::decode("3f2f58e80fbe77e8aad8268f1baebc3548c777ba8271f99ce73210ad993d907d")
-                .unwrap()
+            abf,
+            AssetBlindingFactor::from_hex(
+                "3f2f58e80fbe77e8aad8268f1baebc3548c777ba8271f99ce73210ad993d907d"
+            )
+            .unwrap()
         );
         assert_eq!(
-            vbf.to_vec(),
-            hex::decode("51f109e34d0282b6efac36d118131060f7f79b867b67a95bebd087eda2ccd796")
-                .unwrap()
+            vbf,
+            ValueBlindingFactor::from_hex(
+                "51f109e34d0282b6efac36d118131060f7f79b867b67a95bebd087eda2ccd796"
+            )
+            .unwrap()
         );
         assert_eq!(value, 80_000_000);
     }
@@ -686,10 +708,10 @@ mod tests {
     #[test]
     fn test_blind() {
         // from libwally test_assets.js
-        let vec = hex::decode("8b5d87d94b9f54dc5dd9f31df5dffedc974fc4d5bf0d2ee1297e5aba504ccc26")
-            .unwrap();
-        let mut vbf = [0u8; 32];
-        vbf.copy_from_slice(&vec[..]);
+        let vbf = ValueBlindingFactor::from_hex(
+            "8b5d87d94b9f54dc5dd9f31df5dffedc974fc4d5bf0d2ee1297e5aba504ccc26",
+        )
+        .unwrap();
 
         let vec = hex::decode("0ba4fd25e0e2108e55aec683810a8652f9b067242419a1f7cc0f01f92b4b078252")
             .unwrap();
@@ -704,15 +726,18 @@ mod tests {
         let ones = [0x17u8; 32];
         let values = [20000u64, 4910, 13990, 1100].to_vec();
         let asset = ones;
-        let abf = ones;
+        let abf = ones.into();
         let abfs = hex::decode("7fca161c2b849a434f49065cf590f5f1909f25e252f728dfd53669c3c8f8e37100000000000000000000000000000000000000000000000000000000000000002c89075f3c8861fea27a15682d664fb643bc08598fe36dcf817fcabc7ef5cf2efdac7bbad99a45187f863cd58686a75135f2cc0714052f809b0c1f603bcdc574").unwrap();
         let vbfs = hex::decode("1c07611b193009e847e5b296f05a561c559ca84e16d1edae6cbe914b73fb6904000000000000000000000000000000000000000000000000000000000000000074e4135177cd281b332bb8fceb46da32abda5d6dc4d2eef6342a5399c9fb3c48").unwrap();
 
         let _generator = asset_generator_from_bytes(&asset, &abf);
         let vbf = asset_final_vbf(values, 1, abfs, vbfs);
         assert_eq!(
-            hex::encode(&vbf[..]),
-            "6996212c70fa85b82d4fd76bd262e0cebc5d8f52350a73af8d2b881a30442b9d"
+            vbf,
+            ValueBlindingFactor::from_hex(
+                "6996212c70fa85b82d4fd76bd262e0cebc5d8f52350a73af8d2b881a30442b9d"
+            )
+            .unwrap()
         );
     }
 

@@ -125,6 +125,14 @@ impl AssetId {
     }
 }
 
+impl ::hex::FromHex for AssetId {
+    type Error = ::hex::FromHexError;
+
+    fn from_hex<T: AsRef<[u8]>>(hex: T) -> Result<Self, Self::Error> {
+        Ok(Self(sha256::Midstate(::hex::FromHex::from_hex(hex)?)))
+    }
+}
+
 impl hex::FromHex for AssetId {
     fn from_byte_iter<I>(iter: I) -> Result<Self, hex::Error>
     where

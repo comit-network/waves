@@ -23,6 +23,10 @@ use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use std::{fmt, io};
 
 use crate::encode::{self, Decodable, Encodable};
+use bitcoin::secp256k1::rand::Rng;
+use bitcoin::secp256k1::SecretKey;
+use hex::FromHex;
+use hex::FromHexError;
 
 // Helper macro to implement various things for the various confidential
 // commitment types
@@ -162,6 +166,60 @@ pub struct NonceCommitment([u8; 33]);
 impl_confidential_commitment!(AssetCommitment, 0x0a, 0x0b);
 impl_confidential_commitment!(ValueCommitment, 0x08, 0x09);
 impl_confidential_commitment!(NonceCommitment, 0x02, 0x03);
+
+#[derive(Copy, Clone, Debug, Eq, Hash, PartialEq, PartialOrd, Ord)]
+pub struct ValueBlindingFactor([u8; 32]);
+
+impl ValueBlindingFactor {
+    pub fn new<R: Rng>(rng: &mut R) -> Self {
+        Self(*SecretKey::new(rng).as_ref())
+    }
+
+    pub fn into_inner(self) -> [u8; 32] {
+        self.0
+    }
+}
+
+impl FromHex for ValueBlindingFactor {
+    type Error = FromHexError;
+
+    fn from_hex<T: AsRef<[u8]>>(hex: T) -> Result<Self, Self::Error> {
+        Ok(Self(FromHex::from_hex(hex)?))
+    }
+}
+
+impl From<[u8; 32]> for ValueBlindingFactor {
+    fn from(bytes: [u8; 32]) -> Self {
+        Self(bytes)
+    }
+}
+
+#[derive(Copy, Clone, Debug, Eq, Hash, PartialEq, PartialOrd, Ord)]
+pub struct AssetBlindingFactor([u8; 32]);
+
+impl AssetBlindingFactor {
+    pub fn new<R: Rng>(rng: &mut R) -> Self {
+        Self(*SecretKey::new(rng).as_ref())
+    }
+
+    pub fn into_inner(self) -> [u8; 32] {
+        self.0
+    }
+}
+
+impl FromHex for AssetBlindingFactor {
+    type Error = FromHexError;
+
+    fn from_hex<T: AsRef<[u8]>>(hex: T) -> Result<Self, Self::Error> {
+        Ok(Self(FromHex::from_hex(hex)?))
+    }
+}
+
+impl From<[u8; 32]> for AssetBlindingFactor {
+    fn from(bytes: [u8; 32]) -> Self {
+        Self(bytes)
+    }
+}
 
 #[cfg(test)]
 mod tests {
