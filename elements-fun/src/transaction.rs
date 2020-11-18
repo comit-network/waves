@@ -546,17 +546,10 @@ impl TxOut {
             52,
         );
 
-        let unblinded_assets_in = inputs
+        let inputs = inputs
             .iter()
-            .map(|(id, _, _, _, _)| *id)
-            .collect::<Vec<_>>();
-        let assets_in = inputs
-            .iter()
-            .map(|(_, _, asset, _, _)| *asset)
-            .collect::<Vec<_>>();
-        let abfs_in = inputs
-            .iter()
-            .map(|(_, _, _, abf, _)| *abf)
+            .copied()
+            .map(|(id, _, asset, abf, _)| (id, abf, asset))
             .collect::<Vec<_>>();
 
         let surjection_proof = asset_surjectionproof(
@@ -564,10 +557,7 @@ impl TxOut {
             out_abf,
             out_asset,
             *SecretKey::new(rng).as_ref(),
-            &unblinded_assets_in,
-            &abfs_in,
-            &assets_in,
-            inputs.len(),
+            &inputs,
         );
 
         let sender_ephemeral_pk = PublicKey::from_secret_key(&secp, &sender_ephemeral_sk);
@@ -658,17 +648,10 @@ impl TxOut {
             52,
         );
 
-        let unblinded_assets_in = inputs
+        let inputs = inputs
             .iter()
-            .map(|(id, _, _, _, _)| *id)
-            .collect::<Vec<_>>();
-        let assets_in = inputs
-            .iter()
-            .map(|(_, _, asset, _, _)| *asset)
-            .collect::<Vec<_>>();
-        let abfs_in = inputs
-            .iter()
-            .map(|(_, _, _, abf, _)| *abf)
+            .copied()
+            .map(|(id, _, asset, abf, _)| (id, abf, asset))
             .collect::<Vec<_>>();
 
         let surjection_proof = asset_surjectionproof(
@@ -676,10 +659,7 @@ impl TxOut {
             out_abf,
             out_asset,
             *SecretKey::new(rng).as_ref(),
-            &unblinded_assets_in,
-            &abfs_in,
-            &assets_in,
-            inputs.len(),
+            &inputs,
         );
 
         let sender_ephemeral_pk = PublicKey::from_secret_key(&secp, &sender_ephemeral_sk);
