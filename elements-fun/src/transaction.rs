@@ -16,7 +16,7 @@
 //!
 
 use std::collections::HashMap;
-use std::{fmt, io, iter};
+use std::{fmt, io};
 
 use bitcoin::blockdata::opcodes;
 use bitcoin::blockdata::script::{Instruction, Script};
@@ -28,17 +28,14 @@ use bitcoin::secp256k1::SecretKey;
 use bitcoin::secp256k1::{PublicKey, Signing};
 use bitcoin::{self, Txid, VarInt};
 
-use crate::confidential::NonceCommitment;
+use crate::confidential::Nonce;
 use crate::confidential::ValueCommitment;
 use crate::confidential::{AssetBlindingFactor, AssetCommitment, ValueBlindingFactor};
 use crate::encode::{self, Decodable, Encodable, Error};
 use crate::issuance::AssetId;
-use crate::wally::asset_final_vbf;
-use crate::wally::asset_generator_from_bytes;
 use crate::wally::asset_rangeproof;
 use crate::wally::asset_surjectionproof;
 use crate::wally::asset_unblind;
-use crate::wally::asset_value_commitment;
 use crate::Address;
 
 /// Elements transaction
@@ -179,7 +176,7 @@ pub struct ConfidentialTxOut {
     /// Nonce (ECDH key passed to recipient)
     ///
     /// TODO: I think this is only `None` if we spend an asset issuance.
-    pub nonce: Option<NonceCommitment>,
+    pub nonce: Option<Nonce>,
     /// Scriptpubkey
     pub script_pubkey: Script,
     /// Witness data - not deserialized/serialized as part of a `TxIn` object
@@ -522,11 +519,12 @@ impl TxOut {
         C: Signing,
     {
         let out_abf = AssetBlindingFactor::new(rng);
-        let out_vbf = ValueBlindingFactor::new(rng);
-        let sender_ephemeral_sk = SecretKey::new(rng);
+        let out_asset = AssetCommitment::new(asset, out_abf);
 
-        let out_asset = asset_generator_from_bytes(&asset, &out_abf);
-        let value_commitment = asset_value_commitment(value, out_vbf, out_asset);
+        let out_vbf = ValueBlindingFactor::random(rng);
+        let value_commitment = ValueCommitment::new(value, out_asset, out_vbf);
+
+        let (nonce, sender_ephemeral_sk) = Nonce::new(rng, secp);
 
         let range_proof = asset_rangeproof(
             value,
@@ -559,11 +557,10 @@ impl TxOut {
             &inputs,
         );
 
-        let sender_ephemeral_pk = PublicKey::from_secret_key(&secp, &sender_ephemeral_sk);
         let txout = TxOut::Confidential(ConfidentialTxOut {
             asset: out_asset,
             value: value_commitment,
-            nonce: Some(NonceCommitment::from(sender_ephemeral_pk)),
+            nonce: Some(nonce),
             script_pubkey: address.script_pubkey(),
             witness: TxOutWitness {
                 surjection_proof,
@@ -594,40 +591,19 @@ impl TxOut {
         R: RngCore + CryptoRng,
         C: Signing,
     {
+        let (surjection_proof_inputs, value_blind_inputs) = inputs
+            .iter()
+            .copied()
+            .map(|(id, value, asset, abf, vbf)| ((id, abf, asset), (value, abf, vbf)))
+            .unzip::<_, _, Vec<_>, Vec<_>>();
+
         let out_abf = AssetBlindingFactor::new(rng);
+        let out_asset = AssetCommitment::new(asset, out_abf);
 
-        let amounts = {
-            let input_amounts = inputs.iter().map(|(_, amount, _, _, _)| amount).copied();
-            let output_amounts = outputs
-                .iter()
-                .map(|(amount, _, _)| amount)
-                .copied()
-                .chain(iter::once(value));
+        let out_vbf = ValueBlindingFactor::last(value, out_abf, &value_blind_inputs, &outputs);
+        let value_commitment = ValueCommitment::new(value, out_asset, out_vbf);
 
-            input_amounts.chain(output_amounts).collect::<Vec<_>>()
-        };
-        let abfs = {
-            let input_abfs = inputs.iter().map(|(_, _, _, abf, _)| abf).copied();
-            let output_abfs = outputs
-                .iter()
-                .map(|(_, abf, _)| abf)
-                .copied()
-                .chain(iter::once(out_abf));
-
-            input_abfs.chain(output_abfs).collect::<Vec<_>>()
-        };
-        let vbfs = {
-            let input_vbfs = inputs.iter().map(|(_, _, _, _, vbf)| vbf);
-            let output_vbfs = outputs.iter().map(|(_, _, vbf)| vbf);
-
-            input_vbfs.chain(output_vbfs).copied().collect::<Vec<_>>()
-        };
-
-        let out_vbf = asset_final_vbf(amounts, inputs.len(), &abfs, &vbfs);
-        let sender_ephemeral_sk = SecretKey::new(rng);
-
-        let out_asset = asset_generator_from_bytes(&asset, &out_abf);
-        let value_commitment = asset_value_commitment(value, out_vbf, out_asset);
+        let (nonce, sender_ephemeral_sk) = Nonce::new(rng, secp);
 
         let range_proof = asset_rangeproof(
             value,
@@ -646,25 +622,18 @@ impl TxOut {
             52,
         );
 
-        let inputs = inputs
-            .iter()
-            .copied()
-            .map(|(id, _, asset, abf, _)| (id, abf, asset))
-            .collect::<Vec<_>>();
-
         let surjection_proof = asset_surjectionproof(
             asset,
             out_abf,
             out_asset,
             *SecretKey::new(rng).as_ref(),
-            &inputs,
+            &surjection_proof_inputs,
         );
 
-        let sender_ephemeral_pk = PublicKey::from_secret_key(&secp, &sender_ephemeral_sk);
         let txout = TxOut::Confidential(ConfidentialTxOut {
             asset: out_asset,
             value: value_commitment,
-            nonce: Some(NonceCommitment::from(sender_ephemeral_pk)),
+            nonce: Some(nonce),
             script_pubkey: address.script_pubkey(),
             witness: TxOutWitness {
                 surjection_proof,
@@ -2303,7 +2272,7 @@ mod tests {
             AssetIssuance::Confidential(ConfidentialAssetIssuance {
                 asset_blinding_nonce: [0; 32],
                 asset_entropy: [0; 32],
-                amount: ValueCommitment::new(
+                amount: ValueCommitment::from_commitment(
                     9,
                     &[
                         0x81, 0x65, 0x4e, 0xb5, 0xcc, 0xd9, 0x92, 0x7b, 0x8b, 0xea, 0x94, 0x99,
