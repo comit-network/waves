@@ -859,6 +859,18 @@ impl Decodable for TxOut {
 }
 
 impl TxOut {
+    pub fn new_explicit(asset: AssetId, value: u64, script_pubkey: Script) -> Self {
+        TxOut::Explicit(ExplicitTxOut {
+            asset: ExplicitAsset(asset),
+            value: ExplicitValue(value),
+            script_pubkey,
+        })
+    }
+
+    pub fn new_fee(asset: AssetId, value: u64) -> Self {
+        TxOut::new_explicit(asset, value, Script::default())
+    }
+
     pub fn script_pubkey(&self) -> &Script {
         match self {
             Self::Null(inner) => &inner.script_pubkey,
