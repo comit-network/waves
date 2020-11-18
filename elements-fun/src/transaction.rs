@@ -525,8 +525,7 @@ impl TxOut {
         let out_vbf = ValueBlindingFactor::new(rng);
         let sender_ephemeral_sk = SecretKey::new(rng);
 
-        let out_asset_id_bytes = asset.into_inner().0;
-        let out_asset = asset_generator_from_bytes(&out_asset_id_bytes, &out_abf);
+        let out_asset = asset_generator_from_bytes(&asset, &out_abf);
         let value_commitment = asset_value_commitment(value, out_vbf, out_asset);
 
         let range_proof = asset_rangeproof(
@@ -535,7 +534,7 @@ impl TxOut {
                 .blinding_pubkey
                 .ok_or_else(|| NoBlindingKeyInAddress)?,
             sender_ephemeral_sk,
-            out_asset_id_bytes,
+            asset,
             out_abf,
             out_vbf,
             value_commitment,
@@ -627,8 +626,7 @@ impl TxOut {
         let out_vbf = asset_final_vbf(amounts, inputs.len(), &abfs, &vbfs);
         let sender_ephemeral_sk = SecretKey::new(rng);
 
-        let out_asset_id_bytes = asset.into_inner().0;
-        let out_asset = asset_generator_from_bytes(&out_asset_id_bytes, &out_abf);
+        let out_asset = asset_generator_from_bytes(&asset, &out_abf);
         let value_commitment = asset_value_commitment(value, out_vbf, out_asset);
 
         let range_proof = asset_rangeproof(
@@ -637,7 +635,7 @@ impl TxOut {
                 .blinding_pubkey
                 .ok_or_else(|| NoBlindingKeyInAddress)?,
             sender_ephemeral_sk,
-            out_asset_id_bytes,
+            asset,
             out_abf,
             out_vbf,
             value_commitment,
