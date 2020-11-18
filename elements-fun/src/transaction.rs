@@ -585,7 +585,7 @@ impl TxOut {
         Ok((txout, out_abf, out_vbf))
     }
 
-    /// Creates a new confidential output that is **not** the last one in the transaction.
+    /// Creates a new confidential output that IS the last one in the transaction.
     pub fn new_last_confidential<R, C>(
         rng: &mut R,
         secp: &Secp256k1<C>,
