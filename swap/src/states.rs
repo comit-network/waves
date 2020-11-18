@@ -1,6 +1,6 @@
 use crate::make_txout;
 use anyhow::{anyhow, Context, Result};
-use bitcoin::{Amount, Script};
+use bitcoin::Amount;
 use elements_fun::{
     bitcoin::{
         blockdata::{opcodes, script::Builder},
@@ -9,8 +9,7 @@ use elements_fun::{
     },
     bitcoin_hashes::{hash160, Hash},
     wally::{asset_final_vbf, tx_get_elements_signature_hash},
-    Address, AssetId, ExplicitAsset, ExplicitTxOut, ExplicitValue, OutPoint, Transaction, TxIn,
-    TxOut, UnblindedTxOut,
+    Address, AssetId, OutPoint, Transaction, TxIn, TxOut, UnblindedTxOut,
 };
 use rand::{CryptoRng, RngCore};
 use secp256k1::{PublicKey as SecpPublicKey, SecretKey};
@@ -408,11 +407,7 @@ impl Bob0 {
             change_ephemeral_key_bob,
         )?;
 
-        let fee = TxOut::Explicit(ExplicitTxOut {
-            asset: ExplicitAsset(self.asset_id_alice),
-            value: ExplicitValue(msg.fee.as_sat()),
-            script_pubkey: Script::default(),
-        });
+        let fee = TxOut::new_fee(self.asset_id_alice, msg.fee.as_sat());
 
         let transaction = Transaction {
             version: 2,
@@ -724,11 +719,7 @@ mod tests {
             SecretKey::new(&mut thread_rng()),
         )?;
 
-        let fee = TxOut::Explicit(ExplicitTxOut {
-            asset: ExplicitAsset(asset_id),
-            value: ExplicitValue(fee),
-            script_pubkey: Script::default(),
-        });
+        let fee = TxOut::new_fee(asset_id, fee);
 
         let mut tx = Transaction {
             version: 2,

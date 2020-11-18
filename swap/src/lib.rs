@@ -134,12 +134,11 @@ mod tests {
     use elements_fun::{
         bitcoin::{
             blockdata::{opcodes, script::Builder},
-            Script, SigHashType,
+            SigHashType,
         },
         bitcoin_hashes::{hash160, hex::FromHex, Hash},
         encode::serialize_hex,
-        ExplicitAsset, ExplicitTxOut, ExplicitValue, OutPoint, Transaction, TxIn, TxOut,
-        UnblindedTxOut,
+        OutPoint, Transaction, TxIn, TxOut, UnblindedTxOut,
     };
     use elements_harness::{elementd_rpc::Client, elementd_rpc::ElementsRpc, Elementsd};
     use rand::thread_rng;
@@ -357,11 +356,7 @@ mod tests {
         )
         .unwrap();
 
-        let fee = TxOut::Explicit(ExplicitTxOut {
-            asset: ExplicitAsset(bitcoin_asset_id),
-            value: ExplicitValue(redeem_fee.as_sat()),
-            script_pubkey: Script::default(),
-        });
+        let fee = TxOut::new_fee(bitcoin_asset_id, redeem_fee.as_sat());
 
         let mut redeem_tx = Transaction {
             version: 2,
@@ -514,11 +509,7 @@ mod tests {
         )
         .unwrap();
 
-        let fee = TxOut::Explicit(ExplicitTxOut {
-            asset: ExplicitAsset(bitcoin_asset_id),
-            value: ExplicitValue(spend_fee_bitcoin.as_sat()),
-            script_pubkey: Script::default(),
-        });
+        let fee = TxOut::new_fee(bitcoin_asset_id, spend_fee_bitcoin.as_sat());
 
         let mut spend_tx = Transaction {
             version: 2,
