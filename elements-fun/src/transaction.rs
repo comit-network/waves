@@ -16,13 +16,16 @@
 //!
 
 use std::collections::HashMap;
-use std::{fmt, io};
+use std::{fmt, io, iter};
 
 use bitcoin::blockdata::opcodes;
 use bitcoin::blockdata::script::{Instruction, Script};
 use bitcoin::hashes::Hash;
-use bitcoin::secp256k1::PublicKey;
+use bitcoin::secp256k1::rand::CryptoRng;
+use bitcoin::secp256k1::rand::RngCore;
+use bitcoin::secp256k1::Secp256k1;
 use bitcoin::secp256k1::SecretKey;
+use bitcoin::secp256k1::{PublicKey, Signing};
 use bitcoin::{self, Txid, VarInt};
 
 use crate::confidential::NonceCommitment;
@@ -30,7 +33,13 @@ use crate::confidential::ValueCommitment;
 use crate::confidential::{AssetBlindingFactor, AssetCommitment, ValueBlindingFactor};
 use crate::encode::{self, Decodable, Encodable, Error};
 use crate::issuance::AssetId;
+use crate::wally::asset_final_vbf;
+use crate::wally::asset_generator_from_bytes;
+use crate::wally::asset_rangeproof;
+use crate::wally::asset_surjectionproof;
 use crate::wally::asset_unblind;
+use crate::wally::asset_value_commitment;
+use crate::Address;
 
 /// Elements transaction
 #[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
@@ -450,7 +459,7 @@ impl TxIn {
             return None;
         }
 
-        macro_rules! opt_try(
+        macro_rules! opt_try (
             ($res:expr) => { match $res { Ok(x) => x, Err(_) => return None } }
         );
 
@@ -480,7 +489,214 @@ impl TxIn {
     }
 }
 
+// TODO: Get rid of this by introducing a dedicated type for blinded addresses.
+#[derive(Debug)]
+pub struct NoBlindingKeyInAddress;
+
+impl fmt::Display for NoBlindingKeyInAddress {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "the address is missing a blinding key")
+    }
+}
+
+impl std::error::Error for NoBlindingKeyInAddress {}
+
 impl TxOut {
+    /// Creates a new confidential output that is **not** the last one in the transaction.
+    pub fn new_not_last_confidential<R, C>(
+        rng: &mut R,
+        secp: &Secp256k1<C>,
+        value: u64,
+        address: Address,
+        asset: AssetId,
+        inputs: &[(
+            AssetId,
+            u64,
+            AssetCommitment,
+            AssetBlindingFactor,
+            ValueBlindingFactor,
+        )],
+    ) -> Result<(Self, AssetBlindingFactor, ValueBlindingFactor), NoBlindingKeyInAddress>
+    where
+        R: RngCore + CryptoRng,
+        C: Signing,
+    {
+        let out_abf = AssetBlindingFactor::new(rng);
+        let out_vbf = ValueBlindingFactor::new(rng);
+        let sender_ephemeral_sk = SecretKey::new(rng);
+
+        let out_asset_id_bytes = asset.into_inner().0;
+        let out_asset = asset_generator_from_bytes(&out_asset_id_bytes, &out_abf);
+        let value_commitment = asset_value_commitment(value, out_vbf, out_asset);
+
+        let range_proof = asset_rangeproof(
+            value,
+            address
+                .blinding_pubkey
+                .ok_or_else(|| NoBlindingKeyInAddress)?,
+            sender_ephemeral_sk,
+            out_asset_id_bytes,
+            out_abf,
+            out_vbf,
+            value_commitment,
+            &address.script_pubkey(),
+            out_asset,
+            1,
+            0,
+            52,
+        );
+
+        let unblinded_assets_in = inputs
+            .iter()
+            .map(|(id, _, _, _, _)| *id)
+            .collect::<Vec<_>>();
+        let assets_in = inputs
+            .iter()
+            .map(|(_, _, asset, _, _)| *asset)
+            .collect::<Vec<_>>();
+        let abfs_in = inputs
+            .iter()
+            .map(|(_, _, _, abf, _)| *abf)
+            .collect::<Vec<_>>();
+
+        let surjection_proof = asset_surjectionproof(
+            asset,
+            out_abf,
+            out_asset,
+            *SecretKey::new(rng).as_ref(),
+            &unblinded_assets_in,
+            &abfs_in,
+            &assets_in,
+            inputs.len(),
+        );
+
+        let sender_ephemeral_pk = PublicKey::from_secret_key(&secp, &sender_ephemeral_sk);
+        let txout = TxOut::Confidential(ConfidentialTxOut {
+            asset: out_asset,
+            value: value_commitment,
+            nonce: Some(NonceCommitment::from(sender_ephemeral_pk)),
+            script_pubkey: address.script_pubkey(),
+            witness: TxOutWitness {
+                surjection_proof,
+                rangeproof: range_proof,
+            },
+        });
+
+        Ok((txout, out_abf, out_vbf))
+    }
+
+    /// Creates a new confidential output that is **not** the last one in the transaction.
+    pub fn new_last_confidential<R, C>(
+        rng: &mut R,
+        secp: &Secp256k1<C>,
+        value: u64,
+        address: Address,
+        asset: AssetId,
+        inputs: &[(
+            AssetId,
+            u64,
+            AssetCommitment,
+            AssetBlindingFactor,
+            ValueBlindingFactor,
+        )],
+        outputs: &[(u64, AssetBlindingFactor, ValueBlindingFactor)],
+    ) -> Result<Self, NoBlindingKeyInAddress>
+    where
+        R: RngCore + CryptoRng,
+        C: Signing,
+    {
+        let out_abf = AssetBlindingFactor::new(rng);
+
+        let amounts = {
+            let input_amounts = inputs.iter().map(|(_, amount, _, _, _)| amount).copied();
+            let output_amounts = outputs
+                .iter()
+                .map(|(amount, _, _)| amount)
+                .copied()
+                .chain(iter::once(value));
+
+            input_amounts.chain(output_amounts).collect::<Vec<_>>()
+        };
+        let abfs = {
+            let input_abfs = inputs.iter().map(|(_, _, _, abf, _)| abf).copied();
+            let output_abfs = outputs
+                .iter()
+                .map(|(_, abf, _)| abf)
+                .copied()
+                .chain(iter::once(out_abf));
+
+            input_abfs.chain(output_abfs).collect::<Vec<_>>()
+        };
+        let vbfs = {
+            let input_vbfs = inputs.iter().map(|(_, _, _, _, vbf)| vbf);
+            let output_vbfs = outputs.iter().map(|(_, _, vbf)| vbf);
+
+            input_vbfs.chain(output_vbfs).copied().collect::<Vec<_>>()
+        };
+
+        let out_vbf = asset_final_vbf(amounts, inputs.len(), &abfs, &vbfs);
+        let sender_ephemeral_sk = SecretKey::new(rng);
+
+        let out_asset_id_bytes = asset.into_inner().0;
+        let out_asset = asset_generator_from_bytes(&out_asset_id_bytes, &out_abf);
+        let value_commitment = asset_value_commitment(value, out_vbf, out_asset);
+
+        let range_proof = asset_rangeproof(
+            value,
+            address
+                .blinding_pubkey
+                .ok_or_else(|| NoBlindingKeyInAddress)?,
+            sender_ephemeral_sk,
+            out_asset_id_bytes,
+            out_abf,
+            out_vbf,
+            value_commitment,
+            &address.script_pubkey(),
+            out_asset,
+            1,
+            0,
+            52,
+        );
+
+        let unblinded_assets_in = inputs
+            .iter()
+            .map(|(id, _, _, _, _)| *id)
+            .collect::<Vec<_>>();
+        let assets_in = inputs
+            .iter()
+            .map(|(_, _, asset, _, _)| *asset)
+            .collect::<Vec<_>>();
+        let abfs_in = inputs
+            .iter()
+            .map(|(_, _, _, abf, _)| *abf)
+            .collect::<Vec<_>>();
+
+        let surjection_proof = asset_surjectionproof(
+            asset,
+            out_abf,
+            out_asset,
+            *SecretKey::new(rng).as_ref(),
+            &unblinded_assets_in,
+            &abfs_in,
+            &assets_in,
+            inputs.len(),
+        );
+
+        let sender_ephemeral_pk = PublicKey::from_secret_key(&secp, &sender_ephemeral_sk);
+        let txout = TxOut::Confidential(ConfidentialTxOut {
+            asset: out_asset,
+            value: value_commitment,
+            nonce: Some(NonceCommitment::from(sender_ephemeral_pk)),
+            script_pubkey: address.script_pubkey(),
+            witness: TxOutWitness {
+                surjection_proof,
+                rangeproof: range_proof,
+            },
+        });
+
+        Ok(txout)
+    }
+
     pub fn new_explicit(asset: AssetId, value: u64, script_pubkey: Script) -> Self {
         TxOut::Explicit(ExplicitTxOut {
             asset: ExplicitAsset(asset),
@@ -547,7 +763,7 @@ impl TxOut {
                     Ok(Instruction::Op(op))
                         if op.into_u8() > opcodes::all::OP_PUSHNUM_16.into_u8() =>
                     {
-                        return false
+                        return false;
                     }
                     Err(_) => return false,
                     _ => {}
@@ -2115,7 +2331,7 @@ mod tests {
                         0x81, 0x65, 0x4e, 0xb5, 0xcc, 0xd9, 0x92, 0x7b, 0x8b, 0xea, 0x94, 0x99,
                         0x7d, 0xce, 0x4a, 0xe8, 0x5b, 0x3d, 0x95, 0xa2, 0x07, 0x00, 0x38, 0x4f,
                         0x0b, 0x8c, 0x1f, 0xe9, 0x95, 0x18, 0x06, 0x38
-                    ]
+                    ],
                 )
                 .unwrap(),
                 inflation_keys: None,
