@@ -24,6 +24,7 @@ use std::{fmt, io};
 
 use crate::encode::{self, Decodable, Encodable};
 use bitcoin::secp256k1::rand::Rng;
+use bitcoin::secp256k1::PublicKey;
 use bitcoin::secp256k1::SecretKey;
 use hex::FromHex;
 use hex::FromHexError;
@@ -166,6 +167,12 @@ pub struct NonceCommitment([u8; 33]);
 impl_confidential_commitment!(AssetCommitment, 0x0a, 0x0b);
 impl_confidential_commitment!(ValueCommitment, 0x08, 0x09);
 impl_confidential_commitment!(NonceCommitment, 0x02, 0x03);
+
+impl From<PublicKey> for NonceCommitment {
+    fn from(public_key: PublicKey) -> Self {
+        NonceCommitment(public_key.serialize())
+    }
+}
 
 #[derive(Copy, Clone, Debug, Eq, Hash, PartialEq, PartialOrd, Ord)]
 pub struct ValueBlindingFactor([u8; 32]);
