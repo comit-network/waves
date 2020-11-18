@@ -2091,22 +2091,23 @@ mod tests {
             .unwrap();
         assert_eq!(tx.fee_in(fee_asset), 56400);
         assert_eq!(tx.all_fees()[&fee_asset], 56400);
-        // assert_eq!(
-        //     tx.input[0].asset_issuance,
-        //     AssetIssuance {
-        //         asset_blinding_nonce: [0; 32],
-        //         asset_entropy: [0; 32],
-        //         amount: confidential::Value::Confidential(
-        //             9,
-        //             [
-        //                 0x81, 0x65, 0x4e, 0xb5, 0xcc, 0xd9, 0x92, 0x7b, 0x8b, 0xea, 0x94, 0x99,
-        //                 0x7d, 0xce, 0x4a, 0xe8, 0x5b, 0x3d, 0x95, 0xa2, 0x07, 0x00, 0x38, 0x4f,
-        //                 0x0b, 0x8c, 0x1f, 0xe9, 0x95, 0x18, 0x06, 0x38
-        //             ],
-        //         ),
-        //         inflation_keys: confidential::Value::Null,
-        //     }
-        // );
+        assert_eq!(
+            tx.input[0].asset_issuance,
+            AssetIssuance::Confidential(ConfidentialAssetIssuance {
+                asset_blinding_nonce: [0; 32],
+                asset_entropy: [0; 32],
+                amount: ValueCommitment::new(
+                    9,
+                    &[
+                        0x81, 0x65, 0x4e, 0xb5, 0xcc, 0xd9, 0x92, 0x7b, 0x8b, 0xea, 0x94, 0x99,
+                        0x7d, 0xce, 0x4a, 0xe8, 0x5b, 0x3d, 0x95, 0xa2, 0x07, 0x00, 0x38, 0x4f,
+                        0x0b, 0x8c, 0x1f, 0xe9, 0x95, 0x18, 0x06, 0x38
+                    ]
+                )
+                .unwrap(),
+                inflation_keys: None,
+            })
+        );
     }
 
     #[test]
