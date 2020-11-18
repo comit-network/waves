@@ -58,20 +58,15 @@ where
         52,
     );
 
-    let unblinded_assets_in = inputs
-        .iter()
-        .map(|(id, _, _)| id.into_inner().0.to_vec())
-        .flatten()
-        .collect::<Vec<_>>();
+    let unblinded_assets_in = inputs.iter().map(|(id, _, _)| *id).collect::<Vec<_>>();
     let assets_in = inputs
         .iter()
-        .map(|(_, asset, _)| asset.commitment().to_vec())
-        .flatten()
+        .map(|(_, asset, _)| *asset)
         .collect::<Vec<_>>();
     let abfs_in = inputs.iter().map(|(_, _, abf)| *abf).collect::<Vec<_>>();
 
     let surjection_proof = asset_surjectionproof(
-        out_asset_id_bytes,
+        out_asset_id,
         out_abf,
         out_asset,
         *SecretKey::new(rng).as_ref(),
