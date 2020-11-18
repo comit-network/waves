@@ -255,25 +255,15 @@ mod tests {
             value: amount_in_litecoin,
         } = tx_out_litecoin.unblind(fund_blinding_sk_litecoin).unwrap();
 
-        let abfs = vec![
-            abf_bitcoin.into_inner().to_vec(),
-            abf_litecoin.into_inner().to_vec(),
-            redeem_abf_bitcoin.into_inner().to_vec(),
-            redeem_abf_litecoin.into_inner().to_vec(),
-        ]
-        .into_iter()
-        .flatten()
-        .collect::<Vec<_>>();
+        let abfs = &[
+            abf_bitcoin,
+            abf_litecoin,
+            redeem_abf_bitcoin,
+            redeem_abf_litecoin,
+        ];
 
         let vbf_redeem_bitcoin = ValueBlindingFactor::new(&mut thread_rng());
-        let vbfs = vec![
-            vbf_bitcoin.into_inner().to_vec(),
-            vbf_litecoin.into_inner().to_vec(),
-            vbf_redeem_bitcoin.into_inner().to_vec(),
-        ]
-        .into_iter()
-        .flatten()
-        .collect::<Vec<_>>();
+        let vbfs = &[vbf_bitcoin, vbf_litecoin, vbf_redeem_bitcoin];
 
         let vbf_redeem_litecoin = asset_final_vbf(
             vec![
@@ -459,10 +449,8 @@ mod tests {
             value: amount_in,
         } = tx_out_bitcoin.unblind(redeem_blinding_sk_bitcoin).unwrap();
 
-        let mut abfs = abf.into_inner().to_vec();
-        abfs.extend(&spend_abf_bitcoin.into_inner());
-
-        let vbfs = vbf.into_inner().to_vec();
+        let abfs = &[abf, spend_abf_bitcoin];
+        let vbfs = &[vbf];
 
         let spend_vbf_bitcoin = asset_final_vbf(
             vec![amount_in, spend_amount_bitcoin.as_sat()],
