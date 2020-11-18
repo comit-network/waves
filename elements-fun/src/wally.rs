@@ -448,13 +448,13 @@ pub fn asset_rangeproof(
 
 #[allow(clippy::too_many_arguments)]
 pub fn asset_surjectionproof(
-    output_asset: [u8; 32],
+    output_asset: AssetId,
     output_abf: AssetBlindingFactor,
     output_generator: AssetCommitment,
     bytes: [u8; 32],
-    assets: &[u8],
+    assets: &[AssetId],
     abfs: &[AssetBlindingFactor],
-    generators: &[u8],
+    generators: &[AssetCommitment],
     num_inputs: usize,
 ) -> Vec<u8> {
     let mut proof_size = 0usize;
@@ -467,7 +467,18 @@ pub fn asset_surjectionproof(
         .map(|abf| abf.into_inner().to_vec())
         .flatten()
         .collect::<Vec<_>>();
+    let generators = generators
+        .iter()
+        .map(|g| g.commitment().to_vec())
+        .flatten()
+        .collect::<Vec<_>>();
+    let assets = assets
+        .iter()
+        .map(|a| a.into_inner().0.to_vec())
+        .flatten()
+        .collect::<Vec<_>>();
     let output_generator = crate::encode::serialize(&output_generator);
+    let output_asset = output_asset.into_inner().0;
 
     let mut proof = [0u8; 8259];
     let mut written = 0usize;
