@@ -251,14 +251,12 @@ mod tests {
 
         let UnblindedTxOut {
             asset: unblinded_asset_id_bitcoin,
-            original_asset: asset_commitment_bitcoin,
             asset_blinding_factor: abf_bitcoin,
             value_blinding_factor: vbf_bitcoin,
             value: amount_in_bitcoin,
         } = tx_out_bitcoin.unblind(fund_blinding_sk_bitcoin).unwrap();
         let UnblindedTxOut {
             asset: unblinded_asset_id_litecoin,
-            original_asset: asset_commitment_litecoin,
             asset_blinding_factor: abf_litecoin,
             value_blinding_factor: vbf_litecoin,
             value: amount_in_litecoin,
@@ -326,12 +324,12 @@ mod tests {
         let inputs = vec![
             (
                 unblinded_asset_id_bitcoin,
-                asset_commitment_bitcoin,
+                tx_out_bitcoin.asset,
                 SecretKey::from_slice(&abf_bitcoin).unwrap(),
             ),
             (
                 unblinded_asset_id_litecoin,
-                asset_commitment_litecoin,
+                tx_out_litecoin.asset,
                 SecretKey::from_slice(&abf_litecoin).unwrap(),
             ),
         ];
@@ -461,18 +459,16 @@ mod tests {
             _spend_blinding_pk_bitcoin,
         ) = make_confidential_address();
 
+        let tx_out_bitcoin = redeem_tx.output[redeem_vout_bitcoin]
+            .as_confidential()
+            .unwrap()
+            .clone();
         let UnblindedTxOut {
             asset: unblinded_asset_id_bitcoin,
-            original_asset: asset_commitment_bitcoin,
             asset_blinding_factor: abf,
             value_blinding_factor: vbf,
             value: amount_in,
-        } = redeem_tx.output[redeem_vout_bitcoin]
-            .as_confidential()
-            .unwrap()
-            .clone()
-            .unblind(redeem_blinding_sk_bitcoin)
-            .unwrap();
+        } = tx_out_bitcoin.unblind(redeem_blinding_sk_bitcoin).unwrap();
 
         let mut abfs = abf.as_ref().to_vec();
         abfs.extend(spend_abf_bitcoin.as_ref());
@@ -502,7 +498,7 @@ mod tests {
 
         let inputs = vec![(
             unblinded_asset_id_bitcoin,
-            asset_commitment_bitcoin,
+            tx_out_bitcoin.asset,
             SecretKey::from_slice(&abf).unwrap(),
         )];
 

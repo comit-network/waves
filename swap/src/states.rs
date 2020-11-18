@@ -267,30 +267,29 @@ impl Bob0 {
     where
         R: RngCore + CryptoRng,
     {
+        let alice_txout = msg
+            .input_as_txout
+            .as_confidential()
+            .context("not a confidential txout")?
+            .clone();
+        let bob_txout = self
+            .input_as_txout
+            .as_confidential()
+            .context("not a confidential txout")?
+            .clone();
+
         let UnblindedTxOut {
             asset: asset_id_alice,
-            original_asset: asset_id_commitment_in_alice,
             asset_blinding_factor: abf_in_alice,
             value_blinding_factor: vbf_in_alice,
             value: amount_in_alice,
-        } = msg
-            .input_as_txout
-            .as_confidential()
-            .context("not a confidential txout")?
-            .clone()
-            .unblind(msg.input_blinding_sk)?;
+        } = alice_txout.unblind(msg.input_blinding_sk)?;
         let UnblindedTxOut {
             asset: asset_id_bob,
-            original_asset: asset_id_commitment_in_bob,
             asset_blinding_factor: abf_in_bob,
             value_blinding_factor: vbf_in_bob,
             value: amount_in_bob,
-        } = self
-            .input_as_txout
-            .as_confidential()
-            .context("not a confidential txout")?
-            .clone()
-            .unblind(self.input_blinding_sk)?;
+        } = bob_txout.unblind(self.input_blinding_sk)?;
 
         let abf_redeem_alice = SecretKey::new(rng);
         let abf_redeem_bob = SecretKey::new(rng);
@@ -337,12 +336,12 @@ impl Bob0 {
         let inputs = vec![
             (
                 asset_id_alice,
-                asset_id_commitment_in_alice,
+                alice_txout.asset,
                 SecretKey::from_slice(&abf_in_alice)?,
             ),
             (
                 asset_id_bob,
-                asset_id_commitment_in_bob,
+                bob_txout.asset,
                 SecretKey::from_slice(&abf_in_bob)?,
             ),
         ];
@@ -688,17 +687,17 @@ mod tests {
         let previous_output_tx = client.get_raw_transaction(previous_output.txid).await?;
         let previous_output = previous_output_tx.output[previous_output.vout as usize].clone();
 
+        let txout = previous_output
+            .as_confidential()
+            .context("not a confidential txout")?
+            .clone();
+
         let UnblindedTxOut {
             asset: asset_id,
-            original_asset: asset_id_commitment_in,
             asset_blinding_factor: abf_in,
             value_blinding_factor: vbf_in,
             value: amount_in,
-        } = previous_output
-            .as_confidential()
-            .context("not a confidential txout")?
-            .clone()
-            .unblind(previous_output_blinding_sk)?;
+        } = txout.unblind(previous_output_blinding_sk)?;
 
         let fee = 900_000;
         let amount_out = Amount::from_sat(amount_in - fee);
@@ -713,11 +712,7 @@ mod tests {
 
         let move_address = client.getnewaddress().await?;
 
-        let inputs = vec![(
-            asset_id,
-            asset_id_commitment_in,
-            SecretKey::from_slice(&abf_in)?,
-        )];
+        let inputs = vec![(asset_id, txout.asset, SecretKey::from_slice(&abf_in)?)];
         let output = make_txout(
             &mut thread_rng(),
             amount_out,

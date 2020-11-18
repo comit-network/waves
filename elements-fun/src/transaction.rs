@@ -742,7 +742,6 @@ impl ConfidentialTxOut {
 
         Ok(UnblindedTxOut {
             asset: AssetId::from_slice(&unblinded_asset).unwrap(),
-            original_asset: self.asset,
             asset_blinding_factor: abf,
             value_blinding_factor: vbf,
             value: value_out,
@@ -753,7 +752,6 @@ impl ConfidentialTxOut {
 pub struct UnblindedTxOut {
     pub asset: AssetId,
     pub value: u64,
-    pub original_asset: AssetCommitment, // TODO: should we actually return this?
     pub asset_blinding_factor: [u8; 32],
     pub value_blinding_factor: [u8; 32],
 }
