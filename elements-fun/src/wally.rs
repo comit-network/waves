@@ -461,7 +461,7 @@ pub fn asset_surjectionproof(
     output_asset: AssetId,
     output_abf: AssetBlindingFactor,
     output_generator: AssetCommitment,
-    bytes: [u8; 32],
+    entropy: [u8; 32],
     inputs: &[(AssetId, AssetBlindingFactor, AssetCommitment)],
 ) -> Vec<u8> {
     let mut proof_size = 0usize;
@@ -501,8 +501,8 @@ pub fn asset_surjectionproof(
             output_abf.len(),
             output_generator.as_ptr(),
             output_generator.len(),
-            bytes.as_ptr(),
-            bytes.len(),
+            entropy.as_ptr(),
+            entropy.len(),
             assets.as_ptr(),
             assets.len(),
             abfs.as_ptr(),
