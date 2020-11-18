@@ -1,95 +1,13 @@
-use anyhow::Result;
-use bitcoin::Amount;
-use elements_fun::bitcoin::secp256k1::PublicKey as SecpPublicKey;
 use elements_fun::bitcoin::Network::Regtest;
 use elements_fun::bitcoin::PrivateKey;
 use elements_fun::bitcoin::PublicKey;
-use elements_fun::confidential::{
-    AssetBlindingFactor, AssetCommitment, NonceCommitment, ValueBlindingFactor,
-};
-use elements_fun::wally::asset_generator_from_bytes;
-use elements_fun::wally::asset_rangeproof;
-use elements_fun::wally::asset_surjectionproof;
-use elements_fun::wally::asset_value_commitment;
+use elements_fun::Address;
 use elements_fun::AddressParams;
-use elements_fun::TxOutWitness;
-use elements_fun::{Address, ConfidentialTxOut};
-use elements_fun::{AssetId, TxOut};
 use rand::thread_rng;
-use rand::CryptoRng;
-use rand::RngCore;
 use secp256k1::SecretKey;
 use secp256k1::SECP256K1;
 
 pub mod states;
-
-#[allow(clippy::too_many_arguments)]
-fn make_txout<R>(
-    rng: &mut R,
-    amount: Amount,
-    address: Address,
-    out_asset_id: AssetId,
-    out_abf: AssetBlindingFactor,
-    out_vbf: ValueBlindingFactor,
-    inputs: &[(AssetId, AssetCommitment, AssetBlindingFactor)],
-    sender_ephemeral_sk: SecretKey,
-) -> Result<TxOut>
-where
-    R: RngCore + CryptoRng,
-{
-    let out_asset_id_bytes = out_asset_id.into_inner().0;
-
-    let out_asset = asset_generator_from_bytes(&out_asset_id_bytes, &out_abf);
-
-    let value_commitment = asset_value_commitment(amount.as_sat(), out_vbf, out_asset);
-
-    let range_proof = asset_rangeproof(
-        amount.as_sat(),
-        address.blinding_pubkey.unwrap(),
-        sender_ephemeral_sk,
-        out_asset_id_bytes,
-        out_abf,
-        out_vbf,
-        value_commitment,
-        &address.script_pubkey(),
-        out_asset,
-        1,
-        0,
-        52,
-    );
-
-    let unblinded_assets_in = inputs.iter().map(|(id, _, _)| *id).collect::<Vec<_>>();
-    let assets_in = inputs
-        .iter()
-        .map(|(_, asset, _)| *asset)
-        .collect::<Vec<_>>();
-    let abfs_in = inputs.iter().map(|(_, _, abf)| *abf).collect::<Vec<_>>();
-
-    let surjection_proof = asset_surjectionproof(
-        out_asset_id,
-        out_abf,
-        out_asset,
-        *SecretKey::new(rng).as_ref(),
-        &unblinded_assets_in,
-        &abfs_in,
-        &assets_in,
-        inputs.len(),
-    );
-
-    let sender_ephemeral_pk = SecpPublicKey::from_secret_key(&SECP256K1, &sender_ephemeral_sk);
-    Ok(TxOut::Confidential(ConfidentialTxOut {
-        asset: out_asset,
-        value: value_commitment,
-        nonce: Some(NonceCommitment::from_slice(
-            &sender_ephemeral_pk.serialize(),
-        )?),
-        script_pubkey: address.script_pubkey(),
-        witness: TxOutWitness {
-            surjection_proof,
-            rangeproof: range_proof,
-        },
-    }))
-}
 
 pub fn make_keypair() -> (SecretKey, PublicKey) {
     let sk = SecretKey::new(&mut thread_rng());
@@ -122,8 +40,7 @@ pub fn make_confidential_address() -> (Address, SecretKey, PublicKey, SecretKey,
 mod tests {
     use bitcoin::Amount;
     use elements_fun::bitcoin::secp256k1::Message;
-    use elements_fun::bitcoin::secp256k1::SecretKey;
-    use elements_fun::wally::{asset_final_vbf, tx_get_elements_signature_hash};
+    use elements_fun::wally::tx_get_elements_signature_hash;
     use elements_fun::{
         bitcoin::{
             blockdata::{opcodes, script::Builder},
@@ -138,8 +55,7 @@ mod tests {
     use testcontainers::clients::Cli;
 
     use crate::make_confidential_address;
-    use crate::make_txout;
-    use elements_fun::confidential::{AssetBlindingFactor, ValueBlindingFactor};
+    use secp256k1::SECP256K1;
 
     #[tokio::test]
     async fn sign_transaction_with_two_asset_types() {
@@ -214,9 +130,6 @@ mod tests {
 
         let redeem_amount_litecoin = fund_litecoin_amount;
 
-        let redeem_abf_bitcoin = AssetBlindingFactor::new(&mut thread_rng());
-        let redeem_abf_litecoin = AssetBlindingFactor::new(&mut thread_rng());
-
         let (
             redeem_address_bitcoin,
             redeem_sk_bitcoin,
@@ -255,28 +168,6 @@ mod tests {
             value: amount_in_litecoin,
         } = tx_out_litecoin.unblind(fund_blinding_sk_litecoin).unwrap();
 
-        let abfs = &[
-            abf_bitcoin,
-            abf_litecoin,
-            redeem_abf_bitcoin,
-            redeem_abf_litecoin,
-        ];
-
-        let vbf_redeem_bitcoin = ValueBlindingFactor::new(&mut thread_rng());
-        let vbfs = &[vbf_bitcoin, vbf_litecoin, vbf_redeem_bitcoin];
-
-        let vbf_redeem_litecoin = asset_final_vbf(
-            vec![
-                amount_in_bitcoin,
-                amount_in_litecoin,
-                redeem_amount_bitcoin.as_sat(),
-                redeem_amount_litecoin.as_sat(),
-            ],
-            2,
-            abfs,
-            vbfs,
-        );
-
         #[allow(clippy::cast_possible_truncation)]
         let input_bitcoin = TxIn {
             previous_output: OutPoint {
@@ -304,42 +195,48 @@ mod tests {
             witness: Default::default(),
         };
 
-        let inputs = vec![
+        let inputs = [
             (
                 unblinded_asset_id_bitcoin,
+                amount_in_bitcoin,
                 tx_out_bitcoin.asset,
                 abf_bitcoin,
+                vbf_bitcoin,
             ),
             (
                 unblinded_asset_id_litecoin,
+                amount_in_litecoin,
                 tx_out_litecoin.asset,
                 abf_litecoin,
+                vbf_litecoin,
             ),
         ];
 
-        let redeem_txout_bitcoin = make_txout(
-            &mut thread_rng(),
-            redeem_amount_bitcoin,
-            redeem_address_bitcoin.clone(),
-            bitcoin_asset_id,
+        let (redeem_txout_bitcoin, redeem_abf_bitcoin, redeem_vbf_bitcoin) =
+            TxOut::new_not_last_confidential(
+                &mut thread_rng(),
+                &SECP256K1,
+                redeem_amount_bitcoin.as_sat(),
+                redeem_address_bitcoin.clone(),
+                bitcoin_asset_id,
+                &inputs,
+            )
+            .unwrap();
+        let outputs = [(
+            redeem_amount_bitcoin.as_sat(),
             redeem_abf_bitcoin,
-            vbf_redeem_bitcoin,
-            &inputs,
-            SecretKey::new(&mut thread_rng()),
-        )
-        .unwrap();
-        let txout_litecoin = make_txout(
+            redeem_vbf_bitcoin,
+        )];
+        let txout_litecoin = TxOut::new_last_confidential(
             &mut thread_rng(),
-            redeem_amount_litecoin,
-            redeem_address_litecoin,
+            &SECP256K1,
+            redeem_amount_litecoin.as_sat(),
+            redeem_address_litecoin.clone(),
             litecoin_asset_id,
-            redeem_abf_litecoin,
-            vbf_redeem_litecoin,
             &inputs,
-            SecretKey::new(&mut thread_rng()),
+            &outputs,
         )
         .unwrap();
-
         let fee = TxOut::new_fee(bitcoin_asset_id, redeem_fee.as_sat());
 
         let mut redeem_tx = Transaction {
@@ -428,8 +325,6 @@ mod tests {
         let spend_fee_bitcoin = Amount::from_sat(900_000);
         let spend_amount_bitcoin = redeem_amount_bitcoin - spend_fee_bitcoin;
 
-        let spend_abf_bitcoin = AssetBlindingFactor::new(&mut thread_rng());
-
         let (
             spend_address_bitcoin,
             _spend_sk_bitcoin,
@@ -449,16 +344,6 @@ mod tests {
             value: amount_in,
         } = tx_out_bitcoin.unblind(redeem_blinding_sk_bitcoin).unwrap();
 
-        let abfs = &[abf, spend_abf_bitcoin];
-        let vbfs = &[vbf];
-
-        let spend_vbf_bitcoin = asset_final_vbf(
-            vec![amount_in, spend_amount_bitcoin.as_sat()],
-            1,
-            abfs,
-            vbfs,
-        );
-
         #[allow(clippy::cast_possible_truncation)]
         let spend_input = TxIn {
             previous_output: OutPoint {
@@ -473,17 +358,22 @@ mod tests {
             witness: Default::default(),
         };
 
-        let inputs = vec![(unblinded_asset_id_bitcoin, tx_out_bitcoin.asset, abf)];
+        let inputs = [(
+            unblinded_asset_id_bitcoin,
+            amount_in,
+            tx_out_bitcoin.asset,
+            abf,
+            vbf,
+        )];
 
-        let spend_output = make_txout(
+        let spend_output = TxOut::new_last_confidential(
             &mut thread_rng(),
-            spend_amount_bitcoin,
+            &SECP256K1,
+            spend_amount_bitcoin.as_sat(),
             spend_address_bitcoin,
             bitcoin_asset_id,
-            spend_abf_bitcoin,
-            spend_vbf_bitcoin,
             &inputs,
-            SecretKey::new(&mut thread_rng()),
+            &[],
         )
         .unwrap();
 
