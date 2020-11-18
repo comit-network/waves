@@ -20,12 +20,17 @@
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-use std::{fmt, io};
+use std::{fmt, io, iter};
 
 use crate::encode::{self, Decodable, Encodable};
+use crate::wally::asset_final_vbf;
+use crate::wally::asset_generator_from_bytes;
+use crate::wally::asset_value_commitment;
+use crate::AssetId;
 use bitcoin::secp256k1::rand::Rng;
-use bitcoin::secp256k1::PublicKey;
+use bitcoin::secp256k1::rand::{CryptoRng, RngCore};
 use bitcoin::secp256k1::SecretKey;
+use bitcoin::secp256k1::{PublicKey, Secp256k1, Signing};
 use hex::FromHex;
 use hex::FromHexError;
 
@@ -38,7 +43,7 @@ macro_rules! impl_confidential_commitment {
                 tag == $prefixA || tag == $prefixB
             }
 
-            pub fn new(tag: u8, xcoor: &[u8]) -> Result<Self, encode::Error> {
+            pub fn from_commitment(tag: u8, xcoor: &[u8]) -> Result<Self, encode::Error> {
                 if xcoor.len() != 32 {
                     return Err(encode::Error::ParseFailed(
                         "x-coordinate of commitment must be 32 bytes long",
@@ -56,7 +61,7 @@ macro_rules! impl_confidential_commitment {
             }
 
             pub fn from_slice(commitment: &[u8]) -> Result<$name, encode::Error> {
-                Self::new(commitment[0], &commitment[1..])
+                Self::from_commitment(commitment[0], &commitment[1..])
             }
 
             pub fn commitment(&self) -> [u8; 33] {
@@ -89,7 +94,7 @@ macro_rules! impl_confidential_commitment {
             fn consensus_decode<D: io::BufRead>(mut d: D) -> Result<$name, encode::Error> {
                 let bytes = <[u8; 33]>::consensus_decode(&mut d)?;
 
-                Ok(Self::new(bytes[0], &bytes[1..])?)
+                Ok(Self::from_commitment(bytes[0], &bytes[1..])?)
             }
         }
 
@@ -144,7 +149,7 @@ macro_rules! impl_confidential_commitment {
                             .next_element::<[u8; 32]>()?
                             .ok_or_else(|| A::Error::custom("missing x-coordinate"))?;
 
-                        Ok($name::new(prefix, &xcoor).map_err(A::Error::custom)?)
+                        Ok($name::from_commitment(prefix, &xcoor).map_err(A::Error::custom)?)
                     }
                 }
 
@@ -157,20 +162,43 @@ macro_rules! impl_confidential_commitment {
 #[derive(Copy, Clone, Debug, Eq, Hash, PartialEq, PartialOrd, Ord)]
 pub struct AssetCommitment([u8; 33]);
 
+impl AssetCommitment {
+    pub fn new(asset: AssetId, bf: AssetBlindingFactor) -> Self {
+        asset_generator_from_bytes(&asset, &bf)
+    }
+}
+
 #[derive(Copy, Clone, Debug, Eq, Hash, PartialEq, PartialOrd, Ord)]
 pub struct ValueCommitment([u8; 33]);
 
-// TODO: Rename to nonce once other one is deleted
+impl ValueCommitment {
+    pub fn new(value: u64, asset: AssetCommitment, bf: ValueBlindingFactor) -> Self {
+        asset_value_commitment(value, bf, asset)
+    }
+}
+
 #[derive(Copy, Clone, Debug, Eq, Hash, PartialEq, PartialOrd, Ord)]
-pub struct NonceCommitment([u8; 33]);
+pub struct Nonce([u8; 33]);
+
+impl Nonce {
+    pub fn new<R: RngCore + CryptoRng, C: Signing>(
+        rng: &mut R,
+        secp: &Secp256k1<C>,
+    ) -> (Self, SecretKey) {
+        let secret_key = SecretKey::new(rng);
+        let commitment = PublicKey::from_secret_key(&secp, &secret_key);
+
+        (Self(commitment.serialize()), secret_key)
+    }
+}
 
 impl_confidential_commitment!(AssetCommitment, 0x0a, 0x0b);
 impl_confidential_commitment!(ValueCommitment, 0x08, 0x09);
-impl_confidential_commitment!(NonceCommitment, 0x02, 0x03);
+impl_confidential_commitment!(Nonce, 0x02, 0x03);
 
-impl From<PublicKey> for NonceCommitment {
+impl From<PublicKey> for Nonce {
     fn from(public_key: PublicKey) -> Self {
-        NonceCommitment(public_key.serialize())
+        Nonce(public_key.serialize())
     }
 }
 
@@ -178,8 +206,42 @@ impl From<PublicKey> for NonceCommitment {
 pub struct ValueBlindingFactor([u8; 32]);
 
 impl ValueBlindingFactor {
-    pub fn new<R: Rng>(rng: &mut R) -> Self {
+    pub fn random<R: Rng>(rng: &mut R) -> Self {
         Self(*SecretKey::new(rng).as_ref())
+    }
+
+    pub fn last(
+        value: u64,
+        abf: AssetBlindingFactor,
+        inputs: &[(u64, AssetBlindingFactor, ValueBlindingFactor)],
+        outputs: &[(u64, AssetBlindingFactor, ValueBlindingFactor)],
+    ) -> Self {
+        let amounts = {
+            let input_amounts = inputs.iter().map(|(amount, _, _)| amount);
+            let output_amounts = outputs
+                .iter()
+                .map(|(amount, _, _)| amount)
+                .chain(iter::once(&value));
+
+            input_amounts.chain(output_amounts)
+        };
+        let abfs = {
+            let input_abfs = inputs.iter().map(|(_, abf, _)| abf);
+            let output_abfs = outputs
+                .iter()
+                .map(|(_, abf, _)| abf)
+                .chain(iter::once(&abf));
+
+            input_abfs.chain(output_abfs)
+        };
+        let vbfs = {
+            let input_vbfs = inputs.iter().map(|(_, _, vbf)| vbf);
+            let output_vbfs = outputs.iter().map(|(_, _, vbf)| vbf);
+
+            input_vbfs.chain(output_vbfs)
+        };
+
+        asset_final_vbf(amounts, inputs.len(), abfs, vbfs)
     }
 
     pub fn into_inner(self) -> [u8; 32] {
@@ -234,22 +296,22 @@ mod tests {
 
     #[test]
     fn commitments() {
-        let x = ValueCommitment::new(0x08, &[1; 32]).unwrap();
+        let x = ValueCommitment::from_commitment(0x08, &[1; 32]).unwrap();
         let mut commitment = x.commitment();
         assert_eq!(x, ValueCommitment::from_slice(&commitment[..]).unwrap());
         commitment[0] = 42;
         assert!(ValueCommitment::from_slice(&commitment[..]).is_err());
 
-        let x = AssetCommitment::new(0x0a, &[1; 32]).unwrap();
+        let x = AssetCommitment::from_commitment(0x0a, &[1; 32]).unwrap();
         let mut commitment = x.commitment();
         assert_eq!(x, AssetCommitment::from_slice(&commitment[..]).unwrap());
         commitment[0] = 42;
         assert!(AssetCommitment::from_slice(&commitment[..]).is_err());
 
-        let x = NonceCommitment::new(0x02, &[1; 32]).unwrap();
+        let x = Nonce::from_commitment(0x02, &[1; 32]).unwrap();
         let mut commitment = x.commitment();
-        assert_eq!(x, NonceCommitment::from_slice(&commitment[..]).unwrap());
+        assert_eq!(x, Nonce::from_slice(&commitment[..]).unwrap());
         commitment[0] = 42;
-        assert!(NonceCommitment::from_slice(&commitment[..]).is_err());
+        assert!(Nonce::from_slice(&commitment[..]).is_err());
     }
 }

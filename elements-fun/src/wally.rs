@@ -335,25 +335,26 @@ pub fn asset_generator_from_bytes(asset: &AssetId, abf: &AssetBlindingFactor) ->
     };
     assert_eq!(ret, ffi::WALLY_OK);
 
-    AssetCommitment::new(generator[0], &generator[1..])
+    AssetCommitment::from_commitment(generator[0], &generator[1..])
         .expect("asset commitment from libwally is always correct")
 }
 
-pub fn asset_final_vbf(
-    values: Vec<u64>,
+pub fn asset_final_vbf<'a>(
+    values: impl IntoIterator<Item = &'a u64>,
     num_inputs: usize,
-    abf: &[AssetBlindingFactor],
-    vbf: &[ValueBlindingFactor],
+    abf: impl IntoIterator<Item = &'a AssetBlindingFactor>,
+    vbf: impl IntoIterator<Item = &'a ValueBlindingFactor>,
 ) -> ValueBlindingFactor {
     let mut final_vbf = [0u8; 32];
 
+    let values = values.into_iter().copied().collect::<Vec<_>>();
     let abf = abf
-        .iter()
+        .into_iter()
         .map(|abf| abf.into_inner().to_vec())
         .flatten()
         .collect::<Vec<_>>();
     let vbf = vbf
-        .iter()
+        .into_iter()
         .map(|vbf| vbf.into_inner().to_vec())
         .flatten()
         .collect::<Vec<_>>();
@@ -399,7 +400,7 @@ pub fn asset_value_commitment(
     };
     assert_eq!(ret, ffi::WALLY_OK);
 
-    ValueCommitment::new(value_commitment[0], &value_commitment[1..])
+    ValueCommitment::from_commitment(value_commitment[0], &value_commitment[1..])
         .expect("value commitment from libwally is always valid")
 }
 
@@ -747,10 +748,10 @@ mod tests {
         );
 
         let ones = [0x17u8; 32];
-        let values = [20000u64, 4910, 13990, 1100].to_vec();
+        let values = [20000u64, 4910, 13990, 1100];
         let asset = AssetId::from_slice(&ones).unwrap();
         let abf = ones.into();
-        let abfs = &[
+        let abfs = [
             AssetBlindingFactor::from_hex(
                 "7fca161c2b849a434f49065cf590f5f1909f25e252f728dfd53669c3c8f8e371",
             )
@@ -768,7 +769,7 @@ mod tests {
             )
             .unwrap(),
         ];
-        let vbfs = &[
+        let vbfs = [
             ValueBlindingFactor::from_hex(
                 "1c07611b193009e847e5b296f05a561c559ca84e16d1edae6cbe914b73fb6904",
             )
@@ -784,7 +785,7 @@ mod tests {
         ];
 
         let _generator = asset_generator_from_bytes(&asset, &abf);
-        let vbf = asset_final_vbf(values, 1, abfs, vbfs);
+        let vbf = asset_final_vbf(&values, 1, &abfs, &vbfs);
         assert_eq!(
             vbf,
             ValueBlindingFactor::from_hex(
