@@ -318,7 +318,8 @@ pub fn ec_public_key_from_private_key(priv_key: secp256k1::SecretKey) -> secp256
     secp256k1::PublicKey::from_slice(&pub_key[..]).unwrap() // TODO return Result?
 }
 
-pub fn asset_generator_from_bytes(asset: &[u8; 32], abf: &AssetBlindingFactor) -> AssetCommitment {
+pub fn asset_generator_from_bytes(asset: &AssetId, abf: &AssetBlindingFactor) -> AssetCommitment {
+    let asset = asset.into_inner().0;
     let abf = abf.into_inner();
 
     let mut generator = [0u8; 33];
@@ -407,7 +408,7 @@ pub fn asset_rangeproof(
     value: u64,
     pub_key: secp256k1::PublicKey,
     priv_key: secp256k1::SecretKey,
-    asset: [u8; 32],
+    asset: AssetId,
     abf: AssetBlindingFactor,
     vbf: ValueBlindingFactor,
     commitment: ValueCommitment,
@@ -424,6 +425,7 @@ pub fn asset_rangeproof(
     let generator = crate::encode::serialize(&generator);
     let abf = abf.into_inner();
     let vbf = vbf.into_inner();
+    let asset = asset.into_inner().0;
 
     let ret = unsafe {
         ffi::wally_asset_rangeproof(
@@ -746,7 +748,7 @@ mod tests {
 
         let ones = [0x17u8; 32];
         let values = [20000u64, 4910, 13990, 1100].to_vec();
-        let asset = ones;
+        let asset = AssetId::from_slice(&ones).unwrap();
         let abf = ones.into();
         let abfs = &[
             AssetBlindingFactor::from_hex(
