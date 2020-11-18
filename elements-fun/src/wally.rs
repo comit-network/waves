@@ -457,37 +457,36 @@ pub fn asset_rangeproof(
     rangeproof_buffer[0..(written as usize)].to_vec()
 }
 
-#[allow(clippy::too_many_arguments)]
 pub fn asset_surjectionproof(
     output_asset: AssetId,
     output_abf: AssetBlindingFactor,
     output_generator: AssetCommitment,
     bytes: [u8; 32],
-    assets: &[AssetId],
-    abfs: &[AssetBlindingFactor],
-    generators: &[AssetCommitment],
-    num_inputs: usize,
+    inputs: &[(AssetId, AssetBlindingFactor, AssetCommitment)],
 ) -> Vec<u8> {
     let mut proof_size = 0usize;
+    let num_inputs = inputs.len();
+
     let ret = unsafe { ffi::wally_asset_surjectionproof_size(num_inputs, &mut proof_size) };
     assert_eq!(ret, ffi::WALLY_OK);
 
     let output_abf = output_abf.into_inner();
-    let abfs = abfs
-        .iter()
-        .map(|abf| abf.into_inner().to_vec())
-        .flatten()
-        .collect::<Vec<_>>();
-    let generators = generators
-        .iter()
-        .map(|g| g.commitment().to_vec())
-        .flatten()
-        .collect::<Vec<_>>();
-    let assets = assets
-        .iter()
-        .map(|a| a.into_inner().0.to_vec())
-        .flatten()
-        .collect::<Vec<_>>();
+
+    let (assets, abfs, generators) = inputs.iter().fold(
+        (
+            Vec::with_capacity(num_inputs * 32),
+            Vec::with_capacity(num_inputs * 32),
+            Vec::with_capacity(num_inputs * 33),
+        ),
+        |(mut assets, mut abfs, mut generators), (asset, abf, generator)| {
+            assets.extend(&asset.into_inner().0);
+            abfs.extend(&abf.into_inner());
+            generators.extend(&generator.commitment());
+
+            (assets, abfs, generators)
+        },
+    );
+
     let output_generator = crate::encode::serialize(&output_generator);
     let output_asset = output_asset.into_inner().0;
 
