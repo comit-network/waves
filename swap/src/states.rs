@@ -295,31 +295,25 @@ impl Bob0 {
         let abf_redeem_bob = AssetBlindingFactor::new(rng);
         let abf_change_alice = AssetBlindingFactor::new(rng);
         let abf_change_bob = AssetBlindingFactor::new(rng);
-        let abfs = vec![
-            abf_in_alice.into_inner().to_vec(),
-            abf_in_bob.into_inner().to_vec(),
-            abf_redeem_alice.into_inner().to_vec(),
-            abf_redeem_bob.into_inner().to_vec(),
-            abf_change_alice.into_inner().to_vec(),
-            abf_change_bob.into_inner().to_vec(),
-        ]
-        .into_iter()
-        .flatten()
-        .collect::<Vec<_>>();
+        let abfs = &[
+            abf_in_alice,
+            abf_in_bob,
+            abf_redeem_alice,
+            abf_redeem_bob,
+            abf_change_alice,
+            abf_change_bob,
+        ];
 
         let vbf_redeem_alice = ValueBlindingFactor::new(rng);
         let vbf_redeem_bob = ValueBlindingFactor::new(rng);
         let vbf_change_alice = ValueBlindingFactor::new(rng);
-        let vbfs = vec![
-            vbf_in_alice.into_inner().to_vec(),
-            vbf_in_bob.into_inner().to_vec(),
-            vbf_redeem_alice.into_inner().to_vec(),
-            vbf_redeem_bob.into_inner().to_vec(),
-            vbf_change_alice.into_inner().to_vec(),
-        ]
-        .into_iter()
-        .flatten()
-        .collect::<Vec<_>>();
+        let vbfs = &[
+            vbf_in_alice,
+            vbf_in_bob,
+            vbf_redeem_alice,
+            vbf_redeem_bob,
+            vbf_change_alice,
+        ];
 
         let change_amount_alice = Amount::from_sat(amount_in_alice)
             .checked_sub(self.redeem_amount_bob)
@@ -692,10 +686,9 @@ mod tests {
 
         let abf_out = AssetBlindingFactor::new(&mut thread_rng());
 
-        let mut abfs = abf_in.into_inner().to_vec();
-        abfs.extend(&abf_out.into_inner());
+        let abfs = &[abf_in, abf_out];
+        let vbfs = &[vbf_in];
 
-        let vbfs = vbf_in.into_inner().to_vec();
         let vbf_out = asset_final_vbf(vec![amount_in, amount_out.as_sat()], 1, abfs, vbfs);
 
         let move_address = client.getnewaddress().await?;

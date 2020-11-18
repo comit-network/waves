@@ -341,10 +341,21 @@ pub fn asset_generator_from_bytes(asset: &[u8; 32], abf: &AssetBlindingFactor) -
 pub fn asset_final_vbf(
     values: Vec<u64>,
     num_inputs: usize,
-    abf: Vec<u8>,
-    vbf: Vec<u8>,
+    abf: &[AssetBlindingFactor],
+    vbf: &[ValueBlindingFactor],
 ) -> ValueBlindingFactor {
     let mut final_vbf = [0u8; 32];
+
+    let abf = abf
+        .iter()
+        .map(|abf| abf.into_inner().to_vec())
+        .flatten()
+        .collect::<Vec<_>>();
+    let vbf = vbf
+        .iter()
+        .map(|vbf| vbf.into_inner().to_vec())
+        .flatten()
+        .collect::<Vec<_>>();
 
     let ret = unsafe {
         ffi::wally_asset_final_vbf(
@@ -738,8 +749,38 @@ mod tests {
         let values = [20000u64, 4910, 13990, 1100].to_vec();
         let asset = ones;
         let abf = ones.into();
-        let abfs = hex::decode("7fca161c2b849a434f49065cf590f5f1909f25e252f728dfd53669c3c8f8e37100000000000000000000000000000000000000000000000000000000000000002c89075f3c8861fea27a15682d664fb643bc08598fe36dcf817fcabc7ef5cf2efdac7bbad99a45187f863cd58686a75135f2cc0714052f809b0c1f603bcdc574").unwrap();
-        let vbfs = hex::decode("1c07611b193009e847e5b296f05a561c559ca84e16d1edae6cbe914b73fb6904000000000000000000000000000000000000000000000000000000000000000074e4135177cd281b332bb8fceb46da32abda5d6dc4d2eef6342a5399c9fb3c48").unwrap();
+        let abfs = &[
+            AssetBlindingFactor::from_hex(
+                "7fca161c2b849a434f49065cf590f5f1909f25e252f728dfd53669c3c8f8e371",
+            )
+            .unwrap(),
+            AssetBlindingFactor::from_hex(
+                "0000000000000000000000000000000000000000000000000000000000000000",
+            )
+            .unwrap(),
+            AssetBlindingFactor::from_hex(
+                "2c89075f3c8861fea27a15682d664fb643bc08598fe36dcf817fcabc7ef5cf2e",
+            )
+            .unwrap(),
+            AssetBlindingFactor::from_hex(
+                "fdac7bbad99a45187f863cd58686a75135f2cc0714052f809b0c1f603bcdc574",
+            )
+            .unwrap(),
+        ];
+        let vbfs = &[
+            ValueBlindingFactor::from_hex(
+                "1c07611b193009e847e5b296f05a561c559ca84e16d1edae6cbe914b73fb6904",
+            )
+            .unwrap(),
+            ValueBlindingFactor::from_hex(
+                "0000000000000000000000000000000000000000000000000000000000000000",
+            )
+            .unwrap(),
+            ValueBlindingFactor::from_hex(
+                "74e4135177cd281b332bb8fceb46da32abda5d6dc4d2eef6342a5399c9fb3c48",
+            )
+            .unwrap(),
+        ];
 
         let _generator = asset_generator_from_bytes(&asset, &abf);
         let vbf = asset_final_vbf(values, 1, abfs, vbfs);
