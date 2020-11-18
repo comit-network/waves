@@ -33,25 +33,25 @@ macro_rules! impl_confidential_commitment {
                 tag == $prefixA || tag == $prefixB
             }
 
-            pub fn new(tag: u8, commitment: &[u8]) -> Result<Self, encode::Error> {
-                if commitment.len() != 32 {
+            pub fn new(tag: u8, xcoor: &[u8]) -> Result<Self, encode::Error> {
+                if xcoor.len() != 32 {
                     return Err(encode::Error::ParseFailed(
-                        "commitments must be 32 bytes long",
+                        "x-coordinate of commitment must be 32 bytes long",
                     ));
                 }
 
                 if !Self::is_valid_prefix(tag) {
                     return Err(encode::Error::InvalidConfidentialPrefix(tag));
                 }
-                let mut bytes = [0u8; 33];
-                bytes[0] = tag;
-                bytes[1..].copy_from_slice(&commitment);
+                let mut commitment = [0u8; 33];
+                commitment[0] = tag;
+                commitment[1..].copy_from_slice(&xcoor);
 
-                Ok(Self(bytes))
+                Ok(Self(commitment))
             }
 
-            pub fn from_slice(bytes: &[u8]) -> Result<$name, encode::Error> {
-                Self::new(bytes[0], &bytes[1..])
+            pub fn from_slice(commitment: &[u8]) -> Result<$name, encode::Error> {
+                Self::new(commitment[0], &commitment[1..])
             }
 
             pub fn commitment(&self) -> [u8; 33] {
@@ -132,14 +132,14 @@ macro_rules! impl_confidential_commitment {
                         };
 
                         if prefix != $prefixA && prefix != $prefixB {
-                            return Err(A::Error::custom("missing commitment"));
+                            return Err(A::Error::custom(format!("invalid prefix {}", prefix)));
                         }
 
-                        let bytes = access
+                        let xcoor = access
                             .next_element::<[u8; 32]>()?
-                            .ok_or_else(|| A::Error::custom("missing commitment"))?;
+                            .ok_or_else(|| A::Error::custom("missing x-coordinate"))?;
 
-                        Ok($name::new(prefix, &bytes).map_err(A::Error::custom)?)
+                        Ok($name::new(prefix, &xcoor).map_err(A::Error::custom)?)
                     }
                 }
 
