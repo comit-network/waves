@@ -1,6 +1,5 @@
-use crate::make_txout;
 use anyhow::{anyhow, Context, Result};
-use bitcoin::{Amount, Script};
+use bitcoin::Amount;
 use elements_fun::{
     bitcoin::{
         blockdata::{opcodes, script::Builder},
@@ -8,12 +7,11 @@ use elements_fun::{
         SigHashType,
     },
     bitcoin_hashes::{hash160, Hash},
-    wally::{asset_final_vbf, tx_get_elements_signature_hash},
-    Address, AssetId, ExplicitAsset, ExplicitTxOut, ExplicitValue, OutPoint, Transaction, TxIn,
-    TxOut, UnblindedTxOut,
+    wally::tx_get_elements_signature_hash,
+    Address, AssetId, OutPoint, Transaction, TxIn, TxOut, UnblindedTxOut,
 };
 use rand::{CryptoRng, RngCore};
-use secp256k1::{PublicKey as SecpPublicKey, SecretKey};
+use secp256k1::{PublicKey as SecpPublicKey, SecretKey, SECP256K1};
 
 /// Sent from Alice to Bob, assuming Alice has bitcoin.
 pub struct Message0 {
@@ -267,60 +265,29 @@ impl Bob0 {
     where
         R: RngCore + CryptoRng,
     {
+        let alice_txout = msg
+            .input_as_txout
+            .as_confidential()
+            .context("not a confidential txout")?
+            .clone();
+        let bob_txout = self
+            .input_as_txout
+            .as_confidential()
+            .context("not a confidential txout")?
+            .clone();
+
         let UnblindedTxOut {
             asset: asset_id_alice,
-            original_asset: asset_id_commitment_in_alice,
             asset_blinding_factor: abf_in_alice,
             value_blinding_factor: vbf_in_alice,
             value: amount_in_alice,
-        } = msg
-            .input_as_txout
-            .as_confidential()
-            .context("not a confidential txout")?
-            .clone()
-            .unblind(msg.input_blinding_sk)?;
+        } = alice_txout.unblind(msg.input_blinding_sk)?;
         let UnblindedTxOut {
             asset: asset_id_bob,
-            original_asset: asset_id_commitment_in_bob,
             asset_blinding_factor: abf_in_bob,
             value_blinding_factor: vbf_in_bob,
             value: amount_in_bob,
-        } = self
-            .input_as_txout
-            .as_confidential()
-            .context("not a confidential txout")?
-            .clone()
-            .unblind(self.input_blinding_sk)?;
-
-        let abf_redeem_alice = SecretKey::new(rng);
-        let abf_redeem_bob = SecretKey::new(rng);
-        let abf_change_alice = SecretKey::new(rng);
-        let abf_change_bob = SecretKey::new(rng);
-        let abfs = vec![
-            abf_in_alice.as_ref().to_vec(),
-            abf_in_bob.as_ref().to_vec(),
-            abf_redeem_alice.as_ref().to_vec(),
-            abf_redeem_bob.as_ref().to_vec(),
-            abf_change_alice.as_ref().to_vec(),
-            abf_change_bob.as_ref().to_vec(),
-        ]
-        .into_iter()
-        .flatten()
-        .collect::<Vec<_>>();
-
-        let vbf_redeem_alice = SecretKey::new(rng);
-        let vbf_redeem_bob = SecretKey::new(rng);
-        let vbf_change_alice = SecretKey::new(rng);
-        let vbfs = vec![
-            vbf_in_alice.as_ref().to_vec(),
-            vbf_in_bob.as_ref().to_vec(),
-            vbf_redeem_alice.as_ref().to_vec(),
-            vbf_redeem_bob.as_ref().to_vec(),
-            vbf_change_alice.as_ref().to_vec(),
-        ]
-        .into_iter()
-        .flatten()
-        .collect::<Vec<_>>();
+        } = bob_txout.unblind(self.input_blinding_sk)?;
 
         let change_amount_alice = Amount::from_sat(amount_in_alice)
             .checked_sub(self.redeem_amount_bob)
@@ -334,86 +301,77 @@ impl Bob0 {
         let input_alice = msg.input;
         let input_bob = self.input.clone();
 
-        let inputs = vec![
+        let inputs = [
             (
                 asset_id_alice,
-                asset_id_commitment_in_alice,
-                SecretKey::from_slice(&abf_in_alice)?,
+                amount_in_alice,
+                alice_txout.asset,
+                abf_in_alice,
+                vbf_in_alice,
             ),
             (
                 asset_id_bob,
-                asset_id_commitment_in_bob,
-                SecretKey::from_slice(&abf_in_bob)?,
+                amount_in_bob,
+                bob_txout.asset,
+                abf_in_bob,
+                vbf_in_bob,
+            ),
+        ];
+        let (redeem_output_alice, abf_redeem_alice, vbf_redeem_alice) =
+            TxOut::new_not_last_confidential(
+                rng,
+                &SECP256K1,
+                self.redeem_amount_alice.as_sat(),
+                msg.address_redeem,
+                asset_id_bob,
+                &inputs,
+            )?;
+        let (redeem_output_bob, abf_redeem_bob, vbf_redeem_bob) = TxOut::new_not_last_confidential(
+            rng,
+            &SECP256K1,
+            self.redeem_amount_bob.as_sat(),
+            self.address_redeem.clone(),
+            self.asset_id_alice,
+            &inputs,
+        )?;
+        let (change_output_alice, abf_change_alice, vbf_change_alice) =
+            TxOut::new_not_last_confidential(
+                rng,
+                &SECP256K1,
+                change_amount_alice.as_sat(),
+                msg.address_change,
+                self.asset_id_alice,
+                &inputs,
+            )?;
+
+        let outputs = [
+            (
+                self.redeem_amount_alice.as_sat(),
+                abf_redeem_alice,
+                vbf_redeem_alice,
+            ),
+            (
+                self.redeem_amount_bob.as_sat(),
+                abf_redeem_bob,
+                vbf_redeem_bob,
+            ),
+            (
+                change_amount_alice.as_sat(),
+                abf_change_alice,
+                vbf_change_alice,
             ),
         ];
 
-        let redeem_ephemeral_key_alice = SecretKey::new(rng);
-        let redeem_output_alice = make_txout(
+        let change_output_bob = TxOut::new_last_confidential(
             rng,
-            self.redeem_amount_alice,
-            msg.address_redeem,
-            asset_id_bob,
-            *abf_redeem_alice.as_ref(),
-            *vbf_redeem_alice.as_ref(),
-            &inputs,
-            redeem_ephemeral_key_alice,
-        )?;
-
-        let redeem_ephemeral_key_bob = SecretKey::new(rng);
-        let redeem_output_bob = make_txout(
-            rng,
-            self.redeem_amount_bob,
-            self.address_redeem.clone(),
-            self.asset_id_alice,
-            *abf_redeem_bob.as_ref(),
-            *vbf_redeem_bob.as_ref(),
-            &inputs,
-            redeem_ephemeral_key_bob,
-        )?;
-
-        let change_ephemeral_key_alice = SecretKey::new(rng);
-        let change_output_alice = make_txout(
-            rng,
-            change_amount_alice,
-            msg.address_change,
-            self.asset_id_alice,
-            *abf_change_alice.as_ref(),
-            *vbf_change_alice.as_ref(),
-            &inputs,
-            change_ephemeral_key_alice,
-        )?;
-
-        let vbf_change_bob = asset_final_vbf(
-            vec![
-                amount_in_alice,
-                amount_in_bob,
-                self.redeem_amount_alice.as_sat(),
-                self.redeem_amount_bob.as_sat(),
-                change_amount_alice.as_sat(),
-                change_amount_bob.as_sat(),
-            ],
-            2,
-            abfs,
-            vbfs,
-        );
-
-        let change_ephemeral_key_bob = SecretKey::new(rng);
-        let change_output_bob = make_txout(
-            rng,
-            change_amount_bob,
+            &SECP256K1,
+            change_amount_bob.as_sat(),
             self.address_change.clone(),
             asset_id_bob,
-            *abf_change_bob.as_ref(),
-            vbf_change_bob,
             &inputs,
-            change_ephemeral_key_bob,
+            &outputs,
         )?;
-
-        let fee = TxOut::Explicit(ExplicitTxOut {
-            asset: ExplicitAsset(self.asset_id_alice),
-            value: ExplicitValue(msg.fee.as_sat()),
-            script_pubkey: Script::default(),
-        });
+        let fee = TxOut::new_fee(self.asset_id_alice, msg.fee.as_sat());
 
         let transaction = Transaction {
             version: 2,
@@ -502,7 +460,7 @@ impl Bob1 {
 mod tests {
     use super::*;
     use crate::{
-        make_confidential_address, make_txout,
+        make_confidential_address,
         states::{Alice0, Bob0},
     };
     use anyhow::{anyhow, Result};
@@ -688,52 +646,36 @@ mod tests {
         let previous_output_tx = client.get_raw_transaction(previous_output.txid).await?;
         let previous_output = previous_output_tx.output[previous_output.vout as usize].clone();
 
+        let txout = previous_output
+            .as_confidential()
+            .context("not a confidential txout")?
+            .clone();
+
         let UnblindedTxOut {
             asset: asset_id,
-            original_asset: asset_id_commitment_in,
             asset_blinding_factor: abf_in,
             value_blinding_factor: vbf_in,
             value: amount_in,
-        } = previous_output
-            .as_confidential()
-            .context("not a confidential txout")?
-            .clone()
-            .unblind(previous_output_blinding_sk)?;
+        } = txout.unblind(previous_output_blinding_sk)?;
 
         let fee = 900_000;
         let amount_out = Amount::from_sat(amount_in - fee);
 
-        let abf_out = SecretKey::new(&mut thread_rng());
-
-        let mut abfs = abf_in.as_ref().to_vec();
-        abfs.extend(abf_out.as_ref());
-
-        let vbfs = vbf_in.as_ref().to_vec();
-        let vbf_out = asset_final_vbf(vec![amount_in, amount_out.as_sat()], 1, abfs, vbfs);
-
         let move_address = client.getnewaddress().await?;
 
-        let inputs = vec![(
-            asset_id,
-            asset_id_commitment_in,
-            SecretKey::from_slice(&abf_in)?,
-        )];
-        let output = make_txout(
+        let inputs = [(asset_id, amount_in, txout.asset, abf_in, vbf_in)];
+
+        let output = TxOut::new_last_confidential(
             &mut thread_rng(),
-            amount_out,
+            &SECP256K1,
+            amount_out.as_sat(),
             move_address,
             asset_id,
-            *abf_out.as_ref(),
-            vbf_out,
             &inputs,
-            SecretKey::new(&mut thread_rng()),
+            &[],
         )?;
 
-        let fee = TxOut::Explicit(ExplicitTxOut {
-            asset: ExplicitAsset(asset_id),
-            value: ExplicitValue(fee),
-            script_pubkey: Script::default(),
-        });
+        let fee = TxOut::new_fee(asset_id, fee);
 
         let mut tx = Transaction {
             version: 2,

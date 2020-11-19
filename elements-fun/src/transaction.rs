@@ -21,344 +21,39 @@ use std::{fmt, io};
 use bitcoin::blockdata::opcodes;
 use bitcoin::blockdata::script::{Instruction, Script};
 use bitcoin::hashes::Hash;
-use bitcoin::secp256k1::PublicKey;
+use bitcoin::secp256k1::rand::CryptoRng;
+use bitcoin::secp256k1::rand::RngCore;
+use bitcoin::secp256k1::Secp256k1;
 use bitcoin::secp256k1::SecretKey;
+use bitcoin::secp256k1::{PublicKey, Signing};
 use bitcoin::{self, Txid, VarInt};
 
-use crate::confidential::AssetCommitment;
-use crate::confidential::NonceCommitment;
+use crate::confidential::Nonce;
 use crate::confidential::ValueCommitment;
+use crate::confidential::{AssetBlindingFactor, AssetCommitment, ValueBlindingFactor};
 use crate::encode::{self, Decodable, Encodable, Error};
 use crate::issuance::AssetId;
+use crate::wally::asset_rangeproof;
+use crate::wally::asset_surjectionproof;
 use crate::wally::asset_unblind;
+use crate::Address;
 
-// TODO: Is `Default` really useful here?
-/// Description of an asset issuance in a transaction input
-#[derive(Copy, Clone, Debug, Eq, Hash, PartialEq, PartialOrd, Ord)]
+/// Elements transaction
+#[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
 #[cfg_attr(
     feature = "serde",
     derive(serde::Serialize, serde::Deserialize),
     serde(crate = "serde_crate")
 )]
-pub enum AssetIssuance {
-    Null(NullAssetIssuance),
-    Explicit(ExplicitAssetIssuance),
-    Confidential(ConfidentialAssetIssuance),
-}
-
-impl AssetIssuance {
-    pub fn encoded_length(&self) -> usize {
-        match self {
-            AssetIssuance::Null(inner) => inner.encoded_length(),
-            AssetIssuance::Explicit(inner) => inner.encoded_length(),
-            AssetIssuance::Confidential(inner) => inner.encoded_length(),
-        }
-    }
-}
-
-impl Default for AssetIssuance {
-    fn default() -> Self {
-        Self::Null(NullAssetIssuance::default())
-    }
-}
-
-#[derive(Copy, Clone, Debug, Eq, Hash, PartialEq, PartialOrd, Ord)]
-#[cfg_attr(
-    feature = "serde",
-    derive(serde::Serialize, serde::Deserialize),
-    serde(crate = "serde_crate")
-)]
-pub struct ExplicitAssetIssuance {
-    /// Zero for a new asset issuance; otherwise a blinding factor for the input
-    pub asset_blinding_nonce: [u8; 32],
-    /// Freeform entropy field
-    pub asset_entropy: [u8; 32],
-    /// Amount of asset to issue
-    pub amount: ExplicitValue,
-    /// Amount of inflation keys to issue
-    pub inflation_keys: ExplicitValue,
-}
-
-impl ExplicitAssetIssuance {
-    pub fn encoded_length(&self) -> usize {
-        32 + 32 + self.amount.encoded_length() + self.inflation_keys.encoded_length()
-    }
-}
-
-#[derive(Copy, Clone, Default, Debug, Eq, Hash, PartialEq, PartialOrd, Ord)]
-#[cfg_attr(
-    feature = "serde",
-    derive(serde::Serialize, serde::Deserialize),
-    serde(crate = "serde_crate")
-)]
-pub struct NullAssetIssuance {
-    /// Zero for a new asset issuance; otherwise a blinding factor for the input
-    pub asset_blinding_nonce: [u8; 32],
-    /// Freeform entropy field
-    pub asset_entropy: [u8; 32],
-}
-
-impl NullAssetIssuance {
-    pub fn encoded_length(&self) -> usize {
-        32 + 32 + 1 + 1
-    }
-}
-
-#[derive(Copy, Clone, Debug, Eq, Hash, PartialEq, PartialOrd, Ord)]
-#[cfg_attr(
-    feature = "serde",
-    derive(serde::Serialize, serde::Deserialize),
-    serde(crate = "serde_crate")
-)]
-pub struct ConfidentialAssetIssuance {
-    /// Zero for a new asset issuance; otherwise a blinding factor for the input
-    pub asset_blinding_nonce: [u8; 32],
-    /// Freeform entropy field
-    pub asset_entropy: [u8; 32],
-    /// Amount of asset to issue
-    pub amount: ValueCommitment,
-    /// Amount of inflation keys to issue
-    pub inflation_keys: Option<ValueCommitment>,
-}
-
-impl ConfidentialAssetIssuance {
-    pub fn encoded_length(&self) -> usize {
-        32 + 32
-            + self.amount.encoded_length()
-            + match self.inflation_keys {
-                Some(keys) => keys.encoded_length(),
-                None => 1,
-            }
-    }
-}
-
-impl Encodable for ExplicitAssetIssuance {
-    fn consensus_encode<S: io::Write>(&self, mut s: S) -> Result<usize, encode::Error> {
-        Ok(self.asset_blinding_nonce.consensus_encode(&mut s)?
-            + self.asset_entropy.consensus_encode(&mut s)?
-            + self.amount.consensus_encode(&mut s)?
-            + self.inflation_keys.consensus_encode(&mut s)?)
-    }
-}
-
-impl Encodable for ConfidentialAssetIssuance {
-    fn consensus_encode<S: io::Write>(&self, mut s: S) -> Result<usize, encode::Error> {
-        Ok(self.asset_blinding_nonce.consensus_encode(&mut s)?
-            + self.asset_entropy.consensus_encode(&mut s)?
-            + self.amount.consensus_encode(&mut s)?
-            + match self.inflation_keys {
-                Some(keys) => keys.consensus_encode(&mut s)?,
-                None => 0u8.consensus_encode(&mut s)?,
-            })
-    }
-}
-
-impl Encodable for NullAssetIssuance {
-    fn consensus_encode<S: io::Write>(&self, mut s: S) -> Result<usize, encode::Error> {
-        Ok(self.asset_blinding_nonce.consensus_encode(&mut s)?
-            + self.asset_entropy.consensus_encode(&mut s)?
-            + 0u8.consensus_encode(&mut s)?
-            + 0u8.consensus_encode(&mut s)?)
-    }
-}
-
-impl Encodable for AssetIssuance {
-    fn consensus_encode<S: io::Write>(&self, mut s: S) -> Result<usize, encode::Error> {
-        match self {
-            AssetIssuance::Confidential(inner) => inner.consensus_encode(&mut s),
-            AssetIssuance::Explicit(inner) => inner.consensus_encode(&mut s),
-            AssetIssuance::Null(inner) => inner.consensus_encode(&mut s),
-        }
-    }
-}
-
-impl Decodable for AssetIssuance {
-    fn consensus_decode<D: io::BufRead>(mut d: D) -> Result<Self, Error> {
-        let asset_blinding_nonce = Decodable::consensus_decode(&mut d)?;
-        let asset_entropy = Decodable::consensus_decode(&mut d)?;
-
-        let buffer = d.fill_buf()?;
-
-        Ok(match buffer[0] {
-            0 => {
-                let amount_tag = u8::consensus_decode(&mut d)?;
-                debug_assert_eq!(amount_tag, 0);
-
-                let keys_tag = u8::consensus_decode(&mut d)?;
-                debug_assert_eq!(keys_tag, 0);
-
-                AssetIssuance::Null(NullAssetIssuance {
-                    asset_blinding_nonce,
-                    asset_entropy,
-                })
-            }
-            1 => AssetIssuance::Explicit(ExplicitAssetIssuance {
-                asset_blinding_nonce,
-                asset_entropy,
-                amount: Decodable::consensus_decode(&mut d)?,
-                inflation_keys: Decodable::consensus_decode(&mut d)?,
-            }),
-            _ => AssetIssuance::Confidential(ConfidentialAssetIssuance {
-                asset_blinding_nonce,
-                asset_entropy,
-                amount: Decodable::consensus_decode(&mut d)?,
-                inflation_keys: {
-                    let buffer = d.fill_buf()?;
-
-                    if buffer[0] == 0 {
-                        d.consume(1);
-                        None
-                    } else {
-                        Some(Decodable::consensus_decode(&mut d)?)
-                    }
-                },
-            }),
-        })
-    }
-}
-
-/// A reference to a transaction output
-#[derive(Copy, Clone, Debug, Eq, Hash, PartialEq, PartialOrd, Ord)]
-#[cfg_attr(
-    feature = "serde",
-    derive(serde::Serialize, serde::Deserialize),
-    serde(crate = "serde_crate")
-)]
-pub struct OutPoint {
-    /// The referenced transaction's txid
-    pub txid: Txid,
-    /// The index of the referenced output in its transaction's vout
-    pub vout: u32,
-}
-impl Default for OutPoint {
-    /// Coinbase outpoint
-    fn default() -> OutPoint {
-        OutPoint {
-            txid: Txid::default(),
-            vout: 0xffffffff,
-        }
-    }
-}
-
-impl Encodable for OutPoint {
-    fn consensus_encode<S: io::Write>(&self, mut s: S) -> Result<usize, encode::Error> {
-        Ok(self.txid.consensus_encode(&mut s)? + self.vout.consensus_encode(&mut s)?)
-    }
-}
-
-impl Decodable for OutPoint {
-    fn consensus_decode<D: io::BufRead>(mut d: D) -> Result<OutPoint, encode::Error> {
-        let txid = Txid::consensus_decode(&mut d)?;
-        let vout = u32::consensus_decode(&mut d)?;
-        Ok(OutPoint { txid, vout })
-    }
-}
-
-impl fmt::Display for OutPoint {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        f.write_str("[elements]")?;
-        write!(f, "{}:{}", self.txid, self.vout)
-    }
-}
-
-impl ::std::str::FromStr for OutPoint {
-    type Err = bitcoin::blockdata::transaction::ParseOutPointError;
-    fn from_str(mut s: &str) -> Result<Self, Self::Err> {
-        if s.starts_with("[elements]") {
-            s = &s[10..];
-        }
-        let bitcoin_outpoint = bitcoin::OutPoint::from_str(s)?;
-        Ok(OutPoint {
-            txid: bitcoin_outpoint.txid,
-            vout: bitcoin_outpoint.vout,
-        })
-    }
-}
-
-/// Transaction input witness
-#[derive(Clone, Default, PartialEq, Eq, Debug, Hash)]
-#[cfg_attr(
-    feature = "serde",
-    derive(serde::Serialize, serde::Deserialize),
-    serde(crate = "serde_crate")
-)]
-pub struct TxInWitness {
-    /// Amount rangeproof
-    pub amount_rangeproof: Vec<u8>,
-    /// Rangeproof for inflation keys
-    pub inflation_keys_rangeproof: Vec<u8>,
-    /// Traditional script witness
-    pub script_witness: Vec<Vec<u8>>,
-    /// Pegin witness, basically the same thing
-    pub pegin_witness: Vec<Vec<u8>>,
-}
-
-impl_consensus_encoding!(
-    TxInWitness,
-    amount_rangeproof,
-    inflation_keys_rangeproof,
-    script_witness,
-    pegin_witness
-);
-
-impl TxInWitness {
-    /// Whether this witness is null
-    pub fn is_empty(&self) -> bool {
-        self.amount_rangeproof.is_empty()
-            && self.inflation_keys_rangeproof.is_empty()
-            && self.script_witness.is_empty()
-            && self.pegin_witness.is_empty()
-    }
-
-    pub fn encoded_length(&self) -> usize {
-        let amount_rp_len = self.amount_rangeproof.len();
-        let inflation_keys_rp_len = self.inflation_keys_rangeproof.len();
-        let script_w = &self.script_witness;
-        let pegin_w = &self.pegin_witness;
-
-        let amount_enc_length = VarInt(amount_rp_len as u64).len() as usize + amount_rp_len;
-        let inflation_keys_enc_length =
-            VarInt(inflation_keys_rp_len as u64).len() as usize + inflation_keys_rp_len;
-        let script_w_enc_length = VarInt(script_w.len() as u64).len() as usize
-            + script_w
-                .iter()
-                .map(|wit| VarInt(wit.len() as u64).len() as usize + wit.len())
-                .sum::<usize>();
-        let pegin_w_enc_length = VarInt(pegin_w.len() as u64).len() as usize
-            + pegin_w
-                .iter()
-                .map(|wit| VarInt(wit.len() as u64).len() as usize + wit.len())
-                .sum::<usize>();
-
-        amount_enc_length + inflation_keys_enc_length + script_w_enc_length + pegin_w_enc_length
-    }
-}
-
-/// Parsed data from a transaction input's pegin witness
-#[derive(Copy, Clone, PartialEq, Eq, Debug, Hash)]
-pub struct PeginData<'tx> {
-    /// Reference to the pegin output on the mainchain
-    pub outpoint: bitcoin::OutPoint,
-    /// The value, in satoshis, of the pegin
-    pub value: u64,
-    /// Asset type being pegged in
-    pub asset: AssetId,
-    /// Hash of genesis block of originating blockchain
-    pub genesis_hash: bitcoin::BlockHash,
-    /// The claim script that we should hash to tweak our address. Unparsed
-    /// to avoid unnecessary allocation and copying. Typical use is simply
-    /// to feed it raw into a hash function.
-    pub claim_script: &'tx [u8],
-    /// Mainchain transaction; not parsed to save time/memory since the
-    /// parsed transaction is typically not useful without auxillary
-    /// data (e.g. knowing how to compute pegin addresses for the
-    /// sidechain).
-    pub tx: &'tx [u8],
-    /// Merkle proof of transaction inclusion; also not parsed
-    pub merkle_proof: &'tx [u8],
-    /// The Bitcoin block that the pegin output appears in; scraped
-    /// from the transaction inclusion proof
-    pub referenced_block: bitcoin::BlockHash,
+pub struct Transaction {
+    /// Transaction version field (should always be 2)
+    pub version: u32,
+    /// Transaction locktime
+    pub lock_time: u32,
+    /// Vector of inputs
+    pub input: Vec<TxIn>,
+    /// Vector of outputs
+    pub output: Vec<TxOut>,
 }
 
 /// A transaction input, which defines old coins to be consumed
@@ -391,59 +86,350 @@ pub struct TxIn {
     pub witness: TxInWitness,
 }
 
-impl Encodable for TxIn {
-    fn consensus_encode<S: io::Write>(&self, mut s: S) -> Result<usize, encode::Error> {
-        let mut ret = 0;
-        let mut vout = self.previous_output.vout;
-        if self.is_pegin {
-            vout |= 1 << 30;
-        }
-        if self.has_issuance {
-            vout |= 1 << 31;
-        }
-        ret += self.previous_output.txid.consensus_encode(&mut s)?;
-        ret += vout.consensus_encode(&mut s)?;
-        ret += self.script_sig.consensus_encode(&mut s)?;
-        ret += self.sequence.consensus_encode(&mut s)?;
-        if self.has_issuance() {
-            ret += self.asset_issuance.consensus_encode(&mut s)?;
-        }
-        Ok(ret)
-    }
+// TODO: think about tagging
+/// Transaction output
+#[derive(Clone, PartialEq, Eq, Debug, Hash)]
+#[cfg_attr(
+    feature = "serde",
+    derive(serde::Serialize, serde::Deserialize),
+    serde(crate = "serde_crate")
+)]
+pub enum TxOut {
+    Explicit(ExplicitTxOut),
+    Confidential(ConfidentialTxOut),
+    Null(NullTxOut),
 }
 
-impl Decodable for TxIn {
-    fn consensus_decode<D: io::BufRead>(mut d: D) -> Result<TxIn, encode::Error> {
-        let mut outp = OutPoint::consensus_decode(&mut d)?;
-        let script_sig = Script::consensus_decode(&mut d)?;
-        let sequence = u32::consensus_decode(&mut d)?;
-        let issuance;
-        let is_pegin;
-        let has_issuance;
-        // Pegin/issuance flags are encoded into the high bits of `vout`, *except*
-        // if vout is all 1's; this indicates a coinbase transaction
-        if outp.vout == 0xffffffff {
-            is_pegin = false;
-            has_issuance = false;
-        } else {
-            is_pegin = outp.vout & (1 << 30) != 0;
-            has_issuance = outp.vout & (1 << 31) != 0;
-            outp.vout &= !((1 << 30) | (1 << 31));
+/// A reference to a transaction output
+#[derive(Copy, Clone, Debug, Eq, Hash, PartialEq, PartialOrd, Ord)]
+#[cfg_attr(
+    feature = "serde",
+    derive(serde::Serialize, serde::Deserialize),
+    serde(crate = "serde_crate")
+)]
+pub struct OutPoint {
+    /// The referenced transaction's txid
+    pub txid: Txid,
+    /// The index of the referenced output in its transaction's vout
+    pub vout: u32,
+}
+
+// TODO: Is `Default` really useful here?
+/// Description of an asset issuance in a transaction input
+#[derive(Copy, Clone, Debug, Eq, Hash, PartialEq, PartialOrd, Ord)]
+#[cfg_attr(
+    feature = "serde",
+    derive(serde::Serialize, serde::Deserialize),
+    serde(crate = "serde_crate")
+)]
+pub enum AssetIssuance {
+    Explicit(ExplicitAssetIssuance),
+    Confidential(ConfidentialAssetIssuance),
+    Null(NullAssetIssuance),
+}
+
+/// Transaction input witness
+#[derive(Clone, Default, PartialEq, Eq, Debug, Hash)]
+#[cfg_attr(
+    feature = "serde",
+    derive(serde::Serialize, serde::Deserialize),
+    serde(crate = "serde_crate")
+)]
+pub struct TxInWitness {
+    /// Amount rangeproof
+    pub amount_rangeproof: Vec<u8>,
+    /// Rangeproof for inflation keys
+    pub inflation_keys_rangeproof: Vec<u8>,
+    /// Traditional script witness
+    pub script_witness: Vec<Vec<u8>>,
+    /// Pegin witness, basically the same thing
+    pub pegin_witness: Vec<Vec<u8>>,
+}
+
+#[derive(Clone, PartialEq, Eq, Debug, Hash)]
+#[cfg_attr(
+    feature = "serde",
+    derive(serde::Serialize, serde::Deserialize),
+    serde(crate = "serde_crate")
+)]
+pub struct ExplicitTxOut {
+    /// Committed asset
+    pub asset: ExplicitAsset,
+    /// Committed amount
+    pub value: ExplicitValue,
+    /// Scriptpubkey
+    pub script_pubkey: Script,
+}
+
+/// Transaction output
+#[derive(Clone, PartialEq, Eq, Debug, Hash)]
+#[cfg_attr(
+    feature = "serde",
+    derive(serde::Serialize, serde::Deserialize),
+    serde(crate = "serde_crate")
+)]
+pub struct ConfidentialTxOut {
+    /// Committed asset
+    pub asset: AssetCommitment,
+    /// Committed amount
+    pub value: ValueCommitment,
+    /// Nonce (ECDH key passed to recipient)
+    ///
+    /// TODO: I think this is only `None` if we spend an asset issuance.
+    pub nonce: Option<Nonce>,
+    /// Scriptpubkey
+    pub script_pubkey: Script,
+    /// Witness data - not deserialized/serialized as part of a `TxIn` object
+    /// (rather as part of its containing transaction, if any) but is logically
+    /// part of the txin.
+    pub witness: TxOutWitness,
+}
+
+#[derive(Clone, PartialEq, Eq, Debug, Hash)]
+#[cfg_attr(
+    feature = "serde",
+    derive(serde::Serialize, serde::Deserialize),
+    serde(crate = "serde_crate")
+)]
+pub struct NullTxOut {
+    pub script_pubkey: Script,
+}
+
+#[derive(Copy, Clone, Debug, Eq, Hash, PartialEq, PartialOrd, Ord)]
+#[cfg_attr(
+    feature = "serde",
+    derive(serde::Serialize, serde::Deserialize),
+    serde(crate = "serde_crate")
+)]
+pub struct ExplicitAssetIssuance {
+    /// Zero for a new asset issuance; otherwise a blinding factor for the input
+    pub asset_blinding_nonce: [u8; 32],
+    /// Freeform entropy field
+    pub asset_entropy: [u8; 32],
+    /// Amount of asset to issue
+    pub amount: ExplicitValue,
+    /// Amount of inflation keys to issue
+    pub inflation_keys: ExplicitValue,
+}
+
+#[derive(Copy, Clone, Debug, Eq, Hash, PartialEq, PartialOrd, Ord)]
+#[cfg_attr(
+    feature = "serde",
+    derive(serde::Serialize, serde::Deserialize),
+    serde(crate = "serde_crate")
+)]
+pub struct ConfidentialAssetIssuance {
+    /// Zero for a new asset issuance; otherwise a blinding factor for the input
+    pub asset_blinding_nonce: [u8; 32],
+    /// Freeform entropy field
+    pub asset_entropy: [u8; 32],
+    /// Amount of asset to issue
+    pub amount: ValueCommitment,
+    /// Amount of inflation keys to issue
+    pub inflation_keys: Option<ValueCommitment>,
+}
+
+#[derive(Copy, Clone, Default, Debug, Eq, Hash, PartialEq, PartialOrd, Ord)]
+#[cfg_attr(
+    feature = "serde",
+    derive(serde::Serialize, serde::Deserialize),
+    serde(crate = "serde_crate")
+)]
+pub struct NullAssetIssuance {
+    /// Zero for a new asset issuance; otherwise a blinding factor for the input
+    pub asset_blinding_nonce: [u8; 32],
+    /// Freeform entropy field
+    pub asset_entropy: [u8; 32],
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Hash, PartialOrd, Ord)]
+#[cfg_attr(
+    feature = "serde",
+    derive(serde::Serialize, serde::Deserialize),
+    serde(crate = "serde_crate", transparent)
+)]
+pub struct ExplicitAsset(pub AssetId);
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Hash, PartialOrd, Ord)]
+#[cfg_attr(
+    feature = "serde",
+    derive(serde::Serialize, serde::Deserialize),
+    serde(crate = "serde_crate", transparent)
+)]
+pub struct ExplicitValue(pub u64);
+
+/// Transaction output witness
+#[derive(Clone, Default, PartialEq, Eq, Debug, Hash)]
+#[cfg_attr(
+    feature = "serde",
+    derive(serde::Serialize, serde::Deserialize),
+    serde(crate = "serde_crate")
+)]
+pub struct TxOutWitness {
+    /// Surjection proof showing that the asset commitment is legitimate
+    pub surjection_proof: Vec<u8>,
+    /// Rangeproof showing that the value commitment is legitimate
+    pub rangeproof: Vec<u8>,
+}
+
+/// Parsed data from a transaction input's pegin witness
+#[derive(Copy, Clone, PartialEq, Eq, Debug, Hash)]
+pub struct PeginData<'tx> {
+    /// Reference to the pegin output on the mainchain
+    pub outpoint: bitcoin::OutPoint,
+    /// The value, in satoshis, of the pegin
+    pub value: u64,
+    /// Asset type being pegged in
+    pub asset: AssetId,
+    /// Hash of genesis block of originating blockchain
+    pub genesis_hash: bitcoin::BlockHash,
+    /// The claim script that we should hash to tweak our address. Unparsed
+    /// to avoid unnecessary allocation and copying. Typical use is simply
+    /// to feed it raw into a hash function.
+    pub claim_script: &'tx [u8],
+    /// Mainchain transaction; not parsed to save time/memory since the
+    /// parsed transaction is typically not useful without auxillary
+    /// data (e.g. knowing how to compute pegin addresses for the
+    /// sidechain).
+    pub tx: &'tx [u8],
+    /// Merkle proof of transaction inclusion; also not parsed
+    pub merkle_proof: &'tx [u8],
+    /// The Bitcoin block that the pegin output appears in; scraped
+    /// from the transaction inclusion proof
+    pub referenced_block: bitcoin::BlockHash,
+}
+
+/// Information about a pegout
+#[derive(Clone, PartialEq, Eq, Debug, Hash)]
+pub struct PegoutData<'txo> {
+    /// Amount to peg out
+    pub value: u64,
+    /// Asset of pegout
+    pub asset: ExplicitAsset,
+    /// Genesis hash of the target blockchain
+    pub genesis_hash: bitcoin::BlockHash,
+    /// Scriptpubkey to create on the target blockchain
+    pub script_pubkey: Script,
+    /// Remaining pegout data used by some forks of Elements
+    pub extra_data: Vec<&'txo [u8]>,
+}
+
+impl Transaction {
+    /// Whether the transaction is a coinbase tx
+    pub fn is_coinbase(&self) -> bool {
+        self.input.len() == 1 && self.input[0].is_coinbase()
+    }
+
+    /// Determines whether a transaction has any non-null witnesses
+    pub fn has_witness(&self) -> bool {
+        self.input.iter().any(|i| !i.witness.is_empty())
+            || self.output.iter().any(|o| o.has_witness())
+    }
+
+    /// Get the "weight" of this transaction; roughly equivalent to BIP141, in that witness data is
+    /// counted as 1 while non-witness data is counted as 4.
+    pub fn get_weight(&self) -> usize {
+        self.get_scaled_size(4)
+    }
+
+    /// Gets the regular byte-wise consensus-serialized size of this transaction.
+    pub fn get_size(&self) -> usize {
+        self.get_scaled_size(1)
+    }
+
+    fn get_scaled_size(&self, scale_factor: usize) -> usize {
+        let witness_flag = self.has_witness();
+
+        let input_weight = self
+            .input
+            .iter()
+            .map(|input| {
+                scale_factor
+                    * (32 + 4 + 4 + // output + nSequence
+                    VarInt(input.script_sig.len() as u64).len() as usize +
+                    input.script_sig.len() + if input.has_issuance() {
+                    input.asset_issuance.encoded_length()
+                } else {
+                    0
+                }) + if witness_flag {
+                    input.witness.encoded_length()
+                } else {
+                    0
+                }
+            })
+            .sum::<usize>();
+
+        let output_weight = self
+            .output
+            .iter()
+            .map(|output| {
+                scale_factor * output.encoded_length()
+                    + if witness_flag {
+                        output.witness_length()
+                    } else {
+                        0
+                    }
+            })
+            .sum::<usize>();
+
+        scale_factor
+            * (
+                4 + // version
+                4 + // locktime
+                VarInt(self.input.len() as u64).len() as usize +
+                VarInt(self.output.len() as u64).len() as usize +
+                1
+                // segwit flag byte (note this is *not* witness data in Elements)
+            )
+            + input_weight
+            + output_weight
+    }
+
+    /// The txid of the transaction.
+    pub fn txid(&self) -> bitcoin::Txid {
+        let mut enc = bitcoin::Txid::engine();
+        self.version.consensus_encode(&mut enc).unwrap();
+        0u8.consensus_encode(&mut enc).unwrap();
+        self.input.consensus_encode(&mut enc).unwrap();
+        self.output.consensus_encode(&mut enc).unwrap();
+        self.lock_time.consensus_encode(&mut enc).unwrap();
+        bitcoin::Txid::from_engine(enc)
+    }
+
+    /// Get the witness txid of the transaction.
+    pub fn wtxid(&self) -> bitcoin::Wtxid {
+        let mut enc = Txid::engine();
+        self.consensus_encode(&mut enc).unwrap();
+        bitcoin::Wtxid::from_engine(enc)
+    }
+
+    /// Get the total transaction fee in the given asset.
+    pub fn fee_in(&self, asset: AssetId) -> u64 {
+        // is_fee checks for explicit asset and value, so we can unwrap them here.
+        self.output
+            .iter()
+            .filter(|o| o.is_fee())
+            .filter_map(|o| o.as_explicit())
+            .filter(|e| e.asset.0 == asset)
+            .map(|o| o.value.0)
+            .sum()
+    }
+
+    /// Get all fees in all assets.
+    pub fn all_fees(&self) -> HashMap<AssetId, u64> {
+        let mut fees = HashMap::new();
+        for out in self
+            .output
+            .iter()
+            .filter(|o| o.is_fee())
+            .filter_map(|o| o.as_explicit())
+        {
+            // is_fee checks for explicit asset and value, so we can unwrap them here.
+            let asset = out.asset.0;
+            let entry = fees.entry(asset).or_insert(0);
+            *entry += out.value.0;
         }
-        if has_issuance {
-            issuance = AssetIssuance::consensus_decode(&mut d)?;
-        } else {
-            issuance = AssetIssuance::default();
-        }
-        Ok(TxIn {
-            previous_output: outp,
-            is_pegin,
-            has_issuance,
-            script_sig,
-            sequence,
-            asset_issuance: issuance,
-            witness: TxInWitness::default(),
-        })
+        fees
     }
 }
 
@@ -470,7 +456,7 @@ impl TxIn {
             return None;
         }
 
-        macro_rules! opt_try(
+        macro_rules! opt_try (
             ($res:expr) => { match $res { Ok(x) => x, Err(_) => return None } }
         );
 
@@ -500,367 +486,176 @@ impl TxIn {
     }
 }
 
-/// Transaction output witness
-#[derive(Clone, Default, PartialEq, Eq, Debug, Hash)]
-#[cfg_attr(
-    feature = "serde",
-    derive(serde::Serialize, serde::Deserialize),
-    serde(crate = "serde_crate")
-)]
-pub struct TxOutWitness {
-    /// Surjection proof showing that the asset commitment is legitimate
-    pub surjection_proof: Vec<u8>,
-    /// Rangeproof showing that the value commitment is legitimate
-    pub rangeproof: Vec<u8>,
-}
-impl_consensus_encoding!(TxOutWitness, surjection_proof, rangeproof);
-
-impl TxOutWitness {
-    /// Whether this witness is null
-    pub fn is_empty(&self) -> bool {
-        self.surjection_proof.is_empty() && self.rangeproof.is_empty()
-    }
-
-    pub fn encoded_length(&self) -> usize {
-        let sp_len = self.surjection_proof.len();
-        let rp_len = self.rangeproof.len();
-
-        let sp_enc_length = VarInt(sp_len as u64).len() + sp_len;
-        let rp_enc_length = VarInt(rp_len as u64).len() + rp_len;
-
-        sp_enc_length + rp_enc_length
-    }
-}
-
-/// Information about a pegout
-#[derive(Clone, PartialEq, Eq, Debug, Hash)]
-pub struct PegoutData<'txo> {
-    /// Amount to peg out
-    pub value: u64,
-    /// Asset of pegout
-    pub asset: ExplicitAsset,
-    /// Genesis hash of the target blockchain
-    pub genesis_hash: bitcoin::BlockHash,
-    /// Scriptpubkey to create on the target blockchain
-    pub script_pubkey: Script,
-    /// Remaining pegout data used by some forks of Elements
-    pub extra_data: Vec<&'txo [u8]>,
-}
-
-// TODO: think about tagging
-/// Transaction output
-#[derive(Clone, PartialEq, Eq, Debug, Hash)]
-#[cfg_attr(
-    feature = "serde",
-    derive(serde::Serialize, serde::Deserialize),
-    serde(crate = "serde_crate")
-)]
-pub enum TxOut {
-    Null(NullTxOut),
-    Explicit(ExplicitTxOut),
-    Confidential(ConfidentialTxOut),
-}
-
-#[derive(Clone, PartialEq, Eq, Debug, Hash)]
-#[cfg_attr(
-    feature = "serde",
-    derive(serde::Serialize, serde::Deserialize),
-    serde(crate = "serde_crate")
-)]
-pub struct NullTxOut {
-    pub script_pubkey: Script,
-}
-
-impl NullTxOut {
-    pub fn encoded_length(&self) -> usize {
-        1 + 1
-            + 1
-            + VarInt(self.script_pubkey.len() as u64).len() as usize
-            + self.script_pubkey.len()
-    }
-}
-
-impl Encodable for NullTxOut {
-    fn consensus_encode<S: io::Write>(&self, mut s: S) -> Result<usize, encode::Error> {
-        Ok(0u8.consensus_encode(&mut s)?
-            + 0u8.consensus_encode(&mut s)?
-            + 0u8.consensus_encode(&mut s)?
-            + self.script_pubkey.consensus_encode(&mut s)?)
-    }
-}
-
-impl Decodable for NullTxOut {
-    fn consensus_decode<D: io::BufRead>(mut d: D) -> Result<NullTxOut, encode::Error> {
-        let asset_tag = u8::consensus_decode(&mut d)?;
-        let value_tag = u8::consensus_decode(&mut d)?;
-        let nonce_tag = u8::consensus_decode(&mut d)?;
-
-        debug_assert_eq!(asset_tag, 0);
-        debug_assert_eq!(value_tag, 0);
-        debug_assert_eq!(nonce_tag, 0);
-
-        Ok(NullTxOut {
-            script_pubkey: Decodable::consensus_decode(&mut d)?,
-        })
-    }
-}
-
-#[derive(Clone, PartialEq, Eq, Debug, Hash)]
-#[cfg_attr(
-    feature = "serde",
-    derive(serde::Serialize, serde::Deserialize),
-    serde(crate = "serde_crate")
-)]
-pub struct ExplicitTxOut {
-    /// Committed asset
-    pub asset: ExplicitAsset,
-    /// Committed amount
-    pub value: ExplicitValue,
-    /// Scriptpubkey
-    pub script_pubkey: Script,
-}
-
-impl ExplicitTxOut {
-    pub fn encoded_length(&self) -> usize {
-        self.asset.encoded_length()
-            + self.value.encoded_length()
-            + 1 // nonce
-            + VarInt(self.script_pubkey.len() as u64).len() as usize
-            + self.script_pubkey.len()
-    }
-}
-
-#[derive(Clone, Copy, PartialEq, Eq, Debug, Hash, PartialOrd, Ord)]
-#[cfg_attr(
-    feature = "serde",
-    derive(serde::Serialize, serde::Deserialize),
-    serde(crate = "serde_crate", transparent)
-)]
-pub struct ExplicitValue(pub u64);
-
-impl ExplicitValue {
-    pub fn encoded_length(&self) -> usize {
-        9
-    }
-}
-
-impl Encodable for ExplicitValue {
-    fn consensus_encode<W: io::Write>(&self, mut e: W) -> Result<usize, Error> {
-        Ok(1u8.consensus_encode(&mut e)? + self.0.swap_bytes().consensus_encode(&mut e)?)
-    }
-}
-
-impl Decodable for ExplicitValue {
-    fn consensus_decode<D: io::BufRead>(mut d: D) -> Result<Self, Error> {
-        let value_tag = u8::consensus_decode(&mut d)?;
-        debug_assert_eq!(value_tag, 1);
-
-        let value = u64::consensus_decode(&mut d)?.swap_bytes();
-
-        Ok(ExplicitValue(value))
-    }
-}
-
-#[derive(Clone, Copy, PartialEq, Eq, Debug, Hash, PartialOrd, Ord)]
-#[cfg_attr(
-    feature = "serde",
-    derive(serde::Serialize, serde::Deserialize),
-    serde(crate = "serde_crate", transparent)
-)]
-pub struct ExplicitAsset(pub AssetId);
-
-impl ExplicitAsset {
-    pub fn encoded_length(&self) -> usize {
-        33
-    }
-}
-
-impl Encodable for ExplicitAsset {
-    fn consensus_encode<W: io::Write>(&self, mut e: W) -> Result<usize, Error> {
-        Ok(1u8.consensus_encode(&mut e)? + self.0.consensus_encode(&mut e)?)
-    }
-}
-
-impl Decodable for ExplicitAsset {
-    fn consensus_decode<D: io::BufRead>(mut d: D) -> Result<Self, Error> {
-        let asset_tag = u8::consensus_decode(&mut d)?;
-        debug_assert_eq!(asset_tag, 1); // TODO: replace this with returning an error
-
-        let value = Decodable::consensus_decode(&mut d)?;
-
-        Ok(ExplicitAsset(value))
-    }
-}
-
-/// Transaction output
-#[derive(Clone, PartialEq, Eq, Debug, Hash)]
-#[cfg_attr(
-    feature = "serde",
-    derive(serde::Serialize, serde::Deserialize),
-    serde(crate = "serde_crate")
-)]
-pub struct ConfidentialTxOut {
-    /// Committed asset
-    pub asset: AssetCommitment,
-    /// Committed amount
-    pub value: ValueCommitment,
-    /// Nonce (ECDH key passed to recipient)
-    ///
-    /// TODO: I think this is only `None` if we spend an asset issuance.
-    pub nonce: Option<NonceCommitment>,
-    /// Scriptpubkey
-    pub script_pubkey: Script,
-    /// Witness data - not deserialized/serialized as part of a `TxIn` object
-    /// (rather as part of its containing transaction, if any) but is logically
-    /// part of the txin.
-    pub witness: TxOutWitness,
-}
-
-impl ConfidentialTxOut {
-    pub fn encoded_length(&self) -> usize {
-        self.asset.encoded_length()
-            + self.value.encoded_length()
-            + self.nonce.map(|n| n.encoded_length()).unwrap_or(1)
-            + VarInt(self.script_pubkey.len() as u64).len() as usize
-            + self.script_pubkey.len()
-    }
-
-    pub fn unblind(&self, blinding_key: SecretKey) -> Result<UnblindedTxOut, UnblindError> {
-        let sender_ephemeral_pk = self.nonce.ok_or(UnblindError::MissingNonce)?.commitment();
-        let sender_ephemeral_pk = PublicKey::from_slice(&sender_ephemeral_pk)
-            .map_err(|_| UnblindError::InvalidPublicKey)?;
-
-        let (unblinded_asset, abf, vbf, value_out) = asset_unblind(
-            sender_ephemeral_pk,
-            blinding_key,
-            &self.witness.rangeproof,
-            self.value,
-            &self.script_pubkey,
-            self.asset,
-        )
-        .map_err(|_| UnblindError::Wally)?;
-
-        Ok(UnblindedTxOut {
-            asset: AssetId::from_slice(&unblinded_asset).unwrap(),
-            original_asset: self.asset,
-            asset_blinding_factor: abf,
-            value_blinding_factor: vbf,
-            value: value_out,
-        })
-    }
-}
-
-pub struct UnblindedTxOut {
-    pub asset: AssetId,
-    pub value: u64,
-    pub original_asset: AssetCommitment, // TODO: should we actually return this?
-    pub asset_blinding_factor: [u8; 32],
-    pub value_blinding_factor: [u8; 32],
-}
-
+// TODO: Get rid of this by introducing a dedicated type for blinded addresses.
 #[derive(Debug)]
-pub enum UnblindError {
-    MissingNonce,
-    InvalidPublicKey,
-    Wally,
-}
+pub struct NoBlindingKeyInAddress;
 
-impl fmt::Display for UnblindError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
-        match self {
-            UnblindError::MissingNonce => write!(f, "no nonce in txout"),
-            UnblindError::InvalidPublicKey => write!(f, "failed to create public key from nonce"),
-            UnblindError::Wally => write!(f, "libwally error"),
-        }
+impl fmt::Display for NoBlindingKeyInAddress {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "the address is missing a blinding key")
     }
 }
 
-// TODO: Implement source
-impl std::error::Error for UnblindError {}
+impl std::error::Error for NoBlindingKeyInAddress {}
 
-impl Encodable for TxOut {
-    fn consensus_encode<S: io::Write>(&self, mut s: S) -> Result<usize, encode::Error> {
-        Ok(match self {
-            Self::Null(inner) => inner.consensus_encode(&mut s)?,
-            Self::Confidential(inner) => inner.consensus_encode(&mut s)?,
-            Self::Explicit(inner) => inner.consensus_encode(&mut s)?,
-        })
-    }
-}
+impl TxOut {
+    /// Creates a new confidential output that is **not** the last one in the transaction.
+    pub fn new_not_last_confidential<R, C>(
+        rng: &mut R,
+        secp: &Secp256k1<C>,
+        value: u64,
+        address: Address,
+        asset: AssetId,
+        inputs: &[(
+            AssetId,
+            u64,
+            AssetCommitment,
+            AssetBlindingFactor,
+            ValueBlindingFactor,
+        )],
+    ) -> Result<(Self, AssetBlindingFactor, ValueBlindingFactor), NoBlindingKeyInAddress>
+    where
+        R: RngCore + CryptoRng,
+        C: Signing,
+    {
+        let out_abf = AssetBlindingFactor::new(rng);
+        let out_asset = AssetCommitment::new(asset, out_abf);
 
-impl Encodable for ConfidentialTxOut {
-    fn consensus_encode<S: io::Write>(&self, mut s: S) -> Result<usize, encode::Error> {
-        Ok(self.asset.consensus_encode(&mut s)?
-            + self.value.consensus_encode(&mut s)?
-            + match self.nonce {
-                Some(nonce) => nonce.consensus_encode(&mut s)?,
-                None => 0u8.consensus_encode(&mut s)?,
-            }
-            + self.script_pubkey.consensus_encode(&mut s)?)
-    }
-}
+        let out_vbf = ValueBlindingFactor::random(rng);
+        let value_commitment = ValueCommitment::new(value, out_asset, out_vbf);
 
-impl Decodable for ConfidentialTxOut {
-    fn consensus_decode<D: io::BufRead>(mut d: D) -> Result<Self, Error> {
-        let asset = Decodable::consensus_decode(&mut d)?;
-        let value = Decodable::consensus_decode(&mut d)?;
-        let buffer = d.fill_buf()?;
+        let (nonce, sender_ephemeral_sk) = Nonce::new(rng, secp);
 
-        let nonce = if buffer[0] == 0 {
-            d.consume(1); // consume the zero from the buffer
-            None
-        } else {
-            Some(Decodable::consensus_decode(&mut d)?)
-        };
-
-        Ok(ConfidentialTxOut {
-            asset,
+        let range_proof = asset_rangeproof(
             value,
-            nonce,
-            script_pubkey: Decodable::consensus_decode(&mut d)?,
-            witness: TxOutWitness::default(),
-        })
-    }
-}
-
-impl Encodable for ExplicitTxOut {
-    fn consensus_encode<S: io::Write>(&self, mut s: S) -> Result<usize, encode::Error> {
-        Ok(self.asset.consensus_encode(&mut s)?
-            + self.value.consensus_encode(&mut s)?
-            + 0u8.consensus_encode(&mut s)? // nonce
-            + self.script_pubkey.consensus_encode(&mut s)?)
-    }
-}
-
-impl Decodable for ExplicitTxOut {
-    fn consensus_decode<D: io::BufRead>(mut d: D) -> Result<Self, Error> {
-        let asset = Decodable::consensus_decode(&mut d)?;
-        let value = Decodable::consensus_decode(&mut d)?;
-        let nonce_tag = u8::consensus_decode(&mut d)?;
-        debug_assert_eq!(nonce_tag, 0);
-        let script_pubkey = Decodable::consensus_decode(&mut d)?;
-
-        Ok(ExplicitTxOut {
+            address
+                .blinding_pubkey
+                .ok_or_else(|| NoBlindingKeyInAddress)?,
+            sender_ephemeral_sk,
             asset,
+            out_abf,
+            out_vbf,
+            value_commitment,
+            &address.script_pubkey(),
+            out_asset,
+            1,
+            0,
+            52,
+        );
+
+        let inputs = inputs
+            .iter()
+            .copied()
+            .map(|(id, _, asset, abf, _)| (id, abf, asset))
+            .collect::<Vec<_>>();
+
+        let surjection_proof = asset_surjectionproof(
+            asset,
+            out_abf,
+            out_asset,
+            *SecretKey::new(rng).as_ref(),
+            &inputs,
+        );
+
+        let txout = TxOut::Confidential(ConfidentialTxOut {
+            asset: out_asset,
+            value: value_commitment,
+            nonce: Some(nonce),
+            script_pubkey: address.script_pubkey(),
+            witness: TxOutWitness {
+                surjection_proof,
+                rangeproof: range_proof,
+            },
+        });
+
+        Ok((txout, out_abf, out_vbf))
+    }
+
+    /// Creates a new confidential output that IS the last one in the transaction.
+    pub fn new_last_confidential<R, C>(
+        rng: &mut R,
+        secp: &Secp256k1<C>,
+        value: u64,
+        address: Address,
+        asset: AssetId,
+        inputs: &[(
+            AssetId,
+            u64,
+            AssetCommitment,
+            AssetBlindingFactor,
+            ValueBlindingFactor,
+        )],
+        outputs: &[(u64, AssetBlindingFactor, ValueBlindingFactor)],
+    ) -> Result<Self, NoBlindingKeyInAddress>
+    where
+        R: RngCore + CryptoRng,
+        C: Signing,
+    {
+        let (surjection_proof_inputs, value_blind_inputs) = inputs
+            .iter()
+            .copied()
+            .map(|(id, value, asset, abf, vbf)| ((id, abf, asset), (value, abf, vbf)))
+            .unzip::<_, _, Vec<_>, Vec<_>>();
+
+        let out_abf = AssetBlindingFactor::new(rng);
+        let out_asset = AssetCommitment::new(asset, out_abf);
+
+        let out_vbf = ValueBlindingFactor::last(value, out_abf, &value_blind_inputs, &outputs);
+        let value_commitment = ValueCommitment::new(value, out_asset, out_vbf);
+
+        let (nonce, sender_ephemeral_sk) = Nonce::new(rng, secp);
+
+        let range_proof = asset_rangeproof(
             value,
+            address
+                .blinding_pubkey
+                .ok_or_else(|| NoBlindingKeyInAddress)?,
+            sender_ephemeral_sk,
+            asset,
+            out_abf,
+            out_vbf,
+            value_commitment,
+            &address.script_pubkey(),
+            out_asset,
+            1,
+            0,
+            52,
+        );
+
+        let surjection_proof = asset_surjectionproof(
+            asset,
+            out_abf,
+            out_asset,
+            *SecretKey::new(rng).as_ref(),
+            &surjection_proof_inputs,
+        );
+
+        let txout = TxOut::Confidential(ConfidentialTxOut {
+            asset: out_asset,
+            value: value_commitment,
+            nonce: Some(nonce),
+            script_pubkey: address.script_pubkey(),
+            witness: TxOutWitness {
+                surjection_proof,
+                rangeproof: range_proof,
+            },
+        });
+
+        Ok(txout)
+    }
+
+    pub fn new_explicit(asset: AssetId, value: u64, script_pubkey: Script) -> Self {
+        TxOut::Explicit(ExplicitTxOut {
+            asset: ExplicitAsset(asset),
+            value: ExplicitValue(value),
             script_pubkey,
         })
     }
-}
 
-impl Decodable for TxOut {
-    fn consensus_decode<D: io::BufRead>(mut d: D) -> Result<TxOut, encode::Error> {
-        let buffer = d.fill_buf()?;
-
-        Ok(match buffer[0] {
-            0 => TxOut::Null(Decodable::consensus_decode(&mut d)?),
-            1 => TxOut::Explicit(Decodable::consensus_decode(&mut d)?),
-            _ => TxOut::Confidential(Decodable::consensus_decode(&mut d)?),
-        })
+    pub fn new_fee(asset: AssetId, value: u64) -> Self {
+        TxOut::new_explicit(asset, value, Script::default())
     }
-}
 
-impl TxOut {
     pub fn script_pubkey(&self) -> &Script {
         match self {
             Self::Null(inner) => &inner.script_pubkey,
@@ -904,9 +699,7 @@ impl TxOut {
             _ => TxOutWitness::default().encoded_length(),
         }
     }
-}
 
-impl TxOut {
     /// Whether this data represents nulldata (OP_RETURN followed by pushes,
     /// not necessarily minimal)
     pub fn is_null_data(&self) -> bool {
@@ -917,7 +710,7 @@ impl TxOut {
                     Ok(Instruction::Op(op))
                         if op.into_u8() > opcodes::all::OP_PUSHNUM_16.into_u8() =>
                     {
-                        return false
+                        return false;
                     }
                     Err(_) => return false,
                     _ => {}
@@ -1046,140 +839,521 @@ impl TxOut {
     }
 }
 
-/// Elements transaction
-#[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
-#[cfg_attr(
-    feature = "serde",
-    derive(serde::Serialize, serde::Deserialize),
-    serde(crate = "serde_crate")
-)]
-pub struct Transaction {
-    /// Transaction version field (should always be 2)
-    pub version: u32,
-    /// Transaction locktime
-    pub lock_time: u32,
-    /// Vector of inputs
-    pub input: Vec<TxIn>,
-    /// Vector of outputs
-    pub output: Vec<TxOut>,
+impl AssetIssuance {
+    pub fn encoded_length(&self) -> usize {
+        match self {
+            AssetIssuance::Null(inner) => inner.encoded_length(),
+            AssetIssuance::Explicit(inner) => inner.encoded_length(),
+            AssetIssuance::Confidential(inner) => inner.encoded_length(),
+        }
+    }
 }
 
-impl Transaction {
-    /// Whether the transaction is a coinbase tx
-    pub fn is_coinbase(&self) -> bool {
-        self.input.len() == 1 && self.input[0].is_coinbase()
+impl ExplicitAssetIssuance {
+    pub fn encoded_length(&self) -> usize {
+        32 + 32 + self.amount.encoded_length() + self.inflation_keys.encoded_length()
+    }
+}
+
+impl ConfidentialAssetIssuance {
+    pub fn encoded_length(&self) -> usize {
+        32 + 32
+            + self.amount.encoded_length()
+            + match self.inflation_keys {
+                Some(keys) => keys.encoded_length(),
+                None => 1,
+            }
+    }
+}
+
+impl NullAssetIssuance {
+    pub fn encoded_length(&self) -> usize {
+        32 + 32 + 1 + 1
+    }
+}
+
+impl TxInWitness {
+    /// Whether this witness is null
+    pub fn is_empty(&self) -> bool {
+        self.amount_rangeproof.is_empty()
+            && self.inflation_keys_rangeproof.is_empty()
+            && self.script_witness.is_empty()
+            && self.pegin_witness.is_empty()
     }
 
-    /// Determines whether a transaction has any non-null witnesses
-    pub fn has_witness(&self) -> bool {
-        self.input.iter().any(|i| !i.witness.is_empty())
-            || self.output.iter().any(|o| o.has_witness())
+    pub fn encoded_length(&self) -> usize {
+        let amount_rp_len = self.amount_rangeproof.len();
+        let inflation_keys_rp_len = self.inflation_keys_rangeproof.len();
+        let script_w = &self.script_witness;
+        let pegin_w = &self.pegin_witness;
+
+        let amount_enc_length = VarInt(amount_rp_len as u64).len() as usize + amount_rp_len;
+        let inflation_keys_enc_length =
+            VarInt(inflation_keys_rp_len as u64).len() as usize + inflation_keys_rp_len;
+        let script_w_enc_length = VarInt(script_w.len() as u64).len() as usize
+            + script_w
+                .iter()
+                .map(|wit| VarInt(wit.len() as u64).len() as usize + wit.len())
+                .sum::<usize>();
+        let pegin_w_enc_length = VarInt(pegin_w.len() as u64).len() as usize
+            + pegin_w
+                .iter()
+                .map(|wit| VarInt(wit.len() as u64).len() as usize + wit.len())
+                .sum::<usize>();
+
+        amount_enc_length + inflation_keys_enc_length + script_w_enc_length + pegin_w_enc_length
     }
+}
 
-    /// Get the "weight" of this transaction; roughly equivalent to BIP141, in that witness data is
-    /// counted as 1 while non-witness data is counted as 4.
-    pub fn get_weight(&self) -> usize {
-        self.get_scaled_size(4)
+impl Default for AssetIssuance {
+    fn default() -> Self {
+        Self::Null(NullAssetIssuance::default())
     }
+}
 
-    /// Gets the regular byte-wise consensus-serialized size of this transaction.
-    pub fn get_size(&self) -> usize {
-        self.get_scaled_size(1)
+impl Encodable for ExplicitAssetIssuance {
+    fn consensus_encode<S: io::Write>(&self, mut s: S) -> Result<usize, encode::Error> {
+        Ok(self.asset_blinding_nonce.consensus_encode(&mut s)?
+            + self.asset_entropy.consensus_encode(&mut s)?
+            + self.amount.consensus_encode(&mut s)?
+            + self.inflation_keys.consensus_encode(&mut s)?)
     }
+}
 
-    fn get_scaled_size(&self, scale_factor: usize) -> usize {
-        let witness_flag = self.has_witness();
-
-        let input_weight = self
-            .input
-            .iter()
-            .map(|input| {
-                scale_factor
-                    * (32 + 4 + 4 + // output + nSequence
-                VarInt(input.script_sig.len() as u64).len() as usize +
-                input.script_sig.len() + if input.has_issuance() {
-                    input.asset_issuance.encoded_length()
-                } else {
-                    0
-                }) + if witness_flag {
-                    input.witness.encoded_length()
-                } else {
-                    0
-                }
+impl Encodable for ConfidentialAssetIssuance {
+    fn consensus_encode<S: io::Write>(&self, mut s: S) -> Result<usize, encode::Error> {
+        Ok(self.asset_blinding_nonce.consensus_encode(&mut s)?
+            + self.asset_entropy.consensus_encode(&mut s)?
+            + self.amount.consensus_encode(&mut s)?
+            + match self.inflation_keys {
+                Some(keys) => keys.consensus_encode(&mut s)?,
+                None => 0u8.consensus_encode(&mut s)?,
             })
-            .sum::<usize>();
-
-        let output_weight = self
-            .output
-            .iter()
-            .map(|output| {
-                scale_factor * output.encoded_length()
-                    + if witness_flag {
-                        output.witness_length()
-                    } else {
-                        0
-                    }
-            })
-            .sum::<usize>();
-
-        scale_factor
-            * (
-                4 + // version
-            4 + // locktime
-            VarInt(self.input.len() as u64).len() as usize +
-            VarInt(self.output.len() as u64).len() as usize +
-            1
-                // segwit flag byte (note this is *not* witness data in Elements)
-            )
-            + input_weight
-            + output_weight
     }
+}
 
-    /// The txid of the transaction.
-    pub fn txid(&self) -> bitcoin::Txid {
-        let mut enc = bitcoin::Txid::engine();
-        self.version.consensus_encode(&mut enc).unwrap();
-        0u8.consensus_encode(&mut enc).unwrap();
-        self.input.consensus_encode(&mut enc).unwrap();
-        self.output.consensus_encode(&mut enc).unwrap();
-        self.lock_time.consensus_encode(&mut enc).unwrap();
-        bitcoin::Txid::from_engine(enc)
+impl Encodable for NullAssetIssuance {
+    fn consensus_encode<S: io::Write>(&self, mut s: S) -> Result<usize, encode::Error> {
+        Ok(self.asset_blinding_nonce.consensus_encode(&mut s)?
+            + self.asset_entropy.consensus_encode(&mut s)?
+            + 0u8.consensus_encode(&mut s)?
+            + 0u8.consensus_encode(&mut s)?)
     }
+}
 
-    /// Get the witness txid of the transaction.
-    pub fn wtxid(&self) -> bitcoin::Wtxid {
-        let mut enc = Txid::engine();
-        self.consensus_encode(&mut enc).unwrap();
-        bitcoin::Wtxid::from_engine(enc)
-    }
-
-    /// Get the total transaction fee in the given asset.
-    pub fn fee_in(&self, asset: AssetId) -> u64 {
-        // is_fee checks for explicit asset and value, so we can unwrap them here.
-        self.output
-            .iter()
-            .filter(|o| o.is_fee())
-            .filter_map(|o| o.as_explicit())
-            .filter(|e| e.asset.0 == asset)
-            .map(|o| o.value.0)
-            .sum()
-    }
-
-    /// Get all fees in all assets.
-    pub fn all_fees(&self) -> HashMap<AssetId, u64> {
-        let mut fees = HashMap::new();
-        for out in self
-            .output
-            .iter()
-            .filter(|o| o.is_fee())
-            .filter_map(|o| o.as_explicit())
-        {
-            // is_fee checks for explicit asset and value, so we can unwrap them here.
-            let asset = out.asset.0;
-            let entry = fees.entry(asset).or_insert(0);
-            *entry += out.value.0;
+impl Encodable for AssetIssuance {
+    fn consensus_encode<S: io::Write>(&self, mut s: S) -> Result<usize, encode::Error> {
+        match self {
+            AssetIssuance::Confidential(inner) => inner.consensus_encode(&mut s),
+            AssetIssuance::Explicit(inner) => inner.consensus_encode(&mut s),
+            AssetIssuance::Null(inner) => inner.consensus_encode(&mut s),
         }
-        fees
+    }
+}
+
+impl Decodable for AssetIssuance {
+    fn consensus_decode<D: io::BufRead>(mut d: D) -> Result<Self, Error> {
+        let asset_blinding_nonce = Decodable::consensus_decode(&mut d)?;
+        let asset_entropy = Decodable::consensus_decode(&mut d)?;
+
+        let buffer = d.fill_buf()?;
+
+        Ok(match buffer[0] {
+            0 => {
+                let amount_tag = u8::consensus_decode(&mut d)?;
+                debug_assert_eq!(amount_tag, 0);
+
+                let keys_tag = u8::consensus_decode(&mut d)?;
+                debug_assert_eq!(keys_tag, 0);
+
+                AssetIssuance::Null(NullAssetIssuance {
+                    asset_blinding_nonce,
+                    asset_entropy,
+                })
+            }
+            1 => AssetIssuance::Explicit(ExplicitAssetIssuance {
+                asset_blinding_nonce,
+                asset_entropy,
+                amount: Decodable::consensus_decode(&mut d)?,
+                inflation_keys: Decodable::consensus_decode(&mut d)?,
+            }),
+            _ => AssetIssuance::Confidential(ConfidentialAssetIssuance {
+                asset_blinding_nonce,
+                asset_entropy,
+                amount: Decodable::consensus_decode(&mut d)?,
+                inflation_keys: {
+                    let buffer = d.fill_buf()?;
+
+                    if buffer[0] == 0 {
+                        d.consume(1);
+                        None
+                    } else {
+                        Some(Decodable::consensus_decode(&mut d)?)
+                    }
+                },
+            }),
+        })
+    }
+}
+
+impl Default for OutPoint {
+    /// Coinbase outpoint
+    fn default() -> OutPoint {
+        OutPoint {
+            txid: Txid::default(),
+            vout: 0xffffffff,
+        }
+    }
+}
+
+impl Encodable for OutPoint {
+    fn consensus_encode<S: io::Write>(&self, mut s: S) -> Result<usize, encode::Error> {
+        Ok(self.txid.consensus_encode(&mut s)? + self.vout.consensus_encode(&mut s)?)
+    }
+}
+
+impl Decodable for OutPoint {
+    fn consensus_decode<D: io::BufRead>(mut d: D) -> Result<OutPoint, encode::Error> {
+        let txid = Txid::consensus_decode(&mut d)?;
+        let vout = u32::consensus_decode(&mut d)?;
+        Ok(OutPoint { txid, vout })
+    }
+}
+
+impl fmt::Display for OutPoint {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        f.write_str("[elements]")?;
+        write!(f, "{}:{}", self.txid, self.vout)
+    }
+}
+
+impl ::std::str::FromStr for OutPoint {
+    type Err = bitcoin::blockdata::transaction::ParseOutPointError;
+    fn from_str(mut s: &str) -> Result<Self, Self::Err> {
+        if s.starts_with("[elements]") {
+            s = &s[10..];
+        }
+        let bitcoin_outpoint = bitcoin::OutPoint::from_str(s)?;
+        Ok(OutPoint {
+            txid: bitcoin_outpoint.txid,
+            vout: bitcoin_outpoint.vout,
+        })
+    }
+}
+
+impl_consensus_encoding!(
+    TxInWitness,
+    amount_rangeproof,
+    inflation_keys_rangeproof,
+    script_witness,
+    pegin_witness
+);
+
+impl Encodable for TxIn {
+    fn consensus_encode<S: io::Write>(&self, mut s: S) -> Result<usize, encode::Error> {
+        let mut ret = 0;
+        let mut vout = self.previous_output.vout;
+        if self.is_pegin {
+            vout |= 1 << 30;
+        }
+        if self.has_issuance {
+            vout |= 1 << 31;
+        }
+        ret += self.previous_output.txid.consensus_encode(&mut s)?;
+        ret += vout.consensus_encode(&mut s)?;
+        ret += self.script_sig.consensus_encode(&mut s)?;
+        ret += self.sequence.consensus_encode(&mut s)?;
+        if self.has_issuance() {
+            ret += self.asset_issuance.consensus_encode(&mut s)?;
+        }
+        Ok(ret)
+    }
+}
+
+impl Decodable for TxIn {
+    fn consensus_decode<D: io::BufRead>(mut d: D) -> Result<TxIn, encode::Error> {
+        let mut outp = OutPoint::consensus_decode(&mut d)?;
+        let script_sig = Script::consensus_decode(&mut d)?;
+        let sequence = u32::consensus_decode(&mut d)?;
+        let issuance;
+        let is_pegin;
+        let has_issuance;
+        // Pegin/issuance flags are encoded into the high bits of `vout`, *except*
+        // if vout is all 1's; this indicates a coinbase transaction
+        if outp.vout == 0xffffffff {
+            is_pegin = false;
+            has_issuance = false;
+        } else {
+            is_pegin = outp.vout & (1 << 30) != 0;
+            has_issuance = outp.vout & (1 << 31) != 0;
+            outp.vout &= !((1 << 30) | (1 << 31));
+        }
+        if has_issuance {
+            issuance = AssetIssuance::consensus_decode(&mut d)?;
+        } else {
+            issuance = AssetIssuance::default();
+        }
+        Ok(TxIn {
+            previous_output: outp,
+            is_pegin,
+            has_issuance,
+            script_sig,
+            sequence,
+            asset_issuance: issuance,
+            witness: TxInWitness::default(),
+        })
+    }
+}
+
+impl_consensus_encoding!(TxOutWitness, surjection_proof, rangeproof);
+
+impl TxOutWitness {
+    /// Whether this witness is null
+    pub fn is_empty(&self) -> bool {
+        self.surjection_proof.is_empty() && self.rangeproof.is_empty()
+    }
+
+    pub fn encoded_length(&self) -> usize {
+        let sp_len = self.surjection_proof.len();
+        let rp_len = self.rangeproof.len();
+
+        let sp_enc_length = VarInt(sp_len as u64).len() + sp_len;
+        let rp_enc_length = VarInt(rp_len as u64).len() + rp_len;
+
+        sp_enc_length + rp_enc_length
+    }
+}
+
+impl NullTxOut {
+    pub fn encoded_length(&self) -> usize {
+        1 + 1
+            + 1
+            + VarInt(self.script_pubkey.len() as u64).len() as usize
+            + self.script_pubkey.len()
+    }
+}
+
+impl Encodable for NullTxOut {
+    fn consensus_encode<S: io::Write>(&self, mut s: S) -> Result<usize, encode::Error> {
+        Ok(0u8.consensus_encode(&mut s)?
+            + 0u8.consensus_encode(&mut s)?
+            + 0u8.consensus_encode(&mut s)?
+            + self.script_pubkey.consensus_encode(&mut s)?)
+    }
+}
+
+impl Decodable for NullTxOut {
+    fn consensus_decode<D: io::BufRead>(mut d: D) -> Result<NullTxOut, encode::Error> {
+        let asset_tag = u8::consensus_decode(&mut d)?;
+        let value_tag = u8::consensus_decode(&mut d)?;
+        let nonce_tag = u8::consensus_decode(&mut d)?;
+
+        debug_assert_eq!(asset_tag, 0);
+        debug_assert_eq!(value_tag, 0);
+        debug_assert_eq!(nonce_tag, 0);
+
+        Ok(NullTxOut {
+            script_pubkey: Decodable::consensus_decode(&mut d)?,
+        })
+    }
+}
+
+impl ExplicitTxOut {
+    pub fn encoded_length(&self) -> usize {
+        self.asset.encoded_length()
+            + self.value.encoded_length()
+            + 1 // nonce
+            + VarInt(self.script_pubkey.len() as u64).len() as usize
+            + self.script_pubkey.len()
+    }
+}
+
+impl ExplicitValue {
+    pub fn encoded_length(&self) -> usize {
+        9
+    }
+}
+
+impl Encodable for ExplicitValue {
+    fn consensus_encode<W: io::Write>(&self, mut e: W) -> Result<usize, Error> {
+        Ok(1u8.consensus_encode(&mut e)? + self.0.swap_bytes().consensus_encode(&mut e)?)
+    }
+}
+
+impl Decodable for ExplicitValue {
+    fn consensus_decode<D: io::BufRead>(mut d: D) -> Result<Self, Error> {
+        let value_tag = u8::consensus_decode(&mut d)?;
+        debug_assert_eq!(value_tag, 1);
+
+        let value = u64::consensus_decode(&mut d)?.swap_bytes();
+
+        Ok(ExplicitValue(value))
+    }
+}
+
+impl ExplicitAsset {
+    pub fn encoded_length(&self) -> usize {
+        33
+    }
+}
+
+impl Encodable for ExplicitAsset {
+    fn consensus_encode<W: io::Write>(&self, mut e: W) -> Result<usize, Error> {
+        Ok(1u8.consensus_encode(&mut e)? + self.0.consensus_encode(&mut e)?)
+    }
+}
+
+impl Decodable for ExplicitAsset {
+    fn consensus_decode<D: io::BufRead>(mut d: D) -> Result<Self, Error> {
+        let asset_tag = u8::consensus_decode(&mut d)?;
+        debug_assert_eq!(asset_tag, 1); // TODO: replace this with returning an error
+
+        let value = Decodable::consensus_decode(&mut d)?;
+
+        Ok(ExplicitAsset(value))
+    }
+}
+
+impl ConfidentialTxOut {
+    pub fn encoded_length(&self) -> usize {
+        self.asset.encoded_length()
+            + self.value.encoded_length()
+            + self.nonce.map(|n| n.encoded_length()).unwrap_or(1)
+            + VarInt(self.script_pubkey.len() as u64).len() as usize
+            + self.script_pubkey.len()
+    }
+
+    pub fn unblind(&self, blinding_key: SecretKey) -> Result<UnblindedTxOut, UnblindError> {
+        let sender_ephemeral_pk = self.nonce.ok_or(UnblindError::MissingNonce)?.commitment();
+        let sender_ephemeral_pk = PublicKey::from_slice(&sender_ephemeral_pk)
+            .map_err(|_| UnblindError::InvalidPublicKey)?;
+
+        let (unblinded_asset, abf, vbf, value_out) = asset_unblind(
+            sender_ephemeral_pk,
+            blinding_key,
+            &self.witness.rangeproof,
+            self.value,
+            &self.script_pubkey,
+            self.asset,
+        )
+        .map_err(|_| UnblindError::Wally)?;
+
+        Ok(UnblindedTxOut {
+            asset: unblinded_asset,
+            asset_blinding_factor: abf,
+            value_blinding_factor: vbf,
+            value: value_out,
+        })
+    }
+}
+
+#[derive(Debug)]
+pub struct UnblindedTxOut {
+    pub asset: AssetId,
+    pub value: u64,
+    pub asset_blinding_factor: AssetBlindingFactor,
+    pub value_blinding_factor: ValueBlindingFactor,
+}
+
+#[derive(Debug)]
+pub enum UnblindError {
+    MissingNonce,
+    InvalidPublicKey,
+    Wally,
+}
+
+impl fmt::Display for UnblindError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
+        match self {
+            UnblindError::MissingNonce => write!(f, "no nonce in txout"),
+            UnblindError::InvalidPublicKey => write!(f, "failed to create public key from nonce"),
+            UnblindError::Wally => write!(f, "libwally error"),
+        }
+    }
+}
+
+// TODO: Implement source
+impl std::error::Error for UnblindError {}
+
+impl Encodable for TxOut {
+    fn consensus_encode<S: io::Write>(&self, mut s: S) -> Result<usize, encode::Error> {
+        Ok(match self {
+            Self::Null(inner) => inner.consensus_encode(&mut s)?,
+            Self::Confidential(inner) => inner.consensus_encode(&mut s)?,
+            Self::Explicit(inner) => inner.consensus_encode(&mut s)?,
+        })
+    }
+}
+
+impl Encodable for ConfidentialTxOut {
+    fn consensus_encode<S: io::Write>(&self, mut s: S) -> Result<usize, encode::Error> {
+        Ok(self.asset.consensus_encode(&mut s)?
+            + self.value.consensus_encode(&mut s)?
+            + match self.nonce {
+                Some(nonce) => nonce.consensus_encode(&mut s)?,
+                None => 0u8.consensus_encode(&mut s)?,
+            }
+            + self.script_pubkey.consensus_encode(&mut s)?)
+    }
+}
+
+impl Decodable for ConfidentialTxOut {
+    fn consensus_decode<D: io::BufRead>(mut d: D) -> Result<Self, Error> {
+        let asset = Decodable::consensus_decode(&mut d)?;
+        let value = Decodable::consensus_decode(&mut d)?;
+        let buffer = d.fill_buf()?;
+
+        let nonce = if buffer[0] == 0 {
+            d.consume(1); // consume the zero from the buffer
+            None
+        } else {
+            Some(Decodable::consensus_decode(&mut d)?)
+        };
+
+        Ok(ConfidentialTxOut {
+            asset,
+            value,
+            nonce,
+            script_pubkey: Decodable::consensus_decode(&mut d)?,
+            witness: TxOutWitness::default(),
+        })
+    }
+}
+
+impl Encodable for ExplicitTxOut {
+    fn consensus_encode<S: io::Write>(&self, mut s: S) -> Result<usize, encode::Error> {
+        Ok(self.asset.consensus_encode(&mut s)?
+            + self.value.consensus_encode(&mut s)?
+            + 0u8.consensus_encode(&mut s)? // nonce
+            + self.script_pubkey.consensus_encode(&mut s)?)
+    }
+}
+
+impl Decodable for ExplicitTxOut {
+    fn consensus_decode<D: io::BufRead>(mut d: D) -> Result<Self, Error> {
+        let asset = Decodable::consensus_decode(&mut d)?;
+        let value = Decodable::consensus_decode(&mut d)?;
+        let nonce_tag = u8::consensus_decode(&mut d)?;
+        debug_assert_eq!(nonce_tag, 0);
+        let script_pubkey = Decodable::consensus_decode(&mut d)?;
+
+        Ok(ExplicitTxOut {
+            asset,
+            value,
+            script_pubkey,
+        })
+    }
+}
+
+impl Decodable for TxOut {
+    fn consensus_decode<D: io::BufRead>(mut d: D) -> Result<TxOut, encode::Error> {
+        let buffer = d.fill_buf()?;
+
+        Ok(match buffer[0] {
+            0 => TxOut::Null(Decodable::consensus_decode(&mut d)?),
+            1 => TxOut::Explicit(Decodable::consensus_decode(&mut d)?),
+            _ => TxOut::Confidential(Decodable::consensus_decode(&mut d)?),
+        })
     }
 }
 
@@ -2093,22 +2267,23 @@ mod tests {
             .unwrap();
         assert_eq!(tx.fee_in(fee_asset), 56400);
         assert_eq!(tx.all_fees()[&fee_asset], 56400);
-        // assert_eq!(
-        //     tx.input[0].asset_issuance,
-        //     AssetIssuance {
-        //         asset_blinding_nonce: [0; 32],
-        //         asset_entropy: [0; 32],
-        //         amount: confidential::Value::Confidential(
-        //             9,
-        //             [
-        //                 0x81, 0x65, 0x4e, 0xb5, 0xcc, 0xd9, 0x92, 0x7b, 0x8b, 0xea, 0x94, 0x99,
-        //                 0x7d, 0xce, 0x4a, 0xe8, 0x5b, 0x3d, 0x95, 0xa2, 0x07, 0x00, 0x38, 0x4f,
-        //                 0x0b, 0x8c, 0x1f, 0xe9, 0x95, 0x18, 0x06, 0x38
-        //             ],
-        //         ),
-        //         inflation_keys: confidential::Value::Null,
-        //     }
-        // );
+        assert_eq!(
+            tx.input[0].asset_issuance,
+            AssetIssuance::Confidential(ConfidentialAssetIssuance {
+                asset_blinding_nonce: [0; 32],
+                asset_entropy: [0; 32],
+                amount: ValueCommitment::from_commitment(
+                    9,
+                    &[
+                        0x81, 0x65, 0x4e, 0xb5, 0xcc, 0xd9, 0x92, 0x7b, 0x8b, 0xea, 0x94, 0x99,
+                        0x7d, 0xce, 0x4a, 0xe8, 0x5b, 0x3d, 0x95, 0xa2, 0x07, 0x00, 0x38, 0x4f,
+                        0x0b, 0x8c, 0x1f, 0xe9, 0x95, 0x18, 0x06, 0x38
+                    ],
+                )
+                .unwrap(),
+                inflation_keys: None,
+            })
+        );
     }
 
     #[test]
