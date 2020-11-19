@@ -14,14 +14,13 @@
 
 //! Asset Issuance
 
-use std::io;
-use std::str::FromStr;
-
+use crate::{
+    encode::{self, Decodable, Encodable},
+    fast_merkle_root::fast_merkle_root,
+    transaction::OutPoint,
+};
 use bitcoin::hashes::{self, hex, sha256, sha256d, Hash};
-
-use crate::encode::{self, Decodable, Encodable};
-use crate::fast_merkle_root::fast_merkle_root;
-use crate::transaction::OutPoint;
+use std::{io, str::FromStr};
 
 /// The zero hash.
 const ZERO32: [u8; 32] = [
@@ -260,8 +259,7 @@ mod test {
     use super::*;
     use std::str::FromStr;
 
-    use bitcoin::hashes::hex::FromHex;
-    use bitcoin::hashes::sha256;
+    use bitcoin::hashes::{hex::FromHex, sha256};
 
     #[test]
     fn example_elements_core() {

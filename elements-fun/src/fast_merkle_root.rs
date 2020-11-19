@@ -91,8 +91,7 @@ pub fn fast_merkle_root(leaves: &[[u8; 32]]) -> sha256::Midstate {
 #[cfg(test)]
 mod tests {
     use super::fast_merkle_root;
-    use bitcoin::hashes::hex::FromHex;
-    use bitcoin::hashes::sha256;
+    use bitcoin::hashes::{hex::FromHex, sha256};
 
     #[test]
     fn test_fast_merkle_root() {

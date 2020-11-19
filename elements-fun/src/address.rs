@@ -15,20 +15,15 @@
 //! # Addresses
 //!
 
-use std::error;
-use std::fmt;
-use std::str::FromStr;
-
-// AsciiExt is needed until for Rust 1.26 but not for newer versions
-#[allow(unused_imports, deprecated)]
-use std::ascii::AsciiExt;
-
-use bitcoin::bech32::{self, u5, FromBase32, ToBase32};
-use bitcoin::blockdata::{opcodes, script};
-use bitcoin::hashes::Hash;
-use bitcoin::secp256k1;
-use bitcoin::util::base58;
-use bitcoin::PublicKey;
+use bitcoin::{
+    bech32::{self, u5, FromBase32, ToBase32},
+    blockdata::{opcodes, script},
+    hashes::Hash,
+    secp256k1,
+    util::base58,
+    PublicKey,
+};
+use std::{error, fmt, str::FromStr};
 
 /// Encoding error
 #[derive(Debug, PartialEq)]
@@ -666,9 +661,11 @@ impl serde::Serialize for Address {
 #[cfg(test)]
 mod test {
     use super::*;
-    use bitcoin::secp256k1::{PublicKey, Secp256k1};
-    use bitcoin::util::key;
-    use bitcoin::Script;
+    use bitcoin::{
+        secp256k1::{PublicKey, Secp256k1},
+        util::key,
+        Script,
+    };
 
     fn roundtrips(addr: &Address) {
         assert_eq!(

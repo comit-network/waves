@@ -2,23 +2,24 @@
 //! Links to libwally methods used.
 //!
 
-use crate::bitcoin::secp256k1;
-use crate::{bitcoin, AssetId};
-use std::ptr;
-
-use std::fmt;
-
-use bitcoin::hashes::{sha256d, Hash};
-
-use crate::confidential::{
-    AssetBlindingFactor, AssetCommitment, ValueBlindingFactor, ValueCommitment,
+use crate::{
+    bitcoin,
+    bitcoin::secp256k1,
+    confidential::{AssetBlindingFactor, AssetCommitment, ValueBlindingFactor, ValueCommitment},
+    encode::Encodable,
+    AssetId,
 };
-use crate::encode::Encodable;
-use bitcoin::secp256k1::rand::CryptoRng;
-use bitcoin::secp256k1::rand::RngCore;
-use std::borrow::Cow;
-use std::ffi::{CStr, CString};
-use std::os::raw::c_char;
+use bitcoin::{
+    hashes::{sha256d, Hash},
+    secp256k1::rand::{CryptoRng, RngCore},
+};
+use std::{
+    borrow::Cow,
+    ffi::{CStr, CString},
+    fmt,
+    os::raw::c_char,
+    ptr,
+};
 use wally_sys as ffi;
 
 #[derive(Clone)]
@@ -543,8 +544,7 @@ pub fn read_str(s: *const c_char) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use bitcoin::secp256k1;
-    use bitcoin::Script;
+    use bitcoin::{secp256k1, Script};
 
     use crate::transaction::ExplicitValue;
     use hex::FromHex;

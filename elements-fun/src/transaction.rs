@@ -15,28 +15,29 @@
 //! # Transactions
 //!
 
-use std::collections::HashMap;
-use std::{fmt, io};
-
-use bitcoin::blockdata::opcodes;
-use bitcoin::blockdata::script::{Instruction, Script};
-use bitcoin::hashes::Hash;
-use bitcoin::secp256k1::rand::CryptoRng;
-use bitcoin::secp256k1::rand::RngCore;
-use bitcoin::secp256k1::Secp256k1;
-use bitcoin::secp256k1::SecretKey;
-use bitcoin::secp256k1::{PublicKey, Signing};
-use bitcoin::{self, Txid, VarInt};
-
-use crate::confidential::Nonce;
-use crate::confidential::ValueCommitment;
-use crate::confidential::{AssetBlindingFactor, AssetCommitment, ValueBlindingFactor};
-use crate::encode::{self, Decodable, Encodable, Error};
-use crate::issuance::AssetId;
-use crate::wally::asset_rangeproof;
-use crate::wally::asset_surjectionproof;
-use crate::wally::asset_unblind;
-use crate::Address;
+use crate::{
+    confidential::{
+        AssetBlindingFactor, AssetCommitment, Nonce, ValueBlindingFactor, ValueCommitment,
+    },
+    encode::{self, Decodable, Encodable, Error},
+    issuance::AssetId,
+    wally::{asset_rangeproof, asset_surjectionproof, asset_unblind},
+    Address,
+};
+use bitcoin::{
+    self,
+    blockdata::{
+        opcodes,
+        script::{Instruction, Script},
+    },
+    hashes::Hash,
+    secp256k1::{
+        rand::{CryptoRng, RngCore},
+        PublicKey, Secp256k1, SecretKey, Signing,
+    },
+    Txid, VarInt,
+};
+use std::{collections::HashMap, fmt, io};
 
 /// Elements transaction
 #[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
