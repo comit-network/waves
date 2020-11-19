@@ -1,10 +1,9 @@
-
 extern crate elements;
 
 fn do_test(data: &[u8]) {
     let result: Result<elements::TxOut, _> = elements::encode::deserialize(data);
     match result {
-        Err(_) => {},
+        Err(_) => {}
         Ok(output) => {
             let reser = elements::encode::serialize(&output);
             assert_eq!(data, &reser[..]);
@@ -14,7 +13,7 @@ fn do_test(data: &[u8]) {
             output.pegout_data();
             output.is_fee();
             output.minimum_value();
-        },
+        }
     }
 }
 
@@ -28,7 +27,8 @@ fn main() {
 }
 
 #[cfg(feature = "honggfuzz")]
-#[macro_use] extern crate honggfuzz;
+#[macro_use]
+extern crate honggfuzz;
 #[cfg(feature = "honggfuzz")]
 fn main() {
     loop {

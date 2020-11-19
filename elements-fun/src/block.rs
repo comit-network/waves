@@ -15,19 +15,22 @@
 //! # Blocks
 //!
 
+use crate::{
+    dynafed,
+    encode::{self, serialize, Decodable, Encodable},
+    Transaction,
+};
+use bitcoin::{
+    blockdata::script::Script,
+    hashes::{sha256, Hash},
+    BlockHash, VarInt,
+};
 use std::io;
 
-use bitcoin::blockdata::script::Script;
-use bitcoin::hashes::{sha256, Hash};
-use bitcoin::{BlockHash, VarInt};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 #[cfg(feature = "serde")]
 use std::fmt;
-
-use crate::dynafed;
-use crate::encode::{self, serialize, Decodable, Encodable};
-use crate::Transaction;
 
 /// Data related to block signatures
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]

@@ -464,8 +464,10 @@ mod tests {
         states::{Alice0, Bob0},
     };
     use anyhow::Result;
-    use elements_fun::bitcoin::{Network, PrivateKey, PublicKey, Txid};
-    use elements_fun::encode::serialize_hex;
+    use elements_fun::{
+        bitcoin::{Network, PrivateKey, PublicKey, Txid},
+        encode::serialize_hex,
+    };
     use elements_harness::{elementd_rpc::ElementsRpc, Client, Elementsd};
     use rand::thread_rng;
     use secp256k1::{Message, SecretKey, SECP256K1};

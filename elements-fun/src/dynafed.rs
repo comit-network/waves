@@ -14,15 +14,14 @@
 
 //! Dynamic Federations
 
+use crate::encode::{self, Decodable, Encodable};
+use bitcoin::hashes::{sha256, sha256d, Hash};
 use std::io;
 
-use bitcoin::hashes::{sha256, sha256d, Hash};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 #[cfg(feature = "serde")]
 use std::fmt;
-
-use crate::encode::{self, Decodable, Encodable};
 
 /// Dynamic federations paramaters, as encoded in a block header
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
@@ -488,9 +487,7 @@ impl Decodable for Params {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    use bitcoin::hashes::hex::ToHex;
-    use bitcoin::hashes::sha256;
+    use bitcoin::hashes::{hex::ToHex, sha256};
 
     #[test]
     fn test_param_roots() {

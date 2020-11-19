@@ -25,7 +25,6 @@
 #![deny(unused_mut)]
 // #![deny(missing_docs)]
 
-pub use bitcoin;
 #[macro_use]
 pub extern crate bitcoin_hashes;
 
@@ -49,8 +48,8 @@ pub mod wally;
 // export everything at the top level so it can be used as `elements::Transaction` etc.
 pub use ::bitcoin::consensus::encode::VarInt;
 pub use address::{Address, AddressError, AddressParams};
-pub use block::ExtData as BlockExtData;
-pub use block::{Block, BlockHeader};
+pub use bitcoin;
+pub use block::{Block, BlockHeader, ExtData as BlockExtData};
 pub use fast_merkle_root::fast_merkle_root;
 pub use issuance::{AssetId, ContractHash};
 pub use transaction::{

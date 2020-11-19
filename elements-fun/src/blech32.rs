@@ -40,13 +40,8 @@
 
 // Original documentation is left untouched, so it corresponds to bech32.
 
-use std::fmt;
-
-// AsciiExt is needed until for Rust 1.26 but not for newer versions
-#[allow(unused_imports, deprecated)]
-use std::ascii::AsciiExt;
-
 use bitcoin::bech32::{u5, Error};
+use std::fmt;
 
 /// Encode a bech32 payload to an [fmt::Formatter].
 pub fn encode_to_fmt<T: AsRef<[u5]>>(fmt: &mut fmt::Formatter, hrp: &str, data: T) -> fmt::Result {
@@ -235,7 +230,6 @@ const GEN: [u64; 5] = [
 #[cfg(test)]
 mod test {
     use super::*;
-
     use bitcoin::bech32::ToBase32;
 
     #[test]

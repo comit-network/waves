@@ -1,11 +1,9 @@
-use elements_fun::bitcoin::Network::Regtest;
-use elements_fun::bitcoin::PrivateKey;
-use elements_fun::bitcoin::PublicKey;
-use elements_fun::Address;
-use elements_fun::AddressParams;
+use elements_fun::{
+    bitcoin::{Network::Regtest, PrivateKey, PublicKey},
+    Address, AddressParams,
+};
 use rand::thread_rng;
-use secp256k1::SecretKey;
-use secp256k1::SECP256K1;
+use secp256k1::{SecretKey, SECP256K1};
 
 pub mod states;
 
@@ -39,18 +37,21 @@ pub fn make_confidential_address() -> (Address, SecretKey, PublicKey, SecretKey,
 #[cfg(test)]
 mod tests {
     use bitcoin::Amount;
-    use elements_fun::bitcoin::secp256k1::Message;
-    use elements_fun::wally::tx_get_elements_signature_hash;
     use elements_fun::{
         bitcoin::{
             blockdata::{opcodes, script::Builder},
+            secp256k1::Message,
             SigHashType,
         },
         bitcoin_hashes::{hash160, hex::FromHex, Hash},
         encode::serialize_hex,
+        wally::tx_get_elements_signature_hash,
         OutPoint, Transaction, TxIn, TxOut, UnblindedTxOut,
     };
-    use elements_harness::{elementd_rpc::Client, elementd_rpc::ElementsRpc, Elementsd};
+    use elements_harness::{
+        elementd_rpc::{Client, ElementsRpc},
+        Elementsd,
+    };
     use rand::thread_rng;
     use testcontainers::clients::Cli;
 

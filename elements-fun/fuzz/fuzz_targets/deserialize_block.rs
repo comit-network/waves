@@ -1,14 +1,13 @@
-
 extern crate elements;
 
 fn do_test(data: &[u8]) {
     let block_result: Result<elements::Block, _> = elements::encode::deserialize(data);
     match block_result {
-        Err(_) => {},
+        Err(_) => {}
         Ok(block) => {
             let reser = elements::encode::serialize(&block);
             assert_eq!(data, &reser[..]);
-        },
+        }
     }
 }
 
@@ -22,7 +21,8 @@ fn main() {
 }
 
 #[cfg(feature = "honggfuzz")]
-#[macro_use] extern crate honggfuzz;
+#[macro_use]
+extern crate honggfuzz;
 #[cfg(feature = "honggfuzz")]
 fn main() {
     loop {

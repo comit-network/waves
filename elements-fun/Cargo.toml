@@ -1,10 +1,10 @@
 [package]
 name = "elements-fun"
 version = "0.1.0"
-authors = ["CoBloX Team <team@coblox.tech>"]
-description = "Make it fun to work with the elements blockchain!"
-license = "CC0-1.0"
+authors = [ "CoBloX Team <team@coblox.tech>" ]
 edition = "2018"
+license = "CC0-1.0"
+description = "Make it fun to work with the elements blockchain!"
 
 [features]
 default = [ "json-contract" ]
@@ -13,25 +13,19 @@ serde = [
     "bitcoin/use-serde",
     "serde-crate"
 ]
-"fuzztarget" = []
+"fuzztarget" = [ ]
 
 [dependencies]
-bitcoin = { version = "0.25", features = ["rand"] }
-slip21 = "0.2.0"
+bitcoin = { version = "0.25", features = [ "rand" ] }
+bitcoin_hashes = "0.9.0" # While this dependency is included in bitcoin, we need this to use the macros.
 hex = "0.4.2"
 libc = "0.2.69"
-wally-sys = { git= "https://github.com/RCasatta/wally-sys", rev="4a2f6740a18f96e7eeb73f29523757647077a069" }
-
-# While this dependency is included in bitcoin, we need this to use the macros.
-# We should probably try keep this one in sync with the bitcoin version,
-# to avoid requiring two version of bitcoin_hashes.
-bitcoin_hashes = "0.9.0"
-
-# Used for ContractHash::from_json_contract.
+serde-crate = { package = "serde", version = "1", optional = true, features = [ "derive" ] } # Used for ContractHash::from_json_contract.
 serde_json = { version = "1", optional = true }
-serde-crate = { package = "serde", version = "1", optional = true, features = ["derive"] }
+slip21 = "0.2.0"
+wally-sys = { git = "https://github.com/RCasatta/wally-sys", rev = "4a2f6740a18f96e7eeb73f29523757647077a069" }
 
 [dev-dependencies]
 rand = "0.6.5"
-serde_json = "1"
 ryu = "<1.0.5"
+serde_json = "1"

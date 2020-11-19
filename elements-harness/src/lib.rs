@@ -15,12 +15,11 @@
 pub mod elementd_rpc;
 pub mod image;
 
+use crate::image::ElementsCore;
 use reqwest::Url;
-use testcontainers::{clients, Container, Docker};
+use testcontainers::{clients, core::Port, Container, Docker};
 
 pub use crate::elementd_rpc::Client;
-use crate::image::ElementsCore;
-use testcontainers::core::Port;
 
 pub type Result<T> = std::result::Result<T, Error>;
 

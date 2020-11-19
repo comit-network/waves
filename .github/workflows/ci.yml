@@ -20,24 +20,19 @@ jobs:
         with:
           profile: minimal
           override: true
-          components: rustfmt, clippy
+          components: clippy
 
-      - name: Cache ~/.cargo/bin directory
+      - name: Cache dprint
         uses: actions/cache@v1
         with:
-          path: ~/.cargo/bin
-          key: ubuntu-rust-${{ env.RUST_TOOLCHAIN }}-cargo-bin-directory-v1
+          path: ~/.cargo/bin/dprint
+          key: ubuntu-rust-${{ env.RUST_TOOLCHAIN }}-dprint
 
-      - name: Install tomlfmt
-        run: which cargo-tomlfmt || cargo install cargo-tomlfmt
+      - name: Install dprint
+        run: which dprint || cargo install dprint
 
-      - name: Check Cargo.toml formatting
-        run: |
-          cargo tomlfmt -d -p Cargo.toml
-          cargo tomlfmt -d -p elements-harness/Cargo.toml
-
-      - name: Check code formatting
-        run: cargo fmt --all -- --check
+      - name: Check formatting
+        run: dprint check
 
       - name: Run clippy with default features
         run: cargo clippy --workspace --all-targets -- -D warnings

@@ -17,22 +17,20 @@
 //! Structures representing Pedersen commitments of various types
 //!
 
-#[cfg(feature = "serde")]
-use serde::{Deserialize, Deserializer, Serialize, Serializer};
-
+use crate::{
+    encode::{self, Decodable, Encodable},
+    wally::{asset_final_vbf, asset_generator_from_bytes, asset_value_commitment},
+    AssetId,
+};
+use bitcoin::secp256k1::{
+    rand::{CryptoRng, Rng, RngCore},
+    PublicKey, Secp256k1, SecretKey, Signing,
+};
+use hex::{FromHex, FromHexError};
 use std::{fmt, io, iter};
 
-use crate::encode::{self, Decodable, Encodable};
-use crate::wally::asset_final_vbf;
-use crate::wally::asset_generator_from_bytes;
-use crate::wally::asset_value_commitment;
-use crate::AssetId;
-use bitcoin::secp256k1::rand::Rng;
-use bitcoin::secp256k1::rand::{CryptoRng, RngCore};
-use bitcoin::secp256k1::SecretKey;
-use bitcoin::secp256k1::{PublicKey, Secp256k1, Signing};
-use hex::FromHex;
-use hex::FromHexError;
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 // Helper macro to implement various things for the various confidential
 // commitment types
