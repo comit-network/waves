@@ -14,6 +14,8 @@ use crate::confidential::{
     AssetBlindingFactor, AssetCommitment, ValueBlindingFactor, ValueCommitment,
 };
 use crate::encode::Encodable;
+use bitcoin::secp256k1::rand::CryptoRng;
+use bitcoin::secp256k1::rand::RngCore;
 use std::borrow::Cow;
 use std::ffi::{CStr, CString};
 use std::os::raw::c_char;
@@ -460,13 +462,19 @@ pub fn asset_rangeproof(
     rangeproof_buffer[0..(written as usize)].to_vec()
 }
 
-pub fn asset_surjectionproof(
+pub fn asset_surjectionproof<R>(
+    rng: &mut R,
     output_asset: AssetId,
     output_abf: AssetBlindingFactor,
     output_generator: AssetCommitment,
-    entropy: [u8; 32],
     inputs: &[(AssetId, AssetBlindingFactor, AssetCommitment)],
-) -> Vec<u8> {
+) -> Vec<u8>
+where
+    R: RngCore + CryptoRng,
+{
+    let mut entropy = [0u8; 32];
+    rng.fill_bytes(&mut entropy);
+
     let mut proof_size = 0usize;
     let num_inputs = inputs.len();
 
