@@ -23,7 +23,8 @@ libc = "0.2.69"
 serde-crate = { package = "serde", version = "1", optional = true, features = [ "derive" ] } # Used for ContractHash::from_json_contract.
 serde_json = { version = "1", optional = true }
 slip21 = "0.2.0"
-wally-sys = { git = "https://github.com/RCasatta/wally-sys", rev = "4a2f6740a18f96e7eeb73f29523757647077a069" }
+wally-sys = { git = "https://github.com/thomaseizinger/wally-sys", rev = "7f92072" }
+wasm-bindgen = "0.2.68"
 
 [dev-dependencies]
 rand = "0.6.5"

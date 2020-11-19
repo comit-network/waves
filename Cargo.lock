@@ -301,6 +301,7 @@ dependencies = [
  "serde_json",
  "slip21",
  "wally-sys",
+ "wasm-bindgen",
 ]
 
 [[package]]
@@ -1725,7 +1726,7 @@ checksum = "b5a972e5669d67ba988ce3dc826706fb0a8b01471c088cb0b6110b805cc36aed"
 [[package]]
 name = "wally-sys"
 version = "0.1.0"
-source = "git+https://github.com/RCasatta/wally-sys?rev=4a2f6740a18f96e7eeb73f29523757647077a069#4a2f6740a18f96e7eeb73f29523757647077a069"
+source = "git+https://github.com/thomaseizinger/wally-sys?rev=7f92072#7f92072ebb60e575464d82a9887c2b4b5bd80948"
 dependencies = [
  "autotools",
  "bindgen",
