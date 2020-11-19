@@ -3,8 +3,11 @@
 //!
 //! Spec: https://github.com/satoshilabs/slips/blob/master/slip-0077.md
 
-use bitcoin::hashes::{hmac, sha256, sha256d, Hash, HashEngine};
-use bitcoin::{self, secp256k1};
+use bitcoin::{
+    self,
+    hashes::{hmac, sha256, sha256d, Hash, HashEngine},
+    secp256k1,
+};
 
 const SLIP77_DERIVATION: &str = "SLIP-0077";
 
@@ -50,8 +53,7 @@ mod tests {
 
     use std::str::FromStr;
 
-    use bitcoin::hashes::hex::FromHex;
-    use bitcoin::secp256k1::SecretKey;
+    use bitcoin::{hashes::hex::FromHex, secp256k1::SecretKey};
 
     use crate::address::Address;
 
