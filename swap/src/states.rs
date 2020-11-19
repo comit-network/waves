@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result};
 use bitcoin::Amount;
 use elements_fun::{
     bitcoin::{
@@ -125,7 +125,7 @@ impl Alice0 {
                 }
                 Err(_) => false,
             })
-            .ok_or_else(|| anyhow!("wrong redeem_output_alice"))??;
+            .context("wrong redeem_output_alice")??;
 
         let UnblindedTxOut {
             asset: expected_change_asset_id_alice,
@@ -163,7 +163,7 @@ impl Alice0 {
                 }
                 Err(_) => false,
             })
-            .ok_or_else(|| anyhow!("wrong change_output_alice"))??;
+            .context("wrong change_output_alice")??;
 
         // sign yourself and put signature in right spot
         let input_pk_alice = SecpPublicKey::from_secret_key(&secp, &self.input_sk);
@@ -179,7 +179,7 @@ impl Alice0 {
             .input
             .iter()
             .position(|input| input.previous_output == self.input.previous_output)
-            .ok_or_else(|| anyhow!("transaction does not contain input_alice"))?;
+            .context("transaction does not contain input_alice")?;
         transaction.input[input_index_alice].witness.script_witness = {
             let hash = hash160::Hash::hash(&input_pk_alice.serialize());
             let script = Builder::new()
@@ -293,10 +293,10 @@ impl Bob0 {
             .checked_sub(self.redeem_amount_bob)
             .map(|amount| amount.checked_sub(msg.fee))
             .flatten()
-            .ok_or_else(|| anyhow!("alice provided wrong amounts for the asset she's selling"))?;
+            .context("alice provided wrong amounts for the asset she's selling")?;
         let change_amount_bob = Amount::from_sat(amount_in_bob)
             .checked_sub(self.redeem_amount_alice)
-            .ok_or_else(|| anyhow!("alice provided wrong amounts for the asset she's buying"))?;
+            .context("alice provided wrong amounts for the asset she's buying")?;
 
         let input_alice = msg.input;
         let input_bob = self.input.clone();
@@ -390,7 +390,7 @@ impl Bob0 {
             .input
             .iter()
             .position(|input| input.previous_output == self.input.previous_output)
-            .ok_or_else(|| anyhow!("transaction does not contain bob's input"))?;
+            .context("transaction does not contain bob's input")?;
 
         Ok(Bob1 {
             transaction,
@@ -463,7 +463,7 @@ mod tests {
         make_confidential_address,
         states::{Alice0, Bob0},
     };
-    use anyhow::{anyhow, Result};
+    use anyhow::Result;
     use elements_fun::bitcoin::{Network, PrivateKey, PublicKey, Txid};
     use elements_fun::encode::serialize_hex;
     use elements_harness::{elementd_rpc::ElementsRpc, Client, Elementsd};
@@ -737,7 +737,7 @@ mod tests {
             .output
             .iter()
             .position(|output| output.script_pubkey() == &address.script_pubkey())
-            .ok_or_else(|| anyhow!("Tx doesn't pay to address"))?;
+            .context("Tx doesn't pay to address")?;
 
         let outpoint = OutPoint {
             txid: tx.txid(),
