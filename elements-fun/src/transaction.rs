@@ -549,13 +549,7 @@ impl TxOut {
             .map(|(id, _, asset, abf, _)| (id, abf, asset))
             .collect::<Vec<_>>();
 
-        let surjection_proof = asset_surjectionproof(
-            asset,
-            out_abf,
-            out_asset,
-            *SecretKey::new(rng).as_ref(),
-            &inputs,
-        );
+        let surjection_proof = asset_surjectionproof(rng, asset, out_abf, out_asset, &inputs);
 
         let txout = TxOut::Confidential(ConfidentialTxOut {
             asset: out_asset,
@@ -622,13 +616,8 @@ impl TxOut {
             52,
         );
 
-        let surjection_proof = asset_surjectionproof(
-            asset,
-            out_abf,
-            out_asset,
-            *SecretKey::new(rng).as_ref(),
-            &surjection_proof_inputs,
-        );
+        let surjection_proof =
+            asset_surjectionproof(rng, asset, out_abf, out_asset, &surjection_proof_inputs);
 
         let txout = TxOut::Confidential(ConfidentialTxOut {
             asset: out_asset,
