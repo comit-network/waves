@@ -37,10 +37,40 @@ jobs:
       - name: Run clippy with default features
         run: cargo clippy --workspace --all-targets -- -D warnings
 
+  fuzz:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v2
+
+      - name: Install Rust
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          override: true
+
+      - name: Cache honggfuzz
+        uses: actions/cache@v1
+        with:
+          path: ~/.cargo/bin/cargo-honggfuzz
+          key: ubuntu-rust-${{ env.RUST_TOOLCHAIN }}-cargo-honggfuzz
+
+      - name: Install honggfuzz
+        run: which cargo-honggfuzz || cargo install honggfuzz
+
+      - name: Install fuzz dependencies
+        run: |
+          sudo apt-get -qq update
+          sudo apt-get install -y binutils-dev libunwind8-dev
+
+      - name: Fuzz
+        run: |
+          cd ./elements-fun/fuzz
+          ./fuzz.sh
+
   build_test:
     runs-on: ubuntu-latest
     steps:
-
       - name: Checkout sources
         uses: actions/checkout@v2
 

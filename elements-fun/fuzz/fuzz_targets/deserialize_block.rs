@@ -1,11 +1,11 @@
-extern crate elements;
+extern crate elements_fun;
 
 fn do_test(data: &[u8]) {
-    let block_result: Result<elements::Block, _> = elements::encode::deserialize(data);
+    let block_result: Result<elements_fun::Block, _> = elements_fun::encode::deserialize(data);
     match block_result {
         Err(_) => {}
         Ok(block) => {
-            let reser = elements::encode::serialize(&block);
+            let reser = elements_fun::encode::serialize(&block);
             assert_eq!(data, &reser[..]);
         }
     }

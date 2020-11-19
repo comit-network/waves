@@ -1,22 +1,22 @@
-extern crate elements;
+extern crate elements_fun;
 
 fn do_test(data: &[u8]) {
-    let tx_result: Result<elements::Transaction, _> = elements::encode::deserialize(data);
+    let tx_result: Result<elements_fun::Transaction, _> = elements_fun::encode::deserialize(data);
     match tx_result {
         Err(_) => {}
         Ok(mut tx) => {
-            let reser = elements::encode::serialize(&tx);
+            let reser = elements_fun::encode::serialize(&tx);
             assert_eq!(data, &reser[..]);
             let len = reser.len();
             let calculated_weight = tx.get_weight();
             for input in &mut tx.input {
-                input.witness = elements::TxInWitness::default();
+                input.witness = elements_fun::TxInWitness::default();
             }
             for output in &mut tx.output {
-                output.witness = elements::TxOutWitness::default();
+                output.witness = elements_fun::TxOutWitness::default();
             }
             assert_eq!(tx.has_witness(), false);
-            let no_witness_len = elements::encode::serialize(&tx).len();
+            let no_witness_len = elements_fun::encode::serialize(&tx).len();
             assert_eq!(no_witness_len * 3 + len, calculated_weight);
 
             for output in &tx.output {

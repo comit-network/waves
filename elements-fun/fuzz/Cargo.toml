@@ -13,7 +13,7 @@ honggfuzz_fuzz = [ "honggfuzz" ]
 
 [dependencies]
 afl = { version = "0.3", optional = true }
-elements = { path = "..", features = [ "fuzztarget", "serde" ] }
+elements-fun = { path = "..", features = [ "fuzztarget", "serde" ] }
 honggfuzz = { version = "0.5", optional = true }
 
 [workspace]
