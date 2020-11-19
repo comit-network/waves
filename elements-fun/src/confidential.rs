@@ -49,7 +49,10 @@ macro_rules! impl_confidential_commitment {
                 }
 
                 if !Self::is_valid_prefix(tag) {
-                    return Err(encode::Error::InvalidConfidentialPrefix(tag));
+                    return Err(encode::Error::InvalidTag {
+                        expected: $prefixA,
+                        got: tag,
+                    });
                 }
                 let mut commitment = [0u8; 33];
                 commitment[0] = tag;

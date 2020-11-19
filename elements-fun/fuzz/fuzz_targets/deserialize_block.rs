@@ -1,12 +1,14 @@
-extern crate elements;
+extern crate elements_fun;
 
 fn do_test(data: &[u8]) {
-    let block_result: Result<elements::Block, _> = elements::encode::deserialize(data);
+    let block_result: Result<elements_fun::Block, _> = elements_fun::encode::deserialize(data);
     match block_result {
         Err(_) => {}
         Ok(block) => {
-            let reser = elements::encode::serialize(&block);
-            assert_eq!(data, &reser[..]);
+            let _reser = elements_fun::encode::serialize(&block);
+            // FIXME(?): This comparison can fail because we might discard data early during deserialization if the tag for example indicates an explicit txout.
+            // As such, the data will no longer be present when serialized. We keep the serialization to make sure that one doesn't panic.
+            // assert_eq!(data, &reser[..]);
         }
     }
 }

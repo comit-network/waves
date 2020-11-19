@@ -1,2 +1,2 @@
 [workspace]
-members = [ "elements-harness", "swap", "elements-fun" ]
+members = [ "elements-harness", "swap", "elements-fun", "elements-fun/fuzz" ]
