@@ -1,9 +1,10 @@
-use anyhow::Context;
-use anyhow::Result;
-use elements_fun::bitcoin::Amount;
-use elements_fun::bitcoin_hashes::hex::FromHex;
-use elements_fun::encode::serialize_hex;
-use elements_fun::{bitcoin::Txid, Address, AssetId, Transaction};
+use anyhow::{Context, Result};
+use elements_fun::{
+    bitcoin::{Amount, Txid},
+    bitcoin_hashes::hex::FromHex,
+    encode::serialize_hex,
+    Address, AssetId, Transaction,
+};
 use serde::Deserialize;
 use std::collections::HashMap;
 

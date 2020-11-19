@@ -15,15 +15,10 @@
 //! Consensus-encodable types
 //!
 
-use std::io::Cursor;
-use std::{error, fmt, io, mem};
-
-use bitcoin::consensus::encode as btcenc;
-use bitcoin::hashes::sha256;
-
 use crate::transaction::{Transaction, TxIn, TxOut};
-
 pub use bitcoin::consensus::encode::MAX_VEC_SIZE;
+use bitcoin::{consensus::encode as btcenc, hashes::sha256};
+use std::{error, fmt, io, io::Cursor, mem};
 
 /// Encoding error
 #[derive(Debug)]
