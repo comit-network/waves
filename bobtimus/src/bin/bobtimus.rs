@@ -1,6 +1,9 @@
 use anyhow::Result;
 use bobtimus::{cli::StartCommand, http, Bobtimus};
-use elements_fun::secp256k1::rand::{rngs::StdRng, thread_rng, SeedableRng};
+use elements_fun::{
+    bitcoin::secp256k1::Secp256k1,
+    secp256k1::rand::{rngs::StdRng, thread_rng, SeedableRng},
+};
 use elements_harness::Client;
 use structopt::StructOpt;
 
@@ -22,6 +25,7 @@ async fn main() -> Result<()> {
     let bobtimus = Bobtimus {
         rng: StdRng::from_rng(&mut thread_rng()).unwrap(),
         rate_service,
+        secp: Secp256k1::new(),
         elementsd,
         btc_asset_id,
         usdt_asset_id,

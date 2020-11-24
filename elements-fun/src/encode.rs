@@ -17,7 +17,8 @@
 
 use crate::transaction::{Transaction, TxIn, TxOut};
 pub use bitcoin::consensus::encode::MAX_VEC_SIZE;
-use bitcoin::{consensus::encode as btcenc, hashes::sha256};
+use bitcoin::{consensus::encode as btcenc, hashes::sha256, secp256k1};
+use secp256k1_zkp::{RangeProof, Tag};
 use std::{error, fmt, io, io::Cursor, mem};
 
 /// Encoding error
@@ -40,6 +41,12 @@ pub enum Error {
     InvalidTag { expected: u8, got: u8 },
     /// We unexpectedly hit the end of the buffer
     UnexpectedEOF,
+    /// Parsing within libsecp256k1 failed
+    Secp256k1(secp256k1::Error),
+    /// Parsing within libsecp256k1-zkp failed
+    Secp256k1zkp(secp256k1_zkp::Error),
+    /// The given address doesn't contain a blinding key
+    NoBlindingKeyInAddress,
 }
 
 impl fmt::Display for Error {
@@ -62,6 +69,9 @@ impl fmt::Display for Error {
                 expected, got
             ),
             Error::UnexpectedEOF => write!(f, "unexpected EOF"),
+            Error::Secp256k1zkp(ref e) => write!(f, "{}", e),
+            Error::Secp256k1(ref e) => write!(f, "{}", e),
+            Error::NoBlindingKeyInAddress => write!(f, "address does not contain a blinding key"),
         }
     }
 }
@@ -70,6 +80,8 @@ impl error::Error for Error {
     fn cause(&self) -> Option<&dyn error::Error> {
         match *self {
             Error::Bitcoin(ref e) => Some(e),
+            Error::Secp256k1zkp(ref e) => Some(e),
+            Error::Secp256k1(ref e) => Some(e),
             _ => None,
         }
     }
@@ -86,6 +98,18 @@ impl From<btcenc::Error> for Error {
 impl From<io::Error> for Error {
     fn from(error: io::Error) -> Self {
         Error::Io(error)
+    }
+}
+
+impl From<secp256k1::Error> for Error {
+    fn from(e: secp256k1::Error) -> Self {
+        Error::Secp256k1(e)
+    }
+}
+
+impl From<secp256k1_zkp::Error> for Error {
+    fn from(e: secp256k1_zkp::Error) -> Self {
+        Error::Secp256k1zkp(e)
     }
 }
 
@@ -152,6 +176,30 @@ impl Decodable for sha256::Midstate {
     }
 }
 
+impl Encodable for Tag {
+    fn consensus_encode<W: io::Write>(&self, e: W) -> Result<usize, Error> {
+        <[u8; 32]>::from(*self).consensus_encode(e)
+    }
+}
+
+impl Decodable for Tag {
+    fn consensus_decode<D: io::BufRead>(d: D) -> Result<Self, Error> {
+        Ok(Self::from(<[u8; 32]>::consensus_decode(d)?))
+    }
+}
+
+impl Encodable for RangeProof {
+    fn consensus_encode<W: io::Write>(&self, e: W) -> Result<usize, Error> {
+        self.serialize().consensus_encode(e)
+    }
+}
+
+impl Decodable for RangeProof {
+    fn consensus_decode<D: io::BufRead>(d: D) -> Result<Self, Error> {
+        Ok(Self::from_slice(&<Vec<u8>>::consensus_decode(d)?)?)
+    }
+}
+
 /// Implement Elements encodable traits for Bitcoin encodable types.
 macro_rules! impl_upstream {
     ($type: ty) => {
@@ -168,6 +216,7 @@ macro_rules! impl_upstream {
         }
     };
 }
+
 impl_upstream!(u8);
 impl_upstream!(u32);
 impl_upstream!(u64);

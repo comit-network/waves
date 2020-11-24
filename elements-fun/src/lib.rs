@@ -47,8 +47,6 @@ pub mod script;
 pub mod sighash;
 pub mod slip77;
 mod transaction;
-#[cfg(feature = "wally-sys")]
-pub mod wally;
 // consider making upstream public
 mod endian;
 // re-export bitcoin deps which we re-use

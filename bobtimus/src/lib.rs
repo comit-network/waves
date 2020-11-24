@@ -19,6 +19,7 @@ pub mod cli;
 pub mod http;
 
 pub use amounts::*;
+use elements_fun::bitcoin::secp256k1::{All, Secp256k1};
 
 pub static USDT_ASSET_ID: &str = "ce091c998b83c78bb71a632313ba3760f1763d9cfcffae02258ffa9865a37bd2";
 
@@ -26,6 +27,7 @@ pub static USDT_ASSET_ID: &str = "ce091c998b83c78bb71a632313ba3760f1763d9cfcffae
 pub struct Bobtimus<R, RS> {
     pub rng: R,
     pub rate_service: RS,
+    pub secp: Secp256k1<All>,
     pub elementsd: ElementsdClient,
     pub btc_asset_id: AssetId,
     pub usdt_asset_id: AssetId,
@@ -175,7 +177,7 @@ impl<R, RS> Bobtimus<R, RS> {
             fee: payload.fee,
         };
 
-        let protocol_state = protocol_state.interpret(&mut self.rng, message0)?;
+        let protocol_state = protocol_state.interpret(&mut self.rng, &self.secp, message0)?;
         let tx = self
             .elementsd
             .sign_raw_transaction(protocol_state.unsigned_transaction())

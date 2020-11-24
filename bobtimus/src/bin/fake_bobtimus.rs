@@ -1,6 +1,9 @@
 use anyhow::Result;
 use bobtimus::{cli::StartCommand, http, Bobtimus};
-use elements_fun::secp256k1::rand::{rngs::StdRng, thread_rng, SeedableRng};
+use elements_fun::{
+    bitcoin::secp256k1::Secp256k1,
+    secp256k1::rand::{rngs::StdRng, thread_rng, SeedableRng},
+};
 use elements_harness::Client;
 use structopt::StructOpt;
 
@@ -20,6 +23,7 @@ async fn main() -> Result<()> {
     let bobtimus = Bobtimus {
         rng: StdRng::from_rng(&mut thread_rng()).unwrap(),
         rate_service,
+        secp: Secp256k1::new(),
         elementsd,
         btc_asset_id,
         usdt_asset_id,
@@ -92,16 +96,15 @@ mod tests {
     use anyhow::{Context, Result};
     use bobtimus::{AliceInput, Bobtimus, CreateSwapPayload, LatestRate, LiquidBtc};
     use elements_fun::{
-        bitcoin::Amount, secp256k1::rand::thread_rng, Address, OutPoint, Transaction, TxOut,
+        bitcoin::{secp256k1::Secp256k1, Amount, Network, PrivateKey, PublicKey},
+        secp256k1::{rand::thread_rng, SecretKey, SECP256K1},
+        Address, AddressParams, OutPoint, Transaction, TxOut,
     };
     use elements_harness::{
         elementd_rpc::{ElementsRpc, ListUnspentOptions},
         Client, Elementsd,
     };
-    use swap::{
-        make_confidential_address,
-        states::{Alice0, Message1},
-    };
+    use swap::states::{Alice0, Message1};
     use testcontainers::clients::Cli;
 
     #[tokio::test]
@@ -199,6 +202,7 @@ mod tests {
         let mut bob = Bobtimus {
             rng: &mut thread_rng(),
             rate_service,
+            secp: Secp256k1::new(),
             elementsd: client.clone(),
             btc_asset_id: have_asset_id_alice,
             usdt_asset_id: have_asset_id_bob,
@@ -257,5 +261,32 @@ mod tests {
         };
         let tx_out = tx.output[vout].clone();
         Ok((outpoint, tx_out))
+    }
+
+    fn make_keypair() -> (SecretKey, PublicKey) {
+        let sk = SecretKey::new(&mut thread_rng());
+        let pk = PublicKey::from_private_key(
+            &SECP256K1,
+            &PrivateKey {
+                compressed: true,
+                network: Network::Regtest,
+                key: sk,
+            },
+        );
+
+        (sk, pk)
+    }
+
+    fn make_confidential_address() -> (Address, SecretKey, PublicKey, SecretKey, PublicKey) {
+        let (sk, pk) = make_keypair();
+        let (blinding_sk, blinding_pk) = make_keypair();
+
+        (
+            Address::p2wpkh(&pk, Some(blinding_pk.key), &AddressParams::ELEMENTS),
+            sk,
+            pk,
+            blinding_sk,
+            blinding_pk,
+        )
     }
 }

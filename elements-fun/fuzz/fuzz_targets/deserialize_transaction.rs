@@ -21,7 +21,7 @@ fn do_test(data: &[u8]) {
                     ..
                 }) = output
                 {
-                    *witness = elements_fun::TxOutWitness::default()
+                    *witness = elements_fun::TxOutWitness::empty()
                 }
             }
             assert_eq!(tx.has_witness(), false);

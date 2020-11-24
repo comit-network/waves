@@ -6,9 +6,9 @@ edition = "2018"
 
 [dependencies]
 anyhow = "1.0"
-elements-fun = { path = "../elements-fun", features = [ "serde", "wally-sys" ] }
+elements-fun = { path = "../elements-fun", features = [ "serde" ] }
 elements-harness = { path = "../elements-harness" }
-secp256k1 = { version = "0.19.0", features = [ "global-context" ] }
+secp256k1 = { version = "0.19.0", features = [ "global-context", "bitcoin_hashes" ] }
 serde = { version = "1", features = [ "derive" ] }
 sha2 = "0.9"
 
