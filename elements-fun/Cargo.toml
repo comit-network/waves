@@ -1,12 +1,9 @@
 [package]
-name = "elements"
-version = "0.13.0"
-authors = ["Andrew Poelstra <apoelstra@blockstream.com>"]
+name = "elements-fun"
+version = "0.1.0"
+authors = ["CoBloX Team <team@coblox.tech>"]
 description = "Library with support for de/serialization, parsing and executing on data structures and network messages related to Elements"
 license = "CC0-1.0"
-homepage = "https://github.com/ElementsProject/rust-elements/"
-repository = "https://github.com/ElementsProject/rust-elements/"
-documentation = "https://docs.rs/elements/"
 
 [features]
 default = [ "json-contract" ]

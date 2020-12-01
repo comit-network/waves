@@ -26,10 +26,10 @@ use std::ascii::AsciiExt;
 use bitcoin;
 use bitcoin::bech32::{self, u5, FromBase32, ToBase32};
 use bitcoin::blockdata::{opcodes, script};
-use bitcoin::util::base58;
-use bitcoin::PublicKey;
 use bitcoin::hashes::Hash;
 use bitcoin::secp256k1;
+use bitcoin::util::base58;
+use bitcoin::PublicKey;
 #[cfg(feature = "serde")]
 use serde;
 
@@ -180,7 +180,7 @@ impl Address {
         pk.write_into(&mut hash_engine);
 
         Address {
-            params: params,
+            params,
             payload: Payload::PubkeyHash(bitcoin::PubkeyHash::from_engine(hash_engine)),
             blinding_pubkey: blinder,
         }
@@ -195,7 +195,7 @@ impl Address {
         params: &'static AddressParams,
     ) -> Address {
         Address {
-            params: params,
+            params,
             payload: Payload::ScriptHash(bitcoin::ScriptHash::hash(&script[..])),
             blinding_pubkey: blinder,
         }
@@ -212,7 +212,7 @@ impl Address {
         pk.write_into(&mut hash_engine);
 
         Address {
-            params: params,
+            params,
             payload: Payload::WitnessProgram {
                 version: u5::try_from_u8(0).expect("0<32"),
                 program: bitcoin::PubkeyHash::from_engine(hash_engine)[..].to_vec(),
@@ -236,8 +236,10 @@ impl Address {
             .push_slice(&bitcoin::ScriptHash::from_engine(hash_engine)[..]);
 
         Address {
-            params: params,
-            payload: Payload::ScriptHash(bitcoin::ScriptHash::hash(builder.into_script().as_bytes())),
+            params,
+            payload: Payload::ScriptHash(bitcoin::ScriptHash::hash(
+                builder.into_script().as_bytes(),
+            )),
             blinding_pubkey: blinder,
         }
     }
@@ -249,7 +251,7 @@ impl Address {
         params: &'static AddressParams,
     ) -> Address {
         Address {
-            params: params,
+            params,
             payload: Payload::WitnessProgram {
                 version: u5::try_from_u8(0).expect("0<32"),
                 program: bitcoin::WScriptHash::hash(&script[..])[..].to_vec(),
@@ -271,7 +273,7 @@ impl Address {
             .into_script();
 
         Address {
-            params: params,
+            params,
             payload: Payload::ScriptHash(bitcoin::ScriptHash::hash(&ws[..])),
             blinding_pubkey: blinder,
         }
@@ -302,7 +304,7 @@ impl Address {
                 return None;
             },
             blinding_pubkey: blinder,
-            params: params,
+            params,
         })
     }
 
@@ -322,7 +324,9 @@ impl Address {
             Payload::WitnessProgram {
                 version: witver,
                 program: ref witprog,
-            } => script::Builder::new().push_int(witver.to_u8() as i64).push_slice(&witprog),
+            } => script::Builder::new()
+                .push_int(witver.to_u8() as i64)
+                .push_slice(&witprog),
         }
         .into_script()
     }
@@ -356,7 +360,7 @@ impl Address {
             blech32::decode(s).map_err(AddressError::Blech32)?.1
         };
 
-        if payload.len() == 0 {
+        if payload.is_empty() {
             return Err(AddressError::InvalidAddress(s.to_owned()));
         }
 
@@ -399,12 +403,9 @@ impl Address {
         };
 
         Ok(Address {
-            params: params,
-            payload: Payload::WitnessProgram {
-                version: version,
-                program: program,
-            },
-            blinding_pubkey: blinding_pubkey,
+            params,
+            payload: Payload::WitnessProgram { version, program },
+            blinding_pubkey,
         })
     }
 
@@ -418,13 +419,13 @@ impl Address {
         let (blinded, prefix) = match data[0] == params.blinded_prefix {
             true => {
                 if data.len() != 55 {
-                    return Err(base58::Error::InvalidLength(data.len()))?;
+                    return Err(base58::Error::InvalidLength(data.len()).into());
                 }
                 (true, data[1])
             }
             false => {
                 if data.len() != 21 {
-                    return Err(base58::Error::InvalidLength(data.len()))?;
+                    return Err(base58::Error::InvalidLength(data.len()).into());
                 }
                 (false, data[0])
             }
@@ -446,13 +447,13 @@ impl Address {
         } else if prefix == params.p2sh_prefix {
             Payload::ScriptHash(bitcoin::ScriptHash::from_slice(payload_data).unwrap())
         } else {
-            return Err(base58::Error::InvalidVersion(vec![prefix]))?;
+            return Err(base58::Error::InvalidVersion(vec![prefix]).into());
         };
 
         Ok(Address {
-            params: params,
-            payload: payload,
-            blinding_pubkey: blinding_pubkey,
+            params,
+            payload,
+            blinding_pubkey,
         })
     }
 
@@ -472,7 +473,7 @@ impl Address {
 
         // Base58.
         if s.len() > 150 {
-            return Err(base58::Error::InvalidLength(s.len() * 11 / 15))?;
+            return Err(base58::Error::InvalidLength(s.len() * 11 / 15).into());
         }
         let data = base58::from_check(s)?;
         Address::from_base58(&data, params)
@@ -550,7 +551,7 @@ impl fmt::Debug for Address {
 /// Returns the same slice when no prefix is found.
 fn find_prefix(bech32: &str) -> &str {
     // Split at the last occurrence of the separator character '1'.
-    match bech32.rfind("1") {
+    match bech32.rfind('1') {
         None => bech32,
         Some(sep) => bech32.split_at(sep).0,
     }
@@ -595,11 +596,11 @@ impl FromStr for Address {
 
         // Base58.
         if s.len() > 150 {
-            return Err(base58::Error::InvalidLength(s.len() * 11 / 15))?;
+            return Err(base58::Error::InvalidLength(s.len() * 11 / 15).into());
         }
         let data = base58::from_check(s)?;
-        if data.len() < 1 {
-            return Err(base58::Error::InvalidLength(data.len()))?;
+        if data.is_empty() {
+            return Err(base58::Error::InvalidLength(data.len()).into());
         }
 
         let p = data[0];
@@ -670,11 +671,9 @@ impl serde::Serialize for Address {
 #[cfg(test)]
 mod test {
     use super::*;
+    use bitcoin::secp256k1::{PublicKey, Secp256k1};
     use bitcoin::util::key;
     use bitcoin::Script;
-    use bitcoin::secp256k1::{PublicKey, Secp256k1};
-    #[cfg(feature = "serde")]
-    use serde_json;
 
     fn roundtrips(addr: &Address) {
         assert_eq!(
@@ -689,9 +688,11 @@ mod test {
             "script round-trip failed for {}",
             addr,
         );
-        #[cfg(feature = "serde")]
+        #[cfg(feature = "use-serde")]
         assert_eq!(
-            serde_json::from_value::<Address>(serde_json::to_value(&addr).unwrap()).ok().as_ref(),
+            serde_json::from_value::<Address>(serde_json::to_value(&addr).unwrap())
+                .ok()
+                .as_ref(),
             Some(addr)
         );
     }
@@ -708,33 +709,33 @@ mod test {
         let vectors = [
             /* #00 */ Address::p2pkh(&pk, None, &AddressParams::LIQUID),
             /* #01 */ Address::p2pkh(&pk, None, &AddressParams::ELEMENTS),
-            /* #02 */ Address::p2pkh(&pk, Some(blinder.clone()), &AddressParams::LIQUID),
-            /* #03 */ Address::p2pkh(&pk, Some(blinder.clone()), &AddressParams::ELEMENTS),
+            /* #02 */ Address::p2pkh(&pk, Some(blinder), &AddressParams::LIQUID),
+            /* #03 */ Address::p2pkh(&pk, Some(blinder), &AddressParams::ELEMENTS),
             /* #04 */ Address::p2sh(&script, None, &AddressParams::LIQUID),
             /* #05 */ Address::p2sh(&script, None, &AddressParams::ELEMENTS),
-            /* #06 */ Address::p2sh(&script, Some(blinder.clone()), &AddressParams::LIQUID),
+            /* #06 */ Address::p2sh(&script, Some(blinder), &AddressParams::LIQUID),
             /* #07 */
-            Address::p2sh(&script, Some(blinder.clone()), &AddressParams::ELEMENTS),
+            Address::p2sh(&script, Some(blinder), &AddressParams::ELEMENTS),
             /* #08 */ Address::p2wpkh(&pk, None, &AddressParams::LIQUID),
             /* #09 */ Address::p2wpkh(&pk, None, &AddressParams::ELEMENTS),
-            /* #10 */ Address::p2wpkh(&pk, Some(blinder.clone()), &AddressParams::LIQUID),
-            /* #11 */ Address::p2wpkh(&pk, Some(blinder.clone()), &AddressParams::ELEMENTS),
+            /* #10 */ Address::p2wpkh(&pk, Some(blinder), &AddressParams::LIQUID),
+            /* #11 */ Address::p2wpkh(&pk, Some(blinder), &AddressParams::ELEMENTS),
             /* #12 */ Address::p2shwpkh(&pk, None, &AddressParams::LIQUID),
             /* #13 */ Address::p2shwpkh(&pk, None, &AddressParams::ELEMENTS),
-            /* #14 */ Address::p2shwpkh(&pk, Some(blinder.clone()), &AddressParams::LIQUID),
+            /* #14 */ Address::p2shwpkh(&pk, Some(blinder), &AddressParams::LIQUID),
             /* #15 */
-            Address::p2shwpkh(&pk, Some(blinder.clone()), &AddressParams::ELEMENTS),
+            Address::p2shwpkh(&pk, Some(blinder), &AddressParams::ELEMENTS),
             /* #16 */ Address::p2wsh(&script, None, &AddressParams::LIQUID),
             /* #17 */ Address::p2wsh(&script, None, &AddressParams::ELEMENTS),
-            /* #18 */ Address::p2wsh(&script, Some(blinder.clone()), &AddressParams::LIQUID),
+            /* #18 */ Address::p2wsh(&script, Some(blinder), &AddressParams::LIQUID),
             /* #19 */
-            Address::p2wsh(&script, Some(blinder.clone()), &AddressParams::ELEMENTS),
+            Address::p2wsh(&script, Some(blinder), &AddressParams::ELEMENTS),
             /* #20 */ Address::p2shwsh(&script, None, &AddressParams::LIQUID),
             /* #21 */ Address::p2shwsh(&script, None, &AddressParams::ELEMENTS),
             /* #22 */
-            Address::p2shwsh(&script, Some(blinder.clone()), &AddressParams::LIQUID),
+            Address::p2shwsh(&script, Some(blinder), &AddressParams::LIQUID),
             /* #23 */
-            Address::p2shwsh(&script, Some(blinder.clone()), &AddressParams::ELEMENTS),
+            Address::p2shwsh(&script, Some(blinder), &AddressParams::ELEMENTS),
         ];
 
         for addr in &vectors {
@@ -760,7 +761,12 @@ mod test {
 
         for &(a, blinded, ref params) in &addresses {
             let result = a.parse();
-            assert!(result.is_ok(), "vector: {}, err: \"{}\"", a, result.unwrap_err());
+            assert!(
+                result.is_ok(),
+                "vector: {}, err: \"{}\"",
+                a,
+                result.unwrap_err()
+            );
             let addr: Address = result.unwrap();
             assert_eq!(a, &addr.to_string(), "vector: {}", a);
             assert_eq!(blinded, addr.is_blinded());

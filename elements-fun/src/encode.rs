@@ -50,9 +50,15 @@ impl fmt::Display for Error {
             Error::OversizedVectorAllocation {
                 requested: ref r,
                 max: ref m,
-            } => write!(f, "oversized vector allocation: requested {}, maximum {}", r, m),
+            } => write!(
+                f,
+                "oversized vector allocation: requested {}, maximum {}",
+                r, m
+            ),
             Error::ParseFailed(ref e) => write!(f, "parse failed: {}", e),
-            Error::InvalidConfidentialPrefix(p) => write!(f, "invalid confidential prefix: 0x{:02x}", p),
+            Error::InvalidConfidentialPrefix(p) => {
+                write!(f, "invalid confidential prefix: 0x{:02x}", p)
+            }
         }
     }
 }
@@ -101,20 +107,22 @@ pub fn serialize_hex<T: Encodable + ?Sized>(data: &T) -> String {
 
 /// Deserialize an object from a vector, will error if said deserialization
 /// doesn't consume the entire vector.
-pub fn deserialize<'a, T: Decodable>(data: &'a [u8]) -> Result<T, Error> {
+pub fn deserialize<T: Decodable>(data: &[u8]) -> Result<T, Error> {
     let (rv, consumed) = deserialize_partial(data)?;
 
     // Fail if data are not consumed entirely.
     if consumed == data.len() {
         Ok(rv)
     } else {
-        Err(Error::ParseFailed("data not consumed entirely when explicitly deserializing"))
+        Err(Error::ParseFailed(
+            "data not consumed entirely when explicitly deserializing",
+        ))
     }
 }
 
 /// Deserialize an object from a vector, but will not report an error if said deserialization
 /// doesn't consume the entire vector.
-pub fn deserialize_partial<'a, T: Decodable>(data: &'a [u8]) -> Result<(T, usize), Error> {
+pub fn deserialize_partial<T: Decodable>(data: &[u8]) -> Result<(T, usize), Error> {
     let mut decoder = Cursor::new(data);
     let rv = Decodable::consensus_decode(&mut decoder)?;
     let consumed = decoder.position() as usize;

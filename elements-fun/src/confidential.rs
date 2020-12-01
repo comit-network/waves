@@ -20,23 +20,25 @@
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-use std::{io, fmt};
+use std::{fmt, io};
 
-use encode::{self, Encodable, Decodable};
+use encode::{self, Decodable, Encodable};
 use issuance::AssetId;
 
 // Helper macro to implement various things for the various confidential
 // commitment types
 macro_rules! impl_confidential_commitment {
-    ($name:ident, $inner:ty, $prefixA:expr, $prefixB:expr) => (
-        impl_confidential_commitment!($name, $inner, $prefixA, $prefixB, |x|x);
-    );
-    ($name:ident, $inner:ty, $prefixA:expr, $prefixB:expr, $explicit_fn:expr) => (
+    ($name:ident, $inner:ty, $prefixA:expr, $prefixB:expr) => {
+        impl_confidential_commitment!($name, $inner, $prefixA, $prefixB, |x| x);
+    };
+    ($name:ident, $inner:ty, $prefixA:expr, $prefixB:expr, $explicit_fn:expr) => {
         impl $name {
             /// Create from commitment.
             pub fn from_commitment(bytes: &[u8]) -> Result<$name, encode::Error> {
                 if bytes.len() != 33 {
-                    return Err(encode::Error::ParseFailed("commitments must be 33 bytes long"));
+                    return Err(encode::Error::ParseFailed(
+                        "commitments must be 33 bytes long",
+                    ));
                 }
                 let prefix = bytes[0];
                 if prefix != $prefixA && prefix != $prefixB {
@@ -49,27 +51,17 @@ macro_rules! impl_confidential_commitment {
 
             /// Check if the object is null.
             pub fn is_null(&self) -> bool {
-                match *self {
-                    $name::Null => true,
-                    _ => false,
-                }
+                matches!(*self, $name::Null)
             }
 
             /// Check if the object is explicit.
             pub fn is_explicit(&self) -> bool {
-                match *self {
-                    $name::Explicit(_) => true,
-                    _ => false,
-                }
+                matches!(*self, $name::Explicit(_))
             }
 
             /// Check if the object is confidential.
             pub fn is_confidential(&self) -> bool {
-                match *self {
-                    // Impossible to create an object with invalid prefix.
-                    $name::Explicit(_) => true,
-                    _ => false,
-                }
+                matches!(*self, $name::Explicit(_))
             }
 
             /// Returns the explicit inner value.
@@ -164,17 +156,20 @@ macro_rules! impl_confidential_commitment {
         #[cfg(feature = "serde")]
         impl<'de> Deserialize<'de> for $name {
             fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
-                use serde::de::{Error, Visitor, SeqAccess};
+                use serde::de::{Error, SeqAccess, Visitor};
                 struct CommitVisitor;
 
-                impl <'de> Visitor<'de> for CommitVisitor {
+                impl<'de> Visitor<'de> for CommitVisitor {
                     type Value = $name;
 
                     fn expecting(&self, f: &mut fmt::Formatter) -> fmt::Result {
                         f.write_str("a committed value")
                     }
 
-                    fn visit_seq<A: SeqAccess<'de>>(self, mut access: A) -> Result<Self::Value, A::Error> {
+                    fn visit_seq<A: SeqAccess<'de>>(
+                        self,
+                        mut access: A,
+                    ) -> Result<Self::Value, A::Error> {
                         let prefix: u8 = if let Some(x) = access.next_element()? {
                             x
                         } else {
@@ -190,15 +185,16 @@ macro_rules! impl_confidential_commitment {
                                     None => Err(A::Error::custom("missing commitment")),
                                 }
                             }
-                            p if p == $prefixA || p == $prefixB => {
-                                match access.next_element()? {
-                                    Some(y) => Ok($name::Confidential(p, y)),
-                                    None => Err(A::Error::custom("missing commitment")),
-                                }
+                            p if p == $prefixA || p == $prefixB => match access.next_element()? {
+                                Some(y) => Ok($name::Confidential(p, y)),
+                                None => Err(A::Error::custom("missing commitment")),
+                            },
+                            p => {
+                                return Err(A::Error::custom(format!(
+                                    "invalid commitment, invalid prefix: 0x{:02x}",
+                                    p
+                                )))
                             }
-                            p => return Err(A::Error::custom(format!(
-                                "invalid commitment, invalid prefix: 0x{:02x}", p
-                            ))),
                         }
                     }
                 }
@@ -206,7 +202,7 @@ macro_rules! impl_confidential_commitment {
                 d.deserialize_seq(CommitVisitor)
             }
         }
-    );
+    };
 }
 
 /// A CT commitment to an amount
@@ -324,7 +320,7 @@ impl fmt::Display for Nonce {
                     write!(f, "{:02x}", b)?;
                 }
                 Ok(())
-            },
+            }
             Nonce::Confidential(prefix, bytes) => {
                 write!(f, "{:02x}", prefix)?;
                 for b in bytes.iter() {
@@ -338,8 +334,8 @@ impl fmt::Display for Nonce {
 
 #[cfg(test)]
 mod tests {
-    use bitcoin::hashes::sha256;
     use super::*;
+    use bitcoin::hashes::sha256;
 
     #[test]
     fn encode_length() {
@@ -398,4 +394,3 @@ mod tests {
         assert!(Nonce::from_commitment(&commitment[..]).is_err());
     }
 }
-
