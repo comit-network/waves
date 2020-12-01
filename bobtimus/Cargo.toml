@@ -1,0 +1,10 @@
+[package]
+name = "bobtimus"
+version = "0.1.0"
+authors = [ "CoBloX Team <team@coblox.tech>" ]
+edition = "2018"
+
+[dependencies]
+futures = { version = "0.3", default-features = false }
+tokio = { version = "0.2", features = ["macros" ] }
+warp = "0.2.5"

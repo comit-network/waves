@@ -88,8 +88,21 @@ jobs:
           path: ~/.cargo/registry
           key: rust-${{ matrix.rust_toolchain }}-cargo-registry-directory-${{ hashFiles('Cargo.lock') }}-v1
 
+      - name: Cache node_modules directory
+        uses: actions/cache@v1
+        with:
+          path: waves/node_modules
+          key: node-modules-directory-${{ hashFiles('waves/yarn.lock') }}-v1
+
       - name: Cargo check release code with default features
         run: cargo check --workspace --all-targets --all-features
 
       - name: Cargo test
         run: cargo test --workspace --all-features
+
+      - name: React tests
+        run: |
+          cd waves
+          yarn install
+          yarn run build
+          yarn run test
