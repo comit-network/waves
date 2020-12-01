@@ -1,2 +1,2 @@
 [workspace]
-members = [ "elements-harness", "swap", "elements-fun", "my-app/src/native" ]
+members = [ "elements-harness", "swap", "elements-fun", "waves/src/native" ]
