@@ -18,7 +18,7 @@ pub fn setup_lib() {
 
 #[wasm_bindgen]
 pub fn hello(name: &str) -> String {
-    let string = format!("Hi {}", name);
+    let string = format!("Hello {}", name);
     info!("Logging in rust: {}", string);
     string
 }
