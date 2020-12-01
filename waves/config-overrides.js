@@ -1,5 +1,4 @@
-
-const path = require('path');
+const path = require("path");
 const WasmPackPlugin = require("@wasm-tool/wasm-pack-plugin");
 
 module.exports = function override(config, env) {
@@ -17,9 +16,9 @@ module.exports = function override(config, env) {
     config.plugins = (config.plugins || []).concat([
         new WasmPackPlugin({
             crateDirectory: path.resolve(__dirname, "src/native/"),
-            outDir: path.resolve(__dirname, "src/native/pkg")
+            outDir: path.resolve(__dirname, "src/native/pkg"),
         }),
     ]);
 
     return config;
-}
+};
