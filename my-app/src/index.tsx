@@ -3,6 +3,9 @@ import ReactDOM from 'react-dom';
 import './index.css';
 import App from './App';
 import reportWebVitals from './reportWebVitals';
+import('./native/pkg').then(({setup_lib}) => {
+    setup_lib();
+});
 
 ReactDOM.render(
   <React.StrictMode>
