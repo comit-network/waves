@@ -36,7 +36,7 @@ macro_rules! impl_consensus_encoding {
 
 macro_rules! serde_struct_impl {
     ($name:ident, $($fe:ident),*) => (
-        #[cfg(feature = "serde")]
+        #[cfg(feature = "use-serde")]
         impl<'de> $crate::serde::Deserialize<'de> for $name {
             fn deserialize<D>(deserializer: D) -> Result<$name, D::Error>
             where
@@ -117,7 +117,7 @@ macro_rules! serde_struct_impl {
                         )*
 
                         let ret = $name {
-                            $($fe: $fe),*
+                            $($fe),*
                         };
 
                         Ok(ret)
@@ -262,7 +262,7 @@ macro_rules! serde_struct_human_string_impl {
                             )*
 
                             let ret = $name {
-                                $($fe: $fe),*
+                                $($fe),*
                             };
 
                             Ok(ret)
@@ -298,7 +298,7 @@ macro_rules! serde_struct_human_string_impl {
                             )*
 
                             let ret = $name {
-                                $($fe: $fe),*
+                                $($fe),*
                             };
 
                             Ok(ret)
@@ -379,4 +379,3 @@ macro_rules! hex_deserialize(
         deserialize(&ret).expect("deserialize object")
     });
 );
-
