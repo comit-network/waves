@@ -2,8 +2,8 @@ import { render, screen } from "@testing-library/react";
 import React from "react";
 import App from "./App";
 
-test("renders learn react link", () => {
+test("renders hello world", () => {
     render(<App />);
-    const linkElement = screen.getByText(/learn react/i);
+    const linkElement = screen.getByText(/Rust lib says:/i);
     expect(linkElement).toBeInTheDocument();
 });
