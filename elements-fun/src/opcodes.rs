@@ -20,9 +20,6 @@
 
 #![allow(non_camel_case_types)]
 
-#[cfg(feature = "serde")]
-use serde;
-
 use std::fmt;
 
 // Note: I am deliberately not implementing PartialOrd or Ord on the
