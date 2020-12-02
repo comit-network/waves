@@ -1,12 +1,10 @@
 use anyhow::{Context, Result};
 use bitcoin::Amount;
 use elements_fun::{
-    bitcoin::{
-        blockdata::{opcodes, script::Builder},
-        secp256k1::Message,
-        SigHashType,
-    },
+    bitcoin::{secp256k1::Message, SigHashType},
     bitcoin_hashes::{hash160, Hash},
+    opcodes,
+    script::Builder,
     wally::tx_get_elements_signature_hash,
     Address, AssetId, OutPoint, Transaction, TxIn, TxOut, UnblindedTxOut,
 };
@@ -465,8 +463,9 @@ mod tests {
     };
     use anyhow::Result;
     use elements_fun::{
-        bitcoin::{Network, PrivateKey, PublicKey, Txid},
+        bitcoin::{Network, PrivateKey, PublicKey},
         encode::serialize_hex,
+        Txid,
     };
     use elements_harness::{elementd_rpc::ElementsRpc, Client, Elementsd};
     use rand::thread_rng;

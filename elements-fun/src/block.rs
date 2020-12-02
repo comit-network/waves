@@ -18,12 +18,11 @@
 use crate::{
     dynafed,
     encode::{self, serialize, Decodable, Encodable},
-    Transaction,
+    BlockHash, Script, Transaction, TxMerkleNode,
 };
 use bitcoin::{
-    blockdata::script::Script,
     hashes::{sha256, Hash},
-    BlockHash, VarInt,
+    VarInt,
 };
 use std::io;
 
@@ -229,9 +228,9 @@ pub struct BlockHeader {
     /// Version - should be 0x20000000 except when versionbits signalling
     pub version: u32,
     /// Previous blockhash
-    pub prev_blockhash: bitcoin::BlockHash,
+    pub prev_blockhash: BlockHash,
     /// Transaction Merkle root
-    pub merkle_root: bitcoin::TxMerkleNode,
+    pub merkle_root: TxMerkleNode,
     /// Block timestamp
     pub time: u32,
     /// Block height
@@ -250,7 +249,7 @@ impl BlockHeader {
         };
 
         // Everything except the signblock witness goes into the hash
-        let mut enc = bitcoin::BlockHash::engine();
+        let mut enc = BlockHash::engine();
         version.consensus_encode(&mut enc).unwrap();
         self.prev_blockhash.consensus_encode(&mut enc).unwrap();
         self.merkle_root.consensus_encode(&mut enc).unwrap();

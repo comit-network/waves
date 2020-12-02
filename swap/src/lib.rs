@@ -38,13 +38,11 @@ pub fn make_confidential_address() -> (Address, SecretKey, PublicKey, SecretKey,
 mod tests {
     use bitcoin::Amount;
     use elements_fun::{
-        bitcoin::{
-            blockdata::{opcodes, script::Builder},
-            secp256k1::Message,
-            SigHashType,
-        },
+        bitcoin::{secp256k1::Message, SigHashType},
         bitcoin_hashes::{hash160, hex::FromHex, Hash},
         encode::serialize_hex,
+        opcodes,
+        script::Builder,
         wally::tx_get_elements_signature_hash,
         OutPoint, Transaction, TxIn, TxOut, UnblindedTxOut,
     };

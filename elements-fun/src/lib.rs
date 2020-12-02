@@ -40,18 +40,25 @@ pub mod confidential;
 pub mod dynafed;
 pub mod encode;
 mod fast_merkle_root;
+pub mod hash_types;
 pub mod issuance;
+pub mod opcodes;
+pub mod script;
 pub mod slip77;
 mod transaction;
 pub mod wally;
 
+// re-export bitcoin deps which we re-use
+pub use bitcoin::{bech32, hashes, secp256k1};
 // export everything at the top level so it can be used as `elements::Transaction` etc.
 pub use ::bitcoin::consensus::encode::VarInt;
 pub use address::{Address, AddressError, AddressParams};
 pub use bitcoin;
 pub use block::{Block, BlockHeader, ExtData as BlockExtData};
 pub use fast_merkle_root::fast_merkle_root;
+pub use hash_types::*;
 pub use issuance::{AssetId, ContractHash};
+pub use script::Script;
 pub use transaction::{
     AssetIssuance, ConfidentialAssetIssuance, ConfidentialTxOut, ExplicitAsset,
     ExplicitAssetIssuance, ExplicitTxOut, ExplicitValue, OutPoint, PeginData, PegoutData,

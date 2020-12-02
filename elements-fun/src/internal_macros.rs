@@ -73,3 +73,12 @@ macro_rules! hex_deserialize(
         deserialize(&ret).expect("deserialize object")
     });
 );
+
+#[cfg(test)]
+macro_rules! hex_script(
+    ($e:expr) => ({
+        let v: Vec<u8> = ::bitcoin::hashes::hex::FromHex::from_hex($e)
+            .expect("hex decoding");
+        crate::Script::from(v)
+    })
+);

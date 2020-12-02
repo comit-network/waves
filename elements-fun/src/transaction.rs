@@ -21,21 +21,19 @@ use crate::{
     },
     encode::{self, Decodable, Encodable, Error},
     issuance::AssetId,
+    opcodes,
+    script::Instruction,
     wally::{asset_rangeproof, asset_surjectionproof, asset_unblind},
-    Address,
+    Address, Script, Txid, Wtxid,
 };
 use bitcoin::{
     self,
-    blockdata::{
-        opcodes,
-        script::{Instruction, Script},
-    },
     hashes::Hash,
     secp256k1::{
         rand::{CryptoRng, RngCore},
         PublicKey, Secp256k1, SecretKey, Signing,
     },
-    Txid, VarInt,
+    VarInt,
 };
 use std::{collections::HashMap, fmt, io};
 
@@ -113,6 +111,13 @@ pub struct OutPoint {
     pub txid: Txid,
     /// The index of the referenced output in its transaction's vout
     pub vout: u32,
+}
+
+impl OutPoint {
+    /// Create a new outpoint.
+    pub fn new(txid: Txid, vout: u32) -> OutPoint {
+        OutPoint { txid, vout }
+    }
 }
 
 // TODO: Is `Default` really useful here?
@@ -387,21 +392,21 @@ impl Transaction {
     }
 
     /// The txid of the transaction.
-    pub fn txid(&self) -> bitcoin::Txid {
+    pub fn txid(&self) -> Txid {
         let mut enc = bitcoin::Txid::engine();
         self.version.consensus_encode(&mut enc).unwrap();
         0u8.consensus_encode(&mut enc).unwrap();
         self.input.consensus_encode(&mut enc).unwrap();
         self.output.consensus_encode(&mut enc).unwrap();
         self.lock_time.consensus_encode(&mut enc).unwrap();
-        bitcoin::Txid::from_engine(enc)
+        Txid::from_engine(enc)
     }
 
     /// Get the witness txid of the transaction.
-    pub fn wtxid(&self) -> bitcoin::Wtxid {
+    pub fn wtxid(&self) -> Wtxid {
         let mut enc = Txid::engine();
         self.consensus_encode(&mut enc).unwrap();
-        bitcoin::Wtxid::from_engine(enc)
+        Wtxid::from_engine(enc)
     }
 
     /// Get the total transaction fee in the given asset.
@@ -462,9 +467,9 @@ impl TxIn {
         );
 
         Some(PeginData {
-            // "Cast" of an elements::OutPoint to a bitcoin::OutPoint
+            // Cast of an elements::OutPoint to a bitcoin::OutPoint
             outpoint: bitcoin::OutPoint {
-                txid: self.previous_output.txid,
+                txid: bitcoin::Txid::from(self.previous_output.txid.as_hash()),
                 vout: self.previous_output.vout,
             },
             value: opt_try!(bitcoin::consensus::deserialize(
@@ -1025,7 +1030,7 @@ impl ::std::str::FromStr for OutPoint {
         }
         let bitcoin_outpoint = bitcoin::OutPoint::from_str(s)?;
         Ok(OutPoint {
-            txid: bitcoin_outpoint.txid,
+            txid: Txid::from(bitcoin_outpoint.txid.as_hash()),
             vout: bitcoin_outpoint.vout,
         })
     }
@@ -1442,10 +1447,7 @@ mod tests {
     fn outpoint() {
         let txid = "d0a5c455ea7221dead9513596d2f97c09943bad81a386fe61a14a6cda060e422";
         let s = format!("{}:42", txid);
-        let expected = OutPoint {
-            txid: Txid::from_hex(&txid).unwrap(),
-            vout: 42,
-        };
+        let expected = OutPoint::new(Txid::from_hex(&txid).unwrap(), 42);
         let op = ::std::str::FromStr::from_str(&s).ok();
         assert_eq!(op, Some(expected));
         // roundtrip with elements prefix
@@ -1801,7 +1803,7 @@ mod tests {
             tx.input[0].pegin_data(),
             Some(super::PeginData {
                 outpoint: bitcoin::OutPoint {
-                    txid: Txid::from_hex(
+                    txid: bitcoin::Txid::from_hex(
                         "c9d88eb5130365deed045eab11cfd3eea5ba32ad45fa2e156ae6ead5f1fce93f",
                     )
                     .unwrap(),

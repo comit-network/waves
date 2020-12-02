@@ -3,6 +3,7 @@
 //!
 //! Spec: https://github.com/satoshilabs/slips/blob/master/slip-0077.md
 
+use crate::Script;
 use bitcoin::{
     self,
     hashes::{hmac, sha256, sha256d, Hash, HashEngine},
@@ -26,7 +27,7 @@ impl MasterBlindingKey {
     }
 
     /// Derive a blinding private key for a given scriptPubkey.
-    pub fn derive_blinding_key(&self, script_pubkey: &bitcoin::Script) -> secp256k1::SecretKey {
+    pub fn derive_blinding_key(&self, script_pubkey: &Script) -> secp256k1::SecretKey {
         let mut engine: hmac::HmacEngine<sha256::Hash> = hmac::HmacEngine::new(&self.0[..]);
         engine.input(script_pubkey.as_bytes());
 
@@ -38,7 +39,7 @@ impl MasterBlindingKey {
     /// This is the same as performing ECDH with the secret key that [derive_blinding_key] returns.
     pub fn derive_shared_nonce(
         &self,
-        script_pubkey: &bitcoin::Script,
+        script_pubkey: &Script,
         other: &secp256k1::PublicKey,
     ) -> sha256d::Hash {
         let blinding_private_key = self.derive_blinding_key(script_pubkey);
@@ -69,7 +70,7 @@ mod tests {
         assert_eq!(master.0, privkey);
 
         let scriptpk_hex = "a914afa92d77cd3541b443771649572db096cf49bf8c87";
-        let scriptpk: bitcoin::Script = Vec::<u8>::from_hex(&scriptpk_hex).unwrap().into();
+        let scriptpk: Script = Vec::<u8>::from_hex(&scriptpk_hex).unwrap().into();
 
         let blindingkey_hex = "02b067c374bb56c54c016fae29218c000ada60f81ef45b4aeebbeb24931bb8bc";
         let blindingkey =
@@ -84,7 +85,7 @@ mod tests {
         let seed_hex = "c76c4ac4f4e4a00d6b274d5c39c700bb4a7ddc04fbc6f78e85ca75007b5b495f74a9043eeb77bdd53aa6fc3a0e31462270316fa04b8c19114c8798706cd02ac8";
         let master_blinding_key = MasterBlindingKey::new(&Vec::<u8>::from_hex(&seed_hex).unwrap());
 
-        let script: bitcoin::Script =
+        let script: Script =
             Vec::<u8>::from_hex("76a914a579388225827d9f2fe9014add644487808c695d88ac")
                 .unwrap()
                 .into();
