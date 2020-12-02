@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import "./App.css";
 
 function App() {
-    import("./native/pkg").then(({ hello }) => {
+    import("./wallet-lib/pkg").then(({ hello }) => {
         let welcome = hello("World");
         setWelcome(welcome);
     });

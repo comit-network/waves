@@ -1,5 +1,5 @@
 [package]
-name = "wasm_lib"
+name = "wallet-lib"
 version = "0.1.0"
 authors = [ "Philipp Hoenisch <philipp@hoenisch.at>" ]
 edition = "2018"
