@@ -22,14 +22,10 @@ jobs:
           override: true
           components: clippy
 
-      - name: Cache dprint
-        uses: actions/cache@v1
-        with:
-          path: ~/.cargo/bin/dprint
-          key: ubuntu-rust-${{ env.RUST_TOOLCHAIN }}-dprint
-
       - name: Install dprint
-        run: which dprint || cargo install dprint
+        run: |
+          curl -fsSL https://dprint.dev/install.sh | sh
+          echo "/home/runner/.dprint/bin" >> $GITHUB_PATH
 
       - name: Check formatting
         run: dprint check
