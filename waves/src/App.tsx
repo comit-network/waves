@@ -10,7 +10,7 @@ function App() {
         setWelcome(welcome);
     });
 
-    fetch("http://localhost:3030/rate")
+    fetch("/rate")
         .then((res) => res.json())
         .then((result) => {
             setRate(result);
