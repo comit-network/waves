@@ -91,8 +91,10 @@ jobs:
       - name: Cache node_modules directory
         uses: actions/cache@v1
         with:
-          path: waves/node_modules
-          key: node-modules-directory-${{ hashFiles('waves/yarn.lock') }}-v1
+          path: |
+            waves/node_modules
+            ~/.config/wasm-pack-nodejs
+          key: node-modules-directory-${{ hashFiles('waves/yarn.lock') }}-v2
 
       - name: Cargo check release code with default features
         run: cargo check --workspace --all-targets --all-features
