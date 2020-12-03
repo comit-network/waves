@@ -26,9 +26,6 @@
 
 use std::{default::Default, fmt, io, ops};
 
-#[cfg(feature = "serde")]
-use serde;
-
 use crate::{
     encode::{self, Decodable, Encodable},
     opcodes, ScriptHash, WScriptHash,
@@ -526,12 +523,12 @@ impl<'a> Iterator for Instructions<'a> {
                     self.data = &[]; // Kill iterator so that it does not return an infinite stream of errors
                     return Some(Err(Error::EarlyEndOfScript));
                 }
-                if self.enforce_minimal {
-                    if n == 1 && (self.data[1] == 0x81 || (self.data[1] > 0 && self.data[1] <= 16))
-                    {
-                        self.data = &[];
-                        return Some(Err(Error::NonMinimalPush));
-                    }
+                if self.enforce_minimal
+                    && n == 1
+                    && (self.data[1] == 0x81 || (self.data[1] > 0 && self.data[1] <= 16))
+                {
+                    self.data = &[];
+                    return Some(Err(Error::NonMinimalPush));
                 }
                 let ret = Some(Ok(Instruction::PushBytes(&self.data[1..n + 1])));
                 self.data = &self.data[n + 1..];
@@ -839,7 +836,6 @@ mod test {
     use super::{build_scriptint, *};
 
     use encode::{deserialize, serialize};
-    use opcodes;
 
     #[test]
     fn script() {
@@ -880,7 +876,7 @@ mod test {
         assert_eq!(&script[..], &comp[..]);
 
         // data
-        script = script.push_slice("NRA4VR".as_bytes());
+        script = script.push_slice(b"NRA4VR");
         comp.extend([6u8, 78, 82, 65, 52, 86, 82].iter().cloned());
         assert_eq!(&script[..], &comp[..]);
 
@@ -1046,8 +1042,6 @@ mod test {
     #[test]
     #[cfg(feature = "serde")]
     fn script_json_serialize() {
-        use serde_json;
-
         let original = hex_script!("827651a0698faaa9a8a7a687");
         let json = serde_json::to_value(&original).unwrap();
         assert_eq!(
@@ -1182,9 +1176,6 @@ mod test {
         assert!(script_1 < script_2);
         assert!(script_2 < script_3);
         assert!(script_3 < script_4);
-
-        assert!(script_1 <= script_1);
-        assert!(script_1 >= script_1);
 
         assert!(script_4 > script_3);
         assert!(script_3 > script_2);

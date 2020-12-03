@@ -953,13 +953,27 @@ impl Decodable for AssetIssuance {
 
         let buffer = d.fill_buf()?;
 
+        if buffer.is_empty() {
+            return Err(Error::UnexpectedEOF);
+        }
+
         Ok(match buffer[0] {
             0 => {
                 let amount_tag = u8::consensus_decode(&mut d)?;
-                debug_assert_eq!(amount_tag, 0);
+                if amount_tag != 0 {
+                    return Err(Error::InvalidTag {
+                        expected: 0,
+                        got: amount_tag,
+                    });
+                }
 
                 let keys_tag = u8::consensus_decode(&mut d)?;
-                debug_assert_eq!(keys_tag, 0);
+                if keys_tag != 0 {
+                    return Err(Error::InvalidTag {
+                        expected: 0,
+                        got: keys_tag,
+                    });
+                }
 
                 AssetIssuance::Null(NullAssetIssuance {
                     asset_blinding_nonce,
@@ -978,6 +992,10 @@ impl Decodable for AssetIssuance {
                 amount: Decodable::consensus_decode(&mut d)?,
                 inflation_keys: {
                     let buffer = d.fill_buf()?;
+
+                    if buffer.is_empty() {
+                        return Err(Error::UnexpectedEOF);
+                    }
 
                     if buffer[0] == 0 {
                         d.consume(1);
@@ -1143,9 +1161,24 @@ impl Decodable for NullTxOut {
         let value_tag = u8::consensus_decode(&mut d)?;
         let nonce_tag = u8::consensus_decode(&mut d)?;
 
-        debug_assert_eq!(asset_tag, 0);
-        debug_assert_eq!(value_tag, 0);
-        debug_assert_eq!(nonce_tag, 0);
+        if asset_tag != 0 {
+            return Err(Error::InvalidTag {
+                expected: 0,
+                got: asset_tag,
+            });
+        }
+        if value_tag != 0 {
+            return Err(Error::InvalidTag {
+                expected: 0,
+                got: value_tag,
+            });
+        }
+        if nonce_tag != 0 {
+            return Err(Error::InvalidTag {
+                expected: 0,
+                got: nonce_tag,
+            });
+        }
 
         Ok(NullTxOut {
             script_pubkey: Decodable::consensus_decode(&mut d)?,
@@ -1178,7 +1211,12 @@ impl Encodable for ExplicitValue {
 impl Decodable for ExplicitValue {
     fn consensus_decode<D: io::BufRead>(mut d: D) -> Result<Self, Error> {
         let value_tag = u8::consensus_decode(&mut d)?;
-        debug_assert_eq!(value_tag, 1);
+        if value_tag != 1 {
+            return Err(Error::InvalidTag {
+                expected: 1,
+                got: value_tag,
+            });
+        }
 
         let value = u64::consensus_decode(&mut d)?.swap_bytes();
 
@@ -1201,7 +1239,12 @@ impl Encodable for ExplicitAsset {
 impl Decodable for ExplicitAsset {
     fn consensus_decode<D: io::BufRead>(mut d: D) -> Result<Self, Error> {
         let asset_tag = u8::consensus_decode(&mut d)?;
-        debug_assert_eq!(asset_tag, 1); // TODO: replace this with returning an error
+        if asset_tag != 1 {
+            return Err(Error::InvalidTag {
+                expected: 1,
+                got: asset_tag,
+            });
+        }
 
         let value = Decodable::consensus_decode(&mut d)?;
 
@@ -1298,6 +1341,10 @@ impl Decodable for ConfidentialTxOut {
         let value = Decodable::consensus_decode(&mut d)?;
         let buffer = d.fill_buf()?;
 
+        if buffer.is_empty() {
+            return Err(Error::UnexpectedEOF);
+        }
+
         let nonce = if buffer[0] == 0 {
             d.consume(1); // consume the zero from the buffer
             None
@@ -1329,7 +1376,12 @@ impl Decodable for ExplicitTxOut {
         let asset = Decodable::consensus_decode(&mut d)?;
         let value = Decodable::consensus_decode(&mut d)?;
         let nonce_tag = u8::consensus_decode(&mut d)?;
-        debug_assert_eq!(nonce_tag, 0);
+        if nonce_tag != 0 {
+            return Err(Error::InvalidTag {
+                expected: 0,
+                got: nonce_tag,
+            });
+        }
         let script_pubkey = Decodable::consensus_decode(&mut d)?;
 
         Ok(ExplicitTxOut {
@@ -1343,6 +1395,10 @@ impl Decodable for ExplicitTxOut {
 impl Decodable for TxOut {
     fn consensus_decode<D: io::BufRead>(mut d: D) -> Result<TxOut, encode::Error> {
         let buffer = d.fill_buf()?;
+
+        if buffer.is_empty() {
+            return Err(Error::UnexpectedEOF);
+        }
 
         Ok(match buffer[0] {
             0 => TxOut::Null(Decodable::consensus_decode(&mut d)?),

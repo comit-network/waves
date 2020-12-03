@@ -34,8 +34,10 @@ pub enum Error {
     },
     /// Parsing error
     ParseFailed(&'static str),
-    /// Invalid prefix for the confidential type.
-    InvalidConfidentialPrefix(u8),
+    /// Invalid tag within the TLV-like encoding
+    InvalidTag { expected: u8, got: u8 },
+    /// We unexpectedly hit the end of the buffer
+    UnexpectedEOF,
 }
 
 impl fmt::Display for Error {
@@ -51,9 +53,12 @@ impl fmt::Display for Error {
                 r, m
             ),
             Error::ParseFailed(ref e) => write!(f, "parse failed: {}", e),
-            Error::InvalidConfidentialPrefix(p) => {
-                write!(f, "invalid confidential prefix: 0x{:02x}", p)
-            }
+            Error::InvalidTag { expected, got } => write!(
+                f,
+                "invalid tag in TLV-like encoding: expected 0x{:02x}, got 0x{:02x}",
+                expected, got
+            ),
+            Error::UnexpectedEOF => write!(f, "unexpected EOF"),
         }
     }
 }

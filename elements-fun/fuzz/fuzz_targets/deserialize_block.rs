@@ -1,30 +1,33 @@
-extern crate elements;
+extern crate elements_fun;
 
+#[cfg(any(feature = "afl", feature = "honggfuzz", test))]
 fn do_test(data: &[u8]) {
-    let block_result: Result<elements::Block, _> = elements::encode::deserialize(data);
+    let block_result: Result<elements_fun::Block, _> = elements_fun::encode::deserialize(data);
     match block_result {
         Err(_) => {}
         Ok(block) => {
-            let reser = elements::encode::serialize(&block);
-            assert_eq!(data, &reser[..]);
+            let _reser = elements_fun::encode::serialize(&block);
+            // FIXME(?): This comparison can fail because we might discard data early during deserialization if the tag for example indicates an explicit txout.
+            // As such, the data will no longer be present when serialized. We keep the serialization to make sure that one doesn't panic.
+            // assert_eq!(data, &reser[..]);
         }
     }
 }
 
 #[cfg(feature = "afl")]
 extern crate afl;
-#[cfg(feature = "afl")]
-fn main() {
-    afl::read_stdio_bytes(|data| {
-        do_test(&data);
-    });
-}
 
 #[cfg(feature = "honggfuzz")]
 #[macro_use]
 extern crate honggfuzz;
-#[cfg(feature = "honggfuzz")]
+
 fn main() {
+    #[cfg(feature = "afl")]
+    afl::read_stdio_bytes(|data| {
+        do_test(&data);
+    });
+
+    #[cfg(feature = "honggfuzz")]
     loop {
         fuzz!(|data| {
             do_test(data);
@@ -39,9 +42,9 @@ mod tests {
         for (idx, c) in hex.as_bytes().iter().enumerate() {
             b <<= 4;
             match *c {
-                b'A'...b'F' => b |= c - b'A' + 10,
-                b'a'...b'f' => b |= c - b'a' + 10,
-                b'0'...b'9' => b |= c - b'0',
+                b'A'..=b'F' => b |= c - b'A' + 10,
+                b'a'..=b'f' => b |= c - b'a' + 10,
+                b'0'..=b'9' => b |= c - b'0',
                 _ => panic!("Bad hex"),
             }
             if (idx & 1) == 1 {

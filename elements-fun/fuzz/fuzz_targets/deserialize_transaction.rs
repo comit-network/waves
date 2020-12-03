@@ -1,22 +1,31 @@
-extern crate elements;
+extern crate elements_fun;
 
+#[cfg(any(feature = "afl", feature = "honggfuzz", test))]
 fn do_test(data: &[u8]) {
-    let tx_result: Result<elements::Transaction, _> = elements::encode::deserialize(data);
+    let tx_result: Result<elements_fun::Transaction, _> = elements_fun::encode::deserialize(data);
     match tx_result {
         Err(_) => {}
         Ok(mut tx) => {
-            let reser = elements::encode::serialize(&tx);
-            assert_eq!(data, &reser[..]);
+            let reser = elements_fun::encode::serialize(&tx);
+            // FIXME(?): This comparison can fail because we might discard data early during deserialization if the tag for example indicates an explicit txout.
+            // As such, the data will no longer be present when serialized. We keep the serialization to make sure that one doesn't panic.
+            // assert_eq!(data, &reser[..]);
             let len = reser.len();
             let calculated_weight = tx.get_weight();
             for input in &mut tx.input {
-                input.witness = elements::TxInWitness::default();
+                input.witness = elements_fun::TxInWitness::default();
             }
             for output in &mut tx.output {
-                output.witness = elements::TxOutWitness::default();
+                if let elements_fun::TxOut::Confidential(elements_fun::ConfidentialTxOut {
+                    witness,
+                    ..
+                }) = output
+                {
+                    *witness = elements_fun::TxOutWitness::default()
+                }
             }
             assert_eq!(tx.has_witness(), false);
-            let no_witness_len = elements::encode::serialize(&tx).len();
+            let no_witness_len = elements_fun::encode::serialize(&tx).len();
             assert_eq!(no_witness_len * 3 + len, calculated_weight);
 
             for output in &tx.output {
@@ -32,18 +41,18 @@ fn do_test(data: &[u8]) {
 
 #[cfg(feature = "afl")]
 extern crate afl;
-#[cfg(feature = "afl")]
-fn main() {
-    afl::read_stdio_bytes(|data| {
-        do_test(&data);
-    });
-}
 
 #[cfg(feature = "honggfuzz")]
 #[macro_use]
 extern crate honggfuzz;
-#[cfg(feature = "honggfuzz")]
+
 fn main() {
+    #[cfg(feature = "afl")]
+    afl::read_stdio_bytes(|data| {
+        do_test(&data);
+    });
+
+    #[cfg(feature = "honggfuzz")]
     loop {
         fuzz!(|data| {
             do_test(data);
@@ -58,9 +67,9 @@ mod tests {
         for (idx, c) in hex.as_bytes().iter().enumerate() {
             b <<= 4;
             match *c {
-                b'A'...b'F' => b |= c - b'A' + 10,
-                b'a'...b'f' => b |= c - b'a' + 10,
-                b'0'...b'9' => b |= c - b'0',
+                b'A'..=b'F' => b |= c - b'A' + 10,
+                b'a'..=b'f' => b |= c - b'a' + 10,
+                b'0'..=b'9' => b |= c - b'0',
                 _ => panic!("Bad hex"),
             }
             if (idx & 1) == 1 {

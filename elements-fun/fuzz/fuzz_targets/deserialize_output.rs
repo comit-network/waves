@@ -1,11 +1,12 @@
-extern crate elements;
+extern crate elements_fun;
 
+#[cfg(any(feature = "afl", feature = "honggfuzz", test))]
 fn do_test(data: &[u8]) {
-    let result: Result<elements::TxOut, _> = elements::encode::deserialize(data);
+    let result: Result<elements_fun::TxOut, _> = elements_fun::encode::deserialize(data);
     match result {
         Err(_) => {}
         Ok(output) => {
-            let reser = elements::encode::serialize(&output);
+            let reser = elements_fun::encode::serialize(&output);
             assert_eq!(data, &reser[..]);
 
             output.is_null_data();
@@ -19,18 +20,17 @@ fn do_test(data: &[u8]) {
 
 #[cfg(feature = "afl")]
 extern crate afl;
-#[cfg(feature = "afl")]
-fn main() {
-    afl::read_stdio_bytes(|data| {
-        do_test(&data);
-    });
-}
-
 #[cfg(feature = "honggfuzz")]
 #[macro_use]
 extern crate honggfuzz;
-#[cfg(feature = "honggfuzz")]
+
 fn main() {
+    #[cfg(feature = "afl")]
+    afl::read_stdio_bytes(|data| {
+        do_test(&data);
+    });
+
+    #[cfg(feature = "honggfuzz")]
     loop {
         fuzz!(|data| {
             do_test(data);
@@ -45,9 +45,9 @@ mod tests {
         for (idx, c) in hex.as_bytes().iter().enumerate() {
             b <<= 4;
             match *c {
-                b'A'...b'F' => b |= c - b'A' + 10,
-                b'a'...b'f' => b |= c - b'a' + 10,
-                b'0'...b'9' => b |= c - b'0',
+                b'A'..=b'F' => b |= c - b'A' + 10,
+                b'a'..=b'f' => b |= c - b'a' + 10,
+                b'0'..=b'9' => b |= c - b'0',
                 _ => panic!("Bad hex"),
             }
             if (idx & 1) == 1 {
