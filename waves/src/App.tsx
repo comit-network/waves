@@ -1,8 +1,7 @@
-import React, {useEffect, useState} from "react";
+import React, { useEffect, useState } from "react";
+import { IMessageEvent, w3cwebsocket as W3CWebSocket } from "websocket";
 import "./App.css";
 import { hello } from "./wasmProxy";
-import {IMessageEvent, w3cwebsocket as W3CWebSocket} from "websocket";
-
 
 function App() {
     const [welcome, setWelcome] = useState<String>("Not welcome yet");
@@ -15,15 +14,14 @@ function App() {
     }, []);
 
     useEffect(() => {
-        const client = new W3CWebSocket('ws://127.0.0.1:3030/rate');
+        const client = new W3CWebSocket("ws://127.0.0.1:3030/rate");
         client.onopen = () => {
-            console.log('WebSocket Client Connected');
+            console.log("WebSocket Client Connected");
         };
         client.onmessage = (rate: IMessageEvent) => {
             setRate(rate.data as string);
         };
     }, []);
-
 
     return (
         <div className="App">

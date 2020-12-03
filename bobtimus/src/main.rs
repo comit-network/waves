@@ -1,8 +1,7 @@
 #![deny(warnings)]
 use futures::{SinkExt, StreamExt};
 use tokio::time::Duration;
-use warp::filters::ws::Message;
-use warp::Filter;
+use warp::{filters::ws::Message, Filter};
 
 #[tokio::main]
 async fn main() {
