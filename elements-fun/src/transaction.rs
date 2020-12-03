@@ -85,7 +85,6 @@ pub struct TxIn {
     pub witness: TxInWitness,
 }
 
-// TODO: think about tagging
 /// Transaction output
 #[derive(Clone, PartialEq, Eq, Debug, Hash)]
 #[cfg_attr(
@@ -120,7 +119,6 @@ impl OutPoint {
     }
 }
 
-// TODO: Is `Default` really useful here?
 /// Description of an asset issuance in a transaction input
 #[derive(Copy, Clone, Debug, Eq, Hash, PartialEq, PartialOrd, Ord)]
 #[cfg_attr(
@@ -492,7 +490,6 @@ impl TxIn {
     }
 }
 
-// TODO: Get rid of this by introducing a dedicated type for blinded addresses.
 #[derive(Debug)]
 pub struct NoBlindingKeyInAddress;
 
