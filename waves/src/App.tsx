@@ -1,22 +1,29 @@
-import React, { useState } from "react";
+import React, {useEffect, useState} from "react";
 import "./App.css";
 import { hello } from "./wasmProxy";
+import {IMessageEvent, w3cwebsocket as W3CWebSocket} from "websocket";
+
 
 function App() {
     const [welcome, setWelcome] = useState<String>("Not welcome yet");
     const [rate, setRate] = useState<String>("No rate received yet");
 
-    hello("World").then((result) => {
-        setWelcome(result);
-    });
-
-    fetch("/rate")
-        .then((res) => res.json())
-        .then((result) => {
-            setRate(result);
-        }).catch((_error) => {
-            console.log("Could not receive rate from bobtimus");
+    useEffect(() => {
+        hello("World").then((result) => {
+            setWelcome(result);
         });
+    }, []);
+
+    useEffect(() => {
+        const client = new W3CWebSocket('ws://127.0.0.1:3030/rate');
+        client.onopen = () => {
+            console.log('WebSocket Client Connected');
+        };
+        client.onmessage = (rate: IMessageEvent) => {
+            setRate(rate.data as string);
+        };
+    }, []);
+
 
     return (
         <div className="App">
