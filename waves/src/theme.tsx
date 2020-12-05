@@ -1,4 +1,4 @@
-import { Button, extendTheme } from "@chakra-ui/react";
+import {extendTheme} from "@chakra-ui/react";
 import React from "react";
 
 const customIcons = {

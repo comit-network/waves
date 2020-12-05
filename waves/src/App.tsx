@@ -95,18 +95,12 @@ function App() {
                                     alphaAsset={alphaAsset}
                                     betaAsset={betaAsset}
                                 />}
-                            {walletUnlocked && !isEmpty(publishedTx) && txPending
+                            {walletUnlocked && !isEmpty(publishedTx)
                                 && <Button
-                                    isLoading
+                                    isLoading={txPending}
                                     size="lg"
                                     variant="main_button"
-                                    _hover={{}}
                                     spinner={<RingLoader size={50} color="white" />}
-                                />}
-                            {walletUnlocked && !isEmpty(publishedTx) && !txPending
-                                && <Button
-                                    size="lg"
-                                    variant="main_button"
                                     onClick={openBlockExplorer}
                                 >
                                     Check Transaction
