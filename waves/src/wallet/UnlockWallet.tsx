@@ -48,7 +48,11 @@ function UnlockWallet({ onUnlocked }: UnlockWalletProps) {
                         <DrawerCloseButton />
                         <DrawerHeader>Unlock Wallet</DrawerHeader>
                         <DrawerBody>
-                            <Input placeholder="Your top secret password" />
+                            <Input
+                                pr="4.5rem"
+                                type={"password"}
+                                placeholder="Enter password"
+                            />
                         </DrawerBody>
 
                         <DrawerFooter>

@@ -77,7 +77,7 @@ function BitcoinSelect() {
                 <Image src={Bitcoin} h="100%" />
             </Box>
             <Box>
-                <Text textStyle="assetSelect">L-BTC : Bitcoin</Text>
+                <Text textStyle="assetSelect">L-BTC - Bitcoin</Text>
             </Box>
             <Box>
                 <ChevronDownIcon h="60%" color="gray.500" />
@@ -93,7 +93,7 @@ function UsdtSelect() {
                 <Image src={Usdt} h="100%" />
             </Box>
             <Box>
-                <Text textStyle="assetSelect">L-USDT : Tether</Text>
+                <Text textStyle="assetSelect">L-USDT - Tether</Text>
             </Box>
             <Box>
                 <ChevronDownIcon h="60%" color="gray.500" />
