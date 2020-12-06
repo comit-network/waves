@@ -1,4 +1,4 @@
-import { Box, Button, Flex, HStack, Text, VStack } from "@chakra-ui/react";
+import { Box, Button, SimpleGrid, Text, VStack } from "@chakra-ui/react";
 import React, { MouseEvent } from "react";
 import { RingLoader } from "react-spinners";
 import "./App.css";
@@ -67,47 +67,52 @@ function App() {
     return (
         <div className="App">
             <header className="App-header">
-                <Flex color="white">
+                <VStack
+                    spacing={4}
+                    align="stretch"
+                >
                     <Box>
-                        <VStack spacing={4}>
-                            <HStack spacing={4}>
-                                <AssetSelector
-                                    amount={alphaAmount}
-                                    type={alphaAsset}
-                                    onTypeChange={onUpdateAlphaAssetType}
-                                    onAmountChange={onUpdateAlphaAssetAmount}
-                                />
-                                <AssetSelector
-                                    amount={betaAmount}
-                                    type={betaAsset}
-                                    onTypeChange={onUpdateBetaAssetType}
-                                    onAmountChange={onUpdateBetaAssetAmount}
-                                />
-                            </HStack>
-                            <Text textStyle="info">1 BTC = 19,337.42 USDT</Text>
-                            {!walletUnlocked
-                                && <UnlockWallet onUnlocked={onUnlocked} />}
-                            {walletUnlocked && isEmpty(publishedTx)
-                                && <SwapWithWallet
-                                    onConfirmed={onConfirmed}
-                                    alphaAmount={alphaAmount}
-                                    betaAmount={betaAmount}
-                                    alphaAsset={alphaAsset}
-                                    betaAsset={betaAsset}
-                                />}
-                            {walletUnlocked && !isEmpty(publishedTx)
-                                && <Button
-                                    isLoading={txPending}
-                                    size="lg"
-                                    variant="main_button"
-                                    spinner={<RingLoader size={50} color="white" />}
-                                    onClick={openBlockExplorer}
-                                >
-                                    Check Transaction
-                                </Button>}
-                        </VStack>
+                        <SimpleGrid columns={[1, null, 2]} spacing="4">
+                            <AssetSelector
+                                amount={alphaAmount}
+                                type={alphaAsset}
+                                onTypeChange={onUpdateAlphaAssetType}
+                                onAmountChange={onUpdateAlphaAssetAmount}
+                            />
+                            <AssetSelector
+                                amount={betaAmount}
+                                type={betaAsset}
+                                onTypeChange={onUpdateBetaAssetType}
+                                onAmountChange={onUpdateBetaAssetAmount}
+                            />
+                        </SimpleGrid>
                     </Box>
-                </Flex>
+                    <Box>
+                        <Text textStyle="info">1 BTC = 19,337.42 USDT</Text>
+                    </Box>
+                    <Box>
+                        {!walletUnlocked
+                            && <UnlockWallet onUnlocked={onUnlocked} />}
+                        {walletUnlocked && isEmpty(publishedTx)
+                            && <SwapWithWallet
+                                onConfirmed={onConfirmed}
+                                alphaAmount={alphaAmount}
+                                betaAmount={betaAmount}
+                                alphaAsset={alphaAsset}
+                                betaAsset={betaAsset}
+                            />}
+                        {walletUnlocked && !isEmpty(publishedTx)
+                            && <Button
+                                isLoading={txPending}
+                                size="lg"
+                                variant="main_button"
+                                spinner={<RingLoader size={50} color="white" />}
+                                onClick={openBlockExplorer}
+                            >
+                                Check Transaction
+                            </Button>}
+                    </Box>
+                </VStack>
             </header>
         </div>
     );

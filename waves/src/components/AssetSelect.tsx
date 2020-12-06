@@ -22,6 +22,7 @@ function AssetSelect({ type, onAssetChange }: CurrencySelectProps) {
                 icon={<ChevronDownIcon />}
                 iconColor="gray.500"
                 defaultValue={type}
+                shadow="md"
                 onChange={onChange}
             >
                 <option value={AssetType.BTC}>L-BTC - Bitcoin</option>
