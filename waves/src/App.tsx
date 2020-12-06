@@ -1,10 +1,11 @@
 import { Box, Button, Center, Flex, Text, VStack } from "@chakra-ui/react";
-import React, { MouseEvent } from "react";
+import React, { MouseEvent, useEffect } from "react";
 import { IconContext } from "react-icons";
 import { TiArrowSync } from "react-icons/ti";
 import { RingLoader } from "react-spinners";
 import "./App.css";
 import AssetSelector from "./components/AssetSelector";
+import { useRateService } from "./hooks/RateService";
 import SwapWithWallet from "./wallet/SwapWithWallet";
 import UnlockWallet from "./wallet/UnlockWallet";
 
@@ -14,8 +15,10 @@ export enum AssetType {
 }
 
 function App() {
+    const [rate, setRate] = React.useState(191337);
+
     const [alphaAsset, setAlphaAsset] = React.useState(AssetType.BTC);
-    const [alphaAmount, setAlphaAmount] = React.useState(1);
+    const [alphaAmount, setAlphaAmount] = React.useState(0.01);
 
     const [betaAsset, setBetaAsset] = React.useState(AssetType.USDT);
     const [betaAmount, setBetaAmount] = React.useState(191.13);
@@ -36,11 +39,13 @@ function App() {
     const onUpdateAlphaAssetAmount = (newAmount: number) => {
         console.log(`Received new alpha amount: ${newAmount}`);
         setAlphaAmount(newAmount);
+        setBetaAmount(newAmount * rate);
     };
 
     const onUpdateBetaAssetAmount = (newAmount: number) => {
         console.log(`Received new beta amount: ${newAmount}`);
         setBetaAmount(newAmount);
+        setAlphaAmount(newAmount / rate);
     };
 
     const onUnlocked = (unlocked: boolean) => {
@@ -65,6 +70,14 @@ function App() {
     const openBlockExplorer = (_clicked: MouseEvent) => {
         window.open(`https://blockstream.info/liquid/tx/${publishedTx}`, "_blank");
     };
+
+    const rateService = useRateService();
+    useEffect(() => {
+        rateService.subscribe((rate) => {
+            setRate(rate);
+            setBetaAmount(alphaAmount * rate);
+        });
+    });
 
     return (
         <div className="App">
@@ -112,7 +125,7 @@ function App() {
                         />
                     </Flex>
                     <Box>
-                        <Text textStyle="info">1 BTC = 19,337.42 USDT</Text>
+                        <Text textStyle="info">1 BTC = {rate} USDT</Text>
                     </Box>
                     <Box>
                         {!walletUnlocked

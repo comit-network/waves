@@ -2,6 +2,7 @@ import { ChakraProvider } from "@chakra-ui/react";
 import React from "react";
 import ReactDOM from "react-dom";
 import App from "./App";
+import { Provider as RateServiceProvider } from "./hooks/RateService";
 import "./index.css";
 import reportWebVitals from "./reportWebVitals";
 import theme from "./theme";
@@ -9,7 +10,9 @@ import theme from "./theme";
 ReactDOM.render(
     <React.StrictMode>
         <ChakraProvider theme={theme}>
-            <App />
+            <RateServiceProvider value={19337.42}>
+                <App />
+            </RateServiceProvider>
         </ChakraProvider>
     </React.StrictMode>,
     document.getElementById("root"),

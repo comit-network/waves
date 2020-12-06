@@ -38,24 +38,21 @@ interface BitcoinInputProps {
 }
 
 function BitcoinInput({ amount, onAmountChange }: BitcoinInputProps) {
-    const format = (val: string) => {
+    const format = (val: number) => {
         return `₿ ` + val;
     };
 
     const parse = (val: string) => {
-        return val.replace(/^₿/, "");
+        return Number(val.replace(/^₿/, ""));
     };
 
-    const [value, setValue] = React.useState(amount.toString());
-
     const updateValue = (val: string) => {
-        let asString = parse(val);
-        setValue(asString);
-        onAmountChange(Number(asString));
+        let updatedValue = parse(val);
+        onAmountChange(updatedValue);
     };
 
     return (
-        <CustomInput value={value} precision={8} step={0.00000001} updateValue={updateValue} format={format} />
+        <CustomInput value={amount} precision={8} step={0.00000001} updateValue={updateValue} format={format} />
     );
 }
 
@@ -65,32 +62,30 @@ interface UsdtInputProps {
 }
 
 function UsdtInput({ amount, onAmountChange }: UsdtInputProps) {
-    const format = (val: string) => {
+    const format = (val: number) => {
         return `$ ` + val;
     };
 
     const parse = (val: string) => {
-        return val.replace(/^\$/, "");
+        return Number(val.replace(/^\$/, ""));
     };
-    const [value, setValue] = React.useState(amount.toString());
 
     const updateValue = (val: string) => {
-        let asString = parse(val);
-        setValue(asString);
-        onAmountChange(Number(asString));
+        let updatedValue = parse(val);
+        onAmountChange(updatedValue);
     };
 
     return (
-        <CustomInput value={value} precision={2} step={0.01} updateValue={updateValue} format={format} />
+        <CustomInput value={amount} precision={2} step={0.01} updateValue={updateValue} format={format} />
     );
 }
 
 interface CustomInputProps {
-    value: string;
+    value: number;
     precision: number;
     step: number;
     updateValue: (val: string) => void;
-    format: (val: string) => string;
+    format: (val: number) => string;
 }
 
 function CustomInput({ value, updateValue, precision, step, format }: CustomInputProps) {
