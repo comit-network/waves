@@ -9,6 +9,7 @@ import UnlockWallet from "./wallet/UnlockWallet";
 export enum AssetType {
     BTC = "BTC",
     USDT = "USDT",
+    XMR = "XMR",
 }
 
 function App() {

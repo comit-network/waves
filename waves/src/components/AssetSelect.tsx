@@ -10,13 +10,22 @@ import {
     Grid,
     HStack,
     Image,
+    Modal,
+    ModalBody,
+    ModalCloseButton,
+    ModalContent,
+    ModalFooter,
+    ModalHeader,
+    ModalOverlay,
     Text,
     useDisclosure,
     VStack,
 } from "@chakra-ui/react";
-import React from "react";
+import React, { MouseEvent } from "react";
+import { GrGithub } from "react-icons/gr";
 import { AssetType } from "../App";
 import Bitcoin from "./bitcoin.svg";
+import Xmr from "./monero.svg";
 import Usdt from "./tether.svg";
 
 interface CurrencySelectProps {
@@ -25,7 +34,6 @@ interface CurrencySelectProps {
     placement: "left" | "right";
 }
 
-// TODO: make the select option nice as in the mock, i.e. with ticker symbols
 function AssetSelect({ type, onAssetChange, placement }: CurrencySelectProps) {
     const onChange = (value: AssetType) => {
         onAssetChange(value);
@@ -38,18 +46,19 @@ function AssetSelect({ type, onAssetChange, placement }: CurrencySelectProps) {
     return (
         <>
             <Button ref={btnRef} w="100%" bg="white" border="grey" size="lg" shadow="md" onClick={onOpen}>
-                {type === "BTC" && <BitcoinSelect renderAsDropDown={true} />}
-                {type === "USDT" && <UsdtSelect renderAsDropDown={true} />}
+                {type === "BTC" && <BitcoinSelect />}
+                {type === "USDT" && <UsdtSelect />}
             </Button>
 
             <Drawer placement={placement} onClose={onClose} isOpen={isOpen} size="sm">
                 <DrawerOverlay>
                     <DrawerContent>
-                        <DrawerHeader>{"Available Trading Pairs"}</DrawerHeader>
+                        <DrawerHeader>{"Available Assets"}</DrawerHeader>
                         <DrawerBody>
                             <Grid templateColumns="repeat(2, 1fr)" gap={6}>
                                 <BitcoinBox onSelect={onChange} />
                                 <UsdtBox onSelect={onChange} />
+                                <XmrBox />
                             </Grid>
                         </DrawerBody>
                     </DrawerContent>
@@ -61,11 +70,7 @@ function AssetSelect({ type, onAssetChange, placement }: CurrencySelectProps) {
 
 export default AssetSelect;
 
-interface SelectProps {
-    renderAsDropDown: boolean;
-}
-
-function BitcoinSelect({ renderAsDropDown }: SelectProps) {
+function BitcoinSelect() {
     return (
         <HStack spacing="24px">
             <Box h="40px">
@@ -74,14 +79,14 @@ function BitcoinSelect({ renderAsDropDown }: SelectProps) {
             <Box>
                 <Text textStyle="assetSelect">L-BTC : Bitcoin</Text>
             </Box>
-            {renderAsDropDown && <Box>
+            <Box>
                 <ChevronDownIcon h="60%" color="gray.500" />
-            </Box>}
+            </Box>
         </HStack>
     );
 }
 
-function UsdtSelect({ renderAsDropDown }: SelectProps) {
+function UsdtSelect() {
     return (
         <HStack spacing="24px">
             <Box h="40px">
@@ -90,9 +95,9 @@ function UsdtSelect({ renderAsDropDown }: SelectProps) {
             <Box>
                 <Text textStyle="assetSelect">L-USDT : Tether</Text>
             </Box>
-            {renderAsDropDown && <Box>
+            <Box>
                 <ChevronDownIcon h="60%" color="gray.500" />
-            </Box>}
+            </Box>
         </HStack>
     );
 }
@@ -113,6 +118,7 @@ function BitcoinBox({ onSelect }: CurrencyBoxProps) {
         </VStack>
     </Box>);
 }
+
 function UsdtBox({ onSelect }: CurrencyBoxProps) {
     return (<Box h="100px" as={Button} onClick={(e) => onSelect(AssetType.USDT)}>
         <VStack spacing="24px">
@@ -124,4 +130,46 @@ function UsdtBox({ onSelect }: CurrencyBoxProps) {
             </Box>
         </VStack>
     </Box>);
+}
+
+function XmrBox() {
+    const { isOpen, onOpen, onClose } = useDisclosure();
+    const openXmrProject = (_clicked: MouseEvent) => {
+        window.open(`https://github.com/comit-network/xmr-btc-swap/`, "_blank");
+    };
+
+    return (
+        <>
+            <Box h="100px" as={Button} onClick={onOpen}>
+                <VStack spacing="24px">
+                    <Box h="40px">
+                        <Image src={Xmr} h="100%" />
+                    </Box>
+                    <Box>
+                        <Text textStyle="assetSelect">XMR - Monero</Text>
+                    </Box>
+                </VStack>
+            </Box>
+
+            <Modal isOpen={isOpen} onClose={onClose}>
+                <ModalOverlay />
+                <ModalContent>
+                    <ModalHeader>Unsupported</ModalHeader>
+                    <ModalCloseButton />
+                    <ModalBody>
+                        <Text textStyle="lg">
+                            Swapping BTC/XMR is currently not supported in the browser. Click below to checkout our
+                            other project.
+                        </Text>
+                    </ModalBody>
+
+                    <ModalFooter>
+                        <Button leftIcon={<GrGithub />} size="md" variant="wallet_button" onClick={openXmrProject}>
+                            Checkout on Github
+                        </Button>
+                    </ModalFooter>
+                </ModalContent>
+            </Modal>
+        </>
+    );
 }
