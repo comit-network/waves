@@ -74,12 +74,14 @@ function App() {
                     <Box>
                         <SimpleGrid columns={[1, null, 2]} spacing="4">
                             <AssetSelector
+                                placement="left"
                                 amount={alphaAmount}
                                 type={alphaAsset}
                                 onTypeChange={onUpdateAlphaAssetType}
                                 onAmountChange={onUpdateAlphaAssetAmount}
                             />
                             <AssetSelector
+                                placement="right"
                                 amount={betaAmount}
                                 type={betaAsset}
                                 onTypeChange={onUpdateBetaAssetType}

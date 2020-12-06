@@ -6,18 +6,19 @@ import AssetSelect from "./AssetSelect";
 interface AssetSelectorProps {
     type: AssetType;
     amount: number;
+    placement: "left" | "right";
     onTypeChange: (asset: AssetType) => void;
     onAmountChange: (asset: number) => void;
 }
 
-function AssetSelector({ type, amount, onTypeChange, onAmountChange }: AssetSelectorProps) {
+function AssetSelector({ type, amount, onTypeChange, onAmountChange, placement }: AssetSelectorProps) {
     const box_width = 400;
     const box_height = 220;
 
     return (
         <Center bg="gray.100" w={box_width} h={box_height} borderRadius={"md"}>
             <VStack spacing={4} id="select{type}">
-                <AssetSelect type={type} onAssetChange={onTypeChange} />
+                <AssetSelect type={type} onAssetChange={onTypeChange} placement={placement} />
                 {/* asset is BTC: render BTC input*/}
                 {type === AssetType.BTC
                     && <BitcoinInput amount={amount} onAmountChange={onAmountChange} />}
@@ -96,6 +97,7 @@ function CustomInput({ value, updateValue, precision, step, format }: CustomInpu
     return (
         <NumberInput
             onChange={(valueString) => updateValue(valueString)}
+            w="100%"
             value={format(value)}
             precision={precision}
             step={step}
