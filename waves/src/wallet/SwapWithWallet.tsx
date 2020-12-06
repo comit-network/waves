@@ -16,7 +16,6 @@ import {
     Spacer,
     Text,
     useDisclosure,
-    VStack,
 } from "@chakra-ui/react";
 import React, { MouseEvent } from "react";
 import { AssetType } from "../App";
@@ -66,22 +65,22 @@ function SwapWithWallet({ alphaAmount, alphaAsset, betaAmount, betaAsset, onConf
                         <DrawerHeader>Confirm Swap</DrawerHeader>
                         <DrawerBody>
                             {/*<VStack>*/}
-                                <Box>
-                                    <YouSwapItem
-                                        asset={alphaAsset}
-                                        amount={alphaAmount}
-                                        balanceAfter={0}
-                                        balanceBefore={0}
-                                    />
-                                </Box>
-                                <Box>
-                                    <YouSwapItem
-                                        asset={betaAsset}
-                                        amount={betaAmount}
-                                        balanceAfter={0}
-                                        balanceBefore={0}
-                                    />
-                                </Box>
+                            <Box>
+                                <YouSwapItem
+                                    asset={alphaAsset}
+                                    amount={alphaAmount}
+                                    balanceAfter={0}
+                                    balanceBefore={0}
+                                />
+                            </Box>
+                            <Box>
+                                <YouSwapItem
+                                    asset={betaAsset}
+                                    amount={betaAmount}
+                                    balanceAfter={0}
+                                    balanceBefore={0}
+                                />
+                            </Box>
                             {/*</VStack>*/}
                         </DrawerBody>
 

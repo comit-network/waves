@@ -1,5 +1,7 @@
-import { Box, Button, SimpleGrid, Text, VStack } from "@chakra-ui/react";
+import { Box, Button, Center, Flex, Text, VStack } from "@chakra-ui/react";
 import React, { MouseEvent } from "react";
+import { IconContext } from "react-icons";
+import { TiArrowSync } from "react-icons/ti";
 import { RingLoader } from "react-spinners";
 import "./App.css";
 import AssetSelector from "./components/AssetSelector";
@@ -71,24 +73,44 @@ function App() {
                     spacing={4}
                     align="stretch"
                 >
-                    <Box>
-                        <SimpleGrid columns={[1, null, 2]} spacing="4">
-                            <AssetSelector
-                                placement="left"
-                                amount={alphaAmount}
-                                type={alphaAsset}
-                                onTypeChange={onUpdateAlphaAssetType}
-                                onAmountChange={onUpdateAlphaAssetAmount}
-                            />
-                            <AssetSelector
-                                placement="right"
-                                amount={betaAmount}
-                                type={betaAsset}
-                                onTypeChange={onUpdateBetaAssetType}
-                                onAmountChange={onUpdateBetaAssetAmount}
-                            />
-                        </SimpleGrid>
-                    </Box>
+                    <Flex color="white">
+                        <AssetSelector
+                            placement="left"
+                            amount={alphaAmount}
+                            type={alphaAsset}
+                            onTypeChange={onUpdateAlphaAssetType}
+                            onAmountChange={onUpdateAlphaAssetAmount}
+                        />
+                        <Center w="10px">
+                            <Box zIndex={2}>
+                                <IconContext.Provider
+                                    value={{
+                                        color: "white",
+                                        size: "60px",
+                                        style: {
+                                            background: " #263238",
+                                            width: "64px",
+                                            height: "64px",
+                                            borderRadius: "50%",
+                                            textAlign: "center",
+                                            lineHeight: "100px",
+                                            verticalAlign: " middle",
+                                            padding: "10px",
+                                        },
+                                    }}
+                                >
+                                    <TiArrowSync />
+                                </IconContext.Provider>
+                            </Box>
+                        </Center>
+                        <AssetSelector
+                            placement="right"
+                            amount={betaAmount}
+                            type={betaAsset}
+                            onTypeChange={onUpdateBetaAssetType}
+                            onAmountChange={onUpdateBetaAssetAmount}
+                        />
+                    </Flex>
                     <Box>
                         <Text textStyle="info">1 BTC = 19,337.42 USDT</Text>
                     </Box>

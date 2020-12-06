@@ -1,5 +1,4 @@
 import { extendTheme } from "@chakra-ui/react";
-import React from "react";
 
 const theme = extendTheme({
     textStyles: {
@@ -23,7 +22,6 @@ const theme = extendTheme({
             bg: "#304FFE",
             rounded: "md",
             width: "200px",
-            // _hover: {{ bg: "blue.300" }},
         },
     },
     components: {
