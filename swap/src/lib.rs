@@ -36,9 +36,8 @@ pub fn make_confidential_address() -> (Address, SecretKey, PublicKey, SecretKey,
 
 #[cfg(test)]
 mod tests {
-    use bitcoin::Amount;
     use elements_fun::{
-        bitcoin::{secp256k1::Message, SigHashType},
+        bitcoin::{self, secp256k1::Message, Amount, SigHashType},
         bitcoin_hashes::{hash160, hex::FromHex, Hash},
         encode::serialize_hex,
         opcodes,

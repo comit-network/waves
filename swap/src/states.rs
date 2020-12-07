@@ -1,7 +1,6 @@
 use anyhow::{Context, Result};
-use bitcoin::Amount;
 use elements_fun::{
-    bitcoin::{secp256k1::Message, SigHashType},
+    bitcoin::{secp256k1::Message, Amount, SigHashType},
     bitcoin_hashes::{hash160, Hash},
     opcodes,
     script::Builder,
@@ -10,20 +9,23 @@ use elements_fun::{
 };
 use rand::{CryptoRng, RngCore};
 use secp256k1::{PublicKey as SecpPublicKey, SecretKey, SECP256K1};
+use serde::Deserialize;
 
 /// Sent from Alice to Bob, assuming Alice has bitcoin.
+#[derive(Deserialize)]
 pub struct Message0 {
-    input: TxIn,
-    input_as_txout: TxOut,
-    input_blinding_sk: SecretKey,
-    address_redeem: Address,
-    address_change: Address,
-    fee: Amount,
+    pub input: TxIn,
+    pub input_as_txout: TxOut,
+    pub input_blinding_sk: SecretKey,
+    pub address_redeem: Address,
+    pub address_change: Address,
+    #[serde(with = "::elements_fun::bitcoin::util::amount::serde::as_sat")]
+    pub fee: Amount,
 }
 
 /// Sent from Bob to Alice.
 pub struct Message1 {
-    transaction: Transaction,
+    pub transaction: Transaction,
 }
 
 pub struct Alice0 {
@@ -215,7 +217,6 @@ pub struct Bob0 {
     redeem_amount_bob: Amount,
     input: TxIn,
     input_as_txout: TxOut,
-    input_sk: SecretKey,
     input_blinding_sk: SecretKey,
     asset_id_alice: AssetId,
     address_redeem: Address,
@@ -228,7 +229,6 @@ impl Bob0 {
         amount_alice: Amount,
         amount_bob: Amount,
         input: (OutPoint, TxOut),
-        input_sk: SecretKey,
         input_blinding_sk: SecretKey,
         asset_id_alice: AssetId,
         address_redeem: Address,
@@ -251,7 +251,6 @@ impl Bob0 {
             redeem_amount_bob: amount_bob,
             input,
             input_as_txout,
-            input_sk,
             input_blinding_sk,
             asset_id_alice,
             address_redeem,
@@ -263,12 +262,12 @@ impl Bob0 {
     where
         R: RngCore + CryptoRng,
     {
-        let alice_txout = msg
+        let alice_input_as_txout = msg
             .input_as_txout
             .as_confidential()
             .context("not a confidential txout")?
             .clone();
-        let bob_txout = self
+        let bob_input_as_txout = self
             .input_as_txout
             .as_confidential()
             .context("not a confidential txout")?
@@ -279,13 +278,13 @@ impl Bob0 {
             asset_blinding_factor: abf_in_alice,
             value_blinding_factor: vbf_in_alice,
             value: amount_in_alice,
-        } = alice_txout.unblind(msg.input_blinding_sk)?;
+        } = alice_input_as_txout.unblind(msg.input_blinding_sk)?;
         let UnblindedTxOut {
             asset: asset_id_bob,
             asset_blinding_factor: abf_in_bob,
             value_blinding_factor: vbf_in_bob,
             value: amount_in_bob,
-        } = bob_txout.unblind(self.input_blinding_sk)?;
+        } = bob_input_as_txout.unblind(self.input_blinding_sk)?;
 
         let change_amount_alice = Amount::from_sat(amount_in_alice)
             .checked_sub(self.redeem_amount_bob)
@@ -303,14 +302,14 @@ impl Bob0 {
             (
                 asset_id_alice,
                 amount_in_alice,
-                alice_txout.asset,
+                alice_input_as_txout.asset,
                 abf_in_alice,
                 vbf_in_alice,
             ),
             (
                 asset_id_bob,
                 amount_in_bob,
-                bob_txout.asset,
+                bob_input_as_txout.asset,
                 abf_in_bob,
                 vbf_in_bob,
             ),
@@ -393,7 +392,6 @@ impl Bob0 {
         Ok(Bob1 {
             transaction,
             input_index_bob,
-            input_sk: self.input_sk,
             input_as_txout_bob: self.input_as_txout,
         })
     }
@@ -402,15 +400,14 @@ impl Bob0 {
 pub struct Bob1 {
     transaction: Transaction,
     input_index_bob: usize,
-    input_sk: SecretKey,
     input_as_txout_bob: TxOut,
 }
 
 impl Bob1 {
-    pub fn compose(&self) -> Result<Message1> {
+    pub fn compose(&self, input_sk: &SecretKey) -> Result<Message1> {
         let secp = elements_fun::bitcoin::secp256k1::Secp256k1::new();
 
-        let input_pk_bob = SecpPublicKey::from_secret_key(&secp, &self.input_sk);
+        let input_pk_bob = SecpPublicKey::from_secret_key(&secp, &input_sk);
         let fund_bitcoin_tx_vout_bob = self.input_as_txout_bob.clone();
         let fund_amount_bob = fund_bitcoin_tx_vout_bob
             .as_confidential()
@@ -441,7 +438,7 @@ impl Bob1 {
 
             let sig = secp.sign(
                 &Message::from_slice(&digest.into_inner()).unwrap(),
-                &self.input_sk,
+                &input_sk,
             );
 
             let mut serialized_signature = sig.serialize_der().to_vec();
@@ -451,6 +448,10 @@ impl Bob1 {
         };
 
         Ok(Message1 { transaction })
+    }
+
+    pub fn unsigned_transaction(&self) -> &Transaction {
+        &self.transaction
     }
 }
 
@@ -463,6 +464,7 @@ mod tests {
     };
     use anyhow::Result;
     use elements_fun::{
+        bitcoin,
         bitcoin::{Network, PrivateKey, PublicKey},
         encode::serialize_hex,
         Txid,
@@ -591,7 +593,6 @@ mod tests {
             amount_alice,
             amount_bob,
             input_bob,
-            fund_sk_bob,
             fund_blinding_sk_bob,
             asset_id_alice,
             final_address_bob.clone(),
@@ -600,7 +601,7 @@ mod tests {
 
         let message0 = alice.compose();
         let bob1 = bob.interpret(&mut thread_rng(), message0).unwrap();
-        let message1 = bob1.compose().unwrap();
+        let message1 = bob1.compose(&fund_sk_bob).unwrap();
 
         let tx = alice.interpret(message1).unwrap();
         let _txid = client.send_raw_transaction(&tx).await.unwrap();
