@@ -8,7 +8,7 @@ import {
     VStack,
 } from "@chakra-ui/react";
 import React, { Dispatch } from "react";
-import { AssetSide, AssetType, UpdateAssetAction } from "../App";
+import { AssetSide, AssetType, Action } from "../App";
 import AssetSelect from "./AssetSelect";
 
 interface AssetSelectorProps {
@@ -16,7 +16,7 @@ interface AssetSelectorProps {
     type: AssetType;
     amount: number;
     placement: "left" | "right";
-    dispatch: Dispatch<UpdateAssetAction>;
+    dispatch: Dispatch<Action>;
 }
 
 function AssetSelector({ assetSide, type, amount, placement, dispatch }: AssetSelectorProps) {

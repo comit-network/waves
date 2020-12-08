@@ -1,10 +1,10 @@
 import { IconButton } from "@chakra-ui/react";
 import React, { Dispatch } from "react";
 import { TiArrowSync } from "react-icons/ti";
-import { UpdateAssetAction } from "../App";
+import { Action } from "../App";
 
 interface ExchangeIconProps {
-    dispatch: Dispatch<UpdateAssetAction>;
+    dispatch: Dispatch<Action>;
 }
 export default function ExchangeIcon({ dispatch }: ExchangeIconProps) {
     return (

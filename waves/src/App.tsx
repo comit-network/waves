@@ -15,7 +15,7 @@ export enum AssetType {
 
 export type AssetSide = "Alpha" | "Beta";
 
-export type UpdateAssetAction =
+export type Action =
     | { type: "AlphaAmount"; value: number }
     | { type: "BetaAmount"; value: number }
     | { type: "AlphaAssetType"; value: AssetType }
@@ -23,7 +23,7 @@ export type UpdateAssetAction =
     | { type: "RateChange"; value: number }
     | { type: "SwapAssetTypes" };
 
-interface CurrentPairState {
+interface State {
     alpha: AssetState;
     beta: AssetState;
     rate: number;
@@ -34,7 +34,7 @@ interface AssetState {
     amount: number;
 }
 
-function reducer(state: CurrentPairState, action: UpdateAssetAction) {
+function reducer(state: State, action: Action) {
     switch (action.type) {
         case "BetaAmount":
             console.log(`Received new beta amount: ${action.value}`);
