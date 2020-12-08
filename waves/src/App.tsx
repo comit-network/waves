@@ -19,7 +19,6 @@ export type AssetSide = "Alpha" | "Beta";
 
 export type Action =
     | { type: "AlphaAmount"; value: number }
-    | { type: "BetaAmount"; value: number }
     | { type: "AlphaAssetType"; value: AssetType }
     | { type: "BetaAssetType"; value: AssetType }
     | { type: "RateChange"; value: number }
@@ -36,23 +35,21 @@ interface AssetState {
     amount: number;
 }
 
-function reducer(state: State, action: Action) {
+const initialState = {
+    alpha: {
+        type: AssetType.BTC,
+        amount: 0.01,
+    },
+    beta: {
+        type: AssetType.USDT,
+        amount: 191.34,
+    },
+    rate: 19133.74,
+};
+
+export function reducer(state: State = initialState, action: Action) {
     switch (action.type) {
-        case "BetaAmount":
-            console.log(`Received new beta amount: ${action.value}`);
-            return {
-                beta: {
-                    type: state.beta.type,
-                    amount: state.rate,
-                },
-                alpha: {
-                    type: state.alpha.type,
-                    amount: action.value / state.rate,
-                },
-                rate: state.rate,
-            };
         case "AlphaAmount":
-            console.log(`Received new alpha amount: ${action.value}`);
             return {
                 alpha: {
                     type: state.alpha.type,
@@ -65,7 +62,6 @@ function reducer(state: State, action: Action) {
                 rate: state.rate,
             };
         case "AlphaAssetType":
-            console.log(`Received new alpha type: ${action.value}`);
             let beta = state.beta;
             if (beta.type === action.value) {
                 beta.type = state.alpha.type;
@@ -80,7 +76,6 @@ function reducer(state: State, action: Action) {
             };
 
         case "BetaAssetType":
-            console.log(`Received new beta type: ${action.value}`);
             let alpha = state.alpha;
             if (alpha.type === action.value) {
                 alpha.type = state.beta.type;
@@ -95,7 +90,6 @@ function reducer(state: State, action: Action) {
             };
         case "RateChange":
             // TODO: fix "set USDT to alpha, win!"-bug
-            console.log(`Received a new rate: ${action.value}`);
             return {
                 ...state,
                 beta: {
@@ -116,18 +110,6 @@ function reducer(state: State, action: Action) {
 }
 
 function App() {
-    const initialState = {
-        alpha: {
-            type: AssetType.BTC,
-            amount: 0.01,
-        },
-        beta: {
-            type: AssetType.USDT,
-            amount: 191.34,
-        },
-        rate: 19133.74,
-    };
-
     const [state, dispatch] = useReducer(reducer, initialState);
 
     const [publishedTx, setPublishedTx] = React.useState("");
