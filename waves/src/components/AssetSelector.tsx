@@ -31,14 +31,8 @@ function AssetSelector({ assetSide, type, amount, placement, dispatch }: AssetSe
                     value: newAmount,
                 });
                 break;
-            case "Beta":
-                dispatch({
-                    type: "BetaAmount",
-                    value: newAmount,
-                });
-                break;
             default:
-                throw new Error("Unknown asset side");
+                throw new Error("Only support editing alpha amount at the moment");
         }
     };
 
@@ -70,9 +64,10 @@ function AssetSelector({ assetSide, type, amount, placement, dispatch }: AssetSe
                     && <NumberInput
                         currency="₿"
                         value={amount}
-                        precision={8}
-                        step={0.00000001}
+                        precision={7}
+                        step={0.000001}
                         updateValue={onAmountChange}
+                        isDisabled={assetSide === "Beta"}
                     />}
                 {/* asset is USDT: render USDT input*/}
                 {type === AssetType.USDT
@@ -82,6 +77,7 @@ function AssetSelector({ assetSide, type, amount, placement, dispatch }: AssetSe
                         precision={2}
                         step={0.01}
                         updateValue={onAmountChange}
+                        isDisabled={assetSide === "Beta"}
                     />}
             </VStack>
         </Center>
@@ -96,6 +92,7 @@ interface CustomInputProps {
     precision: number;
     step: number;
     updateValue: (val: number) => void;
+    isDisabled: boolean;
 }
 
 const ASSET_INPUT_LEFT_ADDON_PROPS = {
@@ -117,7 +114,13 @@ const ASSET_INPUT_PROPS = {
     shadow: "md",
 };
 
-function NumberInput({ currency, value, updateValue, precision, step }: CustomInputProps) {
+const ASSET_INPUT_DISABLED_PROPS = {
+    ...ASSET_INPUT_PROPS,
+    bg: "grey.50",
+};
+
+function NumberInput({ currency, value, updateValue, precision, step, isDisabled }: CustomInputProps) {
+    const inputProps = isDisabled ? ASSET_INPUT_DISABLED_PROPS : ASSET_INPUT_PROPS;
     return (
         <InputGroup>
             <InputLeftAddon
@@ -125,11 +128,13 @@ function NumberInput({ currency, value, updateValue, precision, step }: CustomIn
                 children={currency}
             />
             <CUINumberInput
-                {...ASSET_INPUT_PROPS}
+                {...inputProps}
                 onChange={(_, valueNumber) => updateValue(valueNumber)}
                 value={value}
                 precision={precision}
                 step={step}
+                isDisabled={isDisabled}
+                min={0}
             >
                 <NumberInputField />
                 <NumberInputStepper />
