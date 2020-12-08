@@ -1,24 +1,70 @@
-import { Center, NumberInput, NumberInputField, VStack } from "@chakra-ui/react";
-import React from "react";
-import { AssetType } from "../App";
+import {
+    Center,
+    InputGroup,
+    InputLeftAddon,
+    NumberInput,
+    NumberInputField,
+    NumberInputStepper,
+    VStack,
+} from "@chakra-ui/react";
+import React, { Dispatch } from "react";
+import { AssetSide, AssetType, UpdateAssetAction } from "../App";
 import AssetSelect from "./AssetSelect";
 
 interface AssetSelectorProps {
+    assetSide: AssetSide;
     type: AssetType;
     amount: number;
     placement: "left" | "right";
-    onTypeChange: (asset: AssetType) => void;
-    onAmountChange: (asset: number) => void;
+    dispatch: Dispatch<UpdateAssetAction>;
 }
 
-function AssetSelector({ type, amount, onTypeChange, onAmountChange, placement }: AssetSelectorProps) {
+function AssetSelector({ assetSide, type, amount, placement, dispatch }: AssetSelectorProps) {
     const box_width = 400;
     const box_height = 220;
+
+    const onAmountChange = (newAmount: number) => {
+        switch (assetSide) {
+            case "Alpha":
+                dispatch({
+                    type: "AlphaAmount",
+                    value: newAmount,
+                });
+                break;
+            case "Beta":
+                dispatch({
+                    type: "BetaAmount",
+                    value: newAmount,
+                });
+                break;
+            default:
+                throw new Error("Unknown asset side");
+        }
+    };
+
+    const onAssetTypeChange = (newType: AssetType) => {
+        switch (assetSide) {
+            case "Alpha":
+                dispatch({
+                    type: "AlphaAssetType",
+                    value: newType,
+                });
+                break;
+            case "Beta":
+                dispatch({
+                    type: "BetaAssetType",
+                    value: newType,
+                });
+                break;
+            default:
+                throw new Error("Unknown asset side");
+        }
+    };
 
     return (
         <Center bg="gray.100" w={box_width} h={box_height} borderRadius={"md"}>
             <VStack spacing={4} id="select{type}">
-                <AssetSelect type={type} onAssetChange={onTypeChange} placement={placement} />
+                <AssetSelect type={type} onAssetChange={onAssetTypeChange} placement={placement} />
                 {/* asset is BTC: render BTC input*/}
                 {type === AssetType.BTC
                     && <BitcoinInput amount={amount} onAmountChange={onAmountChange} />}
@@ -32,77 +78,60 @@ function AssetSelector({ type, amount, onTypeChange, onAmountChange, placement }
 
 export default AssetSelector;
 
-interface BitcoinInputProps {
+interface InputProps {
     amount: number;
     onAmountChange: (amount: number) => void;
 }
 
-function BitcoinInput({ amount, onAmountChange }: BitcoinInputProps) {
-    const format = (val: number) => {
-        return `₿ ` + val;
-    };
-
-    const parse = (val: string) => {
-        return Number(val.replace(/^₿/, ""));
-    };
-
-    const updateValue = (val: string) => {
-        let updatedValue = parse(val);
-        onAmountChange(updatedValue);
-    };
-
+function BitcoinInput({ amount, onAmountChange }: InputProps) {
     return (
-        <CustomInput value={amount} precision={8} step={0.00000001} updateValue={updateValue} format={format} />
+        <CustomInput currency="₿" value={amount} precision={8} step={0.00000001} updateValue={onAmountChange} />
     );
 }
 
-interface UsdtInputProps {
-    amount: number;
-    onAmountChange: (amount: number) => void;
-}
-
-function UsdtInput({ amount, onAmountChange }: UsdtInputProps) {
-    const format = (val: number) => {
-        return `$ ` + val;
-    };
-
-    const parse = (val: string) => {
-        return Number(val.replace(/^\$/, ""));
-    };
-
-    const updateValue = (val: string) => {
-        let updatedValue = parse(val);
-        onAmountChange(updatedValue);
-    };
-
+function UsdtInput({ amount, onAmountChange }: InputProps) {
     return (
-        <CustomInput value={amount} precision={2} step={0.01} updateValue={updateValue} format={format} />
+        <CustomInput currency="$" value={amount} precision={2} step={0.01} updateValue={onAmountChange} />
     );
 }
 
 interface CustomInputProps {
+    currency: string;
     value: number;
     precision: number;
     step: number;
-    updateValue: (val: string) => void;
-    format: (val: number) => string;
+    updateValue: (val: number) => void;
 }
 
-function CustomInput({ value, updateValue, precision, step, format }: CustomInputProps) {
+function CustomInput({ currency, value, updateValue, precision, step }: CustomInputProps) {
     return (
-        <NumberInput
-            onChange={(valueString) => updateValue(valueString)}
-            w="100%"
-            value={format(value)}
-            precision={precision}
-            step={step}
-            size="lg"
-            bg="#FFFFFF"
-            textStyle="actionable"
-            borderRadius={"md"}
-            shadow="md"
-        >
-            <NumberInputField />
-        </NumberInput>
+        <InputGroup>
+            <InputLeftAddon
+                children={currency}
+                w="15%"
+                size="lg"
+                h="3rem"
+                bg="grey.50"
+                textStyle="actionable"
+                borderRadius={"md"}
+                shadow="md"
+            />
+            <NumberInput
+                onChange={(_, valueNumber) => updateValue(valueNumber)}
+                w="100%"
+                value={value}
+                precision={precision}
+                step={step}
+                size="lg"
+                bg="#FFFFFF"
+                textStyle="actionable"
+                borderRadius={"md"}
+                shadow="md"
+                inputMode="decimal"
+            >
+                <NumberInputField />
+                <NumberInputStepper />
+            </NumberInput>
+        </InputGroup>
     );
 }

@@ -1,5 +1,5 @@
 import { Box, Button, Center, Flex, Text, VStack } from "@chakra-ui/react";
-import React, { MouseEvent, useEffect } from "react";
+import React, { MouseEvent, useEffect, useReducer } from "react";
 import { IconContext } from "react-icons";
 import { TiArrowSync } from "react-icons/ti";
 import { RingLoader } from "react-spinners";
@@ -14,39 +14,94 @@ export enum AssetType {
     USDT = "USDT",
 }
 
+export type AssetSide = "Alpha" | "Beta";
+
+export type UpdateAssetAction = { type: "AlphaAmount"; value: number } | { type: "BetaAmount"; value: number } | {
+    type: "AlphaAssetType";
+    value: AssetType;
+} | { type: "BetaAssetType"; value: AssetType };
+
+interface CurrentPairState {
+    alpha: AssetState;
+    beta: AssetState;
+    rate: number;
+}
+
+interface AssetState {
+    type: AssetType;
+    amount: number;
+}
+
+function reducer(state: CurrentPairState, action: UpdateAssetAction) {
+    switch (action.type) {
+        case "BetaAmount":
+            console.log(`Received new beta amount: ${action.value}`);
+            return {
+                beta: {
+                    type: state.beta.type,
+                    amount: state.rate,
+                },
+                alpha: {
+                    type: state.alpha.type,
+                    amount: action.value / state.rate,
+                },
+                rate: state.rate,
+            };
+        case "AlphaAmount":
+            console.log(`Received new alpha amount: ${action.value}`);
+            return {
+                alpha: {
+                    type: state.alpha.type,
+                    amount: action.value,
+                },
+                beta: {
+                    type: state.beta.type,
+                    amount: action.value * state.rate,
+                },
+                rate: state.rate,
+            };
+        case "AlphaAssetType":
+            console.log(`Received new alpha type: ${action.value}`);
+            return {
+                ...state,
+                alpha: {
+                    type: action.value,
+                    amount: state.alpha.amount,
+                },
+            };
+
+        case "BetaAssetType":
+            console.log(`Received new beta type: ${action.value}`);
+            return {
+                ...state,
+                beta: {
+                    type: action.value,
+                    amount: state.beta.amount,
+                },
+            };
+        default:
+            throw new Error("Unknown update action received");
+    }
+}
+
 function App() {
-    const [rate, setRate] = React.useState(191337);
+    const initialState = {
+        alpha: {
+            type: AssetType.BTC,
+            amount: 0.01,
+        },
+        beta: {
+            type: AssetType.USDT,
+            amount: 191.34,
+        },
+        rate: 19133.74,
+    };
 
-    const [alphaAsset, setAlphaAsset] = React.useState(AssetType.BTC);
-    const [alphaAmount, setAlphaAmount] = React.useState(0.01);
-
-    const [betaAsset, setBetaAsset] = React.useState(AssetType.USDT);
-    const [betaAmount, setBetaAmount] = React.useState(191.13);
+    const [state, dispatch] = useReducer(reducer, initialState);
 
     const [walletUnlocked, setWalletUnlocked] = React.useState(false);
     const [publishedTx, setPublishedTx] = React.useState("");
     const [txPending, setTxPending] = React.useState(false);
-
-    const onUpdateAlphaAssetType = (newType: AssetType) => {
-        console.log(`Received new alpha assetType: ${newType}`);
-        setAlphaAsset(newType);
-    };
-    const onUpdateBetaAssetType = (newType: AssetType) => {
-        console.log(`Received new beta assetType: ${newType}`);
-        setBetaAsset(newType);
-    };
-
-    const onUpdateAlphaAssetAmount = (newAmount: number) => {
-        console.log(`Received new alpha amount: ${newAmount}`);
-        setAlphaAmount(newAmount);
-        setBetaAmount(newAmount * rate);
-    };
-
-    const onUpdateBetaAssetAmount = (newAmount: number) => {
-        console.log(`Received new beta amount: ${newAmount}`);
-        setBetaAmount(newAmount);
-        setAlphaAmount(newAmount / rate);
-    };
 
     const onUnlocked = (unlocked: boolean) => {
         console.log(`Wallet unlocked ${unlocked}`);
@@ -74,8 +129,8 @@ function App() {
     const rateService = useRateService();
     useEffect(() => {
         rateService.subscribe((rate) => {
-            setRate(rate);
-            setBetaAmount(alphaAmount * rate);
+            state.rate = rate;
+            // setBetaAmount(alphaAmount * rate); TODO update amount accordingly
         });
     });
 
@@ -88,11 +143,11 @@ function App() {
                 >
                     <Flex color="white">
                         <AssetSelector
+                            assetSide="Alpha"
                             placement="left"
-                            amount={alphaAmount}
-                            type={alphaAsset}
-                            onTypeChange={onUpdateAlphaAssetType}
-                            onAmountChange={onUpdateAlphaAssetAmount}
+                            amount={state.alpha.amount}
+                            type={state.alpha.type}
+                            dispatch={dispatch}
                         />
                         <Center w="10px">
                             <Box zIndex={2}>
@@ -117,15 +172,15 @@ function App() {
                             </Box>
                         </Center>
                         <AssetSelector
+                            assetSide="Beta"
                             placement="right"
-                            amount={betaAmount}
-                            type={betaAsset}
-                            onTypeChange={onUpdateBetaAssetType}
-                            onAmountChange={onUpdateBetaAssetAmount}
+                            amount={state.beta.amount}
+                            type={state.beta.type}
+                            dispatch={dispatch}
                         />
                     </Flex>
                     <Box>
-                        <Text textStyle="info">1 BTC = {rate} USDT</Text>
+                        <Text textStyle="info">1 BTC = {state.rate} USDT</Text>
                     </Box>
                     <Box>
                         {!walletUnlocked
@@ -133,10 +188,10 @@ function App() {
                         {walletUnlocked && isEmpty(publishedTx)
                             && <SwapWithWallet
                                 onConfirmed={onConfirmed}
-                                alphaAmount={alphaAmount}
-                                betaAmount={betaAmount}
-                                alphaAsset={alphaAsset}
-                                betaAsset={betaAsset}
+                                alphaAmount={state.alpha.amount}
+                                betaAmount={state.beta.amount}
+                                alphaAsset={state.alpha.type}
+                                betaAsset={state.beta.type}
                             />}
                         {walletUnlocked && !isEmpty(publishedTx)
                             && <Button
