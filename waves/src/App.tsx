@@ -5,6 +5,7 @@ import { TiArrowSync } from "react-icons/ti";
 import { RingLoader } from "react-spinners";
 import "./App.css";
 import AssetSelector from "./components/AssetSelector";
+import ExchangeIcon from "./components/ExchangeIcon";
 import { useRateService } from "./hooks/RateService";
 import SwapWithWallet from "./wallet/SwapWithWallet";
 import UnlockWallet from "./wallet/UnlockWallet";
@@ -151,24 +152,7 @@ function App() {
                         />
                         <Center w="10px">
                             <Box zIndex={2}>
-                                <IconContext.Provider
-                                    value={{
-                                        color: "white",
-                                        size: "60px",
-                                        style: {
-                                            background: " #263238",
-                                            width: "64px",
-                                            height: "64px",
-                                            borderRadius: "50%",
-                                            textAlign: "center",
-                                            lineHeight: "100px",
-                                            verticalAlign: " middle",
-                                            padding: "10px",
-                                        },
-                                    }}
-                                >
-                                    <TiArrowSync />
-                                </IconContext.Provider>
+                                <ExchangeIcon />
                             </Box>
                         </Center>
                         <AssetSelector
