@@ -1,6 +1,7 @@
-import { Box, Button, Center, Flex, IconButton, Text, VStack } from "@chakra-ui/react";
-import React, { MouseEvent, useEffect, useReducer } from "react";
-import { BrowserRouter, Link, Route, Switch, useHistory } from "react-router-dom";
+import { ExternalLinkIcon } from "@chakra-ui/icons";
+import { Box, Button, Center, Flex, Link, Text, VStack } from "@chakra-ui/react";
+import React, { useEffect, useReducer } from "react";
+import { BrowserRouter, Link as RouterLink, Route, Switch } from "react-router-dom";
 import { RingLoader } from "react-spinners";
 import "./App.css";
 import AssetSelector from "./components/AssetSelector";
@@ -142,10 +143,6 @@ function App() {
         }, 3000);
     };
 
-    const openBlockExplorer = (_clicked: MouseEvent) => {
-        window.open(`https://blockstream.info/liquid/tx/${publishedTx}`, "_blank");
-    };
-
     const rateService = useRateService();
     useEffect(() => {
         const subscription = rateService.subscribe((rate) => {
@@ -207,15 +204,26 @@ function App() {
                                     />
                                 </Route>
                                 <Route path="/done">
-                                    <Button
-                                        isLoading={txPending}
-                                        size="lg"
-                                        variant="main_button"
-                                        spinner={<RingLoader size={50} color="white" />}
-                                        onClick={openBlockExplorer}
-                                    >
-                                        Check Transaction
-                                    </Button>
+                                    <VStack>
+                                        <Text textStyle="info">
+                                            Check in <Link
+                                                href={`https://blockstream.info/liquid/tx/` + publishedTx}
+                                                isExternal
+                                            >
+                                                Block Explorer <ExternalLinkIcon mx="2px" />
+                                            </Link>
+                                        </Text>
+                                        <Button
+                                            isLoading={txPending}
+                                            size="lg"
+                                            variant="main_button"
+                                            spinner={<RingLoader size={50} color="white" />}
+                                            as={RouterLink}
+                                            to="/swap"
+                                        >
+                                            Swap again?
+                                        </Button>
+                                    </VStack>
                                 </Route>
                             </Switch>
                         </Box>

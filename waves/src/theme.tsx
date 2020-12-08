@@ -28,11 +28,6 @@ const theme = extendTheme({
             baseStyle: {
                 bg: "#304FFE",
                 fontWeight: "bold",
-                fontColor: "green",
-                color: "green",
-                _hover: {
-                    bg: "blue.300",
-                },
             },
 
             sizes: {
@@ -42,12 +37,22 @@ const theme = extendTheme({
             },
             // Custom variant
             variants: {
+                "tx_button": {
+                    bg: "blue.100",
+                    color: "white",
+                },
                 "main_button": {
                     w: "15rem",
                     color: "white",
+                    _hover: {
+                        bg: "blue.300",
+                    },
                 },
                 "wallet_button": {
                     color: "white",
+                    _hover: {
+                        bg: "blue.300",
+                    },
                 },
             },
         },
