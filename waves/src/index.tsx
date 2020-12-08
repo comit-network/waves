@@ -10,7 +10,7 @@ import theme from "./theme";
 ReactDOM.render(
     <React.StrictMode>
         <ChakraProvider theme={theme}>
-            <RateServiceProvider value={19337.42}>
+            <RateServiceProvider value="http://getbestrate.com">
                 <App />
             </RateServiceProvider>
         </ChakraProvider>

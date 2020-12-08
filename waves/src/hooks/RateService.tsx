@@ -1,16 +1,18 @@
 import { createContext, useContext } from "react";
 
-export const RateServiceContext = createContext<number>(20000);
+export const RateServiceContext = createContext<string>("https://getbestrate.com");
 
 export const Provider = RateServiceContext.Provider;
 
 export const useRateService = () => {
-    const initRate = useContext(RateServiceContext);
-    return new RateService(initRate);
+    const initUrl = useContext(RateServiceContext);
+    return new RateService(initUrl);
 };
 
-export default class RateService {
-    constructor(private rate: number) {
+class RateService {
+    private rate: number;
+    constructor(private _url: string) {
+        this.rate = 19_113.03;
     }
 
     public subscribe(callback: (rate: number) => void) {
@@ -25,3 +27,5 @@ export default class RateService {
         return clearTimeout(subscription);
     }
 }
+
+export default RateService;
