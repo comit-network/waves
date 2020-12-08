@@ -154,6 +154,10 @@ pub struct ExplicitTxOut {
     pub value: ExplicitValue,
     /// Scriptpubkey
     pub script_pubkey: Script,
+    /// There should be no such thing as a nonce for an explicit
+    /// output, but Elements will deserialize such a thing and even
+    /// produce it.
+    pub nonce: Option<Nonce>,
 }
 
 /// Transaction output
@@ -640,6 +644,7 @@ impl TxOut {
             asset: ExplicitAsset(asset),
             value: ExplicitValue(value),
             script_pubkey,
+            nonce: None,
         })
     }
 
@@ -1381,10 +1386,15 @@ impl Decodable for ConfidentialTxOut {
 
 impl Encodable for ExplicitTxOut {
     fn consensus_encode<S: io::Write>(&self, mut s: S) -> Result<usize, encode::Error> {
-        Ok(self.asset.consensus_encode(&mut s)?
-            + self.value.consensus_encode(&mut s)?
-            + 0u8.consensus_encode(&mut s)? // nonce
-            + self.script_pubkey.consensus_encode(&mut s)?)
+        let asset = self.asset.consensus_encode(&mut s)?;
+        let value = self.value.consensus_encode(&mut s)?;
+        let nonce = match self.nonce {
+            Some(nonce) => nonce.consensus_encode(&mut s)?,
+            None => 0u8.consensus_encode(&mut s)?,
+        };
+        let script_pubkey = self.script_pubkey.consensus_encode(&mut s)?;
+
+        Ok(asset + value + nonce + script_pubkey)
     }
 }
 
@@ -1393,18 +1403,29 @@ impl Decodable for ExplicitTxOut {
         let asset = Decodable::consensus_decode(&mut d)?;
         let value = Decodable::consensus_decode(&mut d)?;
         let nonce_tag = u8::consensus_decode(&mut d)?;
-        if nonce_tag != 0 {
-            return Err(Error::InvalidTag {
-                expected: 0,
-                got: nonce_tag,
-            });
-        }
+
+        let nonce = match nonce_tag {
+            0 => None,
+            2 | 3 => {
+                let mut xcoor = [0u8; 32];
+                d.read_exact(&mut xcoor)?;
+                Some(Nonce::from_commitment(nonce_tag, &xcoor)?)
+            }
+            _ => {
+                return Err(Error::InvalidTag {
+                    expected: 0,
+                    got: nonce_tag,
+                })
+            }
+        };
+
         let script_pubkey = Decodable::consensus_decode(&mut d)?;
 
         Ok(ExplicitTxOut {
             asset,
             value,
             script_pubkey,
+            nonce,
         })
     }
 }
@@ -1511,10 +1532,9 @@ impl Decodable for Transaction {
 
 #[cfg(test)]
 mod tests {
-    use bitcoin::hashes::hex::FromHex;
-
     use super::*;
-    use encode::serialize;
+    use crate::encode::{serialize, serialize_hex};
+    use bitcoin::hashes::hex::FromHex;
 
     #[test]
     fn outpoint() {
@@ -1832,6 +1852,21 @@ mod tests {
             .unwrap();
         assert_eq!(tx.fee_in(fee_asset), 0);
         assert!(tx.all_fees().is_empty());
+
+        // Transaction with commitmentnonce for in explicit output
+        let tx_hex = "0000000000016329025e4a59fe9feeec5d374cea378bf7e60ca859e097759160\
+             991a4adf7b720100000000fdffffff0301230f4f5d4b7c6fa845806ee4f67713\
+             459e1b69e8e60fcee2e4940c7a0d5de1b2010000000005f5e1000017a9141e4a\
+             294de1be82aa3377669f24f5e370f8f3f5c18701230f4f5d4b7c6fa845806ee4\
+             f67713459e1b69e8e60fcee2e4940c7a0d5de1b201000775f0482544e002afe1\
+             96a0209b9b4e284f05cb02fe05dc170acde48f341b94b59234b767bc923417a9\
+             14ecb0fc5a9c86781876b3af7fa5bd566158ee143c8701230f4f5d4b7c6fa845\
+             806ee4f67713459e1b69e8e60fcee2e4940c7a0d5de1b2010000000000000aee\
+             000000000000";
+        let tx: Transaction = hex_deserialize!(tx_hex);
+
+        let tx_hex_serialized = serialize_hex(&tx);
+        assert_eq!(tx_hex, tx_hex_serialized);
     }
 
     #[test]
