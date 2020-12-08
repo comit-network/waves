@@ -1,7 +1,5 @@
 import { Box, Button, Center, Flex, Text, VStack } from "@chakra-ui/react";
 import React, { MouseEvent, useEffect, useReducer } from "react";
-import { IconContext } from "react-icons";
-import { TiArrowSync } from "react-icons/ti";
 import { RingLoader } from "react-spinners";
 import "./App.css";
 import AssetSelector from "./components/AssetSelector";
@@ -129,10 +127,11 @@ function App() {
 
     const rateService = useRateService();
     useEffect(() => {
-        rateService.subscribe((rate) => {
+        const subscription = rateService.subscribe((rate) => {
             state.rate = rate;
             // setBetaAmount(alphaAmount * rate); TODO update amount accordingly
         });
+        return rateService.unsubscribe(subscription);
     });
 
     return (

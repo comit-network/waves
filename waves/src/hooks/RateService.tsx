@@ -15,9 +15,13 @@ export default class RateService {
 
     public subscribe(callback: (rate: number) => void) {
         // just a dumdum
-        setTimeout(() => {
+        return setTimeout(() => {
             this.rate += 10;
             callback(this.rate);
         }, 10_000);
+    }
+
+    unsubscribe(subscription: NodeJS.Timeout) {
+        return clearTimeout(subscription);
     }
 }
