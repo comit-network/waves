@@ -79,8 +79,13 @@ function reducer(state: CurrentPairState, action: UpdateAssetAction) {
 
         case "BetaAssetType":
             console.log(`Received new beta type: ${action.value}`);
+            let alpha = state.alpha;
+            if (alpha.type === action.value) {
+                alpha.type = state.beta.type;
+            }
             return {
                 ...state,
+                alpha: alpha,
                 beta: {
                     type: action.value,
                     amount: state.beta.amount,
