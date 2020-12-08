@@ -66,7 +66,7 @@ function AssetSelector({ assetSide, type, amount, placement, dispatch }: AssetSe
                         value={amount}
                         precision={7}
                         step={0.000001}
-                        updateValue={onAmountChange}
+                        onAmountChange={onAmountChange}
                         isDisabled={assetSide === "Beta"}
                     />}
                 {/* asset is USDT: render USDT input*/}
@@ -76,7 +76,7 @@ function AssetSelector({ assetSide, type, amount, placement, dispatch }: AssetSe
                         value={amount}
                         precision={2}
                         step={0.01}
-                        updateValue={onAmountChange}
+                        onAmountChange={onAmountChange}
                         isDisabled={assetSide === "Beta"}
                     />}
             </VStack>
@@ -91,7 +91,7 @@ interface CustomInputProps {
     value: number;
     precision: number;
     step: number;
-    updateValue: (val: number) => void;
+    onAmountChange: (val: number) => void;
     isDisabled: boolean;
 }
 
@@ -119,7 +119,7 @@ const ASSET_INPUT_DISABLED_PROPS = {
     bg: "grey.50",
 };
 
-function NumberInput({ currency, value, updateValue, precision, step, isDisabled }: CustomInputProps) {
+function NumberInput({ currency, value, onAmountChange, precision, step, isDisabled }: CustomInputProps) {
     const inputProps = isDisabled ? ASSET_INPUT_DISABLED_PROPS : ASSET_INPUT_PROPS;
     return (
         <InputGroup>
@@ -129,7 +129,7 @@ function NumberInput({ currency, value, updateValue, precision, step, isDisabled
             />
             <CUINumberInput
                 {...inputProps}
-                onChange={(_, valueNumber) => updateValue(valueNumber)}
+                onChange={(_, valueNumber) => onAmountChange(valueNumber)}
                 value={value}
                 precision={precision}
                 step={step}
