@@ -1,26 +1,27 @@
-import React from "react";
-import { IconContext } from "react-icons";
+import { IconButton } from "@chakra-ui/react";
+import React, { Dispatch } from "react";
 import { TiArrowSync } from "react-icons/ti";
+import { UpdateAssetAction } from "../App";
 
-export default function ExchangeIcon() {
+interface ExchangeIconProps {
+    dispatch: Dispatch<UpdateAssetAction>;
+}
+export default function ExchangeIcon({ dispatch }: ExchangeIconProps) {
     return (
-        <IconContext.Provider
-            value={{
-                color: "white",
-                size: "60px",
-                style: {
-                    background: " #263238",
-                    width: "64px",
-                    height: "64px",
-                    borderRadius: "50%",
-                    textAlign: "center",
-                    lineHeight: "100px",
-                    verticalAlign: " middle",
-                    padding: "10px",
-                },
-            }}
-        >
-            <TiArrowSync />
-        </IconContext.Provider>
+        <IconButton
+            variant="solid"
+            aria-label="Swap"
+            fontSize="20px"
+            isRound
+            bg="#263238"
+            width="64px"
+            height="64px"
+            _hover={{ bg: "rgba(38,50,56,0.68)" }}
+            icon={<TiArrowSync size="40px" color="white" />}
+            onClick={() =>
+                dispatch({
+                    type: "SwapAssetTypes",
+                })}
+        />
     );
 }

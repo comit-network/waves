@@ -15,10 +15,13 @@ export enum AssetType {
 
 export type AssetSide = "Alpha" | "Beta";
 
-export type UpdateAssetAction = { type: "AlphaAmount"; value: number } | { type: "BetaAmount"; value: number } | {
-    type: "AlphaAssetType";
-    value: AssetType;
-} | { type: "BetaAssetType"; value: AssetType };
+export type UpdateAssetAction =
+    | { type: "AlphaAmount"; value: number }
+    | { type: "BetaAmount"; value: number }
+    | { type: "AlphaAssetType"; value: AssetType }
+    | { type: "BetaAssetType"; value: AssetType }
+    | { type: "RateChange"; value: number }
+    | { type: "SwapAssetTypes" };
 
 interface CurrentPairState {
     alpha: AssetState;
@@ -61,8 +64,13 @@ function reducer(state: CurrentPairState, action: UpdateAssetAction) {
             };
         case "AlphaAssetType":
             console.log(`Received new alpha type: ${action.value}`);
+            let beta = state.beta;
+            if (beta.type === action.value) {
+                beta.type = state.alpha.type;
+            }
             return {
                 ...state,
+                beta,
                 alpha: {
                     type: action.value,
                     amount: state.alpha.amount,
@@ -77,6 +85,23 @@ function reducer(state: CurrentPairState, action: UpdateAssetAction) {
                     type: action.value,
                     amount: state.beta.amount,
                 },
+            };
+        case "RateChange":
+            // TODO: fix "set USDT to alpha, win!"-bug
+            console.log(`Received a new rate: ${action.value}`);
+            return {
+                ...state,
+                beta: {
+                    ...state.beta,
+                    amount: state.alpha.amount * action.value,
+                },
+                rate: action.value,
+            };
+        case "SwapAssetTypes":
+            return {
+                ...state,
+                alpha: state.beta,
+                beta: state.alpha,
             };
         default:
             throw new Error("Unknown update action received");
@@ -128,11 +153,16 @@ function App() {
     const rateService = useRateService();
     useEffect(() => {
         const subscription = rateService.subscribe((rate) => {
-            state.rate = rate;
             // setBetaAmount(alphaAmount * rate); TODO update amount accordingly
+            dispatch({
+                type: "RateChange",
+                value: rate,
+            });
         });
-        return rateService.unsubscribe(subscription);
-    });
+        return () => {
+            rateService.unsubscribe(subscription);
+        };
+    }, [rateService]);
 
     return (
         <div className="App">
@@ -151,7 +181,7 @@ function App() {
                         />
                         <Center w="10px">
                             <Box zIndex={2}>
-                                <ExchangeIcon />
+                                <ExchangeIcon dispatch={dispatch} />
                             </Box>
                         </Center>
                         <AssetSelector
