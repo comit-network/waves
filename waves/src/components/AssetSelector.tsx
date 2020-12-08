@@ -8,7 +8,7 @@ import {
     VStack,
 } from "@chakra-ui/react";
 import React, { Dispatch } from "react";
-import { AssetSide, AssetType, Action } from "../App";
+import { Action, AssetSide, AssetType } from "../App";
 import AssetSelect from "./AssetSelect";
 
 interface AssetSelectorProps {

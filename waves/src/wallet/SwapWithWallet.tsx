@@ -18,6 +18,7 @@ import {
     useDisclosure,
 } from "@chakra-ui/react";
 import React, { MouseEvent } from "react";
+import { useHistory } from "react-router-dom";
 import { AssetType } from "../App";
 import Bitcoin from "../components/bitcoin.svg";
 import Usdt from "../components/tether.svg";
@@ -35,11 +36,13 @@ const DEFAULT_TX_ID = "7565865560cdef747c5358ca9ff46747a82617292452b6392d0d77072
 function SwapWithWallet({ alphaAmount, alphaAsset, betaAmount, betaAsset, onConfirmed }: SwapWithWalletProps) {
     const { isOpen, onOpen, onClose } = useDisclosure();
     const btnRef = React.useRef(null);
+    const history = useHistory();
 
     const onConfirm = (_clicked: MouseEvent) => {
         // TODO implement wallet logic
         _clicked.preventDefault();
         onConfirmed(DEFAULT_TX_ID);
+        history.push("/done");
         onClose();
     };
 

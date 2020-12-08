@@ -1,5 +1,6 @@
-import { Box, Button, Center, Flex, Text, VStack } from "@chakra-ui/react";
+import { Box, Button, Center, Flex, IconButton, Text, VStack } from "@chakra-ui/react";
 import React, { MouseEvent, useEffect, useReducer } from "react";
+import { BrowserRouter, Link, Route, Switch, useHistory } from "react-router-dom";
 import { RingLoader } from "react-spinners";
 import "./App.css";
 import AssetSelector from "./components/AssetSelector";
@@ -128,18 +129,8 @@ function App() {
 
     const [state, dispatch] = useReducer(reducer, initialState);
 
-    const [walletUnlocked, setWalletUnlocked] = React.useState(false);
     const [publishedTx, setPublishedTx] = React.useState("");
     const [txPending, setTxPending] = React.useState(false);
-
-    const onUnlocked = (unlocked: boolean) => {
-        console.log(`Wallet unlocked ${unlocked}`);
-        setWalletUnlocked(unlocked);
-    };
-
-    const isEmpty = (str: string) => {
-        return (!str || 0 === str.length);
-    };
 
     const onConfirmed = (txId: string) => {
         console.log(`Transaction published ${txId}`);
@@ -172,57 +163,64 @@ function App() {
     return (
         <div className="App">
             <header className="App-header">
-                <VStack
-                    spacing={4}
-                    align="stretch"
-                >
-                    <Flex color="white">
-                        <AssetSelector
-                            assetSide="Alpha"
-                            placement="left"
-                            amount={state.alpha.amount}
-                            type={state.alpha.type}
-                            dispatch={dispatch}
-                        />
-                        <Center w="10px">
-                            <Box zIndex={2}>
-                                <ExchangeIcon dispatch={dispatch} />
-                            </Box>
-                        </Center>
-                        <AssetSelector
-                            assetSide="Beta"
-                            placement="right"
-                            amount={state.beta.amount}
-                            type={state.beta.type}
-                            dispatch={dispatch}
-                        />
-                    </Flex>
-                    <Box>
-                        <Text textStyle="info">1 BTC = {state.rate} USDT</Text>
-                    </Box>
-                    <Box>
-                        {!walletUnlocked
-                            && <UnlockWallet onUnlocked={onUnlocked} />}
-                        {walletUnlocked && isEmpty(publishedTx)
-                            && <SwapWithWallet
-                                onConfirmed={onConfirmed}
-                                alphaAmount={state.alpha.amount}
-                                betaAmount={state.beta.amount}
-                                alphaAsset={state.alpha.type}
-                                betaAsset={state.beta.type}
-                            />}
-                        {walletUnlocked && !isEmpty(publishedTx)
-                            && <Button
-                                isLoading={txPending}
-                                size="lg"
-                                variant="main_button"
-                                spinner={<RingLoader size={50} color="white" />}
-                                onClick={openBlockExplorer}
-                            >
-                                Check Transaction
-                            </Button>}
-                    </Box>
-                </VStack>
+                <BrowserRouter>
+                    <VStack
+                        spacing={4}
+                        align="stretch"
+                    >
+                        <Flex color="white">
+                            <AssetSelector
+                                assetSide="Alpha"
+                                placement="left"
+                                amount={state.alpha.amount}
+                                type={state.alpha.type}
+                                dispatch={dispatch}
+                            />
+                            <Center w="10px">
+                                <Box zIndex={2}>
+                                    <ExchangeIcon dispatch={dispatch} />
+                                </Box>
+                            </Center>
+                            <AssetSelector
+                                assetSide="Beta"
+                                placement="right"
+                                amount={state.beta.amount}
+                                type={state.beta.type}
+                                dispatch={dispatch}
+                            />
+                        </Flex>
+                        <Box>
+                            <Text textStyle="info">1 BTC = {state.rate} USDT</Text>
+                        </Box>
+                        <Box>
+                            <Switch>
+                                <Route exact path="/">
+                                    <UnlockWallet />
+                                </Route>
+                                <Route path="/swap">
+                                    <SwapWithWallet
+                                        onConfirmed={onConfirmed}
+                                        alphaAmount={state.alpha.amount}
+                                        betaAmount={state.beta.amount}
+                                        alphaAsset={state.alpha.type}
+                                        betaAsset={state.beta.type}
+                                    />
+                                </Route>
+                                <Route path="/done">
+                                    <Button
+                                        isLoading={txPending}
+                                        size="lg"
+                                        variant="main_button"
+                                        spinner={<RingLoader size={50} color="white" />}
+                                        onClick={openBlockExplorer}
+                                    >
+                                        Check Transaction
+                                    </Button>
+                                </Route>
+                            </Switch>
+                        </Box>
+                    </VStack>
+                </BrowserRouter>
             </header>
         </div>
     );

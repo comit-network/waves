@@ -11,19 +11,17 @@ import {
     useDisclosure,
 } from "@chakra-ui/react";
 import React, { MouseEvent } from "react";
+import { Link as RouterLink, useHistory } from "react-router-dom";
 
-interface UnlockWalletProps {
-    onUnlocked: (unlocked: boolean) => void;
-}
-
-function UnlockWallet({ onUnlocked }: UnlockWalletProps) {
+function UnlockWallet() {
     const { isOpen, onOpen, onClose } = useDisclosure();
     const btnRef = React.useRef(null);
+    const history = useHistory();
 
     const onUnlock = (_clicked: MouseEvent) => {
         // TODO implement wallet logic
         _clicked.preventDefault();
-        onUnlocked(true);
+        history.push("/swap");
         onClose();
     };
 
