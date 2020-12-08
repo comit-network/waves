@@ -21,7 +21,6 @@ const theme = extendTheme({
             size: "lg",
             bg: "#304FFE",
             rounded: "md",
-            width: "200px",
         },
     },
     components: {
@@ -38,16 +37,13 @@ const theme = extendTheme({
 
             sizes: {
                 lg: {
-                    h: "56px",
                     fontSize: "lg",
-                    px: "32px",
                 },
             },
             // Custom variant
             variants: {
                 "main_button": {
-                    h: "50px",
-                    w: "300px",
+                    w: "15rem",
                     color: "white",
                 },
                 "wallet_button": {
