@@ -87,7 +87,10 @@ mod fixed_rate {
     }
 
     fn fixed_rate() -> Rate {
-        Rate(1.into())
+        Rate {
+            ask: 1.into(),
+            bid: 1.into(),
+        }
     }
 
     pub fn fixed_rate_stream() -> impl Stream<Item = Result<impl ServerSentEvent, Infallible>> {
@@ -96,10 +99,14 @@ mod fixed_rate {
 
         tokio::time::throttle(
             Duration::from_secs(5),
-            stream::iter(
-                repeat((event, data))
-                    .map(|(event, data)| Ok((warp::sse::event(event), warp::sse::data(data)))),
-            ),
+            stream::iter(repeat((event, data)).map(|(event, data)| {
+                Ok((
+                    warp::sse::event(event),
+                    warp::sse::data(
+                        serde_json::to_string(&data).expect("serializable data to be serializable"),
+                    ),
+                ))
+            })),
         )
     }
 }
@@ -108,7 +115,7 @@ mod fixed_rate {
 mod tests {
     use super::*;
     use anyhow::{Context, Result};
-    use bobtimus::{BitcoinAmount, Bobtimus, CreateSwapPayload, LatestRate};
+    use bobtimus::{Bobtimus, CreateSwapPayload, LatestRate, LiquidBtc};
     use elements_fun::{
         bitcoin::Amount, secp256k1::rand::thread_rng, Address, OutPoint, Transaction, TxOut,
     };
@@ -137,10 +144,10 @@ mod tests {
         let have_asset_id_bob = client.issueasset(10.0, 0.0, true).await.unwrap().asset;
 
         let rate_service = fixed_rate::Service;
-        let redeem_amount_bob = BitcoinAmount::from(Amount::ONE_BTC);
+        let redeem_amount_bob = LiquidBtc::from(Amount::ONE_BTC);
 
         let rate = rate_service.latest_rate().await.unwrap();
-        let redeem_amount_alice = rate * redeem_amount_bob;
+        let redeem_amount_alice = rate.buy_quote(redeem_amount_bob);
 
         let (
             fund_address_alice,
