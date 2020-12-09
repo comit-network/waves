@@ -83,13 +83,13 @@ jobs:
         uses: actions/cache@v1
         with:
           path: target
-          key: rust-${{ matrix.rust_toolchain }}-target-directory-${{ hashFiles('Cargo.lock') }}-v1
+          key: target-directory-${{ hashFiles('Cargo.lock') }}-v1
 
       - name: Cache ~/.cargo/registry directory
         uses: actions/cache@v1
         with:
           path: ~/.cargo/registry
-          key: rust-${{ matrix.rust_toolchain }}-cargo-registry-directory-${{ hashFiles('Cargo.lock') }}-v1
+          key: cargo-registry-directory-${{ hashFiles('Cargo.lock') }}-v1
 
       - name: Cache node_modules directory
         uses: actions/cache@v1
@@ -111,3 +111,24 @@ jobs:
           yarn install
           yarn run build
           yarn run test
+
+      - name: Install wasm target
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          override: true
+          target: wasm32-unknown-unknown
+
+      - name: Cache wasm-bindgen-test-runner
+        uses: actions/cache@v1
+        with:
+          path: ~/.cargo/bin/wasm-bindgen-test-runner
+          key: ubuntu-rust-${{ env.RUST_TOOLCHAIN }}-wasm-bindgen-test-runner
+
+      - name: Install wasm-bindgen-test-runner
+        run: which wasm-bindgen-test-runner || cargo install wasm-bindgen-cli
+
+      - name: Waves wallet tests
+        run: |
+          cd waves/src/wallet
+          cargo test --target wasm32-unknown-unknown
