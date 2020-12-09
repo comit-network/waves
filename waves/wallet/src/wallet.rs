@@ -1,6 +1,7 @@
 use crate::{esplora, esplora::Utxo, storage::Storage, SECP};
 use elements_fun::{
     bitcoin, bitcoin::secp256k1::SecretKey, secp256k1::PublicKey, Address, AddressParams, AssetId,
+    TxOut,
 };
 use futures::{
     lock::{MappedMutexGuard, Mutex, MutexGuard},
@@ -155,7 +156,9 @@ pub async fn get_balances(
     name: String,
     current_wallet: &Mutex<Option<Wallet>>,
 ) -> Result<Vec<BalanceEntry>, JsValue> {
-    let address = get_address(name, &current_wallet).await?;
+    let wallet = current(name, current_wallet).await?;
+
+    let address = wallet.get_address()?;
 
     let utxos = map_err_from_anyhow!(esplora::fetch_utxos(&address).await)?;
 
@@ -174,16 +177,31 @@ pub async fn get_balances(
 
     let grouped_utxos = utxos
         .into_iter()
-        .filter_map(|utxo| utxo.into_explicit()) // TODO: Unblind instead of just using explicit txouts
-        .group_by(|explicit| explicit.asset);
+        .filter_map(|utxo| match utxo {
+            TxOut::Explicit(explicit) => Some((explicit.asset.0, explicit.value.0)),
+            TxOut::Confidential(_) => {
+                unimplemented!("unblind once we no longer depend on wally-sys")
+                // match confidential.unblind(wallet.blinding_key) {
+                //     Ok(unblinded_txout) => {
+                //         Some((unblinded_txout.asset, unblinded_txout.value))
+                //     },
+                //     Err(e) => {
+                //         log::warn!("failed to unblind txout: {}", e);
+                //         None
+                //     }
+                // }
+            }
+            TxOut::Null(_) => None,
+        })
+        .group_by(|(asset, _)| *asset);
 
     let balances = (&grouped_utxos)
         .into_iter()
         .map(|(asset, utxos)| async move {
             BalanceEntry {
-                value: utxos.map(|utxo| utxo.value.0).sum(),
-                asset: asset.0,
-                ticker: match esplora::fetch_asset_description(&asset.0).await {
+                value: utxos.map(|(_, value)| value).sum(),
+                asset,
+                ticker: match esplora::fetch_asset_description(&asset).await {
                     Ok(ad) => ad.ticker,
                     Err(e) => {
                         log::debug!("failed to fetched asset description: {}", e);
