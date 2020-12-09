@@ -11,7 +11,7 @@ import {
     useDisclosure,
 } from "@chakra-ui/react";
 import React, { MouseEvent } from "react";
-import { Link as RouterLink, useHistory } from "react-router-dom";
+import { useHistory } from "react-router-dom";
 
 function UnlockWallet() {
     const { isOpen, onOpen, onClose } = useDisclosure();
