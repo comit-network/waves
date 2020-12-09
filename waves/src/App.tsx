@@ -18,10 +18,10 @@ export enum AssetType {
 export type AssetSide = "Alpha" | "Beta";
 
 export type Action =
-    | { type: "AlphaAmount"; value: number }
-    | { type: "AlphaAssetType"; value: AssetType }
-    | { type: "BetaAssetType"; value: AssetType }
-    | { type: "RateChange"; value: number }
+    | { type: "UpdateAlphaAmount"; value: number }
+    | { type: "UpdateAlphaAssetType"; value: AssetType }
+    | { type: "UpdateBetaAssetType"; value: AssetType }
+    | { type: "UpdateRate"; value: number }
     | { type: "SwapAssetTypes" }
     | { type: "PublishTransaction"; value: string };
 
@@ -52,7 +52,7 @@ const initialState = {
 
 export function reducer(state: State = initialState, action: Action) {
     switch (action.type) {
-        case "AlphaAmount":
+        case "UpdateAlphaAmount":
             return {
                 ...state,
                 alpha: {
@@ -65,7 +65,7 @@ export function reducer(state: State = initialState, action: Action) {
                 },
                 rate: state.rate,
             };
-        case "AlphaAssetType":
+        case "UpdateAlphaAssetType":
             let beta = state.beta;
             if (beta.type === action.value) {
                 beta.type = state.alpha.type;
@@ -79,7 +79,7 @@ export function reducer(state: State = initialState, action: Action) {
                 },
             };
 
-        case "BetaAssetType":
+        case "UpdateBetaAssetType":
             let alpha = state.alpha;
             if (alpha.type === action.value) {
                 alpha.type = state.beta.type;
@@ -92,7 +92,7 @@ export function reducer(state: State = initialState, action: Action) {
                     amount: state.beta.amount,
                 },
             };
-        case "RateChange":
+        case "UpdateRate":
             // TODO: fix "set USDT to alpha, win!"-bug
             return {
                 ...state,
@@ -135,7 +135,7 @@ function App() {
         const subscription = rateService.subscribe((rate) => {
             // setBetaAmount(alphaAmount * rate); TODO update amount accordingly
             dispatch({
-                type: "RateChange",
+                type: "UpdateRate",
                 value: rate,
             });
         });

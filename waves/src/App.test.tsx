@@ -25,7 +25,7 @@ test("update alpha amount logic", () => {
     let newValue = 42;
     expect(
         reducer(initialState, {
-            type: "AlphaAmount",
+            type: "UpdateAlphaAmount",
             value: newValue,
         }).alpha.amount,
     ).toBe(newValue);
@@ -33,7 +33,7 @@ test("update alpha amount logic", () => {
     let expectedNewAmount = 420;
     expect(
         reducer(initialState, {
-            type: "AlphaAmount",
+            type: "UpdateAlphaAmount",
             value: newValue,
         }).beta.amount,
     ).toBe(expectedNewAmount);
@@ -55,14 +55,14 @@ test("update alpha asset logic - should flip asset types", () => {
     let newValue = AssetType.USDT;
     expect(
         reducer(initialState, {
-            type: "AlphaAssetType",
+            type: "UpdateAlphaAssetType",
             value: newValue,
         }).alpha.type,
     ).toBe(newValue);
 
     expect(
         reducer(initialState, {
-            type: "AlphaAssetType",
+            type: "UpdateAlphaAssetType",
             value: newValue,
         }).beta.type,
     ).toBe(initialState.alpha.type);
@@ -70,14 +70,14 @@ test("update alpha asset logic - should flip asset types", () => {
     // amounts should be unchanged
     expect(
         reducer(initialState, {
-            type: "AlphaAssetType",
+            type: "UpdateAlphaAssetType",
             value: newValue,
         }).alpha.amount,
     ).toBe(initialState.alpha.amount);
 
     expect(
         reducer(initialState, {
-            type: "AlphaAssetType",
+            type: "UpdateAlphaAssetType",
             value: newValue,
         }).beta.amount,
     ).toBe(initialState.beta.amount);
@@ -99,14 +99,14 @@ test("update beta asset logic - should flip asset types", () => {
     let newValue = AssetType.BTC;
     expect(
         reducer(initialState, {
-            type: "BetaAssetType",
+            type: "UpdateBetaAssetType",
             value: newValue,
         }).beta.type,
     ).toBe(newValue);
 
     expect(
         reducer(initialState, {
-            type: "BetaAssetType",
+            type: "UpdateBetaAssetType",
             value: newValue,
         }).alpha.type,
     ).toBe(initialState.beta.type);
@@ -114,14 +114,14 @@ test("update beta asset logic - should flip asset types", () => {
     // amounts should be unchanged
     expect(
         reducer(initialState, {
-            type: "BetaAssetType",
+            type: "UpdateBetaAssetType",
             value: newValue,
         }).alpha.amount,
     ).toBe(initialState.alpha.amount);
 
     expect(
         reducer(initialState, {
-            type: "BetaAssetType",
+            type: "UpdateBetaAssetType",
             value: newValue,
         }).beta.amount,
     ).toBe(initialState.beta.amount);
@@ -185,7 +185,7 @@ test("Rate change - should update the amounts accordingly", () => {
     let newAmount = 1100;
     expect(
         reducer(initialState, {
-            type: "RateChange",
+            type: "UpdateRate",
             value: newRate,
         }).beta.amount,
     ).toBe(newAmount);
@@ -193,7 +193,7 @@ test("Rate change - should update the amounts accordingly", () => {
     // alpha amount should remain unchanged
     expect(
         reducer(initialState, {
-            type: "RateChange",
+            type: "UpdateRate",
             value: newRate,
         }).alpha.amount,
     ).toBe(initialState.alpha.amount);

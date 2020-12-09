@@ -27,7 +27,7 @@ function AssetSelector({ assetSide, type, amount, placement, dispatch }: AssetSe
         switch (assetSide) {
             case "Alpha":
                 dispatch({
-                    type: "AlphaAmount",
+                    type: "UpdateAlphaAmount",
                     value: newAmount,
                 });
                 break;
@@ -40,13 +40,13 @@ function AssetSelector({ assetSide, type, amount, placement, dispatch }: AssetSe
         switch (assetSide) {
             case "Alpha":
                 dispatch({
-                    type: "AlphaAssetType",
+                    type: "UpdateAlphaAssetType",
                     value: newType,
                 });
                 break;
             case "Beta":
                 dispatch({
-                    type: "BetaAssetType",
+                    type: "UpdateBetaAssetType",
                     value: newType,
                 });
                 break;
