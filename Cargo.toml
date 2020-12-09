@@ -1,2 +1,2 @@
 [workspace]
-members = [ "elements-harness", "swap", "elements-fun", "elements-fun/fuzz", "waves/src/wallet-lib", "bobtimus" ]
+members = [ "elements-harness", "swap", "elements-fun", "elements-fun/fuzz", "waves/src/wallet", "bobtimus" ]

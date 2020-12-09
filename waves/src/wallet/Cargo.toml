@@ -1,0 +1,37 @@
+[package]
+name = "wallet"
+version = "0.1.0"
+authors = [ "Philipp Hoenisch <philipp@hoenisch.at>" ]
+edition = "2018"
+
+[lib]
+crate-type = [ "cdylib", "rlib" ]
+
+[features]
+default = [ "console_error_panic_hook" ]
+
+[dependencies]
+anyhow = "1"
+conquer-once = "0.3"
+console_error_panic_hook = { version = "0.1.6", optional = true }
+elements-fun = { path = "../../../elements-fun", features = [ "serde" ] }
+futures = "0.3"
+hex = "0.4"
+itertools = "0.9.0"
+js-sys = "0.3"
+log = "0.4"
+rand = { version = "0.6", features = [ "wasm-bindgen" ] }
+reqwest = { version = "0.10", default-features = false, features = [ "rustls", "json" ] }
+serde = { version = "1", features = [ "derive" ] }
+serde_json = "1"
+wasm-bindgen = "0.2.63"
+wasm-bindgen-futures = "0.4.19"
+wasm-logger = "0.2"
+web-sys = { version = "0.3", features = [ "Window", "Storage", "Cache", "CacheStorage" ] }
+wee_alloc = { version = "0.4.5", optional = true } # `wee_alloc` is a tiny allocator for wasm that is only ~1K in code size
+
+[dev-dependencies]
+wasm-bindgen-test = "0.3.13"
+# By default wasm-opt is true which makes the build fail.
+[package.metadata.wasm-pack.profile.release]
+wasm-opt = false

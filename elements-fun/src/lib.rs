@@ -46,6 +46,7 @@ pub mod opcodes;
 pub mod script;
 pub mod slip77;
 mod transaction;
+#[cfg(feature = "wally-sys")]
 pub mod wally;
 
 // re-export bitcoin deps which we re-use
