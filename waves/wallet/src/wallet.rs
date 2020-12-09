@@ -1,8 +1,14 @@
-use crate::{storage::Storage, SECP};
+use crate::{esplora, esplora::Utxo, storage::Storage, SECP};
 use elements_fun::{
-    bitcoin, bitcoin::secp256k1::SecretKey, secp256k1::PublicKey, Address, AddressParams,
+    bitcoin, bitcoin::secp256k1::SecretKey, secp256k1::PublicKey, Address, AddressParams, AssetId,
+    TxOut,
 };
-use futures::lock::{MappedMutexGuard, Mutex, MutexGuard};
+use futures::{
+    lock::{MappedMutexGuard, Mutex, MutexGuard},
+    stream::FuturesUnordered,
+    StreamExt, TryStreamExt,
+};
+use itertools::Itertools;
 use std::{fmt, str};
 use wasm_bindgen::{JsValue, UnwrapThrowExt};
 
@@ -27,15 +33,18 @@ pub async fn create_new(
     wallets.add(name.clone());
 
     let wallet_sk = SecretKey::new(&mut rand::thread_rng());
+    let wallet_bk = SecretKey::new(&mut rand::thread_rng());
 
     storage.set_item(&format!("wallets.{}.password", name), password)?; // TODO: hash password :)
     storage.set_item(&format!("wallets.{}.secret_key", name), wallet_sk)?; // TODO: encrypt secret key!
+    storage.set_item(&format!("wallets.{}.blinding_key", name), wallet_bk)?; // TODO: encrypt secret key!
     storage.set_item("wallets", wallets)?;
 
     let new_wallet = Wallet {
         name,
         encryption_key: [0u8; 32], // TODO: Derive from password,
         secret_key: wallet_sk,
+        blinding_key: wallet_bk,
     };
 
     current_wallet.lock().await.replace(new_wallet);
@@ -86,10 +95,15 @@ pub async fn load_existing(
         .get_item(&format!("wallets.{}.secret_key", name))?
         .ok_or_else(|| JsValue::from_str("no secret key for wallet"))?;
 
+    let blinding_key = storage
+        .get_item(&format!("wallets.{}.blinding_key", name))?
+        .ok_or_else(|| JsValue::from_str("no blinding key for wallet"))?;
+
     let wallet = Wallet {
         name,
         encryption_key: [0u8; 32], // derive from password + store data
         secret_key,
+        blinding_key,
     };
 
     guard.replace(wallet);
@@ -138,6 +152,71 @@ pub async fn get_address(
     Ok(address)
 }
 
+pub async fn get_balances(
+    name: String,
+    current_wallet: &Mutex<Option<Wallet>>,
+) -> Result<Vec<BalanceEntry>, JsValue> {
+    let wallet = current(name, current_wallet).await?;
+
+    let address = wallet.get_address()?;
+
+    let utxos = map_err_from_anyhow!(esplora::fetch_utxos(&address).await)?;
+
+    let utxos = map_err_from_anyhow!(
+        utxos
+            .into_iter()
+            .map(|Utxo { txid, vout, .. }| async move {
+                let tx = esplora::fetch_transaction(txid).await;
+
+                tx.map(|mut tx| tx.output.remove(vout as usize))
+            })
+            .collect::<FuturesUnordered<_>>()
+            .try_collect::<Vec<_>>()
+            .await
+    )?;
+
+    let grouped_utxos = utxos
+        .into_iter()
+        .filter_map(|utxo| match utxo {
+            TxOut::Explicit(explicit) => Some((explicit.asset.0, explicit.value.0)),
+            TxOut::Confidential(_) => {
+                unimplemented!("unblind once we no longer depend on wally-sys")
+                // match confidential.unblind(wallet.blinding_key) {
+                //     Ok(unblinded_txout) => {
+                //         Some((unblinded_txout.asset, unblinded_txout.value))
+                //     },
+                //     Err(e) => {
+                //         log::warn!("failed to unblind txout: {}", e);
+                //         None
+                //     }
+                // }
+            }
+            TxOut::Null(_) => None,
+        })
+        .group_by(|(asset, _)| *asset);
+
+    let balances = (&grouped_utxos)
+        .into_iter()
+        .map(|(asset, utxos)| async move {
+            BalanceEntry {
+                value: utxos.map(|(_, value)| value).sum(),
+                asset,
+                ticker: match esplora::fetch_asset_description(&asset).await {
+                    Ok(ad) => ad.ticker,
+                    Err(e) => {
+                        log::debug!("failed to fetched asset description: {}", e);
+                        None
+                    }
+                },
+            }
+        })
+        .collect::<FuturesUnordered<_>>()
+        .collect()
+        .await;
+
+    Ok(balances)
+}
+
 pub async fn current(
     name: String,
     current_wallet: &Mutex<Option<Wallet>>,
@@ -157,23 +236,36 @@ pub async fn current(
     Ok(MutexGuard::map(guard, |w| w.as_mut().unwrap_throw()))
 }
 
+/// A single balance entry as returned by [`get_balances`].
+#[derive(Debug, serde::Serialize)]
+pub struct BalanceEntry {
+    value: u64,
+    asset: AssetId,
+    /// The ticker symbol of the asset.
+    ///
+    /// Not all assets are part of the registry and as such, not all of them have a ticker symbol.
+    ticker: Option<String>,
+}
+
 #[derive(Debug)]
 pub struct Wallet {
     pub name: String,
     pub encryption_key: [u8; 32],
     pub secret_key: SecretKey,
+    pub blinding_key: SecretKey,
 }
 
 impl Wallet {
     pub fn get_address(&self) -> Result<Address, JsValue> {
         let public_key = PublicKey::from_secret_key(&*SECP, &self.secret_key);
+        let blinding_key = PublicKey::from_secret_key(&*SECP, &self.blinding_key);
 
         let address = Address::p2wpkh(
             &bitcoin::PublicKey {
                 compressed: true,
                 key: public_key,
             },
-            None,
+            Some(blinding_key),
             &AddressParams::LIQUID,
         );
 

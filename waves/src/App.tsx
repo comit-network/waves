@@ -7,8 +7,8 @@ import "./App.css";
 import AssetSelector from "./components/AssetSelector";
 import ExchangeIcon from "./components/ExchangeIcon";
 import { useRateService } from "./hooks/RateService";
-import SwapWithWallet from "./wallet/SwapWithWallet";
-import UnlockWallet from "./wallet/UnlockWallet";
+import SwapWithWallet from "./SwapWithWallet";
+import UnlockWallet from "./UnlockWallet";
 
 export enum AssetType {
     BTC = "BTC",
