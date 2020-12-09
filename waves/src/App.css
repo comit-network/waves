@@ -1,16 +1,27 @@
 .App {
   text-align: center;
+  background-color: #FFFFFF;
 }
 
 .App-header {
-  background-color: #FFFFFF;
-  min-height: 100vh;
+  min-height: 10vh;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+  font-size: calc(10px + 2vmin);
+  color: white;
+  padding-left: 2vh;
+  padding-top: 2vh;
+  padding-bottom: 10vh;
+}
+
+.App-body {
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  font-size: calc(10px + 2vmin);
-  color: white;
+  padding-bottom: 10vh;
 }
 
 .App-link {

@@ -9,6 +9,7 @@ import ExchangeIcon from "./components/ExchangeIcon";
 import { useRateService } from "./hooks/RateService";
 import SwapWithWallet from "./SwapWithWallet";
 import UnlockWallet from "./UnlockWallet";
+import WalletBalance from "./WalletBalance";
 
 export enum AssetType {
     BTC = "BTC",
@@ -30,6 +31,12 @@ interface State {
     beta: AssetState;
     rate: number;
     txId: string;
+    wallet: Wallet;
+}
+
+interface Wallet {
+    usdtBalance: number;
+    btcBalance: number;
 }
 
 interface AssetState {
@@ -48,6 +55,10 @@ const initialState = {
     },
     rate: 19133.74,
     txId: "",
+    wallet: {
+        usdtBalance: 0,
+        btcBalance: 0,
+    },
 };
 
 export function reducer(state: State = initialState, action: Action) {
@@ -145,9 +156,14 @@ function App() {
     }, [rateService]);
 
     return (
-        <div className="App">
-            <header className="App-header">
-                <BrowserRouter>
+        <BrowserRouter>
+            <div className="App">
+                <header className="App-header">
+                    <Route path="/swap">
+                        <WalletBalance btcBalance={state.wallet.btcBalance} usdtBalance={state.wallet.usdtBalance} />
+                    </Route>
+                </header>
+                <Center className="App-body">
                     <VStack
                         spacing={4}
                         align="stretch"
@@ -216,9 +232,9 @@ function App() {
                             </Switch>
                         </Box>
                     </VStack>
-                </BrowserRouter>
-            </header>
-        </div>
+                </Center>
+            </div>
+        </BrowserRouter>
     );
 }
 
