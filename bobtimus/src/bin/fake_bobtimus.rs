@@ -42,12 +42,7 @@ async fn main() -> Result<()> {
         move || bobtimus.clone()
     });
 
-    // TODO: Can be removed if we use proxy on the frontend
-    let cors = warp::cors()
-        .allow_methods(vec!["GET"])
-        .allow_header("content-type");
-
-    let latest_rate = warp::path("rate/lbtc-lusdt").and(warp::get()).map(|| {
+    let latest_rate = warp::path("rate").and(warp::get()).map(|| {
         warp::sse::reply(
             warp::sse::keep_alive().stream(rate_service.subscribe().map(|data| {
                 Result::<_, Infallible>::Ok((warp::sse::event("rate"), warp::sse::json(data)))
@@ -62,7 +57,7 @@ async fn main() -> Result<()> {
         .and(warp::body::json())
         .and_then(create_swap);
 
-    warp::serve(latest_rate.or(create_swap).with(cors))
+    warp::serve(latest_rate.or(create_swap))
         .run(([127, 0, 0, 1], api_port))
         .await;
 
