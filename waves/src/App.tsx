@@ -22,12 +22,14 @@ export type Action =
     | { type: "AlphaAssetType"; value: AssetType }
     | { type: "BetaAssetType"; value: AssetType }
     | { type: "RateChange"; value: number }
-    | { type: "SwapAssetTypes" };
+    | { type: "SwapAssetTypes" }
+    | { type: "PublishTransaction"; value: string };
 
 interface State {
     alpha: AssetState;
     beta: AssetState;
     rate: number;
+    txId: string;
 }
 
 interface AssetState {
@@ -45,12 +47,14 @@ const initialState = {
         amount: 191.34,
     },
     rate: 19133.74,
+    txId: "",
 };
 
 export function reducer(state: State = initialState, action: Action) {
     switch (action.type) {
         case "AlphaAmount":
             return {
+                ...state,
                 alpha: {
                     type: state.alpha.type,
                     amount: action.value,
@@ -104,6 +108,10 @@ export function reducer(state: State = initialState, action: Action) {
                 alpha: state.beta,
                 beta: state.alpha,
             };
+        case "PublishTransaction":
+            return {
+                ...state,
+            };
         default:
             throw new Error("Unknown update action received");
     }
@@ -112,17 +120,14 @@ export function reducer(state: State = initialState, action: Action) {
 function App() {
     const [state, dispatch] = useReducer(reducer, initialState);
 
-    const [publishedTx, setPublishedTx] = React.useState("");
     const [txPending, setTxPending] = React.useState(false);
 
     const onConfirmed = (txId: string) => {
-        console.log(`Transaction published ${txId}`);
+        // TODO temp UI hack to make the button loading :)
         setTxPending(true);
-        setPublishedTx(txId);
-
         setTimeout(() => {
             setTxPending(false);
-        }, 3000);
+        }, 2000);
     };
 
     const rateService = useRateService();
@@ -179,6 +184,7 @@ function App() {
                                 <Route path="/swap">
                                     <SwapWithWallet
                                         onConfirmed={onConfirmed}
+                                        dispatch={dispatch}
                                         alphaAmount={state.alpha.amount}
                                         betaAmount={state.beta.amount}
                                         alphaAsset={state.alpha.type}
@@ -189,7 +195,7 @@ function App() {
                                     <VStack>
                                         <Text textStyle="info">
                                             Check in <Link
-                                                href={`https://blockstream.info/liquid/tx/` + publishedTx}
+                                                href={`https://blockstream.info/liquid/tx/${state.txId}`}
                                                 isExternal
                                             >
                                                 Block Explorer <ExternalLinkIcon mx="2px" />
