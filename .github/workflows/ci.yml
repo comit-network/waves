@@ -33,6 +33,9 @@ jobs:
       - name: Run clippy with default features
         run: cargo clippy --workspace --all-targets -- -D warnings
 
+      - name: Run clippy with all features
+        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+
   fuzz:
     runs-on: ubuntu-latest
     steps:
