@@ -33,18 +33,15 @@ pub async fn create_new(
     wallets.add(name.clone());
 
     let wallet_sk = SecretKey::new(&mut rand::thread_rng());
-    let wallet_bk = SecretKey::new(&mut rand::thread_rng());
 
     storage.set_item(&format!("wallets.{}.password", name), password)?; // TODO: hash password :)
     storage.set_item(&format!("wallets.{}.secret_key", name), wallet_sk)?; // TODO: encrypt secret key!
-    storage.set_item(&format!("wallets.{}.blinding_key", name), wallet_bk)?; // TODO: encrypt secret key!
     storage.set_item("wallets", wallets)?;
 
     let new_wallet = Wallet {
         name,
         encryption_key: [0u8; 32], // TODO: Derive from password,
         secret_key: wallet_sk,
-        blinding_key: wallet_bk,
     };
 
     current_wallet.lock().await.replace(new_wallet);
@@ -95,15 +92,10 @@ pub async fn load_existing(
         .get_item(&format!("wallets.{}.secret_key", name))?
         .ok_or_else(|| JsValue::from_str("no secret key for wallet"))?;
 
-    let blinding_key = storage
-        .get_item(&format!("wallets.{}.blinding_key", name))?
-        .ok_or_else(|| JsValue::from_str("no blinding key for wallet"))?;
-
     let wallet = Wallet {
         name,
         encryption_key: [0u8; 32], // derive from password + store data
         secret_key,
-        blinding_key,
     };
 
     guard.replace(wallet);
@@ -252,13 +244,12 @@ pub struct Wallet {
     pub name: String,
     pub encryption_key: [u8; 32],
     pub secret_key: SecretKey,
-    pub blinding_key: SecretKey,
 }
 
 impl Wallet {
     pub fn get_address(&self) -> Result<Address, JsValue> {
         let public_key = PublicKey::from_secret_key(&*SECP, &self.secret_key);
-        let blinding_key = PublicKey::from_secret_key(&*SECP, &self.blinding_key);
+        let blinding_key = PublicKey::from_secret_key(&*SECP, &self.blinding_key());
 
         let address = Address::p2wpkh(
             &bitcoin::PublicKey {
@@ -270,6 +261,29 @@ impl Wallet {
         );
 
         Ok(address)
+    }
+
+    /// Derive the blinding key.
+    ///
+    /// # Choice of salt
+    ///
+    /// We choose to not add a salt because the ikm is already a randomly-generated, secret value with decent entropy.
+    ///
+    /// # Choice of ikm
+    ///
+    /// We derive the blinding key from the secret key to avoid having to store two secret values on disk.
+    ///
+    /// # Choice of info
+    ///
+    /// We choose to tag the derived key with `b"BLINDING_KEY"` in case we ever want to derive something else from the secret key.
+    fn blinding_key(&self) -> SecretKey {
+        let h = hkdf::Hkdf::<sha2::Sha256>::new(None, self.secret_key.as_ref());
+
+        let mut bk = [0u8; 32];
+        h.expand(b"BLINDING_KEY", &mut bk)
+            .expect("output length aligns with sha256");
+
+        SecretKey::from_slice(bk.as_ref()).expect("always a valid secret key")
     }
 }
 
