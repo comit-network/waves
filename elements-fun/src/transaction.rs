@@ -23,18 +23,9 @@ use crate::{
     issuance::AssetId,
     opcodes,
     script::Instruction,
-    wally::{asset_rangeproof, asset_surjectionproof, asset_unblind},
-    Address, Script, Txid, Wtxid,
+    Script, Txid, Wtxid,
 };
-use bitcoin::{
-    self,
-    hashes::Hash,
-    secp256k1::{
-        rand::{CryptoRng, RngCore},
-        PublicKey, Secp256k1, SecretKey, Signing,
-    },
-    VarInt,
-};
+use bitcoin::{self, hashes::Hash, VarInt};
 use std::{collections::HashMap, fmt, io};
 
 /// Elements transaction
@@ -503,11 +494,12 @@ impl std::error::Error for NoBlindingKeyInAddress {}
 
 impl TxOut {
     /// Creates a new confidential output that is **not** the last one in the transaction.
+    #[cfg(feature = "wally-sys")]
     pub fn new_not_last_confidential<R, C>(
         rng: &mut R,
-        secp: &Secp256k1<C>,
+        secp: &bitcoin::secp256k1::Secp256k1<C>,
         value: u64,
-        address: Address,
+        address: crate::Address,
         asset: AssetId,
         inputs: &[(
             AssetId,
@@ -518,8 +510,8 @@ impl TxOut {
         )],
     ) -> Result<(Self, AssetBlindingFactor, ValueBlindingFactor), NoBlindingKeyInAddress>
     where
-        R: RngCore + CryptoRng,
-        C: Signing,
+        R: bitcoin::secp256k1::rand::RngCore + bitcoin::secp256k1::rand::CryptoRng,
+        C: bitcoin::secp256k1::Signing,
     {
         let out_abf = AssetBlindingFactor::new(rng);
         let out_asset = AssetCommitment::new(asset, out_abf);
@@ -529,7 +521,7 @@ impl TxOut {
 
         let (nonce, sender_ephemeral_sk) = Nonce::new(rng, secp);
 
-        let range_proof = asset_rangeproof(
+        let range_proof = crate::wally::asset_rangeproof(
             value,
             address
                 .blinding_pubkey
@@ -552,7 +544,8 @@ impl TxOut {
             .map(|(id, _, asset, abf, _)| (id, abf, asset))
             .collect::<Vec<_>>();
 
-        let surjection_proof = asset_surjectionproof(rng, asset, out_abf, out_asset, &inputs);
+        let surjection_proof =
+            crate::wally::asset_surjectionproof(rng, asset, out_abf, out_asset, &inputs);
 
         let txout = TxOut::Confidential(ConfidentialTxOut {
             asset: out_asset,
@@ -569,11 +562,12 @@ impl TxOut {
     }
 
     /// Creates a new confidential output that IS the last one in the transaction.
+    #[cfg(feature = "wally-sys")]
     pub fn new_last_confidential<R, C>(
         rng: &mut R,
-        secp: &Secp256k1<C>,
+        secp: &bitcoin::secp256k1::Secp256k1<C>,
         value: u64,
-        address: Address,
+        address: crate::Address,
         asset: AssetId,
         inputs: &[(
             AssetId,
@@ -585,8 +579,8 @@ impl TxOut {
         outputs: &[(u64, AssetBlindingFactor, ValueBlindingFactor)],
     ) -> Result<Self, NoBlindingKeyInAddress>
     where
-        R: RngCore + CryptoRng,
-        C: Signing,
+        R: bitcoin::secp256k1::rand::RngCore + bitcoin::secp256k1::rand::CryptoRng,
+        C: bitcoin::secp256k1::Signing,
     {
         let (surjection_proof_inputs, value_blind_inputs) = inputs
             .iter()
@@ -602,7 +596,7 @@ impl TxOut {
 
         let (nonce, sender_ephemeral_sk) = Nonce::new(rng, secp);
 
-        let range_proof = asset_rangeproof(
+        let range_proof = crate::wally::asset_rangeproof(
             value,
             address
                 .blinding_pubkey
@@ -619,8 +613,13 @@ impl TxOut {
             52,
         );
 
-        let surjection_proof =
-            asset_surjectionproof(rng, asset, out_abf, out_asset, &surjection_proof_inputs);
+        let surjection_proof = crate::wally::asset_surjectionproof(
+            rng,
+            asset,
+            out_abf,
+            out_asset,
+            &surjection_proof_inputs,
+        );
 
         let txout = TxOut::Confidential(ConfidentialTxOut {
             asset: out_asset,
@@ -663,9 +662,23 @@ impl TxOut {
         }
     }
 
+    pub fn into_explicit(self) -> Option<ExplicitTxOut> {
+        match self {
+            Self::Explicit(explicit) => Some(explicit),
+            _ => None,
+        }
+    }
+
     pub fn as_confidential(&self) -> Option<&ConfidentialTxOut> {
         match self {
             Self::Confidential(confidential) => Some(&confidential),
+            _ => None,
+        }
+    }
+
+    pub fn into_confidential(self) -> Option<ConfidentialTxOut> {
+        match self {
+            Self::Confidential(confidential) => Some(confidential),
             _ => None,
         }
     }
@@ -1258,12 +1271,16 @@ impl ConfidentialTxOut {
             + self.script_pubkey.len()
     }
 
-    pub fn unblind(&self, blinding_key: SecretKey) -> Result<UnblindedTxOut, UnblindError> {
+    #[cfg(feature = "wally-sys")]
+    pub fn unblind(
+        &self,
+        blinding_key: bitcoin::secp256k1::SecretKey,
+    ) -> Result<UnblindedTxOut, UnblindError> {
         let sender_ephemeral_pk = self.nonce.ok_or(UnblindError::MissingNonce)?.commitment();
-        let sender_ephemeral_pk = PublicKey::from_slice(&sender_ephemeral_pk)
+        let sender_ephemeral_pk = bitcoin::secp256k1::PublicKey::from_slice(&sender_ephemeral_pk)
             .map_err(|_| UnblindError::InvalidPublicKey)?;
 
-        let (unblinded_asset, abf, vbf, value_out) = asset_unblind(
+        let (unblinded_asset, abf, vbf, value_out) = crate::wally::asset_unblind(
             sender_ephemeral_pk,
             blinding_key,
             &self.witness.rangeproof,
@@ -1290,6 +1307,7 @@ pub struct UnblindedTxOut {
     pub value_blinding_factor: ValueBlindingFactor,
 }
 
+#[cfg(feature = "wally-sys")]
 #[derive(Debug)]
 pub enum UnblindError {
     MissingNonce,
@@ -1297,6 +1315,7 @@ pub enum UnblindError {
     Wally,
 }
 
+#[cfg(feature = "wally-sys")]
 impl fmt::Display for UnblindError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         match self {
@@ -1308,6 +1327,7 @@ impl fmt::Display for UnblindError {
 }
 
 // TODO: Implement source
+#[cfg(feature = "wally-sys")]
 impl std::error::Error for UnblindError {}
 
 impl Encodable for TxOut {

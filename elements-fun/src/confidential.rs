@@ -17,17 +17,13 @@
 //! Structures representing Pedersen commitments of various types
 //!
 
-use crate::{
-    encode::{self, Decodable, Encodable},
-    wally::{asset_final_vbf, asset_generator_from_bytes, asset_value_commitment},
-    AssetId,
-};
+use crate::encode::{self, Decodable, Encodable};
 use bitcoin::secp256k1::{
     rand::{CryptoRng, Rng, RngCore},
     PublicKey, Secp256k1, SecretKey, Signing,
 };
 use hex::{FromHex, FromHexError};
-use std::{fmt, io, iter};
+use std::{fmt, io};
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -163,18 +159,20 @@ macro_rules! impl_confidential_commitment {
 #[derive(Copy, Clone, Debug, Eq, Hash, PartialEq, PartialOrd, Ord)]
 pub struct AssetCommitment([u8; 33]);
 
+#[cfg(feature = "wally-sys")]
 impl AssetCommitment {
-    pub fn new(asset: AssetId, bf: AssetBlindingFactor) -> Self {
-        asset_generator_from_bytes(&asset, &bf)
+    pub fn new(asset: crate::AssetId, bf: AssetBlindingFactor) -> Self {
+        crate::wally::asset_generator_from_bytes(&asset, &bf)
     }
 }
 
 #[derive(Copy, Clone, Debug, Eq, Hash, PartialEq, PartialOrd, Ord)]
 pub struct ValueCommitment([u8; 33]);
 
+#[cfg(feature = "wally-sys")]
 impl ValueCommitment {
     pub fn new(value: u64, asset: AssetCommitment, bf: ValueBlindingFactor) -> Self {
-        asset_value_commitment(value, bf, asset)
+        crate::wally::asset_value_commitment(value, bf, asset)
     }
 }
 
@@ -206,6 +204,7 @@ impl From<PublicKey> for Nonce {
 #[derive(Copy, Clone, Debug, Eq, Hash, PartialEq, PartialOrd, Ord)]
 pub struct ValueBlindingFactor([u8; 32]);
 
+#[cfg(feature = "wally-sys")]
 impl ValueBlindingFactor {
     pub fn random<R: Rng>(rng: &mut R) -> Self {
         Self(*SecretKey::new(rng).as_ref())
@@ -222,7 +221,7 @@ impl ValueBlindingFactor {
             let output_amounts = outputs
                 .iter()
                 .map(|(amount, _, _)| amount)
-                .chain(iter::once(&value));
+                .chain(std::iter::once(&value));
 
             input_amounts.chain(output_amounts)
         };
@@ -231,7 +230,7 @@ impl ValueBlindingFactor {
             let output_abfs = outputs
                 .iter()
                 .map(|(_, abf, _)| abf)
-                .chain(iter::once(&abf));
+                .chain(std::iter::once(&abf));
 
             input_abfs.chain(output_abfs)
         };
@@ -242,7 +241,7 @@ impl ValueBlindingFactor {
             input_vbfs.chain(output_vbfs)
         };
 
-        asset_final_vbf(amounts, inputs.len(), abfs, vbfs)
+        crate::wally::asset_final_vbf(amounts, inputs.len(), abfs, vbfs)
     }
 
     pub fn into_inner(self) -> [u8; 32] {
