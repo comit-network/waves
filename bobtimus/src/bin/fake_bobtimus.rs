@@ -2,8 +2,9 @@ use anyhow::Result;
 use bobtimus::{Bobtimus, CreateSwapPayload};
 use elements_fun::secp256k1::rand::{rngs::StdRng, thread_rng, SeedableRng};
 use elements_harness::Client;
-use fixed_rate::fixed_rate_stream;
+use futures::StreamExt;
 use reqwest::Url;
+use std::convert::Infallible;
 use structopt::StructOpt;
 use warp::{Filter, Rejection, Reply};
 
@@ -12,18 +13,25 @@ use warp::{Filter, Rejection, Reply};
 pub struct StartCommand {
     #[structopt(default_value = "http://127.0.0.1:7042", long = "elementsd")]
     elementsd_url: Url,
+    #[structopt(default_value = "3030")]
+    api_port: u16,
 }
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let StartCommand { elementsd_url } = StartCommand::from_args();
+    let StartCommand {
+        elementsd_url,
+        api_port,
+    } = StartCommand::from_args();
 
     let elementsd = Client::new(elementsd_url.into_string())?;
     let btc_asset_id = elementsd.get_bitcoin_asset_id().await?;
 
+    let rate_service = fixed_rate::Service::new();
+
     let bobtimus = Bobtimus {
         rng: StdRng::from_rng(&mut thread_rng()).unwrap(),
-        rate_service: fixed_rate::Service,
+        rate_service,
         elementsd,
         btc_asset_id,
         usdt_asset_id: todo!("get L-USDt asset ID from environment"),
@@ -39,9 +47,13 @@ async fn main() -> Result<()> {
         .allow_methods(vec!["GET"])
         .allow_header("content-type");
 
-    let latest_rate = warp::path("rate")
-        .and(warp::get())
-        .map(|| warp::sse::reply(warp::sse::keep_alive().stream(fixed_rate_stream())));
+    let latest_rate = warp::path("rate/lbtc-lusdt").and(warp::get()).map(|| {
+        warp::sse::reply(
+            warp::sse::keep_alive().stream(rate_service.subscribe().map(|data| {
+                Result::<_, Infallible>::Ok((warp::sse::event("rate"), warp::sse::json(data)))
+            })),
+        )
+    });
 
     let create_swap = warp::post()
         .and(warp::path("swap/lbtc-lusdt"))
@@ -51,7 +63,7 @@ async fn main() -> Result<()> {
         .and_then(create_swap);
 
     warp::serve(latest_rate.or(create_swap).with(cors))
-        .run(([127, 0, 0, 1], 3030))
+        .run(([127, 0, 0, 1], api_port))
         .await;
 
     Ok(())
@@ -72,12 +84,42 @@ mod fixed_rate {
     use anyhow::Result;
     use async_trait::async_trait;
     use bobtimus::{LatestRate, Rate};
-    use futures::{stream, Stream};
-    use std::{convert::Infallible, iter::repeat, time::Duration};
-    use warp::sse::ServerSentEvent;
+    use futures::Stream;
+    use std::time::Duration;
+    use tokio::{
+        sync::watch::{self, Receiver},
+        time::delay_for,
+    };
 
     #[derive(Clone)]
-    pub struct Service;
+    pub struct Service(Receiver<Rate>);
+
+    impl Service {
+        pub fn new() -> Self {
+            let data = fixed_rate();
+            let (tx, rx) = watch::channel(data);
+
+            tokio::spawn(async move {
+                loop {
+                    let _ = tx.broadcast(data);
+
+                    delay_for(Duration::from_secs(5)).await;
+                }
+            });
+
+            Self(rx)
+        }
+
+        pub fn subscribe(&self) -> impl Stream<Item = Rate> {
+            self.0.clone()
+        }
+    }
+
+    impl Default for Service {
+        fn default() -> Self {
+            Self::new()
+        }
+    }
 
     #[async_trait]
     impl LatestRate for Service {
@@ -91,23 +133,6 @@ mod fixed_rate {
             ask: 1.into(),
             bid: 1.into(),
         }
-    }
-
-    pub fn fixed_rate_stream() -> impl Stream<Item = Result<impl ServerSentEvent, Infallible>> {
-        let data = fixed_rate();
-        let event = "rate";
-
-        tokio::time::throttle(
-            Duration::from_secs(5),
-            stream::iter(repeat((event, data)).map(|(event, data)| {
-                Ok((
-                    warp::sse::event(event),
-                    warp::sse::data(
-                        serde_json::to_string(&data).expect("serializable data to be serializable"),
-                    ),
-                ))
-            })),
-        )
     }
 }
 
@@ -143,7 +168,7 @@ mod tests {
         let have_asset_id_alice = client.get_bitcoin_asset_id().await.unwrap();
         let have_asset_id_bob = client.issueasset(10.0, 0.0, true).await.unwrap().asset;
 
-        let rate_service = fixed_rate::Service;
+        let rate_service = fixed_rate::Service::new();
         let redeem_amount_bob = LiquidBtc::from(Amount::ONE_BTC);
 
         let rate = rate_service.latest_rate().await.unwrap();
