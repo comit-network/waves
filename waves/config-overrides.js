@@ -15,8 +15,8 @@ module.exports = function override(config, env) {
 
     config.plugins = (config.plugins || []).concat([
         new WasmPackPlugin({
-            crateDirectory: path.resolve(__dirname, "src/wallet/"),
-            outDir: path.resolve(__dirname, "src/wallet/pkg"),
+            crateDirectory: path.resolve(__dirname, "wallet/"),
+            outDir: path.resolve(__dirname, "src/wallet"),
         }),
     ]);
 

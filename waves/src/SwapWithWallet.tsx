@@ -19,9 +19,9 @@ import {
 } from "@chakra-ui/react";
 import React, { Dispatch, MouseEvent } from "react";
 import { useHistory } from "react-router-dom";
-import { Action, AssetType } from "../App";
-import Bitcoin from "../components/bitcoin.svg";
-import Usdt from "../components/tether.svg";
+import { Action, AssetType } from "./App";
+import Bitcoin from "./components/bitcoin.svg";
+import Usdt from "./components/tether.svg";
 
 interface SwapWithWalletProps {
     alphaAmount: number;

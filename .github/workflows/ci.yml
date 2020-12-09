@@ -130,5 +130,5 @@ jobs:
 
       - name: Waves wallet tests
         run: |
-          cd waves/src/wallet
+          cd waves/wallet
           cargo test --target wasm32-unknown-unknown
