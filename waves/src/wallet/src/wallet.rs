@@ -1,8 +1,13 @@
-use crate::{storage::Storage, SECP};
+use crate::{esplora, esplora::Utxo, storage::Storage, SECP};
 use elements_fun::{
-    bitcoin, bitcoin::secp256k1::SecretKey, secp256k1::PublicKey, Address, AddressParams,
+    bitcoin, bitcoin::secp256k1::SecretKey, secp256k1::PublicKey, Address, AddressParams, AssetId,
 };
-use futures::lock::{MappedMutexGuard, Mutex, MutexGuard};
+use futures::{
+    lock::{MappedMutexGuard, Mutex, MutexGuard},
+    stream::FuturesUnordered,
+    StreamExt, TryStreamExt,
+};
+use itertools::Itertools;
 use std::{fmt, str};
 use wasm_bindgen::{JsValue, UnwrapThrowExt};
 
@@ -138,6 +143,54 @@ pub async fn get_address(
     Ok(address)
 }
 
+pub async fn get_balances(
+    name: String,
+    current_wallet: &Mutex<Option<Wallet>>,
+) -> Result<Vec<BalanceEntry>, JsValue> {
+    let address = get_address(name, &current_wallet).await?;
+
+    let utxos = map_err_from_anyhow!(esplora::fetch_utxos(&address).await)?;
+
+    let utxos = map_err_from_anyhow!(
+        utxos
+            .into_iter()
+            .map(|Utxo { txid, vout, .. }| async move {
+                let tx = esplora::fetch_transaction(txid).await;
+
+                tx.map(|mut tx| tx.output.remove(vout as usize))
+            })
+            .collect::<FuturesUnordered<_>>()
+            .try_collect::<Vec<_>>()
+            .await
+    )?;
+
+    let grouped_utxos = utxos
+        .into_iter()
+        .filter_map(|utxo| utxo.into_explicit()) // TODO: Unblind instead of just using explicit txouts
+        .group_by(|explicit| explicit.asset);
+
+    let balances = (&grouped_utxos)
+        .into_iter()
+        .map(|(asset, utxos)| async move {
+            BalanceEntry {
+                value: utxos.map(|utxo| utxo.value.0).sum(),
+                asset: asset.0,
+                ticker: match esplora::fetch_asset_description(&asset.0).await {
+                    Ok(ad) => ad.ticker,
+                    Err(e) => {
+                        log::debug!("failed to fetched asset description: {}", e);
+                        None
+                    }
+                },
+            }
+        })
+        .collect::<FuturesUnordered<_>>()
+        .collect()
+        .await;
+
+    Ok(balances)
+}
+
 pub async fn current(
     name: String,
     current_wallet: &Mutex<Option<Wallet>>,
@@ -155,6 +208,17 @@ pub async fn current(
     };
 
     Ok(MutexGuard::map(guard, |w| w.as_mut().unwrap_throw()))
+}
+
+/// A single balance entry as returned by [`get_balances`].
+#[derive(Debug, serde::Serialize)]
+pub struct BalanceEntry {
+    value: u64,
+    asset: AssetId,
+    /// The ticker symbol of the asset.
+    ///
+    /// Not all assets are part of the registry and as such, not all of them have a ticker symbol.
+    ticker: Option<String>,
 }
 
 #[derive(Debug)]

@@ -1,6 +1,7 @@
 export interface BalanceEntry {
     asset: string;
     value: bigint;
+    ticker?: string;
 }
 
 export interface WalletStatus {
@@ -32,4 +33,9 @@ export async function lockWallet() {
 export async function getWalletStatus(): Promise<WalletStatus> {
     const { wallet_status } = await import("./wallet/pkg");
     return wallet_status(WALLET_NAME);
+}
+
+export async function getBalances(): Promise<BalanceEntry> {
+    const { get_balances } = await import("./wallet/pkg");
+    return get_balances(WALLET_NAME);
 }

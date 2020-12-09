@@ -9,7 +9,7 @@ macro_rules! cast {
 }
 
 #[macro_export]
-macro_rules! try_anyhow {
+macro_rules! map_err_to_anyhow {
     ($e:expr) => {
         match $e {
             Ok(i) => Ok(i),
@@ -18,6 +18,16 @@ macro_rules! try_anyhow {
                 e.as_string()
                     .unwrap_or_else(|| "no error message".to_string())
             )),
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! map_err_from_anyhow {
+    ($e:expr) => {
+        match $e {
+            Ok(i) => Ok(i),
+            Err(e) => Err(JsValue::from_str(&format!("{:#}", e))),
         }
     };
 }

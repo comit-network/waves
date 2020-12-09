@@ -8,15 +8,11 @@ mod typed_js_future;
 mod utils;
 pub mod wallet;
 
-use crate::{esplora::Utxo, utils::set_panic_hook, wallet::Wallet};
+use crate::{utils::set_panic_hook, wallet::Wallet};
 use anyhow::Result;
 use conquer_once::Lazy;
-use elements_fun::{
-    secp256k1::{All, Secp256k1},
-    AssetId,
-};
-use futures::{lock::Mutex, stream::FuturesUnordered, TryStreamExt};
-use itertools::Itertools;
+use elements_fun::secp256k1::{All, Secp256k1};
+use futures::lock::Mutex;
 use js_sys::Array;
 use wasm_bindgen::prelude::*;
 
@@ -83,49 +79,17 @@ pub async fn get_address(wallet_name: String) -> Result<String, JsValue> {
     Ok(address.to_string())
 }
 
-pub async fn get_balances() -> Result<Array, JsValue> {
-    let utxos = esplora::fetch_utxos(
-        &"ex1qa2a790x3vl02uma5ndhcusf2r9dn0hd82f6jhf"
-            .parse()
-            .unwrap(),
-    )
-    .await
-    .unwrap_throw();
+/// Get the balances of the currently loaded wallet.
+///
+/// Returns an array of [`BalanceEntry`]s.
+///
+/// Fails if the wallet is currently not loaded or we cannot reach the block explorer for some reason.
+#[wasm_bindgen]
+pub async fn get_balances(wallet_name: String) -> Result<Array, JsValue> {
+    let balances = wallet::get_balances(wallet_name, &LOADED_WALLET).await?;
 
-    let utxos = utxos
+    Ok(balances
         .into_iter()
-        .map(|Utxo { txid, vout, .. }| async move {
-            let tx = esplora::fetch_transaction(txid).await;
-
-            tx.map(|mut tx| tx.output.remove(vout as usize))
-        })
-        .collect::<FuturesUnordered<_>>()
-        .try_collect::<Vec<_>>()
-        .await
-        .unwrap_throw();
-
-    let grouped_utxos = utxos
-        .into_iter()
-        .filter_map(|utxo| utxo.into_explicit()) // TODO: Unblind instead of just using explicit txouts
-        .group_by(|explicit| explicit.asset);
-
-    let balances = (&grouped_utxos)
-        .into_iter()
-        .map(|(asset, utxos)| {
-            let balance_entry = BalanceEntry {
-                value: utxos.map(|utxo| utxo.value.0).sum(),
-                asset: asset.0,
-            };
-
-            JsValue::from_serde(&balance_entry).expect_throw("serialization always succeeds")
-        })
-        .collect::<Array>();
-
-    Ok(balances)
-}
-
-#[derive(Debug, serde::Serialize)]
-pub struct BalanceEntry {
-    value: u64,
-    asset: AssetId,
+        .map(|e| JsValue::from_serde(&e).unwrap_throw())
+        .collect::<Array>())
 }
