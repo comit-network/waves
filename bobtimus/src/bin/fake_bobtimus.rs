@@ -1,6 +1,9 @@
 use anyhow::Result;
-use bobtimus::{Bobtimus, CreateSwapPayload};
-use elements_fun::secp256k1::rand::{rngs::StdRng, thread_rng, SeedableRng};
+use bobtimus::{Bobtimus, CreateSwapPayload, USDT_ASSET_ID};
+use elements_fun::{
+    secp256k1::rand::{rngs::StdRng, thread_rng, SeedableRng},
+    AssetId,
+};
 use elements_harness::Client;
 use futures::StreamExt;
 use reqwest::Url;
@@ -15,6 +18,11 @@ pub struct StartCommand {
     elementsd_url: Url,
     #[structopt(default_value = "3030")]
     api_port: u16,
+    #[structopt(
+        default_value = USDT_ASSET_ID,
+        long = "usdt"
+    )]
+    usdt_asset_id: AssetId,
 }
 
 #[tokio::main]
@@ -22,6 +30,7 @@ async fn main() -> Result<()> {
     let StartCommand {
         elementsd_url,
         api_port,
+        usdt_asset_id,
     } = StartCommand::from_args();
 
     let elementsd = Client::new(elementsd_url.into_string())?;
@@ -34,7 +43,7 @@ async fn main() -> Result<()> {
         rate_service,
         elementsd,
         btc_asset_id,
-        usdt_asset_id: todo!("get L-USDt asset ID from environment"),
+        usdt_asset_id,
     };
 
     let bobtimus_filter = warp::any().map({
@@ -42,9 +51,10 @@ async fn main() -> Result<()> {
         move || bobtimus.clone()
     });
 
-    let latest_rate = warp::path("rate").and(warp::get()).map(|| {
+    let subscription = bobtimus.rate_service.subscribe();
+    let latest_rate = warp::path("rate/lbtc-lusdt").and(warp::get()).map(move || {
         warp::sse::reply(
-            warp::sse::keep_alive().stream(rate_service.subscribe().map(|data| {
+            warp::sse::keep_alive().stream(subscription.clone().map(|data| {
                 Result::<_, Infallible>::Ok((warp::sse::event("rate"), warp::sse::json(data)))
             })),
         )
@@ -105,7 +115,7 @@ mod fixed_rate {
             Self(rx)
         }
 
-        pub fn subscribe(&self) -> impl Stream<Item = Rate> {
+        pub fn subscribe(&self) -> impl Stream<Item = Rate> + Clone {
             self.0.clone()
         }
     }
