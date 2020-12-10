@@ -1,7 +1,10 @@
 use crate::{esplora, esplora::Utxo, storage::Storage, SECP};
+use anyhow::Context;
 use elements_fun::{
-    bitcoin, bitcoin::secp256k1::SecretKey, secp256k1::PublicKey, Address, AddressParams, AssetId,
-    TxOut,
+    bitcoin,
+    bitcoin::secp256k1::SecretKey,
+    secp256k1::{rand, PublicKey},
+    Address, AddressParams, AssetId, TxOut,
 };
 use futures::{
     lock::{MappedMutexGuard, Mutex, MutexGuard},
@@ -34,7 +37,16 @@ pub async fn create_new(
 
     let wallet_sk = SecretKey::new(&mut rand::thread_rng());
 
-    storage.set_item(&format!("wallets.{}.password", name), password)?; // TODO: hash password :)
+    #[cfg(not(test))]
+    let params = scrypt::ScryptParams::recommended();
+    #[cfg(test)] // use weak parameters for testing
+    let params = scrypt::ScryptParams::new(1, 1, 1).unwrap();
+
+    let hashed_password = map_err_from_anyhow!(
+        scrypt::scrypt_simple(&password, &params).context("failed to hash password")
+    )?;
+
+    storage.set_item(&format!("wallets.{}.password", name), hashed_password)?;
     storage.set_item(&format!("wallets.{}.secret_key", name), wallet_sk)?; // TODO: encrypt secret key!
     storage.set_item("wallets", wallets)?;
 
@@ -81,12 +93,8 @@ pub async fn load_existing(
         .get_item::<String>(&format!("wallets.{}.password", name))?
         .ok_or_else(|| JsValue::from_str("no password stored for wallet"))?;
 
-    if password != stored_password {
-        return Err(JsValue::from_str(&format!(
-            "bad password for wallet '{}'",
-            name
-        )));
-    }
+    scrypt::scrypt_check(&password, &stored_password)
+        .map_err(|_| JsValue::from_str(&format!("bad password for wallet '{}'", name)))?;
 
     let secret_key = storage
         .get_item(&format!("wallets.{}.secret_key", name))?
