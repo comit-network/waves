@@ -39,7 +39,7 @@ impl<R, RS> Bobtimus<R, RS> {
         RS: LatestRate,
     {
         let latest_rate = self.rate_service.latest_rate().await?;
-        let usdt_amount = latest_rate.buy_quote(payload.btc_amount);
+        let usdt_amount = latest_rate.buy_quote(payload.btc_amount)?;
 
         let inputs = self
             .elementsd

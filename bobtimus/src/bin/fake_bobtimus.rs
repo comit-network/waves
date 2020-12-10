@@ -78,9 +78,9 @@ pub async fn create_swap(
 mod fixed_rate {
     use anyhow::Result;
     use async_trait::async_trait;
-    use bobtimus::{LatestRate, Rate};
+    use bobtimus::{LatestRate, LiquidUsdt, Rate};
     use futures::Stream;
-    use std::time::Duration;
+    use std::{convert::TryFrom, time::Duration};
     use tokio::{
         sync::watch::{self, Receiver},
         time::delay_for,
@@ -125,8 +125,8 @@ mod fixed_rate {
 
     fn fixed_rate() -> Rate {
         Rate {
-            ask: 1.into(),
-            bid: 1.into(),
+            ask: LiquidUsdt::try_from(20_000.0).unwrap(),
+            bid: LiquidUsdt::try_from(19_000.0).unwrap(),
         }
     }
 }
@@ -167,7 +167,7 @@ mod tests {
         let redeem_amount_bob = LiquidBtc::from(Amount::ONE_BTC);
 
         let rate = rate_service.latest_rate().await.unwrap();
-        let redeem_amount_alice = rate.buy_quote(redeem_amount_bob);
+        let redeem_amount_alice = rate.buy_quote(redeem_amount_bob).unwrap();
 
         let (
             fund_address_alice,
