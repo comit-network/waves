@@ -17,6 +17,7 @@ use futures::{
 };
 use hkdf::Hkdf;
 use itertools::Itertools;
+use rand::{thread_rng, Rng};
 use sha2::{digest::generic_array::GenericArray, Sha256};
 use std::{fmt, str};
 use wasm_bindgen::{JsValue, UnwrapThrowExt};
@@ -59,7 +60,11 @@ pub async fn create_new(
     storage.set_item(&format!("wallets.{}.password", name), hashed_password)?;
     storage.set_item(
         &format!("wallets.{}.secret_key", name),
-        hex::encode(new_wallet.encrypted_secret_key()?),
+        format!(
+            "{}${}",
+            hex::encode(new_wallet.sk_salt),
+            hex::encode(new_wallet.encrypted_secret_key()?)
+        ),
     )?;
     storage.set_item("wallets", wallets)?;
 
@@ -103,17 +108,11 @@ pub async fn load_existing(
     scrypt::scrypt_check(&password, &stored_password)
         .map_err(|_| JsValue::from_str(&format!("bad password for wallet '{}'", name)))?;
 
-    let secret_key = storage
+    let sk_ciphertext = storage
         .get_item::<String>(&format!("wallets.{}.secret_key", name))?
         .ok_or_else(|| JsValue::from_str("no secret key for wallet"))?;
 
-    let wallet = Wallet::initialize_existing(
-        name,
-        password,
-        map_err_from_anyhow!(
-            hex::decode(&secret_key).context("failed to decode encrypted secret key as hex")
-        )?,
-    )?;
+    let wallet = Wallet::initialize_existing(name, password, sk_ciphertext)?;
 
     guard.replace(wallet);
 
@@ -261,6 +260,7 @@ pub struct Wallet {
     name: String,
     encryption_key: [u8; 32],
     secret_key: SecretKey,
+    sk_salt: [u8; 32],
 }
 
 const SECRET_KEY_ENCRYPTION_NONCE: &[u8; 12] = b"SECRET_KEY!!";
@@ -271,26 +271,43 @@ impl Wallet {
         password: String,
         secret_key: SecretKey,
     ) -> Result<Self, JsValue> {
-        let encryption_key = Self::derive_encryption_key(&name, &password)?;
+        let sk_salt = thread_rng().gen::<[u8; 32]>();
+
+        let encryption_key = Self::derive_encryption_key(&password, &sk_salt)?;
 
         Ok(Self {
             name,
             encryption_key,
             secret_key,
+            sk_salt,
         })
     }
 
     pub fn initialize_existing(
         name: String,
         password: String,
-        encrypted_secret_key: Vec<u8>,
+        sk_ciphertext: String,
     ) -> Result<Self, JsValue> {
-        let encryption_key = Self::derive_encryption_key(&name, &password)?;
+        let mut parts = sk_ciphertext.split('$');
+
+        let salt = map_err_from_anyhow!(parts.next().context("no salt in cipher text"))?;
+        let sk = map_err_from_anyhow!(parts.next().context("no secret key in cipher text"))?;
+
+        let mut sk_salt = [0u8; 32];
+        map_err_from_anyhow!(
+            hex::decode_to_slice(salt, &mut sk_salt).context("failed to decode salt as hex")
+        )?;
+
+        let encryption_key = Self::derive_encryption_key(&password, &sk_salt)?;
 
         let cipher = Aes256GcmSiv::new(GenericArray::from_slice(&encryption_key));
         let nonce = GenericArray::from_slice(SECRET_KEY_ENCRYPTION_NONCE);
         let sk = map_err_from_anyhow!(cipher
-            .decrypt(nonce, encrypted_secret_key.as_slice())
+            .decrypt(
+                nonce,
+                map_err_from_anyhow!(hex::decode(sk).context("failed to decode sk as hex"))?
+                    .as_slice()
+            )
             .context("failed to decrypt secret key"))?;
 
         Ok(Self {
@@ -299,6 +316,7 @@ impl Wallet {
             secret_key: map_err_from_anyhow!(
                 SecretKey::from_slice(&sk).context("invalid secret key")
             )?,
+            sk_salt,
         })
     }
 
@@ -358,7 +376,7 @@ impl Wallet {
         SecretKey::from_slice(bk.as_ref()).expect("always a valid secret key")
     }
 
-    /// Derive the encryption key from the wallet's name and password.
+    /// Derive the encryption key from the wallet's password and a salt.
     ///
     /// # Choice of salt
     ///
@@ -374,8 +392,8 @@ impl Wallet {
     /// In our case, we use the encryption key to encrypt the secret key and as such, tag it with `b"ENCRYPTION_KEY"`.
     ///
     /// [0]: https://tools.ietf.org/html/rfc5869#section-3.1
-    fn derive_encryption_key(wallet_name: &str, password: &str) -> Result<[u8; 32], JsValue> {
-        let h = Hkdf::<Sha256>::new(Some(wallet_name.as_bytes()), password.as_bytes());
+    fn derive_encryption_key(password: &str, salt: &[u8]) -> Result<[u8; 32], JsValue> {
+        let h = Hkdf::<Sha256>::new(Some(salt), password.as_bytes());
         let mut enc_key = [0u8; 32];
         map_err_from_anyhow!(h
             .expand(b"ENCRYPTION_KEY", &mut enc_key)
@@ -563,5 +581,34 @@ mod tests {
             .unwrap();
 
         assert_eq!(status.exists, false);
+    }
+
+    #[wasm_bindgen_test]
+    pub async fn secret_key_can_be_successfully_decrypted() {
+        let current_wallet = Mutex::default();
+
+        create_new("wallet-9".to_owned(), "foo".to_owned(), &current_wallet)
+            .await
+            .unwrap();
+        let initial_sk = {
+            let guard = current_wallet.lock().await;
+            let wallet = guard.as_ref().unwrap();
+
+            wallet.secret_key.clone()
+        };
+
+        unload_current(&current_wallet).await;
+
+        load_existing("wallet-9".to_owned(), "foo".to_owned(), &current_wallet)
+            .await
+            .unwrap();
+        let loaded_sk = {
+            let guard = current_wallet.lock().await;
+            let wallet = guard.as_ref().unwrap();
+
+            wallet.secret_key.clone()
+        };
+
+        assert_eq!(initial_sk, loaded_sk);
     }
 }
