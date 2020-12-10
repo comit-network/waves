@@ -12,6 +12,8 @@ use serde::Deserialize;
 use swap::states::{Bob0, Message0};
 
 mod amounts;
+pub mod cli;
+pub mod routes;
 
 pub use amounts::*;
 
@@ -96,5 +98,5 @@ impl<R, RS> Bobtimus<R, RS> {
 
 #[async_trait]
 pub trait LatestRate {
-    async fn latest_rate(&self) -> Result<Rate>;
+    async fn latest_rate(&mut self) -> Result<Rate>;
 }

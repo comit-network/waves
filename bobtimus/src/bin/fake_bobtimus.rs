@@ -1,29 +1,9 @@
 use anyhow::Result;
-use bobtimus::{Bobtimus, CreateSwapPayload, USDT_ASSET_ID};
-use elements_fun::{
-    secp256k1::rand::{rngs::StdRng, thread_rng, SeedableRng},
-    AssetId,
-};
+use bobtimus::{cli::StartCommand, routes, Bobtimus};
+use elements_fun::secp256k1::rand::{rngs::StdRng, thread_rng, SeedableRng};
 use elements_harness::Client;
-use futures::StreamExt;
-use reqwest::Url;
-use std::convert::Infallible;
 use structopt::StructOpt;
-use warp::{Filter, Rejection, Reply};
-
-#[derive(structopt::StructOpt, Debug)]
-#[structopt(name = "fake-bobtimus", about = "Definitely not Bobtimus")]
-pub struct StartCommand {
-    #[structopt(default_value = "http://127.0.0.1:7042", long = "elementsd")]
-    elementsd_url: Url,
-    #[structopt(default_value = "3030")]
-    api_port: u16,
-    #[structopt(
-        default_value = USDT_ASSET_ID,
-        long = "usdt"
-    )]
-    usdt_asset_id: AssetId,
-}
+use warp::Filter;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -52,37 +32,22 @@ async fn main() -> Result<()> {
     });
 
     let subscription = bobtimus.rate_service.subscribe();
-    let latest_rate = warp::path("rate/lbtc-lusdt").and(warp::get()).map(move || {
-        warp::sse::reply(
-            warp::sse::keep_alive().stream(subscription.clone().map(|data| {
-                Result::<_, Infallible>::Ok((warp::sse::event("rate"), warp::sse::json(data)))
-            })),
-        )
-    });
+    let latest_rate = warp::path!("rate" / "lbtc-lusdt")
+        .and(warp::get())
+        .map(move || routes::latest_rate(subscription.clone()));
 
     let create_swap = warp::post()
-        .and(warp::path("swap/lbtc-lusdt"))
+        .and(warp::path!("swap" / "lbtc-lusdt"))
         .and(warp::path::end())
         .and(bobtimus_filter.clone())
         .and(warp::body::json())
-        .and_then(create_swap);
+        .and_then(routes::create_swap);
 
     warp::serve(latest_rate.or(create_swap))
         .run(([127, 0, 0, 1], api_port))
         .await;
 
     Ok(())
-}
-
-pub async fn create_swap(
-    mut bobtimus: Bobtimus<StdRng, fixed_rate::Service>,
-    payload: CreateSwapPayload,
-) -> Result<impl Reply, Rejection> {
-    bobtimus
-        .handle_create_swap(payload)
-        .await
-        .map(|transaction| warp::reply::json(&transaction))
-        .map_err(|_| warp::reject::reject())
 }
 
 mod fixed_rate {
@@ -128,7 +93,7 @@ mod fixed_rate {
 
     #[async_trait]
     impl LatestRate for Service {
-        async fn latest_rate(&self) -> Result<Rate> {
+        async fn latest_rate(&mut self) -> Result<Rate> {
             Ok(fixed_rate())
         }
     }
@@ -175,7 +140,7 @@ mod tests {
         let have_asset_id_alice = client.get_bitcoin_asset_id().await.unwrap();
         let have_asset_id_bob = client.issueasset(100_000.0, 0.0, true).await.unwrap().asset;
 
-        let rate_service = fixed_rate::Service::new();
+        let mut rate_service = fixed_rate::Service::new();
         let redeem_amount_bob = LiquidBtc::from(Amount::ONE_BTC);
 
         let rate = rate_service.latest_rate().await.unwrap();
@@ -226,7 +191,7 @@ mod tests {
         let _txid = client
             .send_asset_to_address(
                 address,
-                Amount::from_btc(100_000.0).unwrap(),
+                Amount::from_btc(10.0).unwrap(),
                 Some(have_asset_id_bob),
             )
             .await

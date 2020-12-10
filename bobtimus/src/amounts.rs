@@ -8,7 +8,7 @@ use std::{convert::TryFrom, fmt::Debug};
 ///
 /// - The `ask` represents the minimum price for which we are willing to sell 1 L-BTC.
 /// - The `bid` represents the maximum price we are willing pay for 1 L-BTC.
-#[derive(Debug, Clone, Copy, Serialize)]
+#[derive(Default, Debug, Clone, Copy, Serialize)]
 pub struct Rate {
     pub ask: LiquidUsdt,
     pub bid: LiquidUsdt,
@@ -39,7 +39,7 @@ impl Rate {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Serialize)]
+#[derive(Clone, Copy, PartialEq, Serialize, Default)]
 pub struct LiquidUsdt(
     #[serde(with = "::elements_fun::bitcoin::util::amount::serde::as_sat")] Amount,
 );
@@ -59,6 +59,12 @@ impl LiquidUsdt {
     /// L-USDt that can be represented in Liquid.
     pub fn as_satodollar(&self) -> u64 {
         self.0.as_sat()
+    }
+
+    pub fn from_str_in_dollar(s: &str) -> Result<Self> {
+        let amount = Amount::from_str_in(s, elements_fun::bitcoin::Denomination::Bitcoin)?;
+
+        Ok(Self(amount))
     }
 }
 
