@@ -1,8 +1,10 @@
 use anyhow::{bail, Result};
 use async_trait::async_trait;
 use elements_fun::{
-    secp256k1::rand::CryptoRng,
-    secp256k1::{rand::RngCore, SecretKey},
+    secp256k1::{
+        rand::{CryptoRng, RngCore},
+        SecretKey,
+    },
     AssetId, Transaction,
 };
 use elements_harness::{elementd_rpc::ElementsRpc, Client as ElementsdClient};

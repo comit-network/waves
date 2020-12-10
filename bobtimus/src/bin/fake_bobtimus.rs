@@ -149,8 +149,10 @@ mod tests {
     use elements_fun::{
         bitcoin::Amount, secp256k1::rand::thread_rng, Address, OutPoint, Transaction, TxOut,
     };
-    use elements_harness::elementd_rpc::{ElementsRpc, ListUnspentOptions};
-    use elements_harness::{Client, Elementsd};
+    use elements_harness::{
+        elementd_rpc::{ElementsRpc, ListUnspentOptions},
+        Client, Elementsd,
+    };
     use swap::{
         make_confidential_address,
         states::{Alice0, Message1},
