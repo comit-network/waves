@@ -313,6 +313,7 @@ impl fmt::Display for ListOfWallets {
 mod tests {
     use super::*;
     use wasm_bindgen_test::*;
+    wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
 
     #[wasm_bindgen_test]
     pub async fn given_no_wallet_when_getting_address_then_fails() {
