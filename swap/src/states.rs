@@ -7,8 +7,10 @@ use elements_fun::{
     wally::tx_get_elements_signature_hash,
     Address, AssetId, OutPoint, Transaction, TxIn, TxOut, UnblindedTxOut,
 };
-use rand::{CryptoRng, RngCore};
-use secp256k1::{PublicKey as SecpPublicKey, SecretKey, SECP256K1};
+use secp256k1::{
+    rand::{CryptoRng, RngCore},
+    PublicKey as SecpPublicKey, SecretKey, SECP256K1,
+};
 use serde::Deserialize;
 
 /// Sent from Alice to Bob, assuming Alice has bitcoin.
@@ -470,8 +472,7 @@ mod tests {
         Txid,
     };
     use elements_harness::{elementd_rpc::ElementsRpc, Client, Elementsd};
-    use rand::thread_rng;
-    use secp256k1::{Message, SecretKey, SECP256K1};
+    use secp256k1::{rand::thread_rng, Message, SecretKey, SECP256K1};
     use testcontainers::clients::Cli;
 
     #[tokio::test]

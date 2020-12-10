@@ -1885,7 +1885,6 @@ dependencies = [
  "anyhow",
  "elements-fun",
  "elements-harness",
- "rand 0.6.5",
  "secp256k1",
  "serde",
  "sha2",
