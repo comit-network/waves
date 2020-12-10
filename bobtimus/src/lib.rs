@@ -75,8 +75,8 @@ impl<R, RS> Bobtimus<R, RS> {
         let change_address = self.elementsd.getnewaddress().await?;
 
         let protocol_state = Bob0::new(
-            payload.btc_amount.into(),
             usdt_amount.into(),
+            payload.btc_amount.into(),
             input,
             input_blinding_sk,
             self.btc_asset_id,

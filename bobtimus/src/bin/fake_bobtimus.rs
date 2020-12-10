@@ -173,7 +173,7 @@ mod tests {
         let mining_address = client.getnewaddress().await.unwrap();
 
         let have_asset_id_alice = client.get_bitcoin_asset_id().await.unwrap();
-        let have_asset_id_bob = client.issueasset(10.0, 0.0, true).await.unwrap().asset;
+        let have_asset_id_bob = client.issueasset(100_000.0, 0.0, true).await.unwrap().asset;
 
         let rate_service = fixed_rate::Service::new();
         let redeem_amount_bob = LiquidBtc::from(Amount::ONE_BTC);
@@ -226,7 +226,7 @@ mod tests {
         let _txid = client
             .send_asset_to_address(
                 address,
-                Amount::from_btc(10.0).unwrap(),
+                Amount::from_btc(100_000.0).unwrap(),
                 Some(have_asset_id_bob),
             )
             .await

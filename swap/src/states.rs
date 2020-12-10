@@ -226,8 +226,8 @@ pub struct Bob0 {
 impl Bob0 {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
-        amount_alice: Amount,
-        amount_bob: Amount,
+        redeem_amount_alice: Amount,
+        redeem_amount_bob: Amount,
         input: (OutPoint, TxOut),
         input_blinding_sk: SecretKey,
         asset_id_alice: AssetId,
@@ -247,8 +247,8 @@ impl Bob0 {
         };
 
         Self {
-            redeem_amount_alice: amount_alice,
-            redeem_amount_bob: amount_bob,
+            redeem_amount_alice,
+            redeem_amount_bob,
             input,
             input_as_txout,
             input_blinding_sk,
