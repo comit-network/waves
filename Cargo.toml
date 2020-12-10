@@ -1,2 +1,6 @@
 [workspace]
 members = [ "elements-harness", "swap", "elements-fun", "elements-fun/fuzz", "waves/wallet", "bobtimus" ]
+
+[patch.crates-io]
+# Patch reqwest until this commit is released: https://github.com/seanmonstar/reqwest/commit/e7be3eda04ffff53adf9fcc52ea3e61b1ad9ccda
+reqwest = { git = "https://github.com/seanmonstar/reqwest" }
