@@ -145,7 +145,7 @@ mod fixed_rate {
 mod tests {
     use super::*;
     use anyhow::{Context, Result};
-    use bobtimus::{Bobtimus, CreateSwapPayload, LatestRate, LiquidBtc};
+    use bobtimus::{AliceInput, Bobtimus, CreateSwapPayload, LatestRate, LiquidBtc};
     use elements_fun::{
         bitcoin::Amount, secp256k1::rand::thread_rng, Address, OutPoint, Transaction, TxOut,
     };
@@ -261,7 +261,13 @@ mod tests {
 
         let transaction = bob
             .handle_create_swap(CreateSwapPayload {
-                protocol_msg: message0,
+                alice_inputs: vec![AliceInput {
+                    outpoint: message0.input.previous_output,
+                    blinding_key: message0.input_blinding_sk,
+                }],
+                address_redeem: message0.address_redeem,
+                address_change: message0.address_change,
+                fee: message0.fee,
                 btc_amount: redeem_amount_bob,
             })
             .await
