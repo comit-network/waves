@@ -2,8 +2,7 @@ use elements_fun::{
     bitcoin::{Network::Regtest, PrivateKey, PublicKey},
     Address, AddressParams,
 };
-use rand::thread_rng;
-use secp256k1::{SecretKey, SECP256K1};
+use secp256k1::{rand::thread_rng, SecretKey, SECP256K1};
 
 pub mod states;
 
@@ -36,6 +35,7 @@ pub fn make_confidential_address() -> (Address, SecretKey, PublicKey, SecretKey,
 
 #[cfg(test)]
 mod tests {
+    use bitcoin::secp256k1::rand::thread_rng;
     use elements_fun::{
         bitcoin::{self, secp256k1::Message, Amount, SigHashType},
         bitcoin_hashes::{hash160, hex::FromHex, Hash},
@@ -49,7 +49,6 @@ mod tests {
         elementd_rpc::{Client, ElementsRpc},
         Elementsd,
     };
-    use rand::thread_rng;
     use testcontainers::clients::Cli;
 
     use crate::make_confidential_address;

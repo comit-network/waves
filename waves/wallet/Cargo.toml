@@ -11,24 +11,30 @@ crate-type = [ "cdylib", "rlib" ]
 default = [ "console_error_panic_hook" ]
 
 [dependencies]
+aes-gcm-siv = { version = "0.9", features = [ "std" ] }
 anyhow = "1"
 conquer-once = "0.3"
 console_error_panic_hook = { version = "0.1.6", optional = true }
 elements-fun = { path = "../../elements-fun", features = [ "serde" ] }
 futures = "0.3"
+getrandom = { version = "0.1", features = [ "wasm-bindgen" ] }
 hex = "0.4"
-itertools = "0.9.0"
+hkdf = { version = "0.10", features = [ "std" ] }
+itertools = "0.9"
 js-sys = "0.3"
 log = "0.4"
 rand = { version = "0.6", features = [ "wasm-bindgen" ] }
+rand_core = { version = "0.5", features = [ "std" ] }
 reqwest = { version = "0.10", default-features = false, features = [ "rustls", "json" ] }
+scrypt = { version = "0.5" }
 serde = { version = "1", features = [ "derive" ] }
 serde_json = "1"
-wasm-bindgen = "0.2.63"
-wasm-bindgen-futures = "0.4.19"
+sha2 = "0.9"
+wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4"
 wasm-logger = "0.2"
 web-sys = { version = "0.3", features = [ "Window", "Storage", "Cache", "CacheStorage" ] }
-wee_alloc = { version = "0.4.5", optional = true } # `wee_alloc` is a tiny allocator for wasm that is only ~1K in code size
+wee_alloc = { version = "0.4", optional = true } # `wee_alloc` is a tiny allocator for wasm that is only ~1K in code size
 
 [dev-dependencies]
 wasm-bindgen-test = "0.3.13"

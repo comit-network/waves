@@ -1,14 +1,24 @@
 use crate::{esplora, esplora::Utxo, storage::Storage, SECP};
+use aes_gcm_siv::{
+    aead::{Aead, NewAead},
+    Aes256GcmSiv,
+};
+use anyhow::Context;
 use elements_fun::{
-    bitcoin, bitcoin::secp256k1::SecretKey, secp256k1::PublicKey, Address, AddressParams, AssetId,
-    TxOut,
+    bitcoin,
+    bitcoin::secp256k1::SecretKey,
+    secp256k1::{rand, PublicKey},
+    Address, AddressParams, AssetId, TxOut,
 };
 use futures::{
     lock::{MappedMutexGuard, Mutex, MutexGuard},
     stream::FuturesUnordered,
     StreamExt, TryStreamExt,
 };
+use hkdf::Hkdf;
 use itertools::Itertools;
+use rand::{thread_rng, Rng};
+use sha2::{digest::generic_array::GenericArray, Sha256};
 use std::{fmt, str};
 use wasm_bindgen::{JsValue, UnwrapThrowExt};
 
@@ -32,20 +42,34 @@ pub async fn create_new(
 
     wallets.add(name.clone());
 
-    let wallet_sk = SecretKey::new(&mut rand::thread_rng());
-    let wallet_bk = SecretKey::new(&mut rand::thread_rng());
-
-    storage.set_item(&format!("wallets.{}.password", name), password)?; // TODO: hash password :)
-    storage.set_item(&format!("wallets.{}.secret_key", name), wallet_sk)?; // TODO: encrypt secret key!
-    storage.set_item(&format!("wallets.{}.blinding_key", name), wallet_bk)?; // TODO: encrypt secret key!
-    storage.set_item("wallets", wallets)?;
-
-    let new_wallet = Wallet {
-        name,
-        encryption_key: [0u8; 32], // TODO: Derive from password,
-        secret_key: wallet_sk,
-        blinding_key: wallet_bk,
+    let params = if cfg!(debug_assertions) {
+        // use weak parameters in debug mode, otherwise this is awfully slow
+        log::warn!("using extremely weak scrypt parameters for password hashing");
+        scrypt::ScryptParams::new(1, 1, 1).unwrap()
+    } else {
+        scrypt::ScryptParams::recommended()
     };
+
+    let hashed_password = map_err_from_anyhow!(
+        scrypt::scrypt_simple(&password, &params).context("failed to hash password")
+    )?;
+
+    let new_wallet = Wallet::initialize_new(
+        name.clone(),
+        password,
+        SecretKey::new(&mut rand::thread_rng()),
+    )?;
+
+    storage.set_item(&format!("wallets.{}.password", name), hashed_password)?;
+    storage.set_item(
+        &format!("wallets.{}.secret_key", name),
+        format!(
+            "{}${}",
+            hex::encode(new_wallet.sk_salt),
+            hex::encode(new_wallet.encrypted_secret_key()?)
+        ),
+    )?;
+    storage.set_item("wallets", wallets)?;
 
     current_wallet.lock().await.replace(new_wallet);
 
@@ -84,27 +108,14 @@ pub async fn load_existing(
         .get_item::<String>(&format!("wallets.{}.password", name))?
         .ok_or_else(|| JsValue::from_str("no password stored for wallet"))?;
 
-    if password != stored_password {
-        return Err(JsValue::from_str(&format!(
-            "bad password for wallet '{}'",
-            name
-        )));
-    }
+    scrypt::scrypt_check(&password, &stored_password)
+        .map_err(|_| JsValue::from_str(&format!("bad password for wallet '{}'", name)))?;
 
-    let secret_key = storage
-        .get_item(&format!("wallets.{}.secret_key", name))?
+    let sk_ciphertext = storage
+        .get_item::<String>(&format!("wallets.{}.secret_key", name))?
         .ok_or_else(|| JsValue::from_str("no secret key for wallet"))?;
 
-    let blinding_key = storage
-        .get_item(&format!("wallets.{}.blinding_key", name))?
-        .ok_or_else(|| JsValue::from_str("no blinding key for wallet"))?;
-
-    let wallet = Wallet {
-        name,
-        encryption_key: [0u8; 32], // derive from password + store data
-        secret_key,
-        blinding_key,
-    };
+    let wallet = Wallet::initialize_existing(name, password, sk_ciphertext)?;
 
     guard.replace(wallet);
 
@@ -249,16 +260,72 @@ pub struct BalanceEntry {
 
 #[derive(Debug)]
 pub struct Wallet {
-    pub name: String,
-    pub encryption_key: [u8; 32],
-    pub secret_key: SecretKey,
-    pub blinding_key: SecretKey,
+    name: String,
+    encryption_key: [u8; 32],
+    secret_key: SecretKey,
+    sk_salt: [u8; 32],
 }
 
+const SECRET_KEY_ENCRYPTION_NONCE: &[u8; 12] = b"SECRET_KEY!!";
+
 impl Wallet {
+    pub fn initialize_new(
+        name: String,
+        password: String,
+        secret_key: SecretKey,
+    ) -> Result<Self, JsValue> {
+        let sk_salt = thread_rng().gen::<[u8; 32]>();
+
+        let encryption_key = Self::derive_encryption_key(&password, &sk_salt)?;
+
+        Ok(Self {
+            name,
+            encryption_key,
+            secret_key,
+            sk_salt,
+        })
+    }
+
+    pub fn initialize_existing(
+        name: String,
+        password: String,
+        sk_ciphertext: String,
+    ) -> Result<Self, JsValue> {
+        let mut parts = sk_ciphertext.split('$');
+
+        let salt = map_err_from_anyhow!(parts.next().context("no salt in cipher text"))?;
+        let sk = map_err_from_anyhow!(parts.next().context("no secret key in cipher text"))?;
+
+        let mut sk_salt = [0u8; 32];
+        map_err_from_anyhow!(
+            hex::decode_to_slice(salt, &mut sk_salt).context("failed to decode salt as hex")
+        )?;
+
+        let encryption_key = Self::derive_encryption_key(&password, &sk_salt)?;
+
+        let cipher = Aes256GcmSiv::new(GenericArray::from_slice(&encryption_key));
+        let nonce = GenericArray::from_slice(SECRET_KEY_ENCRYPTION_NONCE);
+        let sk = map_err_from_anyhow!(cipher
+            .decrypt(
+                nonce,
+                map_err_from_anyhow!(hex::decode(sk).context("failed to decode sk as hex"))?
+                    .as_slice()
+            )
+            .context("failed to decrypt secret key"))?;
+
+        Ok(Self {
+            name,
+            encryption_key,
+            secret_key: map_err_from_anyhow!(
+                SecretKey::from_slice(&sk).context("invalid secret key")
+            )?,
+            sk_salt,
+        })
+    }
+
     pub fn get_address(&self) -> Result<Address, JsValue> {
         let public_key = PublicKey::from_secret_key(&*SECP, &self.secret_key);
-        let blinding_key = PublicKey::from_secret_key(&*SECP, &self.blinding_key);
+        let blinding_key = PublicKey::from_secret_key(&*SECP, &self.blinding_key());
 
         let address = Address::p2wpkh(
             &bitcoin::PublicKey {
@@ -270,6 +337,72 @@ impl Wallet {
         );
 
         Ok(address)
+    }
+    /// Encrypts the secret key with the encryption key.
+    ///
+    /// # Choice of nonce
+    ///
+    /// We store the secret key on disk and as such have to use a constant nonce, otherwise we would not be able to decrypt it again.
+    /// The encryption only happens once and as such, there is conceptually only one message and we are not "reusing" the nonce which would be insecure.
+    fn encrypted_secret_key(&self) -> Result<Vec<u8>, JsValue> {
+        let cipher = Aes256GcmSiv::new(&GenericArray::from_slice(&self.encryption_key));
+        let enc_sk = map_err_from_anyhow!(cipher
+            .encrypt(
+                GenericArray::from_slice(SECRET_KEY_ENCRYPTION_NONCE),
+                &self.secret_key[..]
+            )
+            .context("failed to encrypt secret key"))?;
+
+        Ok(enc_sk)
+    }
+
+    /// Derive the blinding key.
+    ///
+    /// # Choice of salt
+    ///
+    /// We choose to not add a salt because the ikm is already a randomly-generated, secret value with decent entropy.
+    ///
+    /// # Choice of ikm
+    ///
+    /// We derive the blinding key from the secret key to avoid having to store two secret values on disk.
+    ///
+    /// # Choice of info
+    ///
+    /// We choose to tag the derived key with `b"BLINDING_KEY"` in case we ever want to derive something else from the secret key.
+    fn blinding_key(&self) -> SecretKey {
+        let h = Hkdf::<sha2::Sha256>::new(None, self.secret_key.as_ref());
+
+        let mut bk = [0u8; 32];
+        h.expand(b"BLINDING_KEY", &mut bk)
+            .expect("output length aligns with sha256");
+
+        SecretKey::from_slice(bk.as_ref()).expect("always a valid secret key")
+    }
+
+    /// Derive the encryption key from the wallet's password and a salt.
+    ///
+    /// # Choice of salt
+    ///
+    /// The salt of HKDF can be public or secret and while it can operate without a salt, it is better to pass a salt value [0].
+    ///
+    /// # Choice of ikm
+    ///
+    /// The user's password is our input key material. The stronger the password, the better the resulting encryption key.
+    ///
+    /// # Choice of info
+    ///
+    /// HKDF can operate without `info`, however, it is useful to "tag" the derived key with its usage.
+    /// In our case, we use the encryption key to encrypt the secret key and as such, tag it with `b"ENCRYPTION_KEY"`.
+    ///
+    /// [0]: https://tools.ietf.org/html/rfc5869#section-3.1
+    fn derive_encryption_key(password: &str, salt: &[u8]) -> Result<[u8; 32], JsValue> {
+        let h = Hkdf::<Sha256>::new(Some(salt), password.as_bytes());
+        let mut enc_key = [0u8; 32];
+        map_err_from_anyhow!(h
+            .expand(b"ENCRYPTION_KEY", &mut enc_key)
+            .context("failed to derive encryption key"))?;
+
+        Ok(enc_key)
     }
 }
 
@@ -451,5 +584,34 @@ mod tests {
             .unwrap();
 
         assert_eq!(status.exists, false);
+    }
+
+    #[wasm_bindgen_test]
+    pub async fn secret_key_can_be_successfully_decrypted() {
+        let current_wallet = Mutex::default();
+
+        create_new("wallet-9".to_owned(), "foo".to_owned(), &current_wallet)
+            .await
+            .unwrap();
+        let initial_sk = {
+            let guard = current_wallet.lock().await;
+            let wallet = guard.as_ref().unwrap();
+
+            wallet.secret_key.clone()
+        };
+
+        unload_current(&current_wallet).await;
+
+        load_existing("wallet-9".to_owned(), "foo".to_owned(), &current_wallet)
+            .await
+            .unwrap();
+        let loaded_sk = {
+            let guard = current_wallet.lock().await;
+            let wallet = guard.as_ref().unwrap();
+
+            wallet.secret_key.clone()
+        };
+
+        assert_eq!(initial_sk, loaded_sk);
     }
 }
