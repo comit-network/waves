@@ -42,10 +42,13 @@ pub async fn create_new(
 
     wallets.add(name.clone());
 
-    #[cfg(not(test))]
-    let params = scrypt::ScryptParams::recommended();
-    #[cfg(test)] // use weak parameters for testing
-    let params = scrypt::ScryptParams::new(1, 1, 1).unwrap();
+    let params = if cfg!(debug_assertions) {
+        // use weak parameters in debug mode, otherwise this is awfully slow
+        log::warn!("using extremely weak scrypt parameters for password hashing");
+        scrypt::ScryptParams::new(1, 1, 1).unwrap()
+    } else {
+        scrypt::ScryptParams::recommended()
+    };
 
     let hashed_password = map_err_from_anyhow!(
         scrypt::scrypt_simple(&password, &params).context("failed to hash password")
