@@ -159,7 +159,7 @@ impl<R, RS> Bobtimus<R, RS> {
             .await?;
 
         let (input, input_as_txout, input_blinding_sk) = alice_inputs
-            .get(0)
+            .get(0) // TODO: Handle multiple inputs from Alice
             .context("alice needs to send at least one input")?
             .clone();
 
