@@ -47,7 +47,7 @@ mod kraken {
     use watch::Receiver;
 
     const KRAKEN_WS_URL: &str = "wss://ws.kraken.com";
-    const SUBSCRIBE_XBT_USDT_TICKER_PAYLOAD: &str = r#"
+    const SUBSCRIBE_XBT_USD_TICKER_PAYLOAD: &str = r#"
     { "event": "subscribe",
       "pair": [ "XBT/USD" ],
       "subscription": {
@@ -125,7 +125,7 @@ mod kraken {
                 }
             });
 
-            write.send(SUBSCRIBE_XBT_USDT_TICKER_PAYLOAD.into()).await?;
+            write.send(SUBSCRIBE_XBT_USD_TICKER_PAYLOAD.into()).await?;
 
             let latest_rate = rx
                 .next()
