@@ -228,7 +228,7 @@ mod kraken {
             let rate = service.latest_rate().await.unwrap();
             assert_eq!(rate, latest_rate);
 
-            let _rate = service.latest_rate().await.unwrap();
+            let rate = service.latest_rate().await.unwrap();
             assert_eq!(rate, latest_rate);
         }
     }
