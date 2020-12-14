@@ -27,8 +27,7 @@ async fn main() -> Result<()> {
         usdt_asset_id,
     };
 
-    let routes = http::create_routes(&bobtimus, bobtimus.rate_service.subscribe());
-    warp::serve(routes).run(([127, 0, 0, 1], api_port)).await;
+    http::start(&bobtimus, bobtimus.rate_service.subscribe(), api_port).await;
 
     Ok(())
 }
