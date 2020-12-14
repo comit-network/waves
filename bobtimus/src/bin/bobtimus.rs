@@ -1,9 +1,8 @@
 use anyhow::Result;
-use bobtimus::{cli::StartCommand, routes, Bobtimus};
+use bobtimus::{cli::StartCommand, http, Bobtimus};
 use elements_fun::secp256k1::rand::{rngs::StdRng, thread_rng, SeedableRng};
 use elements_harness::Client;
 use structopt::StructOpt;
-use warp::Filter;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -28,22 +27,8 @@ async fn main() -> Result<()> {
         usdt_asset_id,
     };
 
-    let subscription = bobtimus.rate_service.subscribe();
-    let latest_rate = warp::path!("rate" / "lbtc-lusdt")
-        .and(warp::get())
-        .map(move || routes::latest_rate(subscription.clone()));
-
-    let bobtimus_filter = warp::any().map(move || bobtimus.clone());
-    let create_swap = warp::post()
-        .and(warp::path!("swap" / "lbtc-lusdt"))
-        .and(warp::path::end())
-        .and(bobtimus_filter)
-        .and(warp::body::json())
-        .and_then(routes::create_swap);
-
-    warp::serve(latest_rate.or(create_swap))
-        .run(([127, 0, 0, 1], api_port))
-        .await;
+    let routes = http::create_routes(&bobtimus, bobtimus.rate_service.subscribe());
+    warp::serve(routes).run(([127, 0, 0, 1], api_port)).await;
 
     Ok(())
 }
