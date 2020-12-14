@@ -15,6 +15,9 @@ use swap::states::{Bob0, Message0};
 
 mod amounts;
 
+pub mod cli;
+pub mod http;
+
 pub use amounts::*;
 
 pub static USDT_ASSET_ID: &str = "ce091c998b83c78bb71a632313ba3760f1763d9cfcffae02258ffa9865a37bd2";
@@ -184,5 +187,5 @@ impl<R, RS> Bobtimus<R, RS> {
 
 #[async_trait]
 pub trait LatestRate {
-    async fn latest_rate(&self) -> Result<Rate>;
+    async fn latest_rate(&mut self) -> Result<Rate>;
 }

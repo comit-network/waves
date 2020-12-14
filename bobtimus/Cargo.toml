@@ -9,9 +9,11 @@ anyhow = "1"
 async-trait = "0.1"
 elements-fun = { path = "../elements-fun" }
 elements-harness = { path = "../elements-harness" }
+env_logger = "0.8"
 futures = { version = "0.3", default-features = false }
 hex = "0.4"
 hmac = "0.10"
+log = "0.4"
 reqwest = "0.10"
 rust_decimal = "1.8"
 serde = { version = "1", features = [ "derive" ] }
@@ -20,6 +22,7 @@ sha2 = "0.9"
 structopt = "0.3"
 swap = { path = "../swap" }
 tokio = { version = "0.2", features = [ "macros" ] }
+tokio-tungstenite = { version = "0.11", features = [ "tls" ] }
 warp = "0.2.5"
 
 [dev-dependencies]
