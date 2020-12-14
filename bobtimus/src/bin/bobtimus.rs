@@ -89,7 +89,7 @@ mod kraken {
 
     impl RateService {
         pub async fn new() -> Result<Self> {
-            let (tx, rx) = watch::channel(bobtimus::Rate::default());
+            let (tx, mut rx) = watch::channel(bobtimus::Rate::ZERO);
 
             let (ws, _response) =
                 tokio_tungstenite::connect_async(Url::parse(KRAKEN_WS_URL).expect("valid url"))
@@ -127,9 +127,14 @@ mod kraken {
 
             write.send(SUBSCRIBE_XBT_USDT_TICKER_PAYLOAD.into()).await?;
 
+            let latest_rate = rx
+                .next()
+                .await
+                .ok_or_else(|| anyhow!("latest rate stream has ended"))?;
+
             Ok(Self {
                 receiver: rx,
-                latest_rate: Rate::default(),
+                latest_rate,
             })
         }
 
@@ -207,7 +212,7 @@ mod kraken {
 
         #[tokio::test]
         async fn latest_rate_does_not_wait_for_next_value() {
-            let (write, read) = watch::channel(Rate::default());
+            let (write, read) = watch::channel(Rate::ZERO);
 
             let latest_rate = Rate {
                 ask: LiquidUsdt::from_str_in_dollar("20000.0").unwrap(),
@@ -217,7 +222,7 @@ mod kraken {
 
             let mut service = RateService {
                 receiver: read,
-                latest_rate: Rate::default(),
+                latest_rate: Rate::ZERO,
             };
 
             let rate = service.latest_rate().await.unwrap();
