@@ -26,20 +26,16 @@ async fn main() -> Result<()> {
         usdt_asset_id,
     };
 
-    let bobtimus_filter = warp::any().map({
-        let bobtimus = bobtimus.clone();
-        move || bobtimus.clone()
-    });
-
     let subscription = bobtimus.rate_service.subscribe();
     let latest_rate = warp::path!("rate" / "lbtc-lusdt")
         .and(warp::get())
         .map(move || routes::latest_rate(subscription.clone()));
 
+    let bobtimus_filter = warp::any().map(move || bobtimus.clone());
     let create_swap = warp::post()
         .and(warp::path!("swap" / "lbtc-lusdt"))
         .and(warp::path::end())
-        .and(bobtimus_filter.clone())
+        .and(bobtimus_filter)
         .and(warp::body::json())
         .and_then(routes::create_swap);
 

@@ -8,7 +8,7 @@ use std::{convert::TryFrom, fmt::Debug};
 ///
 /// - The `ask` represents the minimum price for which we are willing to sell 1 L-BTC.
 /// - The `bid` represents the maximum price we are willing pay for 1 L-BTC.
-#[derive(Default, Debug, Clone, Copy, Serialize)]
+#[derive(Default, Debug, Clone, Copy, Serialize, PartialEq)]
 pub struct Rate {
     pub ask: LiquidUsdt,
     pub bid: LiquidUsdt,

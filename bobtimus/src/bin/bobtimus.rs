@@ -28,20 +28,16 @@ async fn main() -> Result<()> {
         usdt_asset_id,
     };
 
-    let bobtimus_filter = warp::any().map({
-        let bobtimus = bobtimus.clone();
-        move || bobtimus.clone()
-    });
-
     let subscription = bobtimus.rate_service.subscribe();
     let latest_rate = warp::path!("rate" / "lbtc-lusdt")
         .and(warp::get())
         .map(move || routes::latest_rate(subscription.clone()));
 
+    let bobtimus_filter = warp::any().map(move || bobtimus.clone());
     let create_swap = warp::post()
         .and(warp::path!("swap" / "lbtc-lusdt"))
         .and(warp::path::end())
-        .and(bobtimus_filter.clone())
+        .and(bobtimus_filter)
         .and(warp::body::json())
         .and_then(routes::create_swap);
 
@@ -56,7 +52,7 @@ mod kraken {
     use anyhow::{anyhow, bail, Result};
     use async_trait::async_trait;
     use bobtimus::{LatestRate, LiquidUsdt, Rate};
-    use futures::{SinkExt, Stream, StreamExt};
+    use futures::{Future, SinkExt, Stream, StreamExt};
     use reqwest::Url;
     use serde::{Deserialize, Serialize};
     use serde_json::Value;
@@ -75,18 +71,34 @@ mod kraken {
     }"#;
 
     #[derive(Clone)]
-    pub struct RateService(Receiver<Rate>);
+    pub struct RateService {
+        receiver: Receiver<Rate>,
+        latest_rate: Rate,
+    }
+
+    impl Future for RateService {
+        type Output = Rate;
+
+        fn poll(
+            mut self: std::pin::Pin<&mut Self>,
+            cx: &mut std::task::Context<'_>,
+        ) -> std::task::Poll<Self::Output> {
+            match self.receiver.poll_next_unpin(cx) {
+                std::task::Poll::Ready(Some(rate)) => {
+                    self.latest_rate = rate;
+                    self.poll(cx)
+                }
+                std::task::Poll::Ready(None) | std::task::Poll::Pending => {
+                    std::task::Poll::from(self.latest_rate)
+                }
+            }
+        }
+    }
 
     #[async_trait]
     impl LatestRate for RateService {
         async fn latest_rate(&mut self) -> anyhow::Result<Rate> {
-            let rate = self
-                .0
-                .next()
-                .await
-                .ok_or_else(|| anyhow!("no latest rate"))?;
-
-            Ok(rate)
+            Ok(self.await)
         }
     }
 
@@ -100,6 +112,10 @@ mod kraken {
 
             let (mut write, mut read) = ws.split();
 
+            // TODO: Handle the possibility of losing the connection
+            // to the Kraken WS. Currently the stream would produce no
+            // further items, and consumers would assume that the rate
+            // is up to date
             tokio::spawn(async move {
                 while let Some(msg) = read.next().await {
                     let msg = match msg {
@@ -126,11 +142,14 @@ mod kraken {
 
             write.send(SUBSCRIBE_XBT_USDT_TICKER_PAYLOAD.into()).await?;
 
-            Ok(Self(rx))
+            Ok(Self {
+                receiver: rx,
+                latest_rate: Rate::default(),
+            })
         }
 
         pub fn subscribe(&self) -> impl Stream<Item = Rate> + Clone {
-            self.0.clone()
+            self.receiver.clone()
         }
     }
 
@@ -199,6 +218,28 @@ mod kraken {
 [2308,{"a":["18215.60000",0,"0.27454523"],"b":["18197.50000",0,"0.63711255"],"c":["18197.50000","0.00413060"],"v":["2.78915585","156.15766485"],"p":["18200.94036","18275.19149"],"t":[22,1561],"l":["18162.40000","17944.90000"],"h":["18220.90000","18482.60000"],"o":["18220.90000","18478.90000"]},"ticker","XBT/USDT"]"#;
 
             let _ = serde_json::from_str::<TickerUpdate>(sample_response).unwrap();
+        }
+
+        #[tokio::test]
+        async fn latest_rate_does_not_wait_for_next_value() {
+            let (write, read) = watch::channel(Rate::default());
+
+            let latest_rate = Rate {
+                ask: LiquidUsdt::from_str_in_dollar("20000.0").unwrap(),
+                bid: LiquidUsdt::from_str_in_dollar("19000.0").unwrap(),
+            };
+            let _ = write.broadcast(latest_rate).unwrap();
+
+            let mut service = RateService {
+                receiver: read,
+                latest_rate: Rate::default(),
+            };
+
+            let rate = service.latest_rate().await.unwrap();
+            assert_eq!(rate, latest_rate);
+
+            let _rate = service.latest_rate().await.unwrap();
+            assert_eq!(rate, latest_rate);
         }
     }
 }
