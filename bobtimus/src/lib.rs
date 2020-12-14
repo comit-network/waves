@@ -16,6 +16,7 @@ use swap::states::{Bob0, Message0};
 mod amounts;
 
 pub mod cli;
+pub mod coin_selection;
 pub mod http;
 
 pub use amounts::*;
