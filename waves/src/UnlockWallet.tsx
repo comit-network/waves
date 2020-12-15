@@ -38,7 +38,6 @@ function UnlockWallet({ dispatch }: UnlockWalletProps) {
                     usdtBalance: 0,
                 },
             });
-            onClose();
             history.push("/swap");
         } else {
             console.log("Not unlocked. "); // TODO : show error

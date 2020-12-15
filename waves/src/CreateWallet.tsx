@@ -10,11 +10,16 @@ import {
     Input,
     useDisclosure,
 } from "@chakra-ui/react";
-import React, { ChangeEvent, MouseEvent } from "react";
+import React, {ChangeEvent, Dispatch, MouseEvent} from "react";
 import { useHistory } from "react-router-dom";
 import { newWallet } from "./wasmProxy";
+import {Action} from "./App";
 
-function UnlockWallet() {
+interface CreateWalletProps {
+    dispatch: Dispatch<Action>;
+}
+
+function CreateWallet({ dispatch }: CreateWalletProps) {
     const { isOpen, onOpen, onClose } = useDisclosure();
     const btnRef = React.useRef(null);
     const history = useHistory();
@@ -26,7 +31,15 @@ function UnlockWallet() {
         const walletStatus = await newWallet(password);
         if (walletStatus.loaded) {
             _clicked.preventDefault();
-            onClose();
+            dispatch({
+                type: "UpdateWallet",
+                value: {
+                    exists: true,
+                    loaded: true,
+                    btcBalance: 0,
+                    usdtBalance: 0,
+                },
+            });
             history.push("/swap");
         } else {
             console.log("Not unlocked. "); // TODO : show error
@@ -93,4 +106,4 @@ function UnlockWallet() {
     );
 }
 
-export default UnlockWallet;
+export default CreateWallet;

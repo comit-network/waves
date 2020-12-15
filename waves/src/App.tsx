@@ -225,7 +225,7 @@ function App() {
                             <Switch>
                                 <Route exact path="/">
                                     {state.wallet.exists && <UnlockWallet dispatch={dispatch} />}
-                                    {!state.wallet.exists && <CreateWallet />}
+                                    {!state.wallet.exists && <CreateWallet dispatch={dispatch}/>}
                                 </Route>
                                 <Route
                                     exact
