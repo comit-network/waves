@@ -1,16 +1,77 @@
-use anyhow::Result;
+use anyhow::{bail, Result};
 use bdk::{
     bitcoin::Amount,
     database::{BatchOperations, Database},
-    wallet::coin_selection::CoinSelectionResult,
-    wallet::coin_selection::{BranchAndBoundCoinSelection, CoinSelectionAlgorithm},
+    wallet::coin_selection::{
+        BranchAndBoundCoinSelection, CoinSelectionAlgorithm, CoinSelectionResult,
+    },
 };
-use elements_fun::{ExplicitTxOut, OutPoint};
+use elements_fun::{bitcoin::Denomination, ExplicitTxOut, OutPoint, Script};
 
-#[derive(Clone, PartialEq)]
+/// Select a subset of `utxos` to cover the `target` amount.
+///
+/// It makes use of a Branch and Bound coin selection algorithm
+/// provided by `bdk`.
+///
+/// Only supports P2PK, P2PKH and P2WPKH UTXOs.
+pub fn coin_select(utxos: Vec<Utxo>, target: Amount) -> Result<Output> {
+    let asset = utxos[0].txout.asset;
+    if utxos.iter().any(|utxo| utxo.txout.asset != asset) {
+        bail!("all UTXOs must have the same asset ID")
+    }
+
+    let bdk_utxos = utxos
+        .iter()
+        .cloned()
+        .filter_map(|utxo| {
+            max_satisfaction_weight(&utxo.txout.script_pubkey).map(|weight| (utxo, weight))
+        })
+        .map(|(utxo, weight)| (bdk::UTXO::from(utxo), weight))
+        .collect();
+
+    let CoinSelectionResult {
+        selected: selected_utxos,
+        fee_amount,
+        ..
+    } = BranchAndBoundCoinSelection::default().coin_select(
+        &DummyDb,
+        Vec::new(),
+        bdk_utxos,
+        bdk::FeeRate::default(),
+        target.as_sat(),
+        // TODO: Set a realistic value for the fees unrelated to the
+        // inputs. Consider the fact that elements outputs are
+        // generally heavier than bitcoin outputs
+        0.0,
+    )?;
+
+    let selected_utxos = selected_utxos
+        .iter()
+        .map(|bdk_utxo| {
+            utxos
+                .iter()
+                .find(|utxo| {
+                    bdk_utxo.outpoint.txid.as_hash() == utxo.outpoint.txid.as_hash()
+                        && bdk_utxo.outpoint.vout == utxo.outpoint.vout
+                })
+                .expect("same source of utxos")
+        })
+        .cloned()
+        .collect();
+
+    let recommended_fee = Amount::from_float_in(fee_amount.into(), Denomination::Satoshi)?;
+
+    Ok(Output {
+        coins: selected_utxos,
+        target_amount: target,
+        recommended_fee,
+    })
+}
+
+#[derive(Debug, Clone, PartialEq)]
 pub struct Utxo {
-    outpoint: OutPoint,
-    txout: ExplicitTxOut,
+    pub outpoint: OutPoint,
+    pub txout: ExplicitTxOut,
 }
 
 impl From<Utxo> for bdk::UTXO {
@@ -33,50 +94,48 @@ impl From<Utxo> for bdk::UTXO {
     }
 }
 
-pub fn coin_select(utxos: Vec<Utxo>, target: Amount) -> Result<Vec<Utxo>> {
-    let algorithm = BranchAndBoundCoinSelection::default();
+/// Result of running the coin selection algorithm succesfully.
+#[derive(Debug)]
+pub struct Output {
+    pub coins: Vec<Utxo>,
+    pub target_amount: Amount,
+    pub recommended_fee: Amount,
+}
 
-    let bdk_utxos = utxos
-        .iter()
-        .cloned()
-        .map(bdk::UTXO::from)
-        .map(|utxo| (utxo, 0))
-        .collect();
+impl Output {
+    pub fn recommended_change(&self) -> Amount {
+        self.selected_amount() - self.target_amount - self.recommended_fee
+    }
 
-    let CoinSelectionResult {
-        selected: selected_utxos,
-        ..
-    } = algorithm.coin_select(
-        &DummyDb,
-        Vec::new(),
-        bdk_utxos,
-        bdk::FeeRate::default(),
-        target.as_sat(),
-        0.0,
-    )?;
+    pub fn selected_amount(&self) -> Amount {
+        let amount = self
+            .coins
+            .iter()
+            .fold(0, |acc, utxo| acc + utxo.txout.value.0);
+        Amount::from_sat(amount)
+    }
+}
 
-    let selected_utxos = selected_utxos
-        .iter()
-        .map(|bdk_utxo| {
-            utxos
-                .iter()
-                .find(|utxo| {
-                    bdk_utxo.outpoint.txid.as_hash() == utxo.outpoint.txid.as_hash()
-                        && bdk_utxo.outpoint.vout == utxo.outpoint.vout
-                })
-                .expect("same source of utxos")
-        })
-        .cloned()
-        .collect();
-
-    Ok(selected_utxos)
+/// Return the maximum weight of a satisfying witness.
+///
+/// Only supports P2PK, P2PKH and P2WPKH.
+fn max_satisfaction_weight(script_pubkey: &Script) -> Option<usize> {
+    if script_pubkey.is_p2pk() {
+        Some(4 * (1 + 73))
+    } else if script_pubkey.is_p2pkh() {
+        Some(4 * (1 + 73 + 34))
+    } else if script_pubkey.is_v0_p2wpkh() {
+        Some(4 + 1 + 73 + 34)
+    } else {
+        None
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use std::str::FromStr;
 
-    use elements_fun::{AssetId, ExplicitAsset, ExplicitValue, Script, Txid};
+    use elements_fun::{Address, AssetId, ExplicitAsset, ExplicitValue, Txid};
 
     use super::*;
 
@@ -95,15 +154,23 @@ mod tests {
                     .unwrap(),
                 ),
                 value: ExplicitValue(100_000_000),
-                script_pubkey: Script::new(),
+                script_pubkey: Address::from_str("ert1qxzlkf3t275hwszualaf35spcfuq4s5tqtxj4tl")
+                    .unwrap()
+                    .script_pubkey(),
                 nonce: None,
             },
         };
 
-        let selection = coin_select(vec![utxo.clone()], Amount::from_sat(90_000_000)).unwrap();
+        let target_amount = Amount::from_sat(90_000_000);
+        let selection = coin_select(vec![utxo.clone()], target_amount).unwrap();
 
-        assert!(selection.len() == 1);
-        assert!(selection.contains(&utxo));
+        assert!(selection.coins.len() == 1);
+        assert!(selection.coins.contains(&utxo));
+
+        assert_eq!(
+            selection.selected_amount() - target_amount - selection.recommended_fee,
+            selection.recommended_change()
+        );
     }
 }
 
