@@ -49,8 +49,8 @@ function SwapWithWallet(
             type: "PublishTransaction",
             value: DEFAULT_TX_ID,
         });
-        history.push("/done");
         onClose();
+        history.push("/swap/done");
     };
 
     return (

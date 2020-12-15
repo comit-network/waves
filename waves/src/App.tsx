@@ -1,15 +1,17 @@
 import { ExternalLinkIcon } from "@chakra-ui/icons";
 import { Box, Button, Center, Flex, Link, Text, VStack } from "@chakra-ui/react";
 import React, { useEffect, useReducer } from "react";
-import { BrowserRouter, Link as RouterLink, Route, Switch } from "react-router-dom";
+import { BrowserRouter, Link as RouterLink, Redirect, Route, Switch } from "react-router-dom";
 import { RingLoader } from "react-spinners";
 import "./App.css";
 import AssetSelector from "./components/AssetSelector";
 import ExchangeIcon from "./components/ExchangeIcon";
+import CreateWallet from "./CreateWallet";
 import { useRateService } from "./hooks/RateService";
 import SwapWithWallet from "./SwapWithWallet";
 import UnlockWallet from "./UnlockWallet";
 import WalletBalance from "./WalletBalance";
+import { getWalletStatus } from "./wasmProxy";
 
 export enum AssetType {
     BTC = "BTC",
@@ -24,7 +26,8 @@ export type Action =
     | { type: "UpdateBetaAssetType"; value: AssetType }
     | { type: "UpdateRate"; value: number }
     | { type: "SwapAssetTypes" }
-    | { type: "PublishTransaction"; value: string };
+    | { type: "PublishTransaction"; value: string }
+    | { type: "UpdateWallet"; value: Wallet };
 
 interface State {
     alpha: AssetState;
@@ -37,6 +40,8 @@ interface State {
 interface Wallet {
     usdtBalance: number;
     btcBalance: number;
+    exists: boolean;
+    loaded: boolean;
 }
 
 interface AssetState {
@@ -58,6 +63,8 @@ const initialState = {
     wallet: {
         usdtBalance: 0,
         btcBalance: 0,
+        exists: false,
+        loaded: false,
     },
 };
 
@@ -123,6 +130,11 @@ export function reducer(state: State = initialState, action: Action) {
             return {
                 ...state,
             };
+        case "UpdateWallet":
+            return {
+                ...state,
+                wallet: action.value,
+            };
         default:
             throw new Error("Unknown update action received");
     }
@@ -154,6 +166,23 @@ function App() {
             rateService.unsubscribe(subscription);
         };
     }, [rateService]);
+
+
+    useEffect(() => {
+        getWalletStatus().then((wallet_status) => {
+            if (wallet_status.exists) {
+                dispatch({
+                    type: "UpdateWallet",
+                    value: {
+                        exists: wallet_status.exists,
+                        loaded: wallet_status.loaded,
+                        btcBalance: 0,
+                        usdtBalance: 0,
+                    },
+                });
+            } // by default `wallet.exists` is set to false, hence no need to handle
+        });
+    }, []);
 
     return (
         <BrowserRouter>
@@ -195,19 +224,34 @@ function App() {
                         <Box>
                             <Switch>
                                 <Route exact path="/">
-                                    <UnlockWallet />
+                                    {state.wallet.exists && <UnlockWallet dispatch={dispatch} />}
+                                    {!state.wallet.exists && <CreateWallet />}
                                 </Route>
-                                <Route path="/swap">
-                                    <SwapWithWallet
-                                        onConfirmed={onConfirmed}
-                                        dispatch={dispatch}
-                                        alphaAmount={state.alpha.amount}
-                                        betaAmount={state.beta.amount}
-                                        alphaAsset={state.alpha.type}
-                                        betaAsset={state.beta.type}
-                                    />
-                                </Route>
-                                <Route path="/done">
+                                <Route
+                                    exact
+                                    path="/swap"
+                                    render={({ location }) =>
+                                        state.wallet.loaded
+                                            ? (
+                                                <SwapWithWallet
+                                                    onConfirmed={onConfirmed}
+                                                    dispatch={dispatch}
+                                                    alphaAmount={state.alpha.amount}
+                                                    betaAmount={state.beta.amount}
+                                                    alphaAsset={state.alpha.type}
+                                                    betaAsset={state.beta.type}
+                                                />
+                                            )
+                                            : (
+                                                <Redirect
+                                                    to={{
+                                                        pathname: "/",
+                                                        state: { from: location },
+                                                    }}
+                                                />
+                                            )}
+                                />
+                                <Route exact path="/swap/done">
                                     <VStack>
                                         <Text textStyle="info">
                                             Check in <Link
