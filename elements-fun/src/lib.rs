@@ -44,11 +44,13 @@ pub mod hash_types;
 pub mod issuance;
 pub mod opcodes;
 pub mod script;
+pub mod sighash;
 pub mod slip77;
 mod transaction;
 #[cfg(feature = "wally-sys")]
 pub mod wally;
-
+// consider making upstream public
+mod endian;
 // re-export bitcoin deps which we re-use
 pub use bitcoin::{bech32, hashes, secp256k1};
 // export everything at the top level so it can be used as `elements::Transaction` etc.
@@ -63,5 +65,5 @@ pub use script::Script;
 pub use transaction::{
     AssetIssuance, ConfidentialAssetIssuance, ConfidentialTxOut, ExplicitAsset,
     ExplicitAssetIssuance, ExplicitTxOut, ExplicitValue, OutPoint, PeginData, PegoutData,
-    Transaction, TxIn, TxInWitness, TxOut, TxOutWitness, UnblindedTxOut,
+    SigHashType, Transaction, TxIn, TxInWitness, TxOut, TxOutWitness, UnblindedTxOut,
 };

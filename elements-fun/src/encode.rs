@@ -23,6 +23,8 @@ use std::{error, fmt, io, io::Cursor, mem};
 /// Encoding error
 #[derive(Debug)]
 pub enum Error {
+    /// And I/O error
+    Io(io::Error),
     /// A Bitcoin encoding error.
     Bitcoin(btcenc::Error),
     /// Tried to allocate an oversized vector
@@ -43,6 +45,7 @@ pub enum Error {
 impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match *self {
+            Error::Io(ref e) => write!(f, "I/O error: {}", e),
             Error::Bitcoin(ref e) => write!(f, "a Bitcoin type encoding error: {}", e),
             Error::OversizedVectorAllocation {
                 requested: ref r,
@@ -81,8 +84,8 @@ impl From<btcenc::Error> for Error {
 
 #[doc(hidden)]
 impl From<io::Error> for Error {
-    fn from(e: io::Error) -> Self {
-        Error::Bitcoin(btcenc::Error::Io(e))
+    fn from(error: io::Error) -> Self {
+        Error::Io(error)
     }
 }
 
@@ -168,6 +171,7 @@ macro_rules! impl_upstream {
 impl_upstream!(u8);
 impl_upstream!(u32);
 impl_upstream!(u64);
+impl_upstream!([u8; 4]);
 impl_upstream!([u8; 32]);
 impl_upstream!(Box<[u8]>);
 impl_upstream!([u8; 33]);
