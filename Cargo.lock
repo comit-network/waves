@@ -289,7 +289,6 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-trait",
- "bdk",
  "elements-fun",
  "elements-harness",
  "env_logger 0.8.2",
@@ -2671,6 +2670,7 @@ version = "0.1.0"
 dependencies = [
  "aes-gcm-siv",
  "anyhow",
+ "bdk",
  "conquer-once",
  "console_error_panic_hook",
  "elements-fun",

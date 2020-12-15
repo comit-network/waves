@@ -2,6 +2,7 @@
 mod macros;
 
 mod cache_storage;
+mod coin_selection;
 mod esplora;
 mod storage;
 mod typed_js_future;

@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use anyhow::{bail, Result};
 use bdk::{
     bitcoin::Amount,
