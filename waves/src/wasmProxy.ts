@@ -5,7 +5,8 @@ export interface BalanceEntry {
 }
 
 export interface WalletStatus {
-    unlocked: boolean;
+    loaded: boolean;
+    exists: boolean;
 }
 
 const WALLET_NAME = "wallet-1";
