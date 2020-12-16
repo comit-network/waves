@@ -11,7 +11,7 @@ use elements_fun::{
 use elements_harness::{elementd_rpc::ElementsRpc, Client as ElementsdClient};
 use futures::{stream::FuturesUnordered, TryStreamExt};
 use serde::Deserialize;
-use swap::states::{Bob0, Message0, Message1};
+use swap::{Bob0, Message0, Message1};
 
 mod amounts;
 
@@ -210,7 +210,7 @@ mod tests {
         elementd_rpc::{ElementsRpc, ListUnspentOptions},
         Client, Elementsd,
     };
-    use swap::states::Alice0;
+    use swap::Alice0;
     use testcontainers::clients::Cli;
 
     #[tokio::test]
