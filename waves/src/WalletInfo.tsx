@@ -14,15 +14,15 @@ import {
     useDisclosure,
 } from "@chakra-ui/react";
 import React from "react";
+import { WalletBalance } from "./App";
 import Btc from "./components/bitcoin.svg";
 import Usdt from "./components/tether.svg";
 
-interface WalletBalanceProps {
-    usdtBalance: number;
-    btcBalance: number;
+interface WalletInfoProps {
+    balance: WalletBalance;
 }
 
-export default function WalletBalance({ usdtBalance, btcBalance }: WalletBalanceProps) {
+export default function WalletInfo({ balance }: WalletInfoProps) {
     const { isOpen, onOpen, onClose } = useDisclosure();
     const btnRef = React.useRef(null);
 
@@ -38,7 +38,7 @@ export default function WalletBalance({ usdtBalance, btcBalance }: WalletBalance
                                 <Image src={Usdt} h="20px" />
                             </Box>
                             <Box>
-                                <Text textStyle="info">L-USDT: {usdtBalance}</Text>
+                                <Text textStyle="info">L-USDT: {balance.usdtBalance}</Text>
                             </Box>
                         </HStack>
                     </Box>
@@ -48,7 +48,7 @@ export default function WalletBalance({ usdtBalance, btcBalance }: WalletBalance
                                 <Image src={Btc} h="20px" />
                             </Box>
                             <Box>
-                                <Text textStyle="info">L-BTC: {btcBalance}</Text>
+                                <Text textStyle="info">L-BTC: {balance.btcBalance}</Text>
                             </Box>
                         </HStack>
                     </Box>

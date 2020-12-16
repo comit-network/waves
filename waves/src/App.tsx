@@ -1,6 +1,7 @@
 import { ExternalLinkIcon } from "@chakra-ui/icons";
 import { Box, Button, Center, Flex, Link, Text, VStack } from "@chakra-ui/react";
 import React, { useEffect, useReducer } from "react";
+import { useRef } from "react";
 import { BrowserRouter, Link as RouterLink, Redirect, Route, Switch } from "react-router-dom";
 import { RingLoader } from "react-spinners";
 import "./App.css";
@@ -10,7 +11,7 @@ import CreateWallet from "./CreateWallet";
 import { useRateService } from "./hooks/RateService";
 import SwapWithWallet from "./SwapWithWallet";
 import UnlockWallet from "./UnlockWallet";
-import WalletBalance from "./WalletBalance";
+import WalletInfo from "./WalletInfo";
 import { getBalances, getWalletStatus } from "./wasmProxy";
 
 export enum AssetType {
@@ -27,7 +28,6 @@ export type Action =
     | { type: "UpdateRate"; value: number }
     | { type: "SwapAssetTypes" }
     | { type: "PublishTransaction"; value: string }
-    | { type: "UpdateWallet"; value: Wallet }
     | { type: "UpdateWalletStatus"; value: WalletStatus }
     | { type: "UpdateBalance"; value: WalletBalance };
 
@@ -49,7 +49,7 @@ interface WalletStatus {
     loaded: boolean;
 }
 
-interface WalletBalance {
+export interface WalletBalance {
     usdtBalance: number;
     btcBalance: number;
 }
@@ -144,11 +144,6 @@ export function reducer(state: State = initialState, action: Action) {
             return {
                 ...state,
             };
-        case "UpdateWallet":
-            return {
-                ...state,
-                wallet: action.value,
-            };
         case "UpdateBalance":
             return {
                 ...state,
@@ -217,34 +212,38 @@ function App() {
         });
     }, []);
 
+    let walletUpdating = useRef(false);
     useEffect(() => {
-        let updateBalanceInterval = setInterval(() => {
-            if (state.wallet.status.loaded) {
-                getBalances().then((balances) => {
-                    console.log(`Updated balances: ${balances}`);
-                    dispatch({
-                        type: "UpdateBalance",
-                        value: {
-                            btcBalance: 0,
-                            usdtBalance: 0,
-                        },
+        if (!walletUpdating.current) {
+            walletUpdating.current = true;
+            let updateBalanceInterval = setInterval(() => {
+                if (state.wallet.status.loaded) {
+                    getBalances().then((balances) => {
+                        console.log(`Updated balances: ${balances}`);
+                        dispatch({
+                            type: "UpdateBalance",
+                            value: {
+                                btcBalance: 0,
+                                usdtBalance: 0,
+                            },
+                        });
                     });
-                });
-            }
-        }, 5000);
-        return () => {
-            clearTimeout(updateBalanceInterval);
-        };
-    }, []);
+                }
+            }, 5000);
+            return () => {
+                walletUpdating.current = false;
+                clearTimeout(updateBalanceInterval);
+            };
+        }
+    }, [walletUpdating, state.wallet.status.loaded]);
 
     return (
         <BrowserRouter>
             <div className="App">
                 <header className="App-header">
                     <Route path="/swap">
-                        <WalletBalance
-                            btcBalance={state.wallet.balance.btcBalance}
-                            usdtBalance={state.wallet.balance.usdtBalance}
+                        <WalletInfo
+                            balance={state.wallet.balance}
                         />
                     </Route>
                 </header>
