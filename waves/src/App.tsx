@@ -209,6 +209,8 @@ function App() {
                     },
                 });
             } // by default `wallet.exists` is set to false, hence no need to handle
+        }).catch( (e) => {
+            // TODO: handle error
         });
     }, []);
 
