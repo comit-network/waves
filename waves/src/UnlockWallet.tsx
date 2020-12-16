@@ -30,12 +30,10 @@ function UnlockWallet({ dispatch }: UnlockWalletProps) {
         if (walletStatus.loaded) {
             _clicked.preventDefault();
             dispatch({
-                type: "UpdateWallet",
+                type: "UpdateWalletStatus",
                 value: {
                     exists: true,
                     loaded: true,
-                    btcBalance: 0,
-                    usdtBalance: 0,
                 },
             });
             history.push("/swap");

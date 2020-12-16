@@ -10,10 +10,10 @@ import {
     Input,
     useDisclosure,
 } from "@chakra-ui/react";
-import React, {ChangeEvent, Dispatch, MouseEvent} from "react";
+import React, { ChangeEvent, Dispatch, MouseEvent } from "react";
 import { useHistory } from "react-router-dom";
+import { Action } from "./App";
 import { newWallet } from "./wasmProxy";
-import {Action} from "./App";
 
 interface CreateWalletProps {
     dispatch: Dispatch<Action>;
@@ -32,12 +32,10 @@ function CreateWallet({ dispatch }: CreateWalletProps) {
         if (walletStatus.loaded) {
             _clicked.preventDefault();
             dispatch({
-                type: "UpdateWallet",
+                type: "UpdateWalletStatus",
                 value: {
                     exists: true,
                     loaded: true,
-                    btcBalance: 0,
-                    usdtBalance: 0,
                 },
             });
             history.push("/swap");

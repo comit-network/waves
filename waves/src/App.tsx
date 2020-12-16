@@ -11,7 +11,7 @@ import { useRateService } from "./hooks/RateService";
 import SwapWithWallet from "./SwapWithWallet";
 import UnlockWallet from "./UnlockWallet";
 import WalletBalance from "./WalletBalance";
-import { getWalletStatus } from "./wasmProxy";
+import { getBalances, getWalletStatus } from "./wasmProxy";
 
 export enum AssetType {
     BTC = "BTC",
@@ -27,7 +27,9 @@ export type Action =
     | { type: "UpdateRate"; value: number }
     | { type: "SwapAssetTypes" }
     | { type: "PublishTransaction"; value: string }
-    | { type: "UpdateWallet"; value: Wallet };
+    | { type: "UpdateWallet"; value: Wallet }
+    | { type: "UpdateWalletStatus"; value: WalletStatus }
+    | { type: "UpdateBalance"; value: WalletBalance };
 
 interface State {
     alpha: AssetState;
@@ -38,10 +40,18 @@ interface State {
 }
 
 interface Wallet {
-    usdtBalance: number;
-    btcBalance: number;
+    balance: WalletBalance;
+    status: WalletStatus;
+}
+
+interface WalletStatus {
     exists: boolean;
     loaded: boolean;
+}
+
+interface WalletBalance {
+    usdtBalance: number;
+    btcBalance: number;
 }
 
 interface AssetState {
@@ -61,10 +71,14 @@ const initialState = {
     rate: 19133.74,
     txId: "",
     wallet: {
-        usdtBalance: 0,
-        btcBalance: 0,
-        exists: false,
-        loaded: false,
+        balance: {
+            usdtBalance: 0,
+            btcBalance: 0,
+        },
+        status: {
+            exists: false,
+            loaded: false,
+        },
     },
 };
 
@@ -135,6 +149,28 @@ export function reducer(state: State = initialState, action: Action) {
                 ...state,
                 wallet: action.value,
             };
+        case "UpdateBalance":
+            return {
+                ...state,
+                wallet: {
+                    ...state.wallet,
+                    balance: {
+                        usdtBalance: action.value.usdtBalance,
+                        btcBalance: action.value.btcBalance,
+                    },
+                },
+            };
+        case "UpdateWalletStatus":
+            return {
+                ...state,
+                wallet: {
+                    ...state.wallet,
+                    status: {
+                        exists: action.value.exists,
+                        loaded: action.value.loaded,
+                    },
+                },
+            };
         default:
             throw new Error("Unknown update action received");
     }
@@ -167,21 +203,38 @@ function App() {
         };
     }, [rateService]);
 
-
     useEffect(() => {
         getWalletStatus().then((wallet_status) => {
             if (wallet_status.exists) {
                 dispatch({
-                    type: "UpdateWallet",
+                    type: "UpdateWalletStatus",
                     value: {
                         exists: wallet_status.exists,
                         loaded: wallet_status.loaded,
-                        btcBalance: 0,
-                        usdtBalance: 0,
                     },
                 });
             } // by default `wallet.exists` is set to false, hence no need to handle
         });
+    }, []);
+
+    useEffect(() => {
+        let updateBalanceInterval = setInterval(() => {
+            if (state.wallet.status.loaded) {
+                getBalances().then((balances) => {
+                    console.log(`Updated balances: ${balances}`);
+                    dispatch({
+                        type: "UpdateBalance",
+                        value: {
+                            btcBalance: 0,
+                            usdtBalance: 0,
+                        },
+                    });
+                });
+            }
+        }, 5000);
+        return () => {
+            clearTimeout(updateBalanceInterval);
+        };
     }, []);
 
     return (
@@ -189,7 +242,10 @@ function App() {
             <div className="App">
                 <header className="App-header">
                     <Route path="/swap">
-                        <WalletBalance btcBalance={state.wallet.btcBalance} usdtBalance={state.wallet.usdtBalance} />
+                        <WalletBalance
+                            btcBalance={state.wallet.balance.btcBalance}
+                            usdtBalance={state.wallet.balance.usdtBalance}
+                        />
                     </Route>
                 </header>
                 <Center className="App-body">
@@ -224,14 +280,14 @@ function App() {
                         <Box>
                             <Switch>
                                 <Route exact path="/">
-                                    {state.wallet.exists && <UnlockWallet dispatch={dispatch} />}
-                                    {!state.wallet.exists && <CreateWallet dispatch={dispatch}/>}
+                                    {state.wallet.status.exists && <UnlockWallet dispatch={dispatch} />}
+                                    {!state.wallet.status.exists && <CreateWallet dispatch={dispatch} />}
                                 </Route>
                                 <Route
                                     exact
                                     path="/swap"
                                     render={({ location }) =>
-                                        state.wallet.loaded
+                                        state.wallet.status.loaded
                                             ? (
                                                 <SwapWithWallet
                                                     onConfirmed={onConfirmed}
