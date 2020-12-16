@@ -36,7 +36,7 @@ export async function getWalletStatus(): Promise<WalletStatus> {
     return wallet_status(WALLET_NAME);
 }
 
-export async function getBalances(): Promise<BalanceEntry> {
+export async function getBalances(): Promise<BalanceEntry[]> {
     const { get_balances } = await import("./wallet");
     return get_balances(WALLET_NAME);
 }
