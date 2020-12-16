@@ -43,7 +43,7 @@ where
     bobtimus
         .handle_create_swap(payload)
         .await
-        .map(|transaction| warp::reply::json(&transaction))
+        .map(|message1| warp::reply::json(&message1.transaction))
         .map_err(|_| warp::reject::reject())
 }
 

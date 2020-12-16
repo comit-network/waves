@@ -13,6 +13,7 @@ use secp256k1::{
     PublicKey as SecpPublicKey, Secp256k1, SecretKey, Verification, SECP256K1,
 };
 use serde::Deserialize;
+use std::future::Future;
 
 /// Sent from Alice to Bob, assuming Alice has bitcoin.
 #[derive(Deserialize)]
@@ -402,7 +403,16 @@ pub struct Bob1 {
 }
 
 impl Bob1 {
-    pub fn compose(&self, input_sk: &SecretKey) -> Result<Message1> {
+    pub async fn compose(
+        &self,
+        signer: impl Future<Output = Result<Transaction>>,
+    ) -> Result<Message1> {
+        let transaction = signer.await?;
+
+        Ok(Message1 { transaction })
+    }
+
+    pub fn sign_with_key(&self, input_sk: &SecretKey) -> Result<Transaction> {
         let secp = elements_fun::bitcoin::secp256k1::Secp256k1::new();
 
         let input_pk_bob = SecpPublicKey::from_secret_key(&secp, &input_sk);
@@ -435,11 +445,19 @@ impl Bob1 {
             vec![serialized_signature, input_pk_bob.serialize().to_vec()]
         };
 
-        Ok(Message1 { transaction })
+        Ok(transaction)
     }
 
-    pub fn unsigned_transaction(&self) -> &Transaction {
-        &self.transaction
+    pub async fn sign_with_wallet<
+        't,
+        's: 't,
+        S: FnOnce(&'t Transaction) -> F,
+        F: Future<Output = Result<Transaction>> + 't,
+    >(
+        &'s self,
+        signer: S,
+    ) -> Result<Transaction> {
+        signer(&self.transaction).await
     }
 }
 
@@ -587,7 +605,10 @@ mod tests {
         let bob1 = bob
             .interpret(&mut thread_rng(), SECP256K1, message0)
             .unwrap();
-        let message1 = bob1.compose(&fund_sk_bob).unwrap();
+        let message1 = bob1
+            .compose(async { bob1.sign_with_key(&fund_sk_bob) })
+            .await
+            .unwrap();
 
         let tx = alice.interpret(message1).unwrap();
         let _txid = client.send_raw_transaction(&tx).await.unwrap();

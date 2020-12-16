@@ -6,12 +6,12 @@ use elements_fun::{
         rand::{CryptoRng, RngCore},
         SecretKey,
     },
-    Address, AssetId, OutPoint, Transaction, TxIn,
+    Address, AssetId, OutPoint, TxIn,
 };
 use elements_harness::{elementd_rpc::ElementsRpc, Client as ElementsdClient};
 use futures::{stream::FuturesUnordered, TryStreamExt};
 use serde::Deserialize;
-use swap::states::{Bob0, Message0};
+use swap::states::{Bob0, Message0, Message1};
 
 mod amounts;
 
@@ -52,10 +52,7 @@ pub struct AliceInput {
 }
 
 impl<R, RS> Bobtimus<R, RS> {
-    pub async fn handle_create_swap(
-        &mut self,
-        payload: CreateSwapPayload,
-    ) -> anyhow::Result<Transaction>
+    pub async fn handle_create_swap(&mut self, payload: CreateSwapPayload) -> Result<Message1>
     where
         R: RngCore + CryptoRng,
         RS: LatestRate,
@@ -179,13 +176,18 @@ impl<R, RS> Bobtimus<R, RS> {
             fee: payload.fee,
         };
 
-        let protocol_state = protocol_state.interpret(&mut self.rng, &self.secp, message0)?;
-        let tx = self
-            .elementsd
-            .sign_raw_transaction(protocol_state.unsigned_transaction())
-            .await?;
+        let bob1 = protocol_state.interpret(&mut self.rng, &self.secp, message0)?;
 
-        Ok(tx)
+        let elementsd = self.elementsd.clone();
+        let signer = bob1.sign_with_wallet(move |transaction| async move {
+            let tx = elementsd.sign_raw_transaction(transaction).await?;
+
+            Result::<_, anyhow::Error>::Ok(tx)
+        });
+
+        let message = bob1.compose(signer).await?;
+
+        Ok(message)
     }
 }
 
@@ -208,7 +210,7 @@ mod tests {
         elementd_rpc::{ElementsRpc, ListUnspentOptions},
         Client, Elementsd,
     };
-    use swap::states::{Alice0, Message1};
+    use swap::states::Alice0;
     use testcontainers::clients::Cli;
 
     #[tokio::test]
@@ -312,7 +314,7 @@ mod tests {
             usdt_asset_id: have_asset_id_bob,
         };
 
-        let transaction = bob
+        let message1 = bob
             .handle_create_swap(CreateSwapPayload {
                 alice_inputs: vec![AliceInput {
                     outpoint: message0.input.previous_output,
@@ -326,7 +328,7 @@ mod tests {
             .await
             .unwrap();
 
-        let transaction = alice.interpret(Message1 { transaction }).unwrap();
+        let transaction = alice.interpret(message1).unwrap();
 
         let _txid = client.send_raw_transaction(&transaction).await.unwrap();
         let _txid = client.generatetoaddress(1, &mining_address).await.unwrap();
