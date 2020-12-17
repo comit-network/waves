@@ -4,3 +4,5 @@ members = [ "elements-harness", "swap", "elements-fun", "elements-fun/fuzz", "wa
 [patch.crates-io]
 # Patch reqwest until this commit is released: https://github.com/seanmonstar/reqwest/commit/e7be3eda04ffff53adf9fcc52ea3e61b1ad9ccda
 reqwest = { git = "https://github.com/seanmonstar/reqwest" }
+# Until bdk depends on a version of rust-miniscript (likely v4.1) that includes this commit: https://github.com/rust-bitcoin/rust-miniscript/commit/f43f7e6edd06ac659500eb8177ef300e49affe92
+miniscript = { git = "https://github.com/coblox/rust-miniscript", branch = "wasm-bdk" }

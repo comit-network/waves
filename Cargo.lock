@@ -155,7 +155,7 @@ checksum = "904dfeac50f3cdaba28fc6f57fdcddb75f49ed61346676a78c4ffe55877802fd"
 [[package]]
 name = "bdk"
 version = "0.1.0"
-source = "git+https://github.com/coblox/bdk#a03a47f7ee95a014781b68e51ddae1e2b5af6da2"
+source = "git+https://github.com/bitcoindevkit/bdk#635d98c0690c41d457d9e9cfa7783b1e3e5a3049"
 dependencies = [
  "async-trait",
  "bdk-macros",
@@ -172,7 +172,7 @@ dependencies = [
 [[package]]
 name = "bdk-macros"
 version = "0.1.0-beta.1"
-source = "git+https://github.com/coblox/bdk#a03a47f7ee95a014781b68e51ddae1e2b5af6da2"
+source = "git+https://github.com/bitcoindevkit/bdk#635d98c0690c41d457d9e9cfa7783b1e3e5a3049"
 dependencies = [
  "proc-macro2",
  "quote",
