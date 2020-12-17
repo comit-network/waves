@@ -46,8 +46,6 @@ pub async fn create_new(
         )));
     }
 
-    wallets.add(name.clone());
-
     let params = if cfg!(debug_assertions) {
         // use weak parameters in debug mode, otherwise this is awfully slow
         log::warn!("using extremely weak scrypt parameters for password hashing");
@@ -75,6 +73,7 @@ pub async fn create_new(
             hex::encode(new_wallet.encrypted_secret_key()?)
         ),
     )?;
+    wallets.add(name);
     storage.set_item("wallets", wallets)?;
 
     current_wallet.lock().await.replace(new_wallet);
@@ -162,7 +161,7 @@ pub async fn get_address(
     name: String,
     current_wallet: &Mutex<Option<Wallet>>,
 ) -> Result<Address, JsValue> {
-    let wallet = current(name, current_wallet).await?;
+    let wallet = current(&name, current_wallet).await?;
 
     let address = wallet.get_address()?;
 
@@ -173,7 +172,7 @@ pub async fn get_balances(
     name: String,
     current_wallet: &Mutex<Option<Wallet>>,
 ) -> Result<Vec<BalanceEntry>, JsValue> {
-    let wallet = current(name, current_wallet).await?;
+    let wallet = current(&name, current_wallet).await?;
 
     let address = wallet.get_address()?;
 
@@ -233,10 +232,10 @@ pub async fn get_balances(
     Ok(balances)
 }
 
-pub async fn current(
-    name: String,
-    current_wallet: &Mutex<Option<Wallet>>,
-) -> Result<MappedMutexGuard<'_, Option<Wallet>, Wallet>, JsValue> {
+pub async fn current<'n, 'w>(
+    name: &'n str,
+    current_wallet: &'w Mutex<Option<Wallet>>,
+) -> Result<MappedMutexGuard<'w, Option<Wallet>, Wallet>, JsValue> {
     let mut guard = current_wallet.lock().await;
 
     match &mut *guard {
@@ -455,9 +454,8 @@ pub struct WalletStatus {
 pub struct ListOfWallets(Vec<String>);
 
 impl ListOfWallets {
-    #[allow(clippy::ptr_arg)] // not sure how to fix this
-    fn has(&self, wallet: &String) -> bool {
-        self.0.contains(wallet)
+    fn has(&self, wallet: &str) -> bool {
+        self.0.iter().any(|w| w == wallet)
     }
 
     fn add(&mut self, wallet: String) {
