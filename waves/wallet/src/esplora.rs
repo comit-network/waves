@@ -23,7 +23,7 @@ pub async fn fetch_utxos(address: &Address) -> Result<Vec<Utxo>> {
         .context("failed to deserialize response")
 }
 
-pub async fn fetch_asset_description(asset: &AssetId) -> Result<AssetDescription> {
+pub async fn fetch_asset_description(asset: AssetId) -> Result<AssetDescription> {
     let window = web_sys::window().unwrap_throw();
 
     let storage = CacheStorage::from(map_err_to_anyhow!(window.caches())?);
