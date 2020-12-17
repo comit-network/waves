@@ -18,6 +18,7 @@ import {
 } from "@chakra-ui/react";
 import QRCode from "qrcode.react";
 import React, { ChangeEvent } from "react";
+import { Async } from "react-async";
 import { WalletBalance } from "./App";
 import Btc from "./components/bitcoin.svg";
 import Usdt from "./components/tether.svg";
@@ -31,10 +32,6 @@ export default function WalletInfo({ balance }: WalletInfoProps) {
     const { isOpen, onOpen, onClose } = useDisclosure();
     const btnRef = React.useRef(null);
     const [withDrawAddress, setWithDrawAddress] = React.useState("");
-    const [address, setAddress] = React.useState("LTB_addressxtqwseasdas");
-    getAddress().then((address) => {
-        setAddress(address);
-    });
 
     const handleWithdrawAddress = (event: ChangeEvent<HTMLInputElement>) => setWithDrawAddress(event.target.value);
 
@@ -83,11 +80,7 @@ export default function WalletInfo({ balance }: WalletInfoProps) {
                         <DrawerBody>
                             <VStack align="stretch" spacing={4}>
                                 <Center bg="gray.100" h="10em" color="white" borderRadius={"md"}>
-                                    <VStack>
-                                        <Text textStyle="actionable">Address</Text>
-                                        <QRCode value={address} size={100} />
-                                        <Text textStyle="addressInfo" maxWidth={"15em"} isTruncated>{address}</Text>
-                                    </VStack>
+                                    <AddressQr />
                                 </Center>
                                 <VStack
                                     bg="gray.100"
@@ -158,3 +151,22 @@ export default function WalletInfo({ balance }: WalletInfoProps) {
         </>
     );
 }
+
+const AddressQr = () => (
+    <Async promiseFn={getAddress}>
+        {({ data, error, isPending }) => {
+            if (isPending) return "Loading...";
+            if (error) return `Something went wrong: ${error.message}`;
+            if (data) {
+                return (
+                    <VStack>
+                        <Text textStyle="actionable">Address</Text>
+                        <QRCode value={data} size={100} />
+                        <Text textStyle="addressInfo" maxWidth={"15em"} isTruncated>{data}</Text>
+                    </VStack>
+                );
+            }
+            return null;
+        }}
+    </Async>
+);
