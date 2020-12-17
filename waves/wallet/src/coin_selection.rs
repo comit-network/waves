@@ -91,7 +91,7 @@ impl From<Utxo> for bdk::UTXO {
                 value,
                 script_pubkey,
             },
-            script_type: bdk::ScriptType::External,
+            keychain: bdk::KeychainKind::External,
         }
     }
 }
@@ -184,7 +184,7 @@ struct DummyDb;
 impl Database for DummyDb {
     fn check_descriptor_checksum<B: AsRef<[u8]>>(
         &mut self,
-        _script_type: bdk::ScriptType,
+        _script_type: bdk::KeychainKind,
         _bytes: B,
     ) -> Result<(), bdk::Error> {
         todo!()
@@ -192,7 +192,7 @@ impl Database for DummyDb {
 
     fn iter_script_pubkeys(
         &self,
-        _script_type: Option<bdk::ScriptType>,
+        _script_type: Option<bdk::KeychainKind>,
     ) -> Result<Vec<bdk::bitcoin::Script>, bdk::Error> {
         todo!()
     }
@@ -211,7 +211,7 @@ impl Database for DummyDb {
 
     fn get_script_pubkey_from_path(
         &self,
-        _script_type: bdk::ScriptType,
+        _script_type: bdk::KeychainKind,
         _child: u32,
     ) -> Result<Option<bdk::bitcoin::Script>, bdk::Error> {
         todo!()
@@ -220,7 +220,7 @@ impl Database for DummyDb {
     fn get_path_from_script_pubkey(
         &self,
         _script: &bdk::bitcoin::Script,
-    ) -> Result<Option<(bdk::ScriptType, u32)>, bdk::Error> {
+    ) -> Result<Option<(bdk::KeychainKind, u32)>, bdk::Error> {
         todo!()
     }
 
@@ -246,11 +246,11 @@ impl Database for DummyDb {
         todo!()
     }
 
-    fn get_last_index(&self, _script_type: bdk::ScriptType) -> Result<Option<u32>, bdk::Error> {
+    fn get_last_index(&self, _script_type: bdk::KeychainKind) -> Result<Option<u32>, bdk::Error> {
         todo!()
     }
 
-    fn increment_last_index(&mut self, _script_type: bdk::ScriptType) -> Result<u32, bdk::Error> {
+    fn increment_last_index(&mut self, _script_type: bdk::KeychainKind) -> Result<u32, bdk::Error> {
         todo!()
     }
 }
@@ -259,7 +259,7 @@ impl BatchOperations for DummyDb {
     fn set_script_pubkey(
         &mut self,
         _script: &bdk::bitcoin::Script,
-        _script_type: bdk::ScriptType,
+        _script_type: bdk::KeychainKind,
         _child: u32,
     ) -> Result<(), bdk::Error> {
         todo!()
@@ -279,7 +279,7 @@ impl BatchOperations for DummyDb {
 
     fn set_last_index(
         &mut self,
-        _script_type: bdk::ScriptType,
+        _script_type: bdk::KeychainKind,
         _value: u32,
     ) -> Result<(), bdk::Error> {
         todo!()
@@ -287,7 +287,7 @@ impl BatchOperations for DummyDb {
 
     fn del_script_pubkey_from_path(
         &mut self,
-        _script_type: bdk::ScriptType,
+        _script_type: bdk::KeychainKind,
         _child: u32,
     ) -> Result<Option<bdk::bitcoin::Script>, bdk::Error> {
         todo!()
@@ -296,7 +296,7 @@ impl BatchOperations for DummyDb {
     fn del_path_from_script_pubkey(
         &mut self,
         _script: &bdk::bitcoin::Script,
-    ) -> Result<Option<(bdk::ScriptType, u32)>, bdk::Error> {
+    ) -> Result<Option<(bdk::KeychainKind, u32)>, bdk::Error> {
         todo!()
     }
 
@@ -322,7 +322,10 @@ impl BatchOperations for DummyDb {
         todo!()
     }
 
-    fn del_last_index(&mut self, _script_type: bdk::ScriptType) -> Result<Option<u32>, bdk::Error> {
+    fn del_last_index(
+        &mut self,
+        _script_type: bdk::KeychainKind,
+    ) -> Result<Option<u32>, bdk::Error> {
         todo!()
     }
 }

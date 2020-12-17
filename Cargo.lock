@@ -155,7 +155,7 @@ checksum = "904dfeac50f3cdaba28fc6f57fdcddb75f49ed61346676a78c4ffe55877802fd"
 [[package]]
 name = "bdk"
 version = "0.1.0"
-source = "git+https://github.com/bitcoindevkit/bdk#010b7eed975266bd9c7ceb83dcca3eb0910b7e73"
+source = "git+https://github.com/coblox/bdk#a03a47f7ee95a014781b68e51ddae1e2b5af6da2"
 dependencies = [
  "async-trait",
  "bdk-macros",
@@ -172,7 +172,7 @@ dependencies = [
 [[package]]
 name = "bdk-macros"
 version = "0.1.0-beta.1"
-source = "git+https://github.com/bitcoindevkit/bdk#010b7eed975266bd9c7ceb83dcca3eb0910b7e73"
+source = "git+https://github.com/coblox/bdk#a03a47f7ee95a014781b68e51ddae1e2b5af6da2"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1186,9 +1186,8 @@ dependencies = [
 
 [[package]]
 name = "miniscript"
-version = "4.0.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "74ff4ece4ff5498718a232e92d53273903609c739052f5edf2a1a42c59586348"
+version = "4.0.0"
+source = "git+https://github.com/coblox/rust-miniscript?branch=wasm-bdk#a3c8fdfc5990f14747d8630f9f311adfd564c494"
 dependencies = [
  "bitcoin",
 ]
