@@ -174,24 +174,9 @@ pub async fn get_balances(
 ) -> Result<Vec<BalanceEntry>, JsValue> {
     let wallet = current(&name, current_wallet).await?;
 
-    let address = wallet.get_address()?;
+    let txouts = get_txouts(&wallet).await?;
 
-    let utxos = map_err_from_anyhow!(esplora::fetch_utxos(&address).await)?;
-
-    let utxos = map_err_from_anyhow!(
-        utxos
-            .into_iter()
-            .map(|Utxo { txid, vout, .. }| async move {
-                let tx = esplora::fetch_transaction(txid).await;
-
-                tx.map(|mut tx| tx.output.remove(vout as usize))
-            })
-            .collect::<FuturesUnordered<_>>()
-            .try_collect::<Vec<_>>()
-            .await
-    )?;
-
-    let grouped_utxos = utxos
+    let grouped_txouts = txouts
         .into_iter()
         .filter_map(|utxo| match utxo {
             TxOut::Explicit(explicit) => Some((explicit.asset.0, explicit.value.0)),
@@ -208,7 +193,7 @@ pub async fn get_balances(
         })
         .group_by(|(asset, _)| *asset);
 
-    let balances = (&grouped_utxos)
+    let balances = (&grouped_txouts)
         .into_iter()
         .map(|(asset, utxos)| async move {
             let ad = match esplora::fetch_asset_description(&asset).await {
@@ -249,6 +234,27 @@ pub async fn current<'n, 'w>(
     };
 
     Ok(MutexGuard::map(guard, |w| w.as_mut().unwrap_throw()))
+}
+
+async fn get_txouts(wallet: &Wallet) -> Result<Vec<TxOut>, JsValue> {
+    let address = wallet.get_address()?;
+
+    let utxos = map_err_from_anyhow!(esplora::fetch_utxos(&address).await)?;
+
+    let txouts = map_err_from_anyhow!(
+        utxos
+            .into_iter()
+            .map(|Utxo { txid, vout, .. }| async move {
+                let tx = esplora::fetch_transaction(txid).await;
+
+                tx.map(|mut tx| tx.output.remove(vout as usize))
+            })
+            .collect::<FuturesUnordered<_>>()
+            .try_collect::<Vec<_>>()
+            .await
+    )?;
+
+    Ok(txouts)
 }
 
 /// A single balance entry as returned by [`get_balances`].
