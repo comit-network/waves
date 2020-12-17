@@ -2403,6 +2403,7 @@ dependencies = [
  "rand 0.6.5",
  "rand_core 0.5.1",
  "reqwest",
+ "rust_decimal",
  "scrypt",
  "serde",
  "serde_json",

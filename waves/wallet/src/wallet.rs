@@ -1,4 +1,9 @@
-use crate::{esplora, esplora::Utxo, storage::Storage, SECP};
+use crate::{
+    esplora,
+    esplora::{AssetDescription, Utxo},
+    storage::Storage,
+    SECP,
+};
 use aes_gcm_siv::{
     aead::{Aead, NewAead},
     Aes256GcmSiv,
@@ -18,6 +23,7 @@ use futures::{
 use hkdf::Hkdf;
 use itertools::Itertools;
 use rand::{thread_rng, Rng};
+use rust_decimal::Decimal;
 use sha2::{digest::generic_array::GenericArray, Sha256};
 use std::{fmt, str};
 use wasm_bindgen::{JsValue, UnwrapThrowExt};
@@ -206,17 +212,19 @@ pub async fn get_balances(
     let balances = (&grouped_utxos)
         .into_iter()
         .map(|(asset, utxos)| async move {
-            BalanceEntry {
-                value: utxos.map(|(_, value)| value).sum(),
-                asset,
-                ticker: match esplora::fetch_asset_description(&asset).await {
-                    Ok(ad) => ad.ticker,
-                    Err(e) => {
-                        log::debug!("failed to fetched asset description: {}", e);
-                        None
-                    }
-                },
-            }
+            let ad = match esplora::fetch_asset_description(&asset).await {
+                Ok(ad) => ad,
+                Err(e) => {
+                    log::debug!("failed to fetched asset description: {}", e);
+
+                    AssetDescription::default(asset)
+                }
+            };
+            let total_sum = utxos.map(|(_, value)| value).sum();
+
+            let native_asset_ticker = option_env!("NATIVE_ASSET_TICKER").unwrap_or("L-BTC");
+
+            BalanceEntry::for_asset(total_sum, ad, native_asset_ticker)
         })
         .collect::<FuturesUnordered<_>>()
         .collect()
@@ -247,12 +255,46 @@ pub async fn current(
 /// A single balance entry as returned by [`get_balances`].
 #[derive(Debug, serde::Serialize)]
 pub struct BalanceEntry {
-    value: u64,
+    value: Decimal,
     asset: AssetId,
     /// The ticker symbol of the asset.
     ///
     /// Not all assets are part of the registry and as such, not all of them have a ticker symbol.
     ticker: Option<String>,
+}
+
+impl BalanceEntry {
+    /// Construct a new [`BalanceEntry`] using the given value and [`AssetDescription`].
+    ///
+    /// [`AssetDescriptions`] are different for native vs user-issued assets. To properly handle these cases, we pass in the `native_asset_ticker` that should be used in case we are handling a native asset.
+    pub fn for_asset(
+        value: u64,
+        asset: AssetDescription,
+        native_asset_ticker: &'static str,
+    ) -> Self {
+        let precision = if asset.is_native_asset() {
+            8
+        } else {
+            asset.precision.unwrap_or(0)
+        };
+
+        let mut decimal = Decimal::from(value);
+        decimal
+            .set_scale(precision)
+            .expect("precision must be < 28");
+
+        let ticker = if asset.is_native_asset() {
+            Some(native_asset_ticker.to_owned())
+        } else {
+            asset.ticker
+        };
+
+        Self {
+            value: decimal,
+            asset: asset.asset_id,
+            ticker,
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -439,8 +481,83 @@ impl fmt::Display for ListOfWallets {
     }
 }
 
-#[cfg(all(test, target_arch = "wasm32"))]
+#[cfg(test)]
 mod tests {
+    use super::*;
+    use crate::esplora::AssetStatus;
+    #[cfg(target_arch = "wasm32")]
+    use wasm_bindgen_test::wasm_bindgen_test as test;
+
+    #[test]
+    fn new_balance_entry_bitcoin_serializes_to_nominal_representation() {
+        let liquid_native_ad = AssetDescription::default(AssetId::default());
+        let entry = BalanceEntry::for_asset(100_000_000, liquid_native_ad, "L-BTC");
+
+        let serialized = serde_json::to_string(&entry).unwrap();
+
+        assert_eq!(
+            r#"{"value":"1.00000000","asset":"0000000000000000000000000000000000000000000000000000000000000000","ticker":"L-BTC"}"#,
+            serialized
+        );
+    }
+
+    #[test]
+    fn new_balance_entry_usdt_serializes_to_nominal_representation() {
+        let usdt_ad = AssetDescription {
+            asset_id: AssetId::default(),
+            ticker: Some("L-USDT".to_string()),
+            precision: Some(8),
+            status: Some(AssetStatus { confirmed: true }),
+        };
+        let entry = BalanceEntry::for_asset(100_000_000, usdt_ad, "L-BTC");
+
+        let serialized = serde_json::to_string(&entry).unwrap();
+
+        assert_eq!(
+            r#"{"value":"1.00000000","asset":"0000000000000000000000000000000000000000000000000000000000000000","ticker":"L-USDT"}"#,
+            serialized
+        );
+    }
+
+    #[test]
+    fn new_balance_entry_custom_asset_serializes_to_nominal_representation() {
+        let usdt_ad = AssetDescription {
+            asset_id: AssetId::default(),
+            ticker: Some("FOO".to_string()),
+            precision: Some(3),
+            status: Some(AssetStatus { confirmed: true }),
+        };
+        let entry = BalanceEntry::for_asset(100_000_000, usdt_ad, "L-BTC");
+
+        let serialized = serde_json::to_string(&entry).unwrap();
+
+        assert_eq!(
+            r#"{"value":"100000.000","asset":"0000000000000000000000000000000000000000000000000000000000000000","ticker":"FOO"}"#,
+            serialized
+        );
+    }
+
+    #[test]
+    fn new_balance_entry_no_precision_uses_0() {
+        let usdt_ad = AssetDescription {
+            asset_id: AssetId::default(),
+            ticker: Some("FOO".to_string()),
+            precision: None,
+            status: Some(AssetStatus { confirmed: true }),
+        };
+        let entry = BalanceEntry::for_asset(100_000_000, usdt_ad, "L-BTC");
+
+        let serialized = serde_json::to_string(&entry).unwrap();
+
+        assert_eq!(
+            r#"{"value":"100000000","asset":"0000000000000000000000000000000000000000000000000000000000000000","ticker":"FOO"}"#,
+            serialized
+        );
+    }
+}
+
+#[cfg(all(test, target_arch = "wasm32"))]
+mod browser_tests {
     use super::*;
     use wasm_bindgen_test::*;
     wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);

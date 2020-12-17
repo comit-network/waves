@@ -1,30 +1,10 @@
-## A simple wasm lib
+# Waves wallet
 
-## 🚴 Usage
+## Customization
 
-### 🛠️ Build with `wasm-pack build`
+This wallet can be customized through the following **build-time** environment variables:
 
-```
-wasm-pack build
-```
-
-### 🔬 Test in Headless Browsers with `wasm-pack test`
-
-```
-wasm-pack test --headless --firefox
-```
-
-### 🎁 Publish to NPM with `wasm-pack publish`
-
-```
-wasm-pack publish
-```
-
-## 🔋 Batteries Included
-
-- [`wasm-bindgen`](https://github.com/rustwasm/wasm-bindgen) for communicating
-  between WebAssembly and JavaScript.
-- [`console_error_panic_hook`](https://github.com/rustwasm/console_error_panic_hook)
-  for logging panic messages to the developer console.
-- [`wee_alloc`](https://github.com/rustwasm/wee_alloc), an allocator optimized
-  for small code size.
+- `ESPLORA_URL`: The base url to use for the Esplora instance.
+  Defaults to `https://blockstream.info/liquid/api`.
+- `NATIVE_ASSET_TICKER`: The ticker symbol of the native asset of the Elements chain this wallet will be used on.
+  Defaults to `L-BTC`.

@@ -103,6 +103,31 @@ pub struct UtxoStatus {
 pub struct AssetDescription {
     pub asset_id: AssetId,
     pub ticker: Option<String>,
+    pub precision: Option<u32>,
+    pub status: Option<AssetStatus>,
+}
+
+impl AssetDescription {
+    /// Checks if the given asset is a native asset.
+    ///
+    /// Native assets don't have a `status` field among many others. We could also test for any of the other fields but testing for `status` seems to be the most sane way because the native asset is `confirmed` from the very beginning and not from a particular block.
+    pub fn is_native_asset(&self) -> bool {
+        self.status.is_none()
+    }
+
+    pub const fn default(asset_id: AssetId) -> Self {
+        Self {
+            asset_id,
+            ticker: None,
+            precision: None,
+            status: None,
+        }
+    }
+}
+
+#[derive(serde::Deserialize, Debug, PartialEq)]
+pub struct AssetStatus {
+    pub confirmed: bool,
 }
 
 #[cfg(test)]

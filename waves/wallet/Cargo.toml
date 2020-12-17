@@ -27,6 +27,7 @@ log = "0.4"
 rand = { version = "0.6", features = [ "wasm-bindgen" ] }
 rand_core = { version = "0.5", features = [ "std" ] }
 reqwest = { version = "0.10", default-features = false, features = [ "rustls", "json" ] }
+rust_decimal = "1"
 scrypt = { version = "0.5" }
 serde = { version = "1", features = [ "derive" ] }
 serde_json = "1"
@@ -36,7 +37,6 @@ wasm-bindgen-futures = "0.4"
 wasm-logger = "0.2"
 web-sys = { version = "0.3", features = [ "Window", "Storage", "Cache", "CacheStorage" ] }
 wee_alloc = { version = "0.4", optional = true } # `wee_alloc` is a tiny allocator for wasm that is only ~1K in code size
-
 [dev-dependencies]
 wasm-bindgen-test = "0.3.13"
 # By default wasm-opt is true which makes the build fail.
