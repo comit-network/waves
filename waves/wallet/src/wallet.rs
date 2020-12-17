@@ -190,17 +190,14 @@ pub async fn get_balances(
         .into_iter()
         .filter_map(|utxo| match utxo {
             TxOut::Explicit(explicit) => Some((explicit.asset.0, explicit.value.0)),
-            TxOut::Confidential(_) => {
-                unimplemented!("unblind once we no longer depend on wally-sys")
-                // match confidential.unblind(wallet.blinding_key) {
-                //     Ok(unblinded_txout) => {
-                //         Some((unblinded_txout.asset, unblinded_txout.value))
-                //     },
-                //     Err(e) => {
-                //         log::warn!("failed to unblind txout: {}", e);
-                //         None
-                //     }
-                // }
+            TxOut::Confidential(confidential) => {
+                match confidential.unblind(&*SECP, wallet.blinding_key()) {
+                    Ok(unblinded_txout) => Some((unblinded_txout.asset, unblinded_txout.value)),
+                    Err(e) => {
+                        log::warn!("failed to unblind txout: {}", e);
+                        None
+                    }
+                }
             }
             TxOut::Null(_) => None,
         })
