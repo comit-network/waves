@@ -1,7 +1,10 @@
 use crate::cache_storage::CacheStorage;
-use anyhow::{Context, Result};
+use anyhow::{bail, Context, Result};
 use conquer_once::Lazy;
-use elements_fun::{encode::deserialize, Address, AssetId, BlockHash, Transaction, Txid};
+use elements_fun::{
+    encode::{deserialize, serialize_hex},
+    Address, AssetId, BlockHash, Transaction, Txid,
+};
 use wasm_bindgen::UnwrapThrowExt;
 use wasm_bindgen_futures::JsFuture;
 
@@ -80,18 +83,111 @@ pub async fn fetch_transaction(txid: Txid) -> Result<Transaction> {
     Ok(deserialize(&hex::decode(body.as_bytes())?)?)
 }
 
+pub async fn broadcast(tx: Transaction) -> Result<Txid> {
+    let client = reqwest::Client::new();
+
+    let response = client
+        .post(&format!("{}/tx", LIQUID_ESPLORA_URL))
+        .body(serialize_hex(&tx))
+        .send()
+        .await?;
+
+    let code = response.status();
+
+    if !code.is_success() {
+        bail!("failed to successfully publish transaction");
+    }
+
+    let txid = response
+        .text()
+        .await?
+        .parse()
+        .context("failed to parse response body as txid")?;
+
+    Ok(txid)
+}
+
+pub async fn get_fee_estimates() -> Result<FeeEstimates> {
+    let fee_estimates = reqwest::get(&format!("{}/fee-estimates", LIQUID_ESPLORA_URL))
+        .await?
+        .json()
+        .await?;
+
+    Ok(fee_estimates)
+}
+
+#[derive(serde::Deserialize, Debug)]
+pub struct FeeEstimates {
+    #[serde(rename = "1")]
+    pub b_1: f64,
+    #[serde(rename = "2")]
+    pub b_2: f64,
+    #[serde(rename = "3")]
+    pub b_3: f64,
+    #[serde(rename = "4")]
+    pub b_4: f64,
+    #[serde(rename = "5")]
+    pub b_5: f64,
+    #[serde(rename = "6")]
+    pub b_6: f64,
+    #[serde(rename = "7")]
+    pub b_7: f64,
+    #[serde(rename = "8")]
+    pub b_8: f64,
+    #[serde(rename = "9")]
+    pub b_9: f64,
+    #[serde(rename = "10")]
+    pub b_10: f64,
+    #[serde(rename = "11")]
+    pub b_11: f64,
+    #[serde(rename = "12")]
+    pub b_12: f64,
+    #[serde(rename = "13")]
+    pub b_13: f64,
+    #[serde(rename = "14")]
+    pub b_14: f64,
+    #[serde(rename = "15")]
+    pub b_15: f64,
+    #[serde(rename = "16")]
+    pub b_16: f64,
+    #[serde(rename = "17")]
+    pub b_17: f64,
+    #[serde(rename = "18")]
+    pub b_18: f64,
+    #[serde(rename = "19")]
+    pub b_19: f64,
+    #[serde(rename = "20")]
+    pub b_20: f64,
+    #[serde(rename = "21")]
+    pub b_21: f64,
+    #[serde(rename = "22")]
+    pub b_22: f64,
+    #[serde(rename = "23")]
+    pub b_23: f64,
+    #[serde(rename = "24")]
+    pub b_24: f64,
+    #[serde(rename = "25")]
+    pub b_25: f64,
+    #[serde(rename = "144")]
+    pub b_144: f64,
+    #[serde(rename = "504")]
+    pub b_504: f64,
+    #[serde(rename = "1008")]
+    pub b_1008: f64,
+}
+
 /// Represents a UTXO as it is modeled by esplora.
 ///
 /// We ignore the commitments and asset IDs because we need to fetch the full transaction anyway.
 /// Hence, we don't even bother with deserializing it here.
-#[derive(serde::Deserialize, Debug, PartialEq)]
+#[derive(serde::Deserialize, Debug, PartialEq, Clone, Copy)]
 pub struct Utxo {
     pub txid: Txid,
     pub vout: u32,
     pub status: UtxoStatus,
 }
 
-#[derive(serde::Deserialize, Debug, PartialEq)]
+#[derive(serde::Deserialize, Debug, PartialEq, Clone, Copy)]
 pub struct UtxoStatus {
     pub confirmed: bool,
     pub block_height: u64,

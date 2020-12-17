@@ -1362,7 +1362,7 @@ impl ConfidentialTxOut {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub struct UnblindedTxOut {
     pub asset: AssetId,
     pub value: u64,

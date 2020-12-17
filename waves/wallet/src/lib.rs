@@ -10,7 +10,7 @@ mod utils;
 pub mod wallet;
 
 use crate::{utils::set_panic_hook, wallet::Wallet};
-use anyhow::Result;
+use anyhow::{Context, Result};
 use conquer_once::Lazy;
 use elements_fun::secp256k1::{All, Secp256k1};
 use futures::lock::Mutex;
@@ -93,4 +93,21 @@ pub async fn get_balances(name: String) -> Result<Array, JsValue> {
         .into_iter()
         .map(|e| JsValue::from_serde(&e).unwrap_throw())
         .collect::<Array>())
+}
+
+/// Withdraw all funds to the given address.
+///
+/// Returns the transaction ID of the transaction that was broadcasted.
+#[wasm_bindgen]
+pub async fn withdraw_everything_to(name: String, address: String) -> Result<String, JsValue> {
+    let txid = wallet::withdraw_everything_to(
+        name,
+        &LOADED_WALLET,
+        map_err_from_anyhow!(address
+            .parse()
+            .context("failed to parse address from string"))?,
+    )
+    .await?;
+
+    Ok(txid.to_string())
 }
