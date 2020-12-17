@@ -1,16 +1,39 @@
 import { render, screen } from "@testing-library/react";
-import React, { useReducer } from "react";
-import App, { AssetType } from "./App";
-import { reducer } from "./App";
+import React from "react";
+import App, { AssetType, reducer } from "./App";
 
-test("renders unlock wallet", () => {
+test("renders create new wallet", () => {
     render(<App />);
-    const linkElement = screen.getByText(/Unlock Wallet/i);
+    const linkElement = screen.getByText(/Create new wallet/i);
     expect(linkElement).toBeInTheDocument();
 });
 
+const defaultState = {
+    alpha: {
+        type: AssetType.BTC,
+        amount: 0,
+    },
+    beta: {
+        type: AssetType.USDT,
+        amount: 0,
+    },
+    rate: 0,
+    txId: "",
+    wallet: {
+        balance: {
+            usdtBalance: 0,
+            btcBalance: 0,
+        },
+        status: {
+            exists: false,
+            loaded: false,
+        },
+    },
+};
+
 test("update alpha amount logic", () => {
     const initialState = {
+        ...defaultState,
         alpha: {
             type: AssetType.BTC,
             amount: 0.01,
@@ -41,6 +64,7 @@ test("update alpha amount logic", () => {
 
 test("update alpha asset logic - should flip asset types", () => {
     const initialState = {
+        ...defaultState,
         alpha: {
             type: AssetType.BTC,
             amount: 0.01,
@@ -85,6 +109,7 @@ test("update alpha asset logic - should flip asset types", () => {
 
 test("update beta asset logic - should flip asset types", () => {
     const initialState = {
+        ...defaultState,
         alpha: {
             type: AssetType.BTC,
             amount: 0.01,
@@ -129,6 +154,7 @@ test("update beta asset logic - should flip asset types", () => {
 
 test("Swap asset types", () => {
     const initialState = {
+        ...defaultState,
         alpha: {
             type: AssetType.BTC,
             amount: 0.01,
@@ -170,6 +196,7 @@ test("Swap asset types", () => {
 
 test("Rate change - should update the amounts accordingly", () => {
     const initialState = {
+        ...defaultState,
         alpha: {
             type: AssetType.BTC,
             amount: 10,

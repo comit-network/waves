@@ -5,7 +5,8 @@ export interface BalanceEntry {
 }
 
 export interface WalletStatus {
-    unlocked: boolean;
+    loaded: boolean;
+    exists: boolean;
 }
 
 const WALLET_NAME = "wallet-1";
@@ -35,7 +36,7 @@ export async function getWalletStatus(): Promise<WalletStatus> {
     return wallet_status(WALLET_NAME);
 }
 
-export async function getBalances(): Promise<BalanceEntry> {
+export async function getBalances(): Promise<BalanceEntry[]> {
     const { get_balances } = await import("./wallet");
     return get_balances(WALLET_NAME);
 }

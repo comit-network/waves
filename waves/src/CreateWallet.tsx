@@ -13,20 +13,22 @@ import {
 import React, { ChangeEvent, Dispatch, MouseEvent } from "react";
 import { useHistory } from "react-router-dom";
 import { Action } from "./App";
-import { unlockWallet } from "./wasmProxy";
+import { newWallet } from "./wasmProxy";
 
-interface UnlockWalletProps {
+interface CreateWalletProps {
     dispatch: Dispatch<Action>;
 }
-function UnlockWallet({ dispatch }: UnlockWalletProps) {
+
+function CreateWallet({ dispatch }: CreateWalletProps) {
     const { isOpen, onOpen, onClose } = useDisclosure();
     const btnRef = React.useRef(null);
     const history = useHistory();
+    const [walletName] = React.useState("wallet-1");
     const [password, setPassword] = React.useState("");
     const onPasswordChange = (event: ChangeEvent<HTMLInputElement>) => setPassword(event.target.value);
 
-    const onUnlock = async (_clicked: MouseEvent) => {
-        const walletStatus = await unlockWallet(password);
+    const onCreate = async (_clicked: MouseEvent) => {
+        const walletStatus = await newWallet(password);
         if (walletStatus.loaded) {
             _clicked.preventDefault();
             dispatch({
@@ -50,7 +52,7 @@ function UnlockWallet({ dispatch }: UnlockWalletProps) {
                 size="lg"
                 variant="main_button"
             >
-                Unlock Wallet
+                Create new wallet
             </Button>
             <Drawer
                 isOpen={isOpen}
@@ -61,8 +63,15 @@ function UnlockWallet({ dispatch }: UnlockWalletProps) {
                 <DrawerOverlay>
                     <DrawerContent>
                         <DrawerCloseButton />
-                        <DrawerHeader>Unlock Wallet</DrawerHeader>
+                        <DrawerHeader>Create Wallet</DrawerHeader>
                         <DrawerBody>
+                            <Input
+                                pr="4.5rem"
+                                type={"text"}
+                                placeholder="Wallet name"
+                                value={walletName}
+                                readOnly
+                            />
                             <Input
                                 pr="4.5rem"
                                 type={"password"}
@@ -83,9 +92,9 @@ function UnlockWallet({ dispatch }: UnlockWalletProps) {
                             <Button
                                 size="md"
                                 variant="wallet_button"
-                                onClick={onUnlock}
+                                onClick={onCreate}
                             >
-                                Unlock
+                                Create
                             </Button>
                         </DrawerFooter>
                     </DrawerContent>
@@ -95,4 +104,4 @@ function UnlockWallet({ dispatch }: UnlockWalletProps) {
     );
 }
 
-export default UnlockWallet;
+export default CreateWallet;

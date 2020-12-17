@@ -10,6 +10,10 @@ const theme = extendTheme({
             fontSize: "sm",
             color: "gray.500",
         },
+        addressInfo: {
+            fontSize: "sm",
+            color: "gray.500",
+        },
         assetSelect: {
             fontSize: "md",
             color: "gray.500",
