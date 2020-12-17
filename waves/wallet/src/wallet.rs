@@ -169,10 +169,10 @@ pub async fn get_address(
 }
 
 pub async fn get_balances(
-    name: String,
+    name: &str,
     current_wallet: &Mutex<Option<Wallet>>,
 ) -> Result<Vec<BalanceEntry>, JsValue> {
-    let wallet = current(&name, current_wallet).await?;
+    let wallet = current(name, current_wallet).await?;
 
     let txouts = get_txouts(&wallet).await?;
 

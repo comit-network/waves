@@ -87,7 +87,7 @@ pub async fn get_address(name: String) -> Result<String, JsValue> {
 /// Fails if the wallet is currently not loaded or we cannot reach the block explorer for some reason.
 #[wasm_bindgen]
 pub async fn get_balances(name: String) -> Result<Array, JsValue> {
-    let balances = wallet::get_balances(name, &LOADED_WALLET).await?;
+    let balances = wallet::get_balances(&name, &LOADED_WALLET).await?;
 
     Ok(balances
         .into_iter()
