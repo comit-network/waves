@@ -1,6 +1,7 @@
 import {
     Box,
     Button,
+    Center,
     Drawer,
     DrawerBody,
     DrawerCloseButton,
@@ -15,12 +16,12 @@ import {
     useDisclosure,
     VStack,
 } from "@chakra-ui/react";
-import { Center, Circle, Square } from "@chakra-ui/react";
 import QRCode from "qrcode.react";
 import React, { ChangeEvent } from "react";
 import { WalletBalance } from "./App";
 import Btc from "./components/bitcoin.svg";
 import Usdt from "./components/tether.svg";
+import { getAddress } from "./wasmProxy";
 
 interface WalletInfoProps {
     balance: WalletBalance;
@@ -29,8 +30,11 @@ interface WalletInfoProps {
 export default function WalletInfo({ balance }: WalletInfoProps) {
     const { isOpen, onOpen, onClose } = useDisclosure();
     const btnRef = React.useRef(null);
-    const address = "LTB_addressxtqwseasdas"; // TODO get address from
     const [withDrawAddress, setWithDrawAddress] = React.useState("");
+    const [address, setAddress] = React.useState("LTB_addressxtqwseasdas");
+    getAddress().then((address) => {
+        setAddress(address);
+    });
 
     const handleWithdrawAddress = (event: ChangeEvent<HTMLInputElement>) => setWithDrawAddress(event.target.value);
 
@@ -82,7 +86,7 @@ export default function WalletInfo({ balance }: WalletInfoProps) {
                                     <VStack>
                                         <Text textStyle="actionable">Address</Text>
                                         <QRCode value={address} size={100} />
-                                        <Text textStyle="addressInfo">{address}</Text>
+                                        <Text textStyle="addressInfo" maxWidth={"15em"} isTruncated>{address}</Text>
                                     </VStack>
                                 </Center>
                                 <VStack
