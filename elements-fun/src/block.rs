@@ -397,7 +397,7 @@ impl Block {
         let base_weight =
             4 * (serialize(&self.header).len() + VarInt(self.txdata.len() as u64).len());
         let txs_weight: usize = self.txdata.iter().map(Transaction::get_weight).sum();
-        base_weight + txs_weight
+        dbg!(base_weight) + dbg!(txs_weight)
     }
 }
 
@@ -420,6 +420,8 @@ mod tests {
              7d45000000000000012000000000000000000000000000000000000000000000\
              000000000000000000000000000000"
         );
+
+        dbg!(&block);
 
         assert_eq!(
             block.block_hash().to_string(),

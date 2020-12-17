@@ -1,176 +1,241 @@
+use anyhow::{Context, Result};
 use elements_fun::{
-    bitcoin::{Network::Regtest, PrivateKey, PublicKey},
-    Address, AddressParams,
+    bitcoin::{secp256k1::Message, Amount},
+    bitcoin_hashes::{hash160, Hash},
+    confidential::ValueCommitment,
+    opcodes,
+    script::Builder,
+    sighash::SigHashCache,
+    Address, AssetId, OutPoint, SigHashType, Transaction, TxIn, TxOut, UnblindedTxOut,
 };
-use secp256k1::{rand::thread_rng, SecretKey, SECP256K1};
+use secp256k1::{
+    rand::{CryptoRng, RngCore},
+    PublicKey as SecpPublicKey, Secp256k1, SecretKey, Verification, SECP256K1,
+};
+use serde::Deserialize;
+use std::future::Future;
 
-pub mod states;
-
-pub fn make_keypair() -> (SecretKey, PublicKey) {
-    let sk = SecretKey::new(&mut thread_rng());
-    let pk = PublicKey::from_private_key(
-        &SECP256K1,
-        &PrivateKey {
-            compressed: true,
-            network: Regtest,
-            key: sk,
-        },
-    );
-
-    (sk, pk)
+/// Sent from Alice to Bob, assuming Alice has bitcoin.
+#[derive(Deserialize)]
+pub struct Message0 {
+    pub input: TxIn,
+    pub input_as_txout: TxOut,
+    pub input_blinding_sk: SecretKey,
+    pub address_redeem: Address,
+    pub address_change: Address,
+    #[serde(with = "::elements_fun::bitcoin::util::amount::serde::as_sat")]
+    pub fee: Amount,
 }
 
-pub fn make_confidential_address() -> (Address, SecretKey, PublicKey, SecretKey, PublicKey) {
-    let (sk, pk) = make_keypair();
-    let (blinding_sk, blinding_pk) = make_keypair();
-
-    (
-        Address::p2wpkh(&pk, Some(blinding_pk.key), &AddressParams::ELEMENTS),
-        sk,
-        pk,
-        blinding_sk,
-        blinding_pk,
-    )
+/// Sent from Bob to Alice.
+pub struct Message1 {
+    pub transaction: Transaction,
 }
 
-#[cfg(test)]
-mod tests {
-    use bitcoin::secp256k1::rand::thread_rng;
-    use elements_fun::{
-        bitcoin::{self, secp256k1::Message, Amount, SigHashType},
-        bitcoin_hashes::{hash160, hex::FromHex, Hash},
-        encode::serialize_hex,
-        opcodes,
-        script::Builder,
-        wally::tx_get_elements_signature_hash,
-        OutPoint, Transaction, TxIn, TxOut, UnblindedTxOut,
-    };
-    use elements_harness::{
-        elementd_rpc::{Client, ElementsRpc},
-        Elementsd,
-    };
-    use testcontainers::clients::Cli;
+pub struct Alice0 {
+    redeem_amount_alice: Amount,
+    redeem_amount_bob: Amount,
+    input: TxIn,
+    input_as_txout: TxOut,
+    input_sk: SecretKey,
+    input_blinding_sk: SecretKey,
+    asset_id_bob: AssetId,
+    address_redeem: Address,
+    blinding_sk_redeem: SecretKey,
+    address_change: Address,
+    blinding_sk_change: SecretKey,
+    fee: Amount,
+}
 
-    use crate::make_confidential_address;
-    use secp256k1::SECP256K1;
+impl Alice0 {
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        amount_alice: Amount,
+        amount_bob: Amount,
+        input: (OutPoint, TxOut),
+        input_sk: SecretKey,
+        input_blinding_sk: SecretKey,
+        asset_id_bob: AssetId,
+        address_redeem: Address,
+        blinding_sk_redeem: SecretKey,
+        address_change: Address,
+        blinding_sk_change: SecretKey,
+        fee: Amount,
+    ) -> Self {
+        let input_as_txout = input.1;
+        let input = TxIn {
+            previous_output: input.0,
+            is_pegin: false,
+            has_issuance: false,
+            script_sig: Default::default(),
+            sequence: 0xFFFF_FFFF,
+            asset_issuance: Default::default(),
+            witness: Default::default(),
+        };
 
-    #[tokio::test]
-    async fn sign_transaction_with_two_asset_types() {
+        Self {
+            redeem_amount_alice: amount_alice,
+            redeem_amount_bob: amount_bob,
+            input,
+            input_as_txout,
+            input_sk,
+            input_blinding_sk,
+            asset_id_bob,
+            address_redeem,
+            blinding_sk_redeem,
+            address_change,
+            blinding_sk_change,
+            fee,
+        }
+    }
+
+    pub fn compose(&self) -> Message0 {
+        Message0 {
+            input: self.input.clone(),
+            input_as_txout: self.input_as_txout.clone(),
+            input_blinding_sk: self.input_blinding_sk,
+            address_redeem: self.address_redeem.clone(),
+            address_change: self.address_change.clone(),
+            fee: self.fee,
+        }
+    }
+
+    pub fn interpret(self, msg: Message1) -> Result<Transaction> {
         let secp = elements_fun::bitcoin::secp256k1::Secp256k1::new();
 
-        let tc_client = Cli::default();
-        let (client, _container) = {
-            let blockchain = Elementsd::new(&tc_client, "0.18.1.9").unwrap();
-
-            (
-                Client::new(blockchain.node_url.clone().into_string()).unwrap(),
-                blockchain,
-            )
-        };
-
-        let litecoin_asset_id = client.issueasset(10.0, 0.0, true).await.unwrap().asset;
-        let bitcoin_asset_id = client.get_bitcoin_asset_id().await.unwrap();
-
-        let (
-            fund_address_bitcoin,
-            fund_sk_bitcoin,
-            fund_pk_bitcoin,
-            fund_blinding_sk_bitcoin,
-            _fund_blinding_pk_bitcoin,
-        ) = make_confidential_address();
-        let (
-            fund_address_litecoin,
-            fund_sk_litecoin,
-            fund_pk_litecoin,
-            fund_blinding_sk_litecoin,
-            _fund_blinding_pk_litecoin,
-        ) = make_confidential_address();
-
-        let fund_bitcoin_amount = bitcoin::Amount::ONE_BTC;
-        let fund_litecoin_amount = bitcoin::Amount::ONE_BTC;
-
-        let fund_bitcoin_txid = client
-            .send_asset_to_address(fund_address_bitcoin.clone(), fund_bitcoin_amount, None)
-            .await
-            .unwrap();
-
-        let fund_litecoin_txid = client
-            .send_asset_to_address(
-                fund_address_litecoin.clone(),
-                fund_litecoin_amount,
-                Some(litecoin_asset_id),
-            )
-            .await
-            .unwrap();
-
-        let fund_bitcoin_tx: Transaction = {
-            let tx_hex = client.getrawtransaction(fund_bitcoin_txid).await.unwrap();
-            elements_fun::encode::deserialize(&Vec::<u8>::from_hex(&tx_hex).unwrap()).unwrap()
-        };
-        let fund_litecoin_tx: Transaction = {
-            let tx_hex = client.getrawtransaction(fund_litecoin_txid).await.unwrap();
-            elements_fun::encode::deserialize(&Vec::<u8>::from_hex(&tx_hex).unwrap()).unwrap()
-        };
-        let fund_bitcoin_vout = fund_bitcoin_tx
+        let expected_redeem_asset_id_alice = self.asset_id_bob;
+        let expected_redeem_amount_alice = self.redeem_amount_alice;
+        msg.transaction
             .output
             .iter()
-            .position(|output| output.script_pubkey() == &fund_address_bitcoin.script_pubkey())
-            .unwrap();
-        let fund_litecoin_vout = fund_litecoin_tx
+            .filter(|output| output.script_pubkey() == &self.address_redeem.script_pubkey())
+            .map(|output| {
+                let UnblindedTxOut {
+                    asset: asset_id,
+                    value: amount,
+                    ..
+                } = output
+                    .as_confidential()
+                    .context("not a confidential txout")?
+                    .clone()
+                    .unblind(&secp, self.blinding_sk_redeem)?;
+
+                Result::<_>::Ok((asset_id, amount))
+            })
+            .find(|res| match res {
+                Ok((asset_id, amount)) => {
+                    asset_id == &expected_redeem_asset_id_alice
+                        && amount == &expected_redeem_amount_alice.as_sat()
+                }
+                Err(_) => false,
+            })
+            .context("wrong redeem_output_alice")??;
+
+        let input_as_confidential_txout = self
+            .input_as_txout
+            .as_confidential()
+            .context("not a confidential txout")?;
+        let UnblindedTxOut {
+            asset: expected_change_asset_id_alice,
+            value: input_amount_alice,
+            ..
+        } = input_as_confidential_txout
+            .clone()
+            .unblind(&secp, self.input_blinding_sk)?;
+        let expected_change_amount_alice =
+            Amount::from_sat(input_amount_alice) - self.redeem_amount_bob - self.fee;
+        msg.transaction
             .output
             .iter()
-            .position(|output| output.script_pubkey() == &fund_address_litecoin.script_pubkey())
-            .unwrap();
+            .filter(|output| output.script_pubkey() == &self.address_change.script_pubkey())
+            .map(|output| {
+                let UnblindedTxOut {
+                    asset: asset_id,
+                    value: amount,
+                    ..
+                } = output
+                    .as_confidential()
+                    .context("not a confidential txout")?
+                    .clone()
+                    .unblind(&secp, self.blinding_sk_change)?;
 
-        let redeem_fee = Amount::from_sat(900_000);
-        let redeem_amount_bitcoin = fund_bitcoin_amount - redeem_fee;
+                Result::<_>::Ok((asset_id, amount))
+            })
+            .find(|res| match res {
+                Ok((asset_id, amount)) => {
+                    asset_id == &expected_change_asset_id_alice
+                        && amount == &expected_change_amount_alice.as_sat()
+                }
+                Err(_) => false,
+            })
+            .context("wrong change_output_alice")??;
 
-        let redeem_amount_litecoin = fund_litecoin_amount;
+        // sign yourself and put signature in right spot
+        let input_pk_alice = SecpPublicKey::from_secret_key(&secp, &self.input_sk);
 
-        let (
-            redeem_address_bitcoin,
-            redeem_sk_bitcoin,
-            redeem_pk_bitcoin,
-            redeem_blinding_sk_bitcoin,
-            _redeem_blinding_pk_bitcoin,
-        ) = make_confidential_address();
+        let mut transaction = msg.transaction;
 
-        let (
-            redeem_address_litecoin,
-            _redeem_sk_litecoin,
-            _redeem_pk_litecoin,
-            _redeem_blinding_sk_litecoin,
-            _redeem_blinding_pk_litecoin,
-        ) = make_confidential_address();
+        let input_index_alice = transaction
+            .input
+            .iter()
+            .position(|input| input.previous_output == self.input.previous_output)
+            .context("transaction does not contain input_alice")?;
+        transaction.input[input_index_alice].witness.script_witness = {
+            let hash = hash160::Hash::hash(&input_pk_alice.serialize());
+            let script = Builder::new()
+                .push_opcode(opcodes::all::OP_DUP)
+                .push_opcode(opcodes::all::OP_HASH160)
+                .push_slice(&hash.into_inner())
+                .push_opcode(opcodes::all::OP_EQUALVERIFY)
+                .push_opcode(opcodes::all::OP_CHECKSIG)
+                .into_script();
 
-        let tx_out_bitcoin = fund_bitcoin_tx.output[fund_bitcoin_vout]
-            .as_confidential()
-            .unwrap()
-            .clone();
-        let tx_out_litecoin = fund_litecoin_tx.output[fund_litecoin_vout]
-            .as_confidential()
-            .unwrap()
-            .clone();
+            let hash = SigHashCache::new(&transaction).segwitv0_sighash(
+                input_index_alice,
+                &script,
+                input_as_confidential_txout.value,
+                SigHashType::All,
+            );
 
-        let UnblindedTxOut {
-            asset: unblinded_asset_id_bitcoin,
-            asset_blinding_factor: abf_bitcoin,
-            value_blinding_factor: vbf_bitcoin,
-            value: amount_in_bitcoin,
-        } = tx_out_bitcoin.unblind(fund_blinding_sk_bitcoin).unwrap();
-        let UnblindedTxOut {
-            asset: unblinded_asset_id_litecoin,
-            asset_blinding_factor: abf_litecoin,
-            value_blinding_factor: vbf_litecoin,
-            value: amount_in_litecoin,
-        } = tx_out_litecoin.unblind(fund_blinding_sk_litecoin).unwrap();
+            let sig = secp.sign(&Message::from(hash), &self.input_sk);
 
-        #[allow(clippy::cast_possible_truncation)]
-        let input_bitcoin = TxIn {
-            previous_output: OutPoint {
-                txid: fund_bitcoin_txid,
-                vout: fund_bitcoin_vout as u32,
-            },
+            let mut serialized_signature = sig.serialize_der().to_vec();
+            serialized_signature.push(SigHashType::All as u8);
+
+            vec![serialized_signature, input_pk_alice.serialize().to_vec()]
+        };
+
+        // publish transaction
+        Ok(transaction)
+    }
+}
+
+pub struct Bob0 {
+    redeem_amount_alice: Amount,
+    redeem_amount_bob: Amount,
+    input: TxIn,
+    input_as_txout: TxOut,
+    input_blinding_sk: SecretKey,
+    asset_id_alice: AssetId,
+    address_redeem: Address,
+    address_change: Address,
+}
+
+impl Bob0 {
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        redeem_amount_alice: Amount,
+        redeem_amount_bob: Amount,
+        input: (OutPoint, TxOut),
+        input_blinding_sk: SecretKey,
+        asset_id_alice: AssetId,
+        address_redeem: Address,
+        address_change: Address,
+    ) -> Self {
+        let input_as_txout = input.1;
+
+        let input = TxIn {
+            previous_output: input.0,
             is_pegin: false,
             has_issuance: false,
             script_sig: Default::default(),
@@ -179,212 +244,184 @@ mod tests {
             witness: Default::default(),
         };
 
-        let input_litecoin = TxIn {
-            previous_output: OutPoint {
-                txid: fund_litecoin_txid,
-                vout: fund_litecoin_vout as u32,
-            },
-            is_pegin: false,
-            has_issuance: false,
-            script_sig: Default::default(),
-            sequence: 0xFFFF_FFFF,
-            asset_issuance: Default::default(),
-            witness: Default::default(),
-        };
+        Self {
+            redeem_amount_alice,
+            redeem_amount_bob,
+            input,
+            input_as_txout,
+            input_blinding_sk,
+            asset_id_alice,
+            address_redeem,
+            address_change,
+        }
+    }
+
+    pub fn interpret<R, C>(self, rng: &mut R, secp: &Secp256k1<C>, msg: Message0) -> Result<Bob1>
+    where
+        R: RngCore + CryptoRng,
+        C: Verification,
+    {
+        let alice_input_as_txout = msg
+            .input_as_txout
+            .as_confidential()
+            .context("not a confidential txout")?
+            .clone();
+        let bob_input_as_txout = self
+            .input_as_txout
+            .as_confidential()
+            .context("not a confidential txout")?
+            .clone();
+
+        let UnblindedTxOut {
+            asset: asset_id_alice,
+            asset_blinding_factor: abf_in_alice,
+            value_blinding_factor: vbf_in_alice,
+            value: amount_in_alice,
+        } = alice_input_as_txout.unblind(secp, msg.input_blinding_sk)?;
+        let UnblindedTxOut {
+            asset: asset_id_bob,
+            asset_blinding_factor: abf_in_bob,
+            value_blinding_factor: vbf_in_bob,
+            value: amount_in_bob,
+        } = bob_input_as_txout.unblind(secp, self.input_blinding_sk)?;
+
+        let change_amount_alice = Amount::from_sat(amount_in_alice)
+            .checked_sub(self.redeem_amount_bob)
+            .map(|amount| amount.checked_sub(msg.fee))
+            .flatten()
+            .context("alice provided wrong amounts for the asset she's selling")?;
+        let change_amount_bob = Amount::from_sat(amount_in_bob)
+            .checked_sub(self.redeem_amount_alice)
+            .context("alice provided wrong amounts for the asset she's buying")?;
+
+        let input_alice = msg.input;
+        let input_bob = self.input.clone();
 
         let inputs = [
             (
-                unblinded_asset_id_bitcoin,
-                amount_in_bitcoin,
-                tx_out_bitcoin.asset,
-                abf_bitcoin,
-                vbf_bitcoin,
+                asset_id_alice,
+                amount_in_alice,
+                alice_input_as_txout.asset,
+                abf_in_alice,
+                vbf_in_alice,
             ),
             (
-                unblinded_asset_id_litecoin,
-                amount_in_litecoin,
-                tx_out_litecoin.asset,
-                abf_litecoin,
-                vbf_litecoin,
+                asset_id_bob,
+                amount_in_bob,
+                bob_input_as_txout.asset,
+                abf_in_bob,
+                vbf_in_bob,
+            ),
+        ];
+        let (redeem_output_alice, abf_redeem_alice, vbf_redeem_alice) =
+            TxOut::new_not_last_confidential(
+                rng,
+                &SECP256K1,
+                self.redeem_amount_alice.as_sat(),
+                msg.address_redeem,
+                asset_id_bob,
+                &inputs,
+            )?;
+        let (redeem_output_bob, abf_redeem_bob, vbf_redeem_bob) = TxOut::new_not_last_confidential(
+            rng,
+            &SECP256K1,
+            self.redeem_amount_bob.as_sat(),
+            self.address_redeem.clone(),
+            self.asset_id_alice,
+            &inputs,
+        )?;
+        let (change_output_alice, abf_change_alice, vbf_change_alice) =
+            TxOut::new_not_last_confidential(
+                rng,
+                &SECP256K1,
+                change_amount_alice.as_sat(),
+                msg.address_change,
+                self.asset_id_alice,
+                &inputs,
+            )?;
+
+        let outputs = [
+            (
+                self.redeem_amount_alice.as_sat(),
+                abf_redeem_alice,
+                vbf_redeem_alice,
+            ),
+            (
+                self.redeem_amount_bob.as_sat(),
+                abf_redeem_bob,
+                vbf_redeem_bob,
+            ),
+            (
+                change_amount_alice.as_sat(),
+                abf_change_alice,
+                vbf_change_alice,
             ),
         ];
 
-        let (redeem_txout_bitcoin, redeem_abf_bitcoin, redeem_vbf_bitcoin) =
-            TxOut::new_not_last_confidential(
-                &mut thread_rng(),
-                &SECP256K1,
-                redeem_amount_bitcoin.as_sat(),
-                redeem_address_bitcoin.clone(),
-                bitcoin_asset_id,
-                &inputs,
-            )
-            .unwrap();
-        let outputs = [(
-            redeem_amount_bitcoin.as_sat(),
-            redeem_abf_bitcoin,
-            redeem_vbf_bitcoin,
-        )];
-        let txout_litecoin = TxOut::new_last_confidential(
-            &mut thread_rng(),
+        let change_output_bob = TxOut::new_last_confidential(
+            rng,
             &SECP256K1,
-            redeem_amount_litecoin.as_sat(),
-            redeem_address_litecoin.clone(),
-            litecoin_asset_id,
+            change_amount_bob.as_sat(),
+            self.address_change.clone(),
+            asset_id_bob,
             &inputs,
             &outputs,
-        )
-        .unwrap();
-        let fee = TxOut::new_fee(bitcoin_asset_id, redeem_fee.as_sat());
+        )?;
+        let fee = TxOut::new_fee(self.asset_id_alice, msg.fee.as_sat());
 
-        let mut redeem_tx = Transaction {
+        let transaction = Transaction {
             version: 2,
             lock_time: 0,
-            input: vec![input_bitcoin, input_litecoin],
-            output: vec![redeem_txout_bitcoin.clone(), txout_litecoin, fee],
+            input: vec![input_alice, input_bob],
+            output: vec![
+                redeem_output_alice,
+                redeem_output_bob,
+                change_output_alice,
+                change_output_bob,
+                fee,
+            ],
         };
 
-        redeem_tx.input[0].witness.script_witness = {
-            let hash = hash160::Hash::hash(&fund_pk_bitcoin.to_bytes());
-            let script = Builder::new()
-                .push_opcode(opcodes::all::OP_DUP)
-                .push_opcode(opcodes::all::OP_HASH160)
-                .push_slice(&hash.into_inner())
-                .push_opcode(opcodes::all::OP_EQUALVERIFY)
-                .push_opcode(opcodes::all::OP_CHECKSIG)
-                .into_script();
-
-            let digest = tx_get_elements_signature_hash(
-                &redeem_tx,
-                0,
-                &script,
-                &fund_bitcoin_tx.output[fund_bitcoin_vout]
-                    .as_confidential()
-                    .unwrap()
-                    .value,
-                1,
-                true,
-            );
-
-            let sig = secp.sign(
-                &Message::from_slice(&digest.into_inner()).unwrap(),
-                &fund_sk_bitcoin,
-            );
-
-            let mut serialized_signature = sig.serialize_der().to_vec();
-            serialized_signature.push(SigHashType::All as u8);
-
-            vec![serialized_signature, fund_pk_bitcoin.to_bytes()]
-        };
-        redeem_tx.input[1].witness.script_witness = {
-            let hash = hash160::Hash::hash(&fund_pk_litecoin.to_bytes());
-            let script = Builder::new()
-                .push_opcode(opcodes::all::OP_DUP)
-                .push_opcode(opcodes::all::OP_HASH160)
-                .push_slice(&hash.into_inner())
-                .push_opcode(opcodes::all::OP_EQUALVERIFY)
-                .push_opcode(opcodes::all::OP_CHECKSIG)
-                .into_script();
-
-            let digest = tx_get_elements_signature_hash(
-                &redeem_tx,
-                1,
-                &script,
-                &fund_litecoin_tx.output[fund_litecoin_vout]
-                    .as_confidential()
-                    .unwrap()
-                    .value,
-                1,
-                true,
-            );
-
-            let sig = secp.sign(
-                &Message::from_slice(&digest.into_inner()).unwrap(),
-                &fund_sk_litecoin,
-            );
-
-            let mut serialized_signature = sig.serialize_der().to_vec();
-            serialized_signature.push(SigHashType::All as u8);
-
-            vec![serialized_signature, fund_pk_litecoin.to_bytes()]
-        };
-
-        let tx_hex = serialize_hex(&redeem_tx);
-        let _redeem_txid = client.sendrawtransaction(tx_hex).await.unwrap();
-
-        // Verify bitcoin can be spent
-
-        let redeem_vout_bitcoin = redeem_tx
-            .output
+        let input_index_bob = transaction
+            .input
             .iter()
-            .position(|output| output.script_pubkey() == &redeem_address_bitcoin.script_pubkey())
-            .unwrap();
+            .position(|input| input.previous_output == self.input.previous_output)
+            .context("transaction does not contain bob's input")?;
 
-        let spend_fee_bitcoin = Amount::from_sat(900_000);
-        let spend_amount_bitcoin = redeem_amount_bitcoin - spend_fee_bitcoin;
+        Ok(Bob1 {
+            transaction,
+            input_index_bob,
+            amount_in_bob: bob_input_as_txout.value,
+        })
+    }
+}
 
-        let (
-            spend_address_bitcoin,
-            _spend_sk_bitcoin,
-            _spend_pk_bitcoin,
-            _spend_blinding_sk_bitcoin,
-            _spend_blinding_pk_bitcoin,
-        ) = make_confidential_address();
+pub struct Bob1 {
+    transaction: Transaction,
+    input_index_bob: usize,
+    amount_in_bob: ValueCommitment,
+}
 
-        let tx_out_bitcoin = redeem_tx.output[redeem_vout_bitcoin]
-            .as_confidential()
-            .unwrap()
-            .clone();
-        let UnblindedTxOut {
-            asset: unblinded_asset_id_bitcoin,
-            asset_blinding_factor: abf,
-            value_blinding_factor: vbf,
-            value: amount_in,
-        } = tx_out_bitcoin.unblind(redeem_blinding_sk_bitcoin).unwrap();
+impl Bob1 {
+    pub async fn compose(
+        &self,
+        signer: impl Future<Output = Result<Transaction>>,
+    ) -> Result<Message1> {
+        let transaction = signer.await?;
 
-        #[allow(clippy::cast_possible_truncation)]
-        let spend_input = TxIn {
-            previous_output: OutPoint {
-                txid: redeem_tx.txid(),
-                vout: redeem_vout_bitcoin as u32,
-            },
-            is_pegin: false,
-            has_issuance: false,
-            script_sig: Default::default(),
-            sequence: 0xFFFF_FFFF,
-            asset_issuance: Default::default(),
-            witness: Default::default(),
-        };
+        Ok(Message1 { transaction })
+    }
 
-        let inputs = [(
-            unblinded_asset_id_bitcoin,
-            amount_in,
-            tx_out_bitcoin.asset,
-            abf,
-            vbf,
-        )];
+    pub fn sign_with_key(&self, input_sk: &SecretKey) -> Result<Transaction> {
+        let secp = elements_fun::bitcoin::secp256k1::Secp256k1::new();
 
-        let spend_output = TxOut::new_last_confidential(
-            &mut thread_rng(),
-            &SECP256K1,
-            spend_amount_bitcoin.as_sat(),
-            spend_address_bitcoin,
-            bitcoin_asset_id,
-            &inputs,
-            &[],
-        )
-        .unwrap();
+        let input_pk_bob = SecpPublicKey::from_secret_key(&secp, &input_sk);
 
-        let fee = TxOut::new_fee(bitcoin_asset_id, spend_fee_bitcoin.as_sat());
-
-        let mut spend_tx = Transaction {
-            version: 2,
-            lock_time: 0,
-            input: vec![spend_input],
-            output: vec![spend_output, fee],
-        };
-
-        spend_tx.input[0].witness.script_witness = {
-            let hash = hash160::Hash::hash(&redeem_pk_bitcoin.to_bytes());
+        let mut transaction = self.transaction.clone();
+        transaction.input[self.input_index_bob]
+            .witness
+            .script_witness = {
+            let hash = hash160::Hash::hash(&input_pk_bob.serialize());
             let script = Builder::new()
                 .push_opcode(opcodes::all::OP_DUP)
                 .push_opcode(opcodes::all::OP_HASH160)
@@ -393,27 +430,33 @@ mod tests {
                 .push_opcode(opcodes::all::OP_CHECKSIG)
                 .into_script();
 
-            let digest = tx_get_elements_signature_hash(
-                &spend_tx,
-                0,
+            let sighash = SigHashCache::new(&transaction).segwitv0_sighash(
+                self.input_index_bob,
                 &script,
-                &redeem_txout_bitcoin.as_confidential().unwrap().value,
-                1,
-                true,
+                self.amount_in_bob,
+                SigHashType::All,
             );
 
-            let sig = secp.sign(
-                &Message::from_slice(&digest.into_inner()).unwrap(),
-                &redeem_sk_bitcoin,
-            );
+            let sig = secp.sign(&Message::from(sighash), &input_sk);
 
             let mut serialized_signature = sig.serialize_der().to_vec();
             serialized_signature.push(SigHashType::All as u8);
 
-            vec![serialized_signature, redeem_pk_bitcoin.to_bytes()]
+            vec![serialized_signature, input_pk_bob.serialize().to_vec()]
         };
 
-        let tx_hex = serialize_hex(&spend_tx);
-        let _txid = client.sendrawtransaction(tx_hex).await.unwrap();
+        Ok(transaction)
+    }
+
+    pub async fn sign_with_wallet<
+        't,
+        's: 't,
+        S: FnOnce(&'t Transaction) -> F,
+        F: Future<Output = Result<Transaction>> + 't,
+    >(
+        &'s self,
+        signer: S,
+    ) -> Result<Transaction> {
+        signer(&self.transaction).await
     }
 }

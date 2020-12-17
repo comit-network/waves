@@ -88,6 +88,28 @@ jobs:
       - name: Cargo test
         run: cargo test --workspace --all-features
 
+  swap_wasm:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v2
+
+      - name: Install Rust toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          override: true
+          target: wasm32-unknown-unknown
+
+      - name: Cache target directory
+        uses: actions/cache@v1
+        with:
+          path: target
+          key: swap-wasm-target-directory-${{ hashFiles('Cargo.lock') }}-v1
+
+      - name: Cargo build
+        run: cargo build -p swap --target wasm32-unknown-unknown
+
   waves_test:
     runs-on: ubuntu-latest
     steps:
@@ -154,3 +176,10 @@ jobs:
         run: |
           cd waves/wallet
           cargo test --target wasm32-unknown-unknown
+
+      - name: Upload artifact on test failure
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v2
+        with:
+          name: wasm-wallet-test-binary
+          path: ./target/wasm32-unknown-unknown/debug/deps/wallet-*.wasm

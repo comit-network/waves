@@ -20,6 +20,7 @@ use crate::{
     transaction::OutPoint,
 };
 use bitcoin::hashes::{self, hex, sha256, sha256d, Hash};
+use secp256k1_zkp::Tag;
 use std::{io, str::FromStr};
 
 /// The zero hash.
@@ -65,51 +66,32 @@ impl ContractHash {
 
 /// An issued asset ID.
 #[derive(Copy, Clone, PartialEq, Eq, Default, PartialOrd, Ord, Hash)]
-pub struct AssetId(sha256::Midstate);
+pub struct AssetId(pub(crate) sha256::Midstate);
 
 impl AssetId {
-    /// Create an [AssetId] from its inner type.
-    pub fn from_inner(midstate: sha256::Midstate) -> AssetId {
-        AssetId(midstate)
-    }
-
-    /// Convert the [AssetId] into its inner type.
-    pub fn into_inner(self) -> sha256::Midstate {
-        self.0
-    }
-
     /// Copies a byte slice into an AssetId object
-    pub fn from_slice(sl: &[u8]) -> Result<AssetId, hashes::Error> {
-        sha256::Midstate::from_slice(sl).map(AssetId)
-    }
+    pub fn from_slice(sl: &[u8]) -> Result<Self, hashes::Error> {
+        let mut array = [0u8; 32];
 
-    /// Generate the asset entropy from the issuance prevout and the contract hash.
-    pub fn generate_asset_entropy(
-        prevout: OutPoint,
-        contract_hash: ContractHash,
-    ) -> sha256::Midstate {
-        // E : entropy
-        // I : prevout
-        // C : contract
-        // E = H( H(I) || H(C) )
-        let prevout_hash = {
-            let mut enc = sha256d::Hash::engine();
-            prevout.consensus_encode(&mut enc).unwrap();
-            sha256d::Hash::from_engine(enc)
-        };
-        fast_merkle_root(&[prevout_hash.into_inner(), contract_hash.into_inner()])
+        if sl.len() != 32 {
+            return Err(hashes::Error::InvalidLength(32, sl.len()));
+        }
+
+        array.copy_from_slice(sl);
+
+        Ok(Self(sha256::Midstate::from_inner(array)))
     }
 
     /// Calculate the asset ID from the asset entropy.
-    pub fn from_entropy(entropy: sha256::Midstate) -> AssetId {
+    pub fn from_entropy(entropy: sha256::Midstate) -> Self {
         // H_a : asset tag
         // E   : entropy
         // H_a = H( E || 0 )
-        AssetId(fast_merkle_root(&[entropy.into_inner(), ZERO32]))
+        Self::from(fast_merkle_root(&[entropy.into_inner(), ZERO32]))
     }
 
     /// Calculate the reissuance token asset ID from the asset entropy.
-    pub fn reissuance_token_from_entropy(entropy: sha256::Midstate, confidential: bool) -> AssetId {
+    pub fn reissuance_token_from_entropy(entropy: sha256::Midstate, confidential: bool) -> Self {
         // H_a : asset reissuance tag
         // E   : entropy
         // if not fConfidential:
@@ -120,15 +102,31 @@ impl AssetId {
             false => ONE32,
             true => TWO32,
         };
-        AssetId(fast_merkle_root(&[entropy.into_inner(), second]))
+        Self::from(fast_merkle_root(&[entropy.into_inner(), second]))
+    }
+
+    pub(crate) fn into_tag(self) -> Tag {
+        self.0.into_inner().into()
     }
 }
 
-impl ::hex::FromHex for AssetId {
-    type Error = ::hex::FromHexError;
+/// Generate the asset entropy from the issuance prevout and the contract hash.
+pub fn generate_asset_entropy(prevout: OutPoint, contract_hash: ContractHash) -> sha256::Midstate {
+    // E : entropy
+    // I : prevout
+    // C : contract
+    // E = H( H(I) || H(C) )
+    let prevout_hash = {
+        let mut enc = sha256d::Hash::engine();
+        prevout.consensus_encode(&mut enc).unwrap();
+        sha256d::Hash::from_engine(enc)
+    };
+    fast_merkle_root(&[prevout_hash.into_inner(), contract_hash.into_inner()])
+}
 
-    fn from_hex<T: AsRef<[u8]>>(hex: T) -> Result<Self, Self::Error> {
-        Ok(Self(sha256::Midstate(::hex::FromHex::from_hex(hex)?)))
+impl From<sha256::Midstate> for AssetId {
+    fn from(hash: sha256::Midstate) -> Self {
+        AssetId(hash)
     }
 }
 
@@ -137,7 +135,7 @@ impl hex::FromHex for AssetId {
     where
         I: Iterator<Item = Result<u8, hex::Error>> + ExactSizeIterator + DoubleEndedIterator,
     {
-        sha256::Midstate::from_byte_iter(iter).map(AssetId)
+        Ok(Self(sha256::Midstate::from_byte_iter(iter)?))
     }
 }
 
@@ -162,7 +160,7 @@ impl ::std::fmt::LowerHex for AssetId {
 impl FromStr for AssetId {
     type Err = hex::Error;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        hex::FromHex::from_hex(s)
+        Ok(sha256::Midstate::from_str(s)?.into())
     }
 }
 
@@ -174,7 +172,7 @@ impl Encodable for AssetId {
 
 impl Decodable for AssetId {
     fn consensus_decode<D: io::BufRead>(d: D) -> Result<Self, encode::Error> {
-        Ok(Self::from_inner(sha256::Midstate::consensus_decode(d)?))
+        Ok(Self(sha256::Midstate::consensus_decode(d)?))
     }
 }
 
@@ -185,7 +183,7 @@ impl ::serde::Serialize for AssetId {
         if s.is_human_readable() {
             s.serialize_str(&self.to_hex())
         } else {
-            s.serialize_bytes(&self.0[..])
+            s.serialize_bytes(self.0.as_ref())
         }
     }
 }
@@ -205,22 +203,13 @@ impl<'de> ::serde::Deserialize<'de> for AssetId {
                     formatter.write_str("an ASCII hex string")
                 }
 
-                fn visit_bytes<E>(self, v: &[u8]) -> Result<Self::Value, E>
-                where
-                    E: ::serde::de::Error,
-                {
-                    if let Ok(hex) = ::std::str::from_utf8(v) {
-                        AssetId::from_hex(hex).map_err(E::custom)
-                    } else {
-                        Err(E::invalid_value(::serde::de::Unexpected::Bytes(v), &self))
-                    }
-                }
-
                 fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
                 where
                     E: ::serde::de::Error,
                 {
-                    AssetId::from_hex(v).map_err(E::custom)
+                    let inner = sha256::Midstate::from_hex(v).map_err(E::custom)?;
+
+                    Ok(AssetId::from(inner))
                 }
             }
 
@@ -272,10 +261,7 @@ mod test {
         let contract_hash = ContractHash::from_inner(ZERO32);
         let prevout = OutPoint::from_str(prevout_str).unwrap();
         let entropy = sha256::Midstate::from_hex(entropy_hex).unwrap();
-        assert_eq!(
-            AssetId::generate_asset_entropy(prevout, contract_hash),
-            entropy
-        );
+        assert_eq!(generate_asset_entropy(prevout, contract_hash), entropy);
         let asset_id = AssetId::from_hex(asset_id_hex).unwrap();
         assert_eq!(AssetId::from_entropy(entropy), asset_id);
         let token_id = AssetId::from_hex(token_id_hex).unwrap();

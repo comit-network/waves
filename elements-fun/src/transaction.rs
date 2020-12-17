@@ -17,15 +17,21 @@
 
 use crate::{
     confidential::{
-        AssetBlindingFactor, AssetCommitment, Nonce, ValueBlindingFactor, ValueCommitment,
+        AssetBlindingFactor, AssetGenerator, Nonce, ValueBlindingFactor, ValueCommitment,
     },
     encode::{self, Decodable, Encodable, Error},
     issuance::AssetId,
     opcodes,
     script::Instruction,
-    Script, Txid, Wtxid,
+    Address, Script, Txid, Wtxid,
 };
-use bitcoin::{self, hashes::Hash, VarInt};
+use bitcoin::{
+    self,
+    hashes::Hash,
+    secp256k1::rand::{CryptoRng, RngCore},
+    VarInt,
+};
+use secp256k1_zkp::{RangeProof, Secp256k1, SecretKey, Signing, SurjectionProof, Verification};
 use std::{collections::HashMap, fmt, io};
 
 /// Elements transaction
@@ -111,7 +117,7 @@ impl OutPoint {
 }
 
 /// Description of an asset issuance in a transaction input
-#[derive(Copy, Clone, Debug, Eq, Hash, PartialEq, PartialOrd, Ord)]
+#[derive(Copy, Clone, Debug, Eq, Hash, PartialEq)]
 #[cfg_attr(
     feature = "serde",
     derive(serde::Serialize, serde::Deserialize),
@@ -169,7 +175,7 @@ pub struct ExplicitTxOut {
 )]
 pub struct ConfidentialTxOut {
     /// Committed asset
-    pub asset: AssetCommitment,
+    pub asset: AssetGenerator,
     /// Committed amount
     pub value: ValueCommitment,
     /// Nonce (ECDH key passed to recipient)
@@ -219,7 +225,7 @@ pub struct ExplicitAssetIssuance {
     pub inflation_keys: ExplicitValue,
 }
 
-#[derive(Copy, Clone, Debug, Eq, Hash, PartialEq, PartialOrd, Ord)]
+#[derive(Copy, Clone, Debug, Eq, Hash, PartialEq)]
 #[cfg_attr(
     feature = "serde",
     derive(serde::Serialize, serde::Deserialize),
@@ -266,7 +272,7 @@ pub struct ExplicitAsset(pub AssetId);
 pub struct ExplicitValue(pub u64);
 
 /// Transaction output witness
-#[derive(Clone, Default, PartialEq, Eq, Debug, Hash)]
+#[derive(Clone, PartialEq, Eq, Debug, Hash)]
 #[cfg_attr(
     feature = "serde",
     derive(serde::Serialize, serde::Deserialize),
@@ -506,58 +512,63 @@ impl std::error::Error for NoBlindingKeyInAddress {}
 
 impl TxOut {
     /// Creates a new confidential output that is **not** the last one in the transaction.
-    #[cfg(feature = "wally-sys")]
     pub fn new_not_last_confidential<R, C>(
         rng: &mut R,
         secp: &bitcoin::secp256k1::Secp256k1<C>,
         value: u64,
-        address: crate::Address,
+        address: Address,
         asset: AssetId,
         inputs: &[(
             AssetId,
             u64,
-            AssetCommitment,
+            AssetGenerator,
             AssetBlindingFactor,
             ValueBlindingFactor,
         )],
-    ) -> Result<(Self, AssetBlindingFactor, ValueBlindingFactor), NoBlindingKeyInAddress>
+    ) -> Result<(Self, AssetBlindingFactor, ValueBlindingFactor), Error>
     where
-        R: bitcoin::secp256k1::rand::RngCore + bitcoin::secp256k1::rand::CryptoRng,
-        C: bitcoin::secp256k1::Signing,
+        R: RngCore + CryptoRng,
+        C: Signing,
     {
         let out_abf = AssetBlindingFactor::new(rng);
-        let out_asset = AssetCommitment::new(asset, out_abf);
+        let out_asset = AssetGenerator::new(secp, asset, out_abf);
 
         let out_vbf = ValueBlindingFactor::random(rng);
-        let value_commitment = ValueCommitment::new(value, out_asset, out_vbf);
+        let value_commitment = ValueCommitment::new(secp, value, out_asset, out_vbf);
 
-        let (nonce, sender_ephemeral_sk) = Nonce::new(rng, secp);
+        let receiver_blinding_pk = &address
+            .blinding_pubkey
+            .ok_or(Error::NoBlindingKeyInAddress)?;
+        let (nonce, shared_secret) = Nonce::new(rng, secp, receiver_blinding_pk);
 
-        let range_proof = crate::wally::asset_rangeproof(
-            value,
-            address
-                .blinding_pubkey
-                .ok_or_else(|| NoBlindingKeyInAddress)?,
-            sender_ephemeral_sk,
-            asset,
-            out_abf,
-            out_vbf,
-            value_commitment,
-            &address.script_pubkey(),
-            out_asset,
+        let message = RangeProofMessage { asset, bf: out_abf };
+        let rangeproof = RangeProof::new(
+            secp,
             1,
+            value_commitment.0,
+            value,
+            out_vbf.0,
+            &message.to_bytes(),
+            address.script_pubkey().as_bytes(),
+            shared_secret,
             0,
             52,
-        );
+            out_asset.0,
+        )?;
 
         let inputs = inputs
             .iter()
             .copied()
-            .map(|(id, _, asset, abf, _)| (id, abf, asset))
+            .map(|(id, _, asset, abf, _)| (asset.0, id.into_tag(), abf.0))
             .collect::<Vec<_>>();
 
-        let surjection_proof =
-            crate::wally::asset_surjectionproof(rng, asset, out_abf, out_asset, &inputs);
+        let surjection_proof = SurjectionProof::new(
+            secp,
+            rng,
+            asset.into_tag(),
+            out_abf.into_inner(),
+            inputs.as_ref(),
+        )?;
 
         let txout = TxOut::Confidential(ConfidentialTxOut {
             asset: out_asset,
@@ -565,8 +576,8 @@ impl TxOut {
             nonce: Some(nonce),
             script_pubkey: address.script_pubkey(),
             witness: TxOutWitness {
-                surjection_proof,
-                rangeproof: range_proof,
+                surjection_proof: surjection_proof.serialize(),
+                rangeproof: rangeproof.serialize(),
             },
         });
 
@@ -574,64 +585,67 @@ impl TxOut {
     }
 
     /// Creates a new confidential output that IS the last one in the transaction.
-    #[cfg(feature = "wally-sys")]
     pub fn new_last_confidential<R, C>(
         rng: &mut R,
         secp: &bitcoin::secp256k1::Secp256k1<C>,
         value: u64,
-        address: crate::Address,
+        address: Address,
         asset: AssetId,
         inputs: &[(
             AssetId,
             u64,
-            AssetCommitment,
+            AssetGenerator,
             AssetBlindingFactor,
             ValueBlindingFactor,
         )],
         outputs: &[(u64, AssetBlindingFactor, ValueBlindingFactor)],
-    ) -> Result<Self, NoBlindingKeyInAddress>
+    ) -> Result<Self, Error>
     where
-        R: bitcoin::secp256k1::rand::RngCore + bitcoin::secp256k1::rand::CryptoRng,
-        C: bitcoin::secp256k1::Signing,
+        R: RngCore + CryptoRng,
+        C: Signing,
     {
         let (surjection_proof_inputs, value_blind_inputs) = inputs
             .iter()
             .copied()
-            .map(|(id, value, asset, abf, vbf)| ((id, abf, asset), (value, abf, vbf)))
+            .map(|(id, value, asset, abf, vbf)| {
+                ((asset.0, id.into_tag(), abf.0), (value, abf, vbf))
+            })
             .unzip::<_, _, Vec<_>, Vec<_>>();
 
         let out_abf = AssetBlindingFactor::new(rng);
-        let out_asset = AssetCommitment::new(asset, out_abf);
+        let out_asset = AssetGenerator::new(secp, asset, out_abf);
 
-        let out_vbf = ValueBlindingFactor::last(value, out_abf, &value_blind_inputs, &outputs);
-        let value_commitment = ValueCommitment::new(value, out_asset, out_vbf);
+        let out_vbf =
+            ValueBlindingFactor::last(secp, value, out_abf, &value_blind_inputs, &outputs);
+        let value_commitment = ValueCommitment::new(secp, value, out_asset, out_vbf);
 
-        let (nonce, sender_ephemeral_sk) = Nonce::new(rng, secp);
+        let receiver_blinding_pk = &address
+            .blinding_pubkey
+            .ok_or(Error::NoBlindingKeyInAddress)?;
+        let (nonce, shared_secret) = Nonce::new(rng, secp, receiver_blinding_pk);
 
-        let range_proof = crate::wally::asset_rangeproof(
-            value,
-            address
-                .blinding_pubkey
-                .ok_or_else(|| NoBlindingKeyInAddress)?,
-            sender_ephemeral_sk,
-            asset,
-            out_abf,
-            out_vbf,
-            value_commitment,
-            &address.script_pubkey(),
-            out_asset,
+        let message = RangeProofMessage { asset, bf: out_abf };
+        let rangeproof = RangeProof::new(
+            secp,
             1,
+            value_commitment.0,
+            value,
+            out_vbf.0,
+            &message.to_bytes(),
+            address.script_pubkey().as_bytes(),
+            shared_secret,
             0,
             52,
-        );
+            out_asset.0,
+        )?;
 
-        let surjection_proof = crate::wally::asset_surjectionproof(
+        let surjection_proof = SurjectionProof::new(
+            secp,
             rng,
-            asset,
-            out_abf,
-            out_asset,
-            &surjection_proof_inputs,
-        );
+            asset.into_tag(),
+            out_abf.into_inner(),
+            surjection_proof_inputs.as_ref(),
+        )?;
 
         let txout = TxOut::Confidential(ConfidentialTxOut {
             asset: out_asset,
@@ -639,8 +653,8 @@ impl TxOut {
             nonce: Some(nonce),
             script_pubkey: address.script_pubkey(),
             witness: TxOutWitness {
-                surjection_proof,
-                rangeproof: range_proof,
+                surjection_proof: surjection_proof.serialize(),
+                rangeproof: rangeproof.serialize(),
             },
         });
 
@@ -714,7 +728,7 @@ impl TxOut {
     pub fn witness_length(&self) -> usize {
         match self {
             Self::Confidential(ConfidentialTxOut { witness, .. }) => witness.encoded_length(),
-            _ => TxOutWitness::default().encoded_length(),
+            _ => TxOutWitness::empty().encoded_length(),
         }
     }
 
@@ -837,23 +851,41 @@ impl TxOut {
                 } else {
                     debug_assert!(witness.rangeproof.len() > 10);
 
-                    let has_nonzero_range = witness.rangeproof[0] & 64 == 64;
-                    let has_min = witness.rangeproof[0] & 32 == 32;
+                    let rangeproof = &witness.rangeproof;
+
+                    let has_nonzero_range = rangeproof[0] & 64 == 64;
+                    let has_min = rangeproof[0] & 32 == 32;
 
                     if !has_min {
                         min_value
                     } else if has_nonzero_range {
-                        bitcoin::consensus::deserialize::<u64>(&witness.rangeproof[2..10])
+                        bitcoin::consensus::deserialize::<u64>(&rangeproof[2..10])
                             .expect("any 8 bytes is a u64")
                             .swap_bytes() // min-value is BE
                     } else {
-                        bitcoin::consensus::deserialize::<u64>(&witness.rangeproof[1..9])
+                        bitcoin::consensus::deserialize::<u64>(&rangeproof[1..9])
                             .expect("any 8 bytes is a u64")
                             .swap_bytes() // min-value is BE
                     }
                 }
             }
         }
+    }
+}
+
+struct RangeProofMessage {
+    asset: AssetId,
+    bf: AssetBlindingFactor,
+}
+
+impl RangeProofMessage {
+    fn to_bytes(&self) -> [u8; 64] {
+        let mut message = [0u8; 64];
+
+        message[..32].copy_from_slice(self.asset.into_tag().as_ref());
+        message[32..].copy_from_slice(self.bf.into_inner().as_ref());
+
+        message
     }
 }
 
@@ -1144,6 +1176,13 @@ impl Decodable for TxIn {
 impl_consensus_encoding!(TxOutWitness, surjection_proof, rangeproof);
 
 impl TxOutWitness {
+    pub fn empty() -> Self {
+        Self {
+            surjection_proof: Vec::new(),
+            rangeproof: Vec::new(),
+        }
+    }
+
     /// Whether this witness is null
     pub fn is_empty(&self) -> bool {
         self.surjection_proof.is_empty() && self.rangeproof.is_empty()
@@ -1284,30 +1323,41 @@ impl ConfidentialTxOut {
             + self.script_pubkey.len()
     }
 
-    #[cfg(feature = "wally-sys")]
-    pub fn unblind(
+    pub fn unblind<C: Verification>(
         &self,
-        blinding_key: bitcoin::secp256k1::SecretKey,
+        secp: &Secp256k1<C>,
+        blinding_key: SecretKey,
     ) -> Result<UnblindedTxOut, UnblindError> {
-        let sender_ephemeral_pk = self.nonce.ok_or(UnblindError::MissingNonce)?.commitment();
-        let sender_ephemeral_pk = bitcoin::secp256k1::PublicKey::from_slice(&sender_ephemeral_pk)
-            .map_err(|_| UnblindError::InvalidPublicKey)?;
+        let shared_secret = self
+            .nonce
+            .ok_or(UnblindError::MissingNonce)?
+            .shared_secret(&blinding_key);
 
-        let (unblinded_asset, abf, vbf, value_out) = crate::wally::asset_unblind(
-            sender_ephemeral_pk,
-            blinding_key,
-            &self.witness.rangeproof,
-            self.value,
-            &self.script_pubkey,
-            self.asset,
-        )
-        .map_err(|_| UnblindError::Wally)?;
+        let rangeproof = RangeProof::from_slice(&self.witness.rangeproof)
+            .map_err(UnblindError::InvalidRangeProof)?;
+
+        let (opening, _) = rangeproof
+            .rewind(
+                secp,
+                self.value.0,
+                shared_secret,
+                self.script_pubkey.as_bytes(),
+                self.asset.0,
+            )
+            .map_err(UnblindError::CannotRewindRangeProof)?;
+
+        let (asset, asset_blinding_factor) = opening.message.as_ref().split_at(32);
+        let asset = AssetId::from_slice(asset).map_err(UnblindError::MalformedAssetId)?;
+        let asset_blinding_factor = AssetBlindingFactor::from_slice(&asset_blinding_factor[..32])
+            .map_err(UnblindError::MalformedAssetBlindingFactor)?;
+
+        let value_blinding_factor = ValueBlindingFactor(opening.blinding_factor);
 
         Ok(UnblindedTxOut {
-            asset: unblinded_asset,
-            asset_blinding_factor: abf,
-            value_blinding_factor: vbf,
-            value: value_out,
+            asset,
+            value: opening.value,
+            asset_blinding_factor,
+            value_blinding_factor,
         })
     }
 }
@@ -1320,28 +1370,43 @@ pub struct UnblindedTxOut {
     pub value_blinding_factor: ValueBlindingFactor,
 }
 
-#[cfg(feature = "wally-sys")]
 #[derive(Debug)]
 pub enum UnblindError {
     MissingNonce,
-    InvalidPublicKey,
-    Wally,
+    InvalidRangeProof(secp256k1_zkp::Error),
+    CannotRewindRangeProof(secp256k1_zkp::Error),
+    MalformedAssetId(bitcoin_hashes::Error),
+    MalformedAssetBlindingFactor(secp256k1_zkp::Error),
 }
 
-#[cfg(feature = "wally-sys")]
 impl fmt::Display for UnblindError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> Result<(), fmt::Error> {
         match self {
             UnblindError::MissingNonce => write!(f, "no nonce in txout"),
-            UnblindError::InvalidPublicKey => write!(f, "failed to create public key from nonce"),
-            UnblindError::Wally => write!(f, "libwally error"),
+            UnblindError::CannotRewindRangeProof(_) => write!(f, "cannot rewind range proof"),
+            UnblindError::MalformedAssetId(_) => {
+                write!(f, "failed to parse asset ID from rangeproof message")
+            }
+            UnblindError::MalformedAssetBlindingFactor(_) => write!(
+                f,
+                "failed to parse asset blinding factor from rangeproof message"
+            ),
+            UnblindError::InvalidRangeProof(_) => write!(f, "invalid range proof"),
         }
     }
 }
 
-// TODO: Implement source
-#[cfg(feature = "wally-sys")]
-impl std::error::Error for UnblindError {}
+impl std::error::Error for UnblindError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            UnblindError::MissingNonce => None,
+            UnblindError::CannotRewindRangeProof(inner) => Some(inner),
+            UnblindError::MalformedAssetId(inner) => Some(inner),
+            UnblindError::MalformedAssetBlindingFactor(inner) => Some(inner),
+            UnblindError::InvalidRangeProof(inner) => Some(inner),
+        }
+    }
+}
 
 impl Encodable for TxOut {
     fn consensus_encode<S: io::Write>(&self, mut s: S) -> Result<usize, encode::Error> {
@@ -1387,7 +1452,7 @@ impl Decodable for ConfidentialTxOut {
             value,
             nonce,
             script_pubkey: Decodable::consensus_decode(&mut d)?,
-            witness: TxOutWitness::default(),
+            witness: TxOutWitness::empty(),
         })
     }
 }
@@ -1410,21 +1475,20 @@ impl Decodable for ExplicitTxOut {
     fn consensus_decode<D: io::BufRead>(mut d: D) -> Result<Self, Error> {
         let asset = Decodable::consensus_decode(&mut d)?;
         let value = Decodable::consensus_decode(&mut d)?;
-        let nonce_tag = u8::consensus_decode(&mut d)?;
 
-        let nonce = match nonce_tag {
-            0 => None,
-            2 | 3 => {
-                let mut xcoor = [0u8; 32];
-                d.read_exact(&mut xcoor)?;
-                Some(Nonce::from_commitment(nonce_tag, &xcoor)?)
+        let buf = d.fill_buf()?;
+
+        if buf.is_empty() {
+            return Err(Error::UnexpectedEOF);
+        }
+
+        let nonce = match buf[0] {
+            0 => {
+                d.consume(1);
+                None
             }
-            _ => {
-                return Err(Error::InvalidTag {
-                    expected: 0,
-                    got: nonce_tag,
-                })
-            }
+            2 | 3 => Some(Nonce::consensus_decode(&mut d)?),
+            got => return Err(Error::InvalidTag { expected: 0, got }),
         };
 
         let script_pubkey = Decodable::consensus_decode(&mut d)?;
@@ -1473,11 +1537,11 @@ impl Encodable for Transaction {
             for i in &self.input {
                 ret += i.witness.consensus_encode(&mut s)?;
             }
-            let default_witness = TxOutWitness::default();
+            let empty_witness = TxOutWitness::empty();
             for witness in self.output.iter().map(|o| {
                 o.as_confidential()
                     .map(|c| &c.witness)
-                    .unwrap_or(&default_witness)
+                    .unwrap_or(&empty_witness)
             }) {
                 ret += witness.consensus_encode(&mut s)?;
             }
@@ -1595,9 +1659,11 @@ impl SigHashType {
 
 #[cfg(test)]
 mod tests {
+    use bitcoin::hashes::hex::FromHex;
+    use secp256k1_zkp::PedersenCommitment;
+
     use super::*;
     use crate::encode::{serialize, serialize_hex};
-    use bitcoin::hashes::hex::FromHex;
 
     #[test]
     fn outpoint() {
@@ -2435,15 +2501,14 @@ mod tests {
             AssetIssuance::Confidential(ConfidentialAssetIssuance {
                 asset_blinding_nonce: [0; 32],
                 asset_entropy: [0; 32],
-                amount: ValueCommitment::from_commitment(
-                    9,
-                    &[
-                        0x81, 0x65, 0x4e, 0xb5, 0xcc, 0xd9, 0x92, 0x7b, 0x8b, 0xea, 0x94, 0x99,
-                        0x7d, 0xce, 0x4a, 0xe8, 0x5b, 0x3d, 0x95, 0xa2, 0x07, 0x00, 0x38, 0x4f,
-                        0x0b, 0x8c, 0x1f, 0xe9, 0x95, 0x18, 0x06, 0x38
-                    ],
-                )
-                .unwrap(),
+                amount: ValueCommitment(
+                    PedersenCommitment::from_slice(&[
+                        0x09, 0x81, 0x65, 0x4e, 0xb5, 0xcc, 0xd9, 0x92, 0x7b, 0x8b, 0xea, 0x94,
+                        0x99, 0x7d, 0xce, 0x4a, 0xe8, 0x5b, 0x3d, 0x95, 0xa2, 0x07, 0x00, 0x38,
+                        0x4f, 0x0b, 0x8c, 0x1f, 0xe9, 0x95, 0x18, 0x06, 0x38
+                    ])
+                    .unwrap(),
+                ),
                 inflation_keys: None,
             })
         );
