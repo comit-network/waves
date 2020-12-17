@@ -330,7 +330,7 @@ impl Wallet {
                 key: public_key,
             },
             Some(blinding_key),
-            &AddressParams::LIQUID,
+            &AddressParams::ELEMENTS,
         );
 
         Ok(address)
