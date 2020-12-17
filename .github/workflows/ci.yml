@@ -176,3 +176,10 @@ jobs:
         run: |
           cd waves/wallet
           cargo test --target wasm32-unknown-unknown
+
+      - name: Upload artifact on test failure
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v2
+        with:
+          name: wasm-wallet-test-binary
+          path: ./target/wasm32-unknown-unknown/debug/deps/wallet-*.wasm
