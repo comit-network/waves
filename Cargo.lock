@@ -153,6 +153,33 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "904dfeac50f3cdaba28fc6f57fdcddb75f49ed61346676a78c4ffe55877802fd"
 
 [[package]]
+name = "bdk"
+version = "0.1.0"
+source = "git+https://github.com/bitcoindevkit/bdk#635d98c0690c41d457d9e9cfa7783b1e3e5a3049"
+dependencies = [
+ "async-trait",
+ "bdk-macros",
+ "bitcoin",
+ "js-sys",
+ "log",
+ "miniscript",
+ "rand 0.7.3",
+ "serde",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
+name = "bdk-macros"
+version = "0.1.0-beta.1"
+source = "git+https://github.com/bitcoindevkit/bdk#635d98c0690c41d457d9e9cfa7783b1e3e5a3049"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
 name = "bech32"
 version = "0.7.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1047,7 +1074,7 @@ dependencies = [
 [[package]]
 name = "jsonrpc_client"
 version = "0.3.0"
-source = "git+https://github.com/thomaseizinger/rust-jsonrpc-client?branch=master#18c5a1b0e7e70d1022f4b009acb676372463829d"
+source = "git+https://github.com/thomaseizinger/rust-jsonrpc-client#18c5a1b0e7e70d1022f4b009acb676372463829d"
 dependencies = [
  "async-trait",
  "jsonrpc_client_macro",
@@ -1060,7 +1087,7 @@ dependencies = [
 [[package]]
 name = "jsonrpc_client_macro"
 version = "0.1.0"
-source = "git+https://github.com/thomaseizinger/rust-jsonrpc-client?branch=master#18c5a1b0e7e70d1022f4b009acb676372463829d"
+source = "git+https://github.com/thomaseizinger/rust-jsonrpc-client#18c5a1b0e7e70d1022f4b009acb676372463829d"
 dependencies = [
  "quote",
  "syn",
@@ -1155,6 +1182,14 @@ checksum = "2684d4c2e97d99848d30b324b00c8fcc7e5c897b7cbb5819b09e7c90e8baf212"
 dependencies = [
  "mime",
  "unicase",
+]
+
+[[package]]
+name = "miniscript"
+version = "4.0.0"
+source = "git+https://github.com/coblox/rust-miniscript?branch=wasm-bdk#a3c8fdfc5990f14747d8630f9f311adfd564c494"
+dependencies = [
+ "bitcoin",
 ]
 
 [[package]]
@@ -2443,6 +2478,7 @@ version = "0.1.0"
 dependencies = [
  "aes-gcm-siv",
  "anyhow",
+ "bdk",
  "conquer-once",
  "console_error_panic_hook",
  "elements-fun",
