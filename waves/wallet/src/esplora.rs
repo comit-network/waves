@@ -8,22 +8,19 @@ use wasm_bindgen_futures::JsFuture;
 static LIQUID_ESPLORA_URL: Lazy<&str> = Lazy::new(|| {
     option_env!("ESPLORA_URL")
         .as_deref()
-        .unwrap_or_else(|| "https://blockstream.info/liquid")
+        .unwrap_or_else(|| "https://blockstream.info/liquid/api")
 });
 
 /// Fetch the UTXOs of an address.
 ///
 /// UTXOs change over time and as such, this function never uses a cache.
 pub async fn fetch_utxos(address: &Address) -> Result<Vec<Utxo>> {
-    reqwest::get(&format!(
-        "{}/api/address/{}/utxo",
-        LIQUID_ESPLORA_URL, address
-    ))
-    .await
-    .context("failed to fetch UTXOs")?
-    .json::<Vec<Utxo>>()
-    .await
-    .context("failed to deserialize response")
+    reqwest::get(&format!("{}/address/{}/utxo", LIQUID_ESPLORA_URL, address))
+        .await
+        .context("failed to fetch UTXOs")?
+        .json::<Vec<Utxo>>()
+        .await
+        .context("failed to deserialize response")
 }
 
 pub async fn fetch_asset_description(asset: &AssetId) -> Result<AssetDescription> {
@@ -32,7 +29,7 @@ pub async fn fetch_asset_description(asset: &AssetId) -> Result<AssetDescription
     let storage = CacheStorage::from(map_err_to_anyhow!(window.caches())?);
     let cache = map_err_to_anyhow!(storage.open("asset_descriptions").await)?;
 
-    let url = &format!("{}/api/asset/{}", LIQUID_ESPLORA_URL, asset);
+    let url = &format!("{}/asset/{}", LIQUID_ESPLORA_URL, asset);
 
     let response = match map_err_to_anyhow!(cache.match_with_str(url).await)? {
         Some(response) => response,
@@ -63,7 +60,7 @@ pub async fn fetch_transaction(txid: Txid) -> Result<Transaction> {
     let storage = CacheStorage::from(map_err_to_anyhow!(window.caches())?);
     let cache = map_err_to_anyhow!(storage.open("transactions").await)?;
 
-    let url = &format!("{}/api/tx/{}/hex", LIQUID_ESPLORA_URL, txid);
+    let url = &format!("{}/tx/{}/hex", LIQUID_ESPLORA_URL, txid);
 
     let response = match map_err_to_anyhow!(cache.match_with_str(url).await)? {
         Some(response) => response,
