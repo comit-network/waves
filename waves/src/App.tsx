@@ -1,7 +1,6 @@
 import { ExternalLinkIcon } from "@chakra-ui/icons";
-import { Box, Button, Center, Flex, Link, Text, VStack } from "@chakra-ui/react";
+import { Box, Button, Center, Flex, Link, Text, useInterval, VStack } from "@chakra-ui/react";
 import React, { useEffect, useReducer } from "react";
-import { useRef } from "react";
 import { BrowserRouter, Link as RouterLink, Redirect, Route, Switch } from "react-router-dom";
 import { RingLoader } from "react-spinners";
 import "./App.css";
@@ -214,30 +213,21 @@ function App() {
         });
     }, []);
 
-    let walletUpdating = useRef(false);
-    useEffect(() => {
-        if (!walletUpdating.current) {
-            walletUpdating.current = true;
-            let updateBalanceInterval = setInterval(() => {
-                if (state.wallet.status.loaded) {
-                    getBalances().then((balances) => {
-                        console.log(`Updated balances: ${balances}`);
-                        dispatch({
-                            type: "UpdateBalance",
-                            value: {
-                                btcBalance: 0,
-                                usdtBalance: 0,
-                            },
-                        });
-                    });
-                }
-            }, 5000);
-            return () => {
-                walletUpdating.current = false;
-                clearTimeout(updateBalanceInterval);
-            };
-        }
-    }, [walletUpdating, state.wallet.status.loaded]);
+    useInterval(
+        () => {
+            getBalances().then((balances) => {
+                console.log(`Updated balances: ${balances}`);
+                dispatch({
+                    type: "UpdateBalance",
+                    value: {
+                        btcBalance: 0,
+                        usdtBalance: 0,
+                    },
+                });
+            });
+        },
+        state.wallet.status.loaded ? 5000 : null,
+    );
 
     return (
         <BrowserRouter>
