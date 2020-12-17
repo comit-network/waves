@@ -2,7 +2,6 @@ import { render, screen } from "@testing-library/react";
 import React from "react";
 import App, { AssetType, reducer } from "./App";
 
-
 test("renders create new wallet", () => {
     render(<App />);
     const linkElement = screen.getByText(/Create new wallet/i);

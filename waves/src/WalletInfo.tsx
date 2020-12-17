@@ -10,10 +10,14 @@ import {
     DrawerOverlay,
     HStack,
     Image,
+    Input,
     Text,
     useDisclosure,
+    VStack,
 } from "@chakra-ui/react";
-import React from "react";
+import { Center, Circle, Square } from "@chakra-ui/react";
+import QRCode from "qrcode.react";
+import React, { ChangeEvent } from "react";
 import { WalletBalance } from "./App";
 import Btc from "./components/bitcoin.svg";
 import Usdt from "./components/tether.svg";
@@ -25,6 +29,14 @@ interface WalletInfoProps {
 export default function WalletInfo({ balance }: WalletInfoProps) {
     const { isOpen, onOpen, onClose } = useDisclosure();
     const btnRef = React.useRef(null);
+    const address = "LTB_addressxtqwseasdas"; // TODO get address from
+    const [withDrawAddress, setWithDrawAddress] = React.useState("");
+
+    const handleWithdrawAddress = (event: ChangeEvent<HTMLInputElement>) => setWithDrawAddress(event.target.value);
+
+    const withdraw = () => {
+        console.log("Withdrawing to " + withDrawAddress);
+    };
 
     return (
         <>
@@ -65,6 +77,66 @@ export default function WalletInfo({ balance }: WalletInfoProps) {
                         <DrawerCloseButton />
                         <DrawerHeader>Wallet</DrawerHeader>
                         <DrawerBody>
+                            <VStack align="stretch" spacing={4}>
+                                <Center bg="gray.100" h="10em" color="white" borderRadius={"md"}>
+                                    <VStack>
+                                        <Text textStyle="actionable">Address</Text>
+                                        <QRCode value={address} size={100} />
+                                        <Text textStyle="addressInfo">{address}</Text>
+                                    </VStack>
+                                </Center>
+                                <VStack
+                                    bg="gray.100"
+                                    align="left"
+                                    borderRadius={"md"}
+                                    p={1}
+                                >
+                                    <Box>
+                                        <HStack>
+                                            <Box>
+                                                <Image src={Usdt} h="20px" />
+                                            </Box>
+                                            <Box>
+                                                <Text>L-USDT: {balance.usdtBalance}</Text>
+                                            </Box>
+                                        </HStack>
+                                    </Box>
+                                    <Box>
+                                        <HStack>
+                                            <Box>
+                                                <Image src={Btc} h="20px" />
+                                            </Box>
+                                            <Box>
+                                                <Text>L-BTC: {balance.btcBalance}</Text>
+                                            </Box>
+                                        </HStack>
+                                    </Box>
+                                </VStack>
+                                <VStack
+                                    bg="gray.100"
+                                    align="center"
+                                    borderRadius={"md"}
+                                    p={1}
+                                >
+                                    <Text textStyle="actionable">Withdraw everything to:</Text>
+                                    <HStack>
+                                        <Input
+                                            placeholder="Address"
+                                            size="md"
+                                            bg={"white"}
+                                            value={withDrawAddress}
+                                            onChange={handleWithdrawAddress}
+                                        />
+                                        <Button
+                                            size="md"
+                                            variant="wallet_button"
+                                            onClick={withdraw}
+                                        >
+                                            Send
+                                        </Button>
+                                    </HStack>
+                                </VStack>
+                            </VStack>
                         </DrawerBody>
 
                         <DrawerFooter>
