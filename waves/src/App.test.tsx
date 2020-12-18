@@ -4,7 +4,7 @@ import { Listener, Source, SSEProvider } from "react-hooks-sse";
 import App, { AssetType, reducer } from "./App";
 
 // implementation of customSource does not matter but functions need to be there
-class CustomSource implements Source {
+class DummySource implements Source {
     addEventListener(name: string, listener: Listener) {
     }
 
@@ -17,7 +17,7 @@ class CustomSource implements Source {
 
 test("Test if rendering works by asserting `create new wallet` button", () => {
     render(
-        <SSEProvider source={() => new CustomSource()}>
+        <SSEProvider source={() => new DummySource()}>
             <App />
         </SSEProvider>,
     );
