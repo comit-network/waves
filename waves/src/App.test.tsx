@@ -1,9 +1,26 @@
 import { render, screen } from "@testing-library/react";
 import React from "react";
+import { Listener, Source, SSEProvider } from "react-hooks-sse";
 import App, { AssetType, reducer } from "./App";
 
-test("renders create new wallet", () => {
-    render(<App />);
+// implementation of customSource does not matter but functions need to be there
+class CustomSource implements Source {
+    addEventListener(name: string, listener: Listener) {
+    }
+
+    close() {
+    }
+
+    removeEventListener(name: string, listener: Listener) {
+    }
+}
+
+test("Test if rendering works by asserting `create new wallet` button", () => {
+    render(
+        <SSEProvider source={() => new CustomSource()}>
+            <App />
+        </SSEProvider>,
+    );
     const linkElement = screen.getByText(/Create new wallet/i);
     expect(linkElement).toBeInTheDocument();
 });
@@ -42,7 +59,10 @@ test("update alpha amount logic", () => {
             type: AssetType.USDT,
             amount: 191.34,
         },
-        rate: 10,
+        rate: {
+            bid: 10,
+            ask: 9,
+        },
     };
 
     let newValue = 42;
@@ -73,7 +93,10 @@ test("update alpha asset logic - should flip asset types", () => {
             type: AssetType.USDT,
             amount: 191.34,
         },
-        rate: 19133.74,
+        rate: {
+            bid: 10,
+            ask: 9,
+        },
     };
 
     let newValue = AssetType.USDT;
@@ -107,6 +130,36 @@ test("update alpha asset logic - should flip asset types", () => {
     ).toBe(initialState.beta.amount);
 });
 
+test("update beta amount if rate changed", () => {
+    const initialState = {
+        ...defaultState,
+        alpha: {
+            type: AssetType.BTC,
+            amount: 1,
+        },
+        beta: {
+            type: AssetType.USDT,
+            amount: 19000,
+        },
+        rate: {
+            bid: 19000,
+            ask: 20000,
+        },
+    };
+
+    let newRate = {
+        ask: 21000,
+        bid: 20000,
+    };
+
+    expect(
+        reducer(initialState, {
+            type: "UpdateBetaAmount",
+            value: newRate,
+        }).beta.amount,
+    ).toBe(20000);
+});
+
 test("update beta asset logic - should flip asset types", () => {
     const initialState = {
         ...defaultState,
@@ -118,7 +171,10 @@ test("update beta asset logic - should flip asset types", () => {
             type: AssetType.USDT,
             amount: 191.34,
         },
-        rate: 19133.74,
+        rate: {
+            bid: 10,
+            ask: 9,
+        },
     };
 
     let newValue = AssetType.BTC;
@@ -163,7 +219,10 @@ test("Swap asset types", () => {
             type: AssetType.USDT,
             amount: 191.34,
         },
-        rate: 19133.74,
+        rate: {
+            bid: 10,
+            ask: 9,
+        },
     };
 
     let newValue = AssetType.BTC;
@@ -191,37 +250,5 @@ test("Swap asset types", () => {
             type: "SwapAssetTypes",
             value: newValue,
         }).beta.amount,
-    ).toBe(initialState.alpha.amount);
-});
-
-test("Rate change - should update the amounts accordingly", () => {
-    const initialState = {
-        ...defaultState,
-        alpha: {
-            type: AssetType.BTC,
-            amount: 10,
-        },
-        beta: {
-            type: AssetType.USDT,
-            amount: 1000,
-        },
-        rate: 100,
-    };
-
-    let newRate = 110;
-    let newAmount = 1100;
-    expect(
-        reducer(initialState, {
-            type: "UpdateRate",
-            value: newRate,
-        }).beta.amount,
-    ).toBe(newAmount);
-
-    // alpha amount should remain unchanged
-    expect(
-        reducer(initialState, {
-            type: "UpdateRate",
-            value: newRate,
-        }).alpha.amount,
     ).toBe(initialState.alpha.amount);
 });

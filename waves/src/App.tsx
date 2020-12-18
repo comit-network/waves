@@ -1,13 +1,14 @@
 import { ExternalLinkIcon } from "@chakra-ui/icons";
 import { Box, Button, Center, Flex, Link, Text, useInterval, VStack } from "@chakra-ui/react";
 import React, { useEffect, useReducer } from "react";
+import { useSSE } from "react-hooks-sse";
 import { BrowserRouter, Link as RouterLink, Redirect, Route, Switch } from "react-router-dom";
 import { RingLoader } from "react-spinners";
 import "./App.css";
 import AssetSelector from "./components/AssetSelector";
 import ExchangeIcon from "./components/ExchangeIcon";
 import CreateWallet from "./CreateWallet";
-import { useRateService } from "./hooks/RateService";
+import { calculateBetaAmount } from "./RateService";
 import SwapWithWallet from "./SwapWithWallet";
 import UnlockWallet from "./UnlockWallet";
 import WalletInfo from "./WalletInfo";
@@ -22,9 +23,10 @@ export type AssetSide = "Alpha" | "Beta";
 
 export type Action =
     | { type: "UpdateAlphaAmount"; value: number }
+    | { type: "UpdateBetaAmount"; value: Rate }
     | { type: "UpdateAlphaAssetType"; value: AssetType }
     | { type: "UpdateBetaAssetType"; value: AssetType }
-    | { type: "UpdateRate"; value: number }
+    | { type: "UpdateRate"; value: Rate }
     | { type: "SwapAssetTypes" }
     | { type: "PublishTransaction"; value: string }
     | { type: "UpdateWalletStatus"; value: WalletStatus }
@@ -33,9 +35,14 @@ export type Action =
 interface State {
     alpha: AssetState;
     beta: AssetState;
-    rate: number;
+    rate: Rate;
     txId: string;
     wallet: Wallet;
+}
+
+export interface Rate {
+    ask: number;
+    bid: number;
 }
 
 interface Wallet {
@@ -67,7 +74,10 @@ const initialState = {
         type: AssetType.USDT,
         amount: 191.34,
     },
-    rate: 19133.74,
+    rate: {
+        ask: 19133.74,
+        bid: 19133.74,
+    },
     txId: "",
     wallet: {
         balance: {
@@ -92,9 +102,17 @@ export function reducer(state: State = initialState, action: Action) {
                 },
                 beta: {
                     type: state.beta.type,
-                    amount: action.value * state.rate,
+                    amount: calculateBetaAmount(state.alpha.type, action.value, state.rate),
                 },
                 rate: state.rate,
+            };
+        case "UpdateBetaAmount":
+            return {
+                ...state,
+                beta: {
+                    type: state.beta.type,
+                    amount: calculateBetaAmount(state.alpha.type, state.alpha.amount, action.value),
+                },
             };
         case "UpdateAlphaAssetType":
             let beta = state.beta;
@@ -122,16 +140,6 @@ export function reducer(state: State = initialState, action: Action) {
                     type: action.value,
                     amount: state.beta.amount,
                 },
-            };
-        case "UpdateRate":
-            // TODO: fix "set USDT to alpha, win!"-bug
-            return {
-                ...state,
-                beta: {
-                    ...state.beta,
-                    amount: state.alpha.amount * action.value,
-                },
-                rate: action.value,
             };
         case "SwapAssetTypes":
             return {
@@ -183,20 +191,6 @@ function App() {
         }, 2000);
     };
 
-    const rateService = useRateService();
-    useEffect(() => {
-        const subscription = rateService.subscribe((rate) => {
-            // setBetaAmount(alphaAmount * rate); TODO update amount accordingly
-            dispatch({
-                type: "UpdateRate",
-                value: rate,
-            });
-        });
-        return () => {
-            rateService.unsubscribe(subscription);
-        };
-    }, [rateService]);
-
     useEffect(() => {
         getWalletStatus().then((wallet_status) => {
             if (wallet_status.exists) {
@@ -228,6 +222,18 @@ function App() {
         },
         state.wallet.status.loaded ? 5000 : null,
     );
+
+    state.rate = useSSE("rate", {
+        ask: 19133.74,
+        bid: 19133.74,
+    });
+
+    useEffect(() => {
+        dispatch({
+            type: "UpdateBetaAmount",
+            value: state.rate,
+        });
+    }, [state.rate]);
 
     return (
         <BrowserRouter>
@@ -266,7 +272,7 @@ function App() {
                             />
                         </Flex>
                         <Box>
-                            <Text textStyle="info">1 BTC = {state.rate} USDT</Text>
+                            <Text textStyle="info">1 BTC = {state.rate.ask} USDT</Text>
                         </Box>
                         <Box>
                             <Switch>
