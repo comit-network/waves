@@ -26,10 +26,8 @@ export type AssetSide = "Alpha" | "Beta";
 
 export type Action =
     | { type: "UpdateAlphaAmount"; value: number }
-    | { type: "UpdateBetaAmount"; value: Rate }
     | { type: "UpdateAlphaAssetType"; value: AssetType }
     | { type: "UpdateBetaAssetType"; value: AssetType }
-    | { type: "UpdateRate"; value: Rate }
     | { type: "SwapAssetTypes" }
     | { type: "PublishTransaction"; value: string }
     | { type: "UpdateWalletStatus"; value: WalletStatus }
@@ -37,7 +35,7 @@ export type Action =
 
 interface State {
     alpha: AssetState;
-    beta: AssetState;
+    beta: AssetType;
     rate: Rate;
     txId: string;
     wallet: Wallet;
@@ -73,10 +71,7 @@ const initialState = {
         type: AssetType.BTC,
         amount: 0.01,
     },
-    beta: {
-        type: AssetType.USDT,
-        amount: 191.34,
-    },
+    beta: AssetType.USDT,
     rate: {
         ask: 19133.74,
         bid: 19133.74,
@@ -103,24 +98,11 @@ export function reducer(state: State = initialState, action: Action) {
                     type: state.alpha.type,
                     amount: action.value,
                 },
-                beta: {
-                    type: state.beta.type,
-                    amount: calculateBetaAmount(state.alpha.type, action.value, state.rate),
-                },
-                rate: state.rate,
-            };
-        case "UpdateBetaAmount":
-            return {
-                ...state,
-                beta: {
-                    type: state.beta.type,
-                    amount: calculateBetaAmount(state.alpha.type, state.alpha.amount, action.value),
-                },
             };
         case "UpdateAlphaAssetType":
             let beta = state.beta;
-            if (beta.type === action.value) {
-                beta.type = state.alpha.type;
+            if (beta === action.value) {
+                beta = state.alpha.type;
             }
             return {
                 ...state,
@@ -134,21 +116,21 @@ export function reducer(state: State = initialState, action: Action) {
         case "UpdateBetaAssetType":
             let alpha = state.alpha;
             if (alpha.type === action.value) {
-                alpha.type = state.beta.type;
+                alpha.type = state.beta;
             }
             return {
                 ...state,
-                alpha: alpha,
-                beta: {
-                    type: action.value,
-                    amount: state.beta.amount,
-                },
+                alpha,
+                beta: action.value,
             };
         case "SwapAssetTypes":
             return {
                 ...state,
-                alpha: state.beta,
-                beta: state.alpha,
+                alpha: {
+                    type: state.beta,
+                    amount: calculateBetaAmount(state.beta, state.alpha.amount, state.rate),
+                },
+                beta: state.alpha.type,
             };
         case "PublishTransaction":
             return {
@@ -236,13 +218,6 @@ function App() {
         bid: 19133.74,
     });
 
-    useEffect(() => {
-        dispatch({
-            type: "UpdateBetaAmount",
-            value: state.rate,
-        });
-    }, [state.rate]);
-
     return (
         <BrowserRouter>
             <div className="App">
@@ -274,13 +249,13 @@ function App() {
                             <AssetSelector
                                 assetSide="Beta"
                                 placement="right"
-                                amount={state.beta.amount}
-                                type={state.beta.type}
+                                amount={calculateBetaAmount(state.alpha.type, state.alpha.amount, state.rate)}
+                                type={state.beta}
                                 dispatch={dispatch}
                             />
                         </Flex>
                         <Box>
-                            <Text textStyle="info">1 BTC = {state.rate.ask} USDT</Text>
+                            <Text textStyle="info">1 BTC ~ {state.rate.ask} USDT</Text>
                         </Box>
                         <Box>
                             <Switch>
@@ -298,9 +273,13 @@ function App() {
                                                     onConfirmed={onConfirmed}
                                                     dispatch={dispatch}
                                                     alphaAmount={state.alpha.amount}
-                                                    betaAmount={state.beta.amount}
+                                                    betaAmount={calculateBetaAmount(
+                                                        state.alpha.type,
+                                                        state.alpha.amount,
+                                                        state.rate,
+                                                    )}
                                                     alphaAsset={state.alpha.type}
-                                                    betaAsset={state.beta.type}
+                                                    betaAsset={state.beta}
                                                 />
                                             )
                                             : (
