@@ -216,7 +216,7 @@ function App() {
     useInterval(
         () => {
             getBalances().then((balances) => {
-                console.log(`Updated balances: ${balances}`);
+                console.log(`Updated balances: `, balances);
                 dispatch({
                     type: "UpdateBalance",
                     value: {

@@ -39,12 +39,24 @@ export default function WalletInfo({ balance }: WalletInfoProps) {
         console.log("Withdrawing to " + withDrawAddress);
     };
 
+    async function fundWallet(): Promise<any> {
+        console.log(process.env);
+
+        let address = await getAddress();
+        await fetch(process.env.REACT_APP_ESPLORA_URL + "/faucet", {
+            method: "POST",
+            mode: "no-cors",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ address }),
+        });
+    }
+
     return (
         <>
             <Box as={Button} onClick={onOpen} ref={btnRef} bg="#FFFFFF">
-                <HStack
-                    align="left"
-                >
+                <HStack align="left">
                     <Box>
                         <HStack>
                             <Box>
@@ -79,15 +91,15 @@ export default function WalletInfo({ balance }: WalletInfoProps) {
                         <DrawerHeader>Wallet</DrawerHeader>
                         <DrawerBody>
                             <VStack align="stretch" spacing={4}>
-                                <Center bg="gray.100" h="10em" color="white" borderRadius={"md"}>
+                                <Center
+                                    bg="gray.100"
+                                    h="10em"
+                                    color="white"
+                                    borderRadius={"md"}
+                                >
                                     <AddressQr />
                                 </Center>
-                                <VStack
-                                    bg="gray.100"
-                                    align="left"
-                                    borderRadius={"md"}
-                                    p={1}
-                                >
+                                <VStack bg="gray.100" align="left" borderRadius={"md"} p={1}>
                                     <Box>
                                         <HStack>
                                             <Box>
@@ -109,12 +121,7 @@ export default function WalletInfo({ balance }: WalletInfoProps) {
                                         </HStack>
                                     </Box>
                                 </VStack>
-                                <VStack
-                                    bg="gray.100"
-                                    align="center"
-                                    borderRadius={"md"}
-                                    p={1}
-                                >
+                                <VStack bg="gray.100" align="center" borderRadius={"md"} p={1}>
                                     <Text textStyle="actionable">Withdraw everything to:</Text>
                                     <HStack>
                                         <Input
@@ -133,15 +140,20 @@ export default function WalletInfo({ balance }: WalletInfoProps) {
                                         </Button>
                                     </HStack>
                                 </VStack>
+                                <VStack bg="gray.100" align="center" borderRadius={"md"} p={1}>
+                                    <Button
+                                        size="md"
+                                        variant="wallet_button"
+                                        onClick={fundWallet}
+                                    >
+                                        Fund wallet
+                                    </Button>
+                                </VStack>
                             </VStack>
                         </DrawerBody>
 
                         <DrawerFooter>
-                            <Button
-                                size="md"
-                                variant="wallet_button"
-                                onClick={onClose}
-                            >
+                            <Button size="md" variant="wallet_button" onClick={onClose}>
                                 Close
                             </Button>
                         </DrawerFooter>
@@ -162,7 +174,9 @@ const AddressQr = () => (
                     <VStack>
                         <Text textStyle="actionable">Address</Text>
                         <QRCode value={data} size={100} />
-                        <Text textStyle="addressInfo" maxWidth={"15em"} isTruncated>{data}</Text>
+                        <Text textStyle="addressInfo" maxWidth={"15em"} isTruncated>
+                            {data}
+                        </Text>
                     </VStack>
                 );
             }
