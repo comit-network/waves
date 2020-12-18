@@ -34,7 +34,10 @@ const defaultState = {
         type: AssetType.USDT,
         amount: 0,
     },
-    rate: 0,
+    rate: {
+        bid: 19000,
+        ask: 20000,
+    },
     txId: "",
     wallet: {
         balance: {
@@ -92,10 +95,6 @@ test("update alpha asset logic - should flip asset types", () => {
         beta: {
             type: AssetType.USDT,
             amount: 191.34,
-        },
-        rate: {
-            bid: 10,
-            ask: 9,
         },
     };
 
@@ -171,10 +170,6 @@ test("update beta asset logic - should flip asset types", () => {
             type: AssetType.USDT,
             amount: 191.34,
         },
-        rate: {
-            bid: 10,
-            ask: 9,
-        },
     };
 
     let newValue = AssetType.BTC;
@@ -218,10 +213,6 @@ test("Swap asset types", () => {
         beta: {
             type: AssetType.USDT,
             amount: 191.34,
-        },
-        rate: {
-            bid: 10,
-            ask: 9,
         },
     };
 
