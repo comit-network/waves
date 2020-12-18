@@ -14,6 +14,9 @@ import UnlockWallet from "./UnlockWallet";
 import WalletInfo from "./WalletInfo";
 import { getBalances, getWalletStatus } from "./wasmProxy";
 
+export const LBTC_TICKER = "L-BTC";
+export const LUSDT_TICKER = "USDt";
+
 export enum AssetType {
     BTC = "BTC",
     USDT = "USDT",
@@ -211,11 +214,16 @@ function App() {
         () => {
             getBalances().then((balances) => {
                 console.log(`Updated balances: `, balances);
+                let btcBalanceEntry = balances.find((balance) => balance.ticker === LBTC_TICKER);
+                let usdtBalanceEntry = balances.find((balance) => balance.ticker === LUSDT_TICKER);
+
+                const btcBalance = btcBalanceEntry ? btcBalanceEntry.value : 0;
+                const usdtBalance = usdtBalanceEntry ? usdtBalanceEntry.value : 0;
                 dispatch({
                     type: "UpdateBalance",
                     value: {
-                        btcBalance: 0,
-                        usdtBalance: 0,
+                        btcBalance,
+                        usdtBalance,
                     },
                 });
             });

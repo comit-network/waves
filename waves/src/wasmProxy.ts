@@ -1,6 +1,6 @@
 export interface BalanceEntry {
     asset: string;
-    value: bigint;
+    value: number;
     ticker?: string;
 }
 
