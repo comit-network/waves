@@ -40,8 +40,6 @@ export default function WalletInfo({ balance }: WalletInfoProps) {
     };
 
     async function fundWallet(): Promise<any> {
-        console.log(process.env);
-
         let address = await getAddress();
         await fetch(process.env.REACT_APP_ESPLORA_URL + "/faucet", {
             method: "POST",
