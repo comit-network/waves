@@ -28,7 +28,12 @@ export type Action =
     | { type: "UpdateAlphaAmount"; value: number }
     | { type: "UpdateAlphaAssetType"; value: AssetType }
     | { type: "UpdateBetaAssetType"; value: AssetType }
-    | { type: "SwapAssetTypes" }
+    | {
+        type: "SwapAssetTypes";
+        value: {
+            betaAmount: number;
+        };
+    }
     | { type: "PublishTransaction"; value: string }
     | { type: "UpdateWalletStatus"; value: WalletStatus }
     | { type: "UpdateBalance"; value: WalletBalance };
@@ -36,7 +41,6 @@ export type Action =
 interface State {
     alpha: AssetState;
     beta: AssetType;
-    rate: Rate;
     txId: string;
     wallet: Wallet;
 }
@@ -128,7 +132,7 @@ export function reducer(state: State = initialState, action: Action) {
                 ...state,
                 alpha: {
                     type: state.beta,
-                    amount: calculateBetaAmount(state.beta, state.alpha.amount, state.rate),
+                    amount: action.value.betaAmount,
                 },
                 beta: state.alpha.type,
             };
@@ -213,10 +217,12 @@ function App() {
         state.wallet.status.loaded ? 5000 : null,
     );
 
-    state.rate = useSSE("rate", {
+    const rate = useSSE("rate", {
         ask: 19133.74,
         bid: 19133.74,
     });
+
+    const betaAmount = calculateBetaAmount(state.alpha.type, state.alpha.amount, rate);
 
     return (
         <BrowserRouter>
@@ -243,19 +249,27 @@ function App() {
                             />
                             <Center w="10px">
                                 <Box zIndex={2}>
-                                    <ExchangeIcon dispatch={dispatch} />
+                                    <ExchangeIcon
+                                        onClick={() =>
+                                            dispatch({
+                                                type: "SwapAssetTypes",
+                                                value: {
+                                                    betaAmount,
+                                                },
+                                            })}
+                                    />
                                 </Box>
                             </Center>
                             <AssetSelector
                                 assetSide="Beta"
                                 placement="right"
-                                amount={calculateBetaAmount(state.alpha.type, state.alpha.amount, state.rate)}
+                                amount={betaAmount}
                                 type={state.beta}
                                 dispatch={dispatch}
                             />
                         </Flex>
                         <Box>
-                            <Text textStyle="info">1 BTC ~ {state.rate.ask} USDT</Text>
+                            <Text textStyle="info">1 BTC ~ {rate.ask} USDT</Text>
                         </Box>
                         <Box>
                             <Switch>
@@ -276,7 +290,7 @@ function App() {
                                                     betaAmount={calculateBetaAmount(
                                                         state.alpha.type,
                                                         state.alpha.amount,
-                                                        state.rate,
+                                                        rate,
                                                     )}
                                                     alphaAsset={state.alpha.type}
                                                     betaAsset={state.beta}
