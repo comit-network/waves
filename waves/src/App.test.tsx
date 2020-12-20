@@ -150,25 +150,34 @@ test("Swap asset types", () => {
         beta: AssetType.USDT,
     };
 
-    let newValue = AssetType.BTC;
     expect(
         reducer(initialState, {
             type: "SwapAssetTypes",
+            value: {
+                betaAmount: initialState.alpha.amount,
+            },
         }).alpha.type,
     ).toBe(initialState.beta);
 
     expect(
         reducer(initialState, {
             type: "SwapAssetTypes",
+            value: {
+                betaAmount: initialState.alpha.amount,
+            },
         }).beta,
     ).toBe(initialState.alpha.type);
 
     // amounts should be flipped as well
+    let betaAmount = calculateBetaAmount(initialState.alpha.type, initialState.alpha.amount, initialState.rate);
     expect(
         reducer(initialState, {
             type: "SwapAssetTypes",
+            value: {
+                betaAmount: betaAmount,
+            },
         }).alpha.amount,
     ).toBe(
-        calculateBetaAmount(initialState.beta, initialState.alpha.amount, initialState.rate),
+        betaAmount,
     );
 });
