@@ -1,10 +1,11 @@
 use crate::cache_storage::CacheStorage;
-use anyhow::{bail, Context, Result};
+use anyhow::{anyhow, bail, Context, Result};
 use conquer_once::Lazy;
 use elements_fun::{
     encode::{deserialize, serialize_hex},
     Address, AssetId, BlockHash, Transaction, Txid,
 };
+use reqwest::StatusCode;
 use wasm_bindgen::UnwrapThrowExt;
 use wasm_bindgen_futures::JsFuture;
 
@@ -18,9 +19,24 @@ static LIQUID_ESPLORA_URL: Lazy<&str> = Lazy::new(|| {
 ///
 /// UTXOs change over time and as such, this function never uses a cache.
 pub async fn fetch_utxos(address: &Address) -> Result<Vec<Utxo>> {
-    reqwest::get(&format!("{}/address/{}/utxo", LIQUID_ESPLORA_URL, address))
-        .await
-        .context("failed to fetch UTXOs")?
+    let url = format!("{}/address/{}/utxo", LIQUID_ESPLORA_URL, address);
+    let response = reqwest::get(&url).await.context("failed to fetch UTXOs")?;
+
+    if response.status() == StatusCode::NOT_FOUND {
+        log::debug!("GET {} returned 404, defaulting to empty UTXO set", url);
+
+        return Ok(Vec::new());
+    }
+
+    if !response.status().is_success() {
+        let error_body = response.text().await?;
+        return Err(anyhow!(
+            "failed to fetch utxos, esplora returned '{}'",
+            error_body
+        ));
+    }
+
+    response
         .json::<Vec<Utxo>>()
         .await
         .context("failed to deserialize response")
