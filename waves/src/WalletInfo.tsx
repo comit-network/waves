@@ -138,15 +138,16 @@ export default function WalletInfo({ balance }: WalletInfoProps) {
                                         </Button>
                                     </HStack>
                                 </VStack>
-                                <VStack bg="gray.100" align="center" borderRadius={"md"} p={1}>
-                                    <Button
-                                        size="md"
-                                        variant="wallet_button"
-                                        onClick={fundWallet}
-                                    >
-                                        Fund wallet
-                                    </Button>
-                                </VStack>
+                                {process.env.NODE_ENV === "development"
+                                    && <VStack bg="gray.100" align="center" borderRadius={"md"} p={1}>
+                                        <Button
+                                            size="md"
+                                            variant="wallet_button"
+                                            onClick={fundWallet}
+                                        >
+                                            Fund wallet
+                                        </Button>
+                                    </VStack>}
                             </VStack>
                         </DrawerBody>
 
