@@ -32,10 +32,6 @@ const defaultState = {
         amount: 0,
     },
     beta: AssetType.USDT,
-    rate: {
-        bid: 19000,
-        ask: 20000,
-    },
     txId: "",
     wallet: {
         balance: {
@@ -57,10 +53,6 @@ test("update alpha amount logic", () => {
             amount: 0.01,
         },
         beta: AssetType.USDT,
-        rate: {
-            bid: 10,
-            ask: 9,
-        },
     };
 
     let newValue = 42;
@@ -150,11 +142,19 @@ test("Swap asset types", () => {
         beta: AssetType.USDT,
     };
 
+    const rate = {
+        bid: 10,
+        ask: 10,
+    };
+    // This is just showing how the beta amount is calculated in "reality". The actual amounts and rates don't matter
+    // in this test.
+    let betaAmount = calculateBetaAmount(initialState.alpha.type, initialState.alpha.amount, rate);
+
     expect(
         reducer(initialState, {
             type: "SwapAssetTypes",
             value: {
-                betaAmount: initialState.alpha.amount,
+                betaAmount: betaAmount,
             },
         }).alpha.type,
     ).toBe(initialState.beta);
@@ -163,13 +163,12 @@ test("Swap asset types", () => {
         reducer(initialState, {
             type: "SwapAssetTypes",
             value: {
-                betaAmount: initialState.alpha.amount,
+                betaAmount: betaAmount,
             },
         }).beta,
     ).toBe(initialState.alpha.type);
 
-    // amounts should be flipped as well
-    let betaAmount = calculateBetaAmount(initialState.alpha.type, initialState.alpha.amount, initialState.rate);
+    // amounts should be flipped as well (the rate here does not really matter.
     expect(
         reducer(initialState, {
             type: "SwapAssetTypes",
