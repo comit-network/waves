@@ -54,6 +54,8 @@ start_bobtimus () {
     __ensure_log_dir
     __read_env_file
 
+    cargo build --bin fake_bobtimus
+
     local -r elementsd_rpc_user="admin1"
     local -r elementsd_rpc_password="123"
     RUST_LOG=info cargo run --bin fake_bobtimus -- \
@@ -61,12 +63,17 @@ start_bobtimus () {
             --usdt $1 > $log_dir/bobtimus 2>&1 &
     bobtimus_pid=$!
 
-    # TODO: Make sure that bobtimus was actually started up successfully before recording its pid
+    sleep 1
+    curl --fail http://127.0.0.1:3030
+    if [ $? -ne 0 ]; then
+        echo "Failed to start Bobtimus"
+        exit 1
+    fi
 
     # save bobtimus pid to file for future teardown
     echo $bobtimus_pid > .bobtimus
 
-    echo "Starting bobtimus with pid $bobtimus_pid"
+    echo "Started bobtimus with pid $bobtimus_pid"
 }
 
 start_frontend () {

@@ -13,6 +13,8 @@ pub async fn start<R, RS>(
     R: RngCore + CryptoRng + Clone + Send + Sync + 'static,
     RS: LatestRate + Clone + Send + Sync + 'static,
 {
+    let health = warp::get().and(warp::path::end()).map(warp::reply);
+
     let latest_rate = warp::path!("rate" / "lbtc-lusdt")
         .and(warp::get())
         .map(move || latest_rate(latest_rate_subscription.clone()));
@@ -28,7 +30,7 @@ pub async fn start<R, RS>(
         .and(warp::body::json())
         .and_then(create_swap);
 
-    let routes = latest_rate.or(create_swap);
+    let routes = health.or(latest_rate).or(create_swap);
     warp::serve(routes).run(([127, 0, 0, 1], port)).await;
 }
 
