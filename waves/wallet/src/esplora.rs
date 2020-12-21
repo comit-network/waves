@@ -6,8 +6,6 @@ use elements_fun::{
     Address, AssetId, BlockHash, Transaction, Txid,
 };
 use reqwest::StatusCode;
-use wasm_bindgen::UnwrapThrowExt;
-use wasm_bindgen_futures::JsFuture;
 
 static LIQUID_ESPLORA_URL: Lazy<&str> = Lazy::new(|| {
     option_env!("ESPLORA_URL")
@@ -43,28 +41,15 @@ pub async fn fetch_utxos(address: &Address) -> Result<Vec<Utxo>> {
 }
 
 pub async fn fetch_asset_description(asset: AssetId) -> Result<AssetDescription> {
-    let window = web_sys::window().unwrap_throw();
+    let cache = CacheStorage::from_window()?
+        .open("asset_descriptions")
+        .await?;
 
-    let storage = CacheStorage::from(map_err_to_anyhow!(window.caches())?);
-    let cache = map_err_to_anyhow!(storage.open("asset_descriptions").await)?;
-
-    let url = &format!("{}/asset/{}", LIQUID_ESPLORA_URL, asset);
-
-    let response = match map_err_to_anyhow!(cache.match_with_str(url).await)? {
-        Some(response) => response,
-        None => {
-            map_err_to_anyhow!(cache.add_with_str(url).await)?;
-
-            // we just put it in the cache, it is gotta be there
-            // TODO: if the request failed with a 400, it will not be there :)
-            map_err_to_anyhow!(cache.match_with_str(url).await)?.context("no response in cache")?
-        }
-    };
-
-    let asset_description =
-        map_err_to_anyhow!(JsFuture::from(map_err_to_anyhow!(response.json())?).await)?
-            .into_serde()
-            .context("failed to deserialize asset description")?;
+    let asset_description = cache
+        .match_or_add(&format!("{}/asset/{}", LIQUID_ESPLORA_URL, asset))
+        .await?
+        .json()
+        .await?;
 
     Ok(asset_description)
 }
@@ -74,27 +59,13 @@ pub async fn fetch_asset_description(asset: AssetId) -> Result<AssetDescription>
 /// This function makes use of the browsers cache to avoid spamming the underlying source.
 /// Transaction never change after they've been mined, hence we can cache those indefinitely.
 pub async fn fetch_transaction(txid: Txid) -> Result<Transaction> {
-    let window = web_sys::window().unwrap_throw();
+    let cache = CacheStorage::from_window()?.open("transactions").await?;
 
-    let storage = CacheStorage::from(map_err_to_anyhow!(window.caches())?);
-    let cache = map_err_to_anyhow!(storage.open("transactions").await)?;
-
-    let url = &format!("{}/tx/{}/hex", LIQUID_ESPLORA_URL, txid);
-
-    let response = match map_err_to_anyhow!(cache.match_with_str(url).await)? {
-        Some(response) => response,
-        None => {
-            map_err_to_anyhow!(cache.add_with_str(url).await)?;
-
-            // we just put it in the cache, it is gotta be there
-            // TODO: if the request failed with a 400, it will not be there :)
-            map_err_to_anyhow!(cache.match_with_str(url).await)?.context("no response in cache")?
-        }
-    };
-
-    let body = map_err_to_anyhow!(JsFuture::from(map_err_to_anyhow!(response.text())?).await)?
-        .as_string()
-        .context("response is not a string")?;
+    let body = cache
+        .match_or_add(&format!("{}/tx/{}/hex", LIQUID_ESPLORA_URL, txid))
+        .await?
+        .text()
+        .await?;
 
     Ok(deserialize(&hex::decode(body.as_bytes())?)?)
 }
