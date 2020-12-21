@@ -75,7 +75,15 @@ jobs:
           path: ./elements-fun/fuzz/hfuzz_workspace
 
   build_test_workspace:
-    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        target: [ x86_64-unknown-linux-gnu, x86_64-apple-darwin ]
+        include:
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+          - target: x86_64-apple-darwin
+            os: macos-latest
+    runs-on: ${{ matrix.os }}
     steps:
       - name: Checkout sources
         uses: actions/checkout@v2
@@ -90,10 +98,15 @@ jobs:
         uses: actions/cache@v1
         with:
           path: target
-          key: target-directory-${{ hashFiles('Cargo.lock') }}-v1
+          key: ${{ matrix.os }}-target-directory-${{ hashFiles('Cargo.lock') }}-v1
 
-      - name: Cargo test
+      - name: Cargo test (all workspace)
+        if: matrix.os == 'ubuntu-latest'
         run: cargo test --workspace --all-features
+
+      - name: Cargo build (all workspace without elements-fuzz )
+        if: matrix.os == 'macos-latest'
+        run: cargo build --workspace --exclude elements-fuzz --all-features
 
   swap_wasm:
     runs-on: ubuntu-latest
