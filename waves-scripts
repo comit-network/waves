@@ -1,0 +1,118 @@
+#!/bin/bash
+
+start_dev_env () {
+    set -e
+
+    start_nodes
+
+    local usdt_asset_id=$(mint_usdt)
+    start_bobtimus usdt_asset_id
+
+    start_frontend
+}
+
+stop_dev_env () {
+    stop_bobtimus
+    stop_nodes
+}
+
+start_nodes () {
+    set -e
+
+    # start elementsd, esplora (et al)
+    nigiri start --liquid
+}
+
+mint_usdt () {
+    set -e
+
+    local -r amount=1000000
+    address=$(nigiri rpc --liquid getnewaddress)
+
+    # need to wait a couple of seconds so that we don't fail on the second request
+    sleep 2
+
+    response=$(nigiri mint $address $amount "Tether USD" "USDt")
+    asset_id=$(echo $response | sed -n -e 's/^.*\(asset: \)\(.*\)\( issuance_txin: .*$\)/\2/p')
+
+    echo "$asset_id"
+}
+
+start_bobtimus () {
+    if [ $# -ne 1 ]; then
+        echo "Incorrect number of arguments"
+        exit 1
+    fi
+
+    if [ -f ".bobtimus" ]; then
+        echo "Are you sure Bobtimus is not already up?"
+        exit 1
+    fi
+
+    set -e
+
+    __ensure_log_dir
+    __read_env_file
+
+    cargo build --bin fake_bobtimus
+
+    local -r elementsd_rpc_user="admin1"
+    local -r elementsd_rpc_password="123"
+    RUST_LOG=info cargo run --bin fake_bobtimus -- \
+            --elementsd http://$elementsd_rpc_user:$elementsd_rpc_password@127.0.0.1:$LIQUID_NODE_PORT \
+            --usdt $1 > $log_dir/bobtimus 2>&1 &
+    bobtimus_pid=$!
+
+    sleep 1
+    curl --fail http://127.0.0.1:3030
+    if [ $? -ne 0 ]; then
+        echo "Failed to start Bobtimus"
+        exit 1
+    fi
+
+    # save bobtimus pid to file for future teardown
+    echo $bobtimus_pid > .bobtimus
+
+    echo "Started bobtimus with pid $bobtimus_pid"
+}
+
+start_frontend () {
+    set -e
+
+    __read_env_file
+
+    local -r chopsticks_url="http://127.0.0.1:$LIQUID_CHOPSTICKS_PORT"
+    cd waves && ESPLORA_URL=$chopsticks_url REACT_APP_ESPLORA_URL=$chopsticks_url yarn start
+}
+
+stop_nodes () {
+    nigiri stop --delete
+}
+
+stop_bobtimus () {
+    bobtimus_pid=$(cat .bobtimus)
+
+    if [ $? -ne 0 ]; then
+        echo "Are you sure Bobtimus is still running?"
+        exit 1
+    fi
+
+    kill -9 $bobtimus_pid
+
+    if [ $? -ne 0 ]; then
+        echo "Bobtimus is not running"
+    fi
+
+    rm .bobtimus
+}
+
+__read_env_file () {
+    export $(cat ~/.nigiri/.env | xargs)
+}
+
+__ensure_log_dir () {
+    readonly log_dir="./.log"
+    mkdir -p $log_dir
+}
+
+"$@"
