@@ -1764,7 +1764,7 @@ dependencies = [
 [[package]]
 name = "secp256k1-zkp"
 version = "0.1.0"
-source = "git+https://github.com/comit-network/rust-secp256k1-zkp#1ee2d80363f9971d4988ebe2e33bb30113b816c3"
+source = "git+https://github.com/comit-network/rust-secp256k1-zkp#7397ca919b0097c73c808c7cb02f15f7716a4b0d"
 dependencies = [
  "bitcoin_hashes 0.9.4",
  "rand 0.6.5",
@@ -1776,7 +1776,7 @@ dependencies = [
 [[package]]
 name = "secp256k1-zkp-sys"
 version = "0.1.0"
-source = "git+https://github.com/comit-network/rust-secp256k1-zkp#1ee2d80363f9971d4988ebe2e33bb30113b816c3"
+source = "git+https://github.com/comit-network/rust-secp256k1-zkp#7397ca919b0097c73c808c7cb02f15f7716a4b0d"
 dependencies = [
  "cc",
  "secp256k1-sys",
