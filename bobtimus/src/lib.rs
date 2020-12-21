@@ -23,7 +23,7 @@ pub mod kraken;
 pub use amounts::*;
 use elements_fun::bitcoin::secp256k1::{All, Secp256k1};
 
-pub static USDT_ASSET_ID: &str = "ce091c998b83c78bb71a632313ba3760f1763d9cfcffae02258ffa9865a37bd2";
+pub const USDT_ASSET_ID: &str = "ce091c998b83c78bb71a632313ba3760f1763d9cfcffae02258ffa9865a37bd2";
 
 #[derive(Clone)]
 pub struct Bobtimus<R, RS> {
