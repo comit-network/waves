@@ -67,6 +67,13 @@ jobs:
           cd ./elements-fun/fuzz
           ./fuzz.sh
 
+      - name: Upload fuzz workspace on failure
+        if: ${{ failure() }}
+        uses: actions/upload-artifact@v2
+        with:
+          name: fuzz-workspace
+          path: ./elements-fun/fuzz/hfuzz_workspace
+
   build_test_workspace:
     runs-on: ubuntu-latest
     steps:
