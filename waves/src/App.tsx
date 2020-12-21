@@ -1,17 +1,21 @@
 import { ExternalLinkIcon } from "@chakra-ui/icons";
 import { Box, Button, Center, Flex, Link, Text, useInterval, VStack } from "@chakra-ui/react";
 import React, { useEffect, useReducer } from "react";
+import { useSSE } from "react-hooks-sse";
 import { BrowserRouter, Link as RouterLink, Redirect, Route, Switch } from "react-router-dom";
 import { RingLoader } from "react-spinners";
 import "./App.css";
 import AssetSelector from "./components/AssetSelector";
 import ExchangeIcon from "./components/ExchangeIcon";
 import CreateWallet from "./CreateWallet";
-import { useRateService } from "./hooks/RateService";
+import { calculateBetaAmount } from "./RateService";
 import SwapWithWallet from "./SwapWithWallet";
 import UnlockWallet from "./UnlockWallet";
 import WalletInfo from "./WalletInfo";
 import { getBalances, getWalletStatus } from "./wasmProxy";
+
+export const LBTC_TICKER = "L-BTC";
+export const LUSDT_TICKER = "USDt";
 
 export enum AssetType {
     BTC = "BTC",
@@ -24,18 +28,26 @@ export type Action =
     | { type: "UpdateAlphaAmount"; value: number }
     | { type: "UpdateAlphaAssetType"; value: AssetType }
     | { type: "UpdateBetaAssetType"; value: AssetType }
-    | { type: "UpdateRate"; value: number }
-    | { type: "SwapAssetTypes" }
+    | {
+        type: "SwapAssetTypes";
+        value: {
+            betaAmount: number;
+        };
+    }
     | { type: "PublishTransaction"; value: string }
     | { type: "UpdateWalletStatus"; value: WalletStatus }
     | { type: "UpdateBalance"; value: WalletBalance };
 
 interface State {
     alpha: AssetState;
-    beta: AssetState;
-    rate: number;
+    beta: AssetType;
     txId: string;
     wallet: Wallet;
+}
+
+export interface Rate {
+    ask: number;
+    bid: number;
 }
 
 interface Wallet {
@@ -63,11 +75,11 @@ const initialState = {
         type: AssetType.BTC,
         amount: 0.01,
     },
-    beta: {
-        type: AssetType.USDT,
-        amount: 191.34,
+    beta: AssetType.USDT,
+    rate: {
+        ask: 19133.74,
+        bid: 19133.74,
     },
-    rate: 19133.74,
     txId: "",
     wallet: {
         balance: {
@@ -90,16 +102,11 @@ export function reducer(state: State = initialState, action: Action) {
                     type: state.alpha.type,
                     amount: action.value,
                 },
-                beta: {
-                    type: state.beta.type,
-                    amount: action.value * state.rate,
-                },
-                rate: state.rate,
             };
         case "UpdateAlphaAssetType":
             let beta = state.beta;
-            if (beta.type === action.value) {
-                beta.type = state.alpha.type;
+            if (beta === action.value) {
+                beta = state.alpha.type;
             }
             return {
                 ...state,
@@ -113,31 +120,21 @@ export function reducer(state: State = initialState, action: Action) {
         case "UpdateBetaAssetType":
             let alpha = state.alpha;
             if (alpha.type === action.value) {
-                alpha.type = state.beta.type;
+                alpha.type = state.beta;
             }
             return {
                 ...state,
-                alpha: alpha,
-                beta: {
-                    type: action.value,
-                    amount: state.beta.amount,
-                },
-            };
-        case "UpdateRate":
-            // TODO: fix "set USDT to alpha, win!"-bug
-            return {
-                ...state,
-                beta: {
-                    ...state.beta,
-                    amount: state.alpha.amount * action.value,
-                },
-                rate: action.value,
+                alpha,
+                beta: action.value,
             };
         case "SwapAssetTypes":
             return {
                 ...state,
-                alpha: state.beta,
-                beta: state.alpha,
+                alpha: {
+                    type: state.beta,
+                    amount: action.value.betaAmount,
+                },
+                beta: state.alpha.type,
             };
         case "PublishTransaction":
             return {
@@ -183,20 +180,6 @@ function App() {
         }, 2000);
     };
 
-    const rateService = useRateService();
-    useEffect(() => {
-        const subscription = rateService.subscribe((rate) => {
-            // setBetaAmount(alphaAmount * rate); TODO update amount accordingly
-            dispatch({
-                type: "UpdateRate",
-                value: rate,
-            });
-        });
-        return () => {
-            rateService.unsubscribe(subscription);
-        };
-    }, [rateService]);
-
     useEffect(() => {
         getWalletStatus().then((wallet_status) => {
             if (wallet_status.exists) {
@@ -217,17 +200,29 @@ function App() {
         () => {
             getBalances().then((balances) => {
                 console.log(`Updated balances: `, balances);
+                let btcBalanceEntry = balances.find((balance) => balance.ticker === LBTC_TICKER);
+                let usdtBalanceEntry = balances.find((balance) => balance.ticker === LUSDT_TICKER);
+
+                const btcBalance = btcBalanceEntry ? btcBalanceEntry.value : 0;
+                const usdtBalance = usdtBalanceEntry ? usdtBalanceEntry.value : 0;
                 dispatch({
                     type: "UpdateBalance",
                     value: {
-                        btcBalance: 0,
-                        usdtBalance: 0,
+                        btcBalance,
+                        usdtBalance,
                     },
                 });
             });
         },
         state.wallet.status.loaded ? 5000 : null,
     );
+
+    const rate = useSSE("rate", {
+        ask: 19133.74,
+        bid: 19133.74,
+    });
+
+    const betaAmount = calculateBetaAmount(state.alpha.type, state.alpha.amount, rate);
 
     return (
         <BrowserRouter>
@@ -254,19 +249,27 @@ function App() {
                             />
                             <Center w="10px">
                                 <Box zIndex={2}>
-                                    <ExchangeIcon dispatch={dispatch} />
+                                    <ExchangeIcon
+                                        onClick={() =>
+                                            dispatch({
+                                                type: "SwapAssetTypes",
+                                                value: {
+                                                    betaAmount,
+                                                },
+                                            })}
+                                    />
                                 </Box>
                             </Center>
                             <AssetSelector
                                 assetSide="Beta"
                                 placement="right"
-                                amount={state.beta.amount}
-                                type={state.beta.type}
+                                amount={betaAmount}
+                                type={state.beta}
                                 dispatch={dispatch}
                             />
                         </Flex>
                         <Box>
-                            <Text textStyle="info">1 BTC = {state.rate} USDT</Text>
+                            <Text textStyle="info">1 BTC ~ {rate.ask} USDT</Text>
                         </Box>
                         <Box>
                             <Switch>
@@ -284,9 +287,13 @@ function App() {
                                                     onConfirmed={onConfirmed}
                                                     dispatch={dispatch}
                                                     alphaAmount={state.alpha.amount}
-                                                    betaAmount={state.beta.amount}
+                                                    betaAmount={calculateBetaAmount(
+                                                        state.alpha.type,
+                                                        state.alpha.amount,
+                                                        rate,
+                                                    )}
                                                     alphaAsset={state.alpha.type}
-                                                    betaAsset={state.beta.type}
+                                                    betaAsset={state.beta}
                                                 />
                                             )
                                             : (
