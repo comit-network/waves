@@ -39,7 +39,7 @@ export default function WalletInfo({ balance }: WalletInfoProps) {
         console.log("Withdrawing to " + withDrawAddress);
     };
 
-    async function fundWallet(): Promise<any> {
+    async function fundLbtc(): Promise<any> {
         let address = await getAddress();
         await fetch(process.env.REACT_APP_ESPLORA_URL + "/faucet", {
             method: "POST",
@@ -48,6 +48,18 @@ export default function WalletInfo({ balance }: WalletInfoProps) {
                 "Content-Type": "application/json",
             },
             body: JSON.stringify({ address }),
+        });
+    }
+
+    async function fundLusdt(): Promise<any> {
+        let address = await getAddress();
+        await fetch("/faucet/lusdt", {
+            method: "POST",
+            headers: {
+                "Accept": "application/json",
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ address, amount: 100000000 }),
         });
     }
 
@@ -143,9 +155,19 @@ export default function WalletInfo({ balance }: WalletInfoProps) {
                                         <Button
                                             size="md"
                                             variant="wallet_button"
-                                            onClick={fundWallet}
+                                            onClick={fundLbtc}
                                         >
-                                            Fund wallet
+                                            Fund L-BTC
+                                        </Button>
+                                    </VStack>}
+                                {process.env.NODE_ENV === "development"
+                                    && <VStack bg="gray.100" align="center" borderRadius={"md"} p={1}>
+                                        <Button
+                                            size="md"
+                                            variant="wallet_button"
+                                            onClick={fundLusdt}
+                                        >
+                                            Fund L-USDt
                                         </Button>
                                     </VStack>}
                             </VStack>

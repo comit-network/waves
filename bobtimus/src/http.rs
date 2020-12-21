@@ -1,15 +1,15 @@
 use elements_fun::secp256k1::rand::{CryptoRng, RngCore};
 use futures::{Stream, StreamExt};
 use std::convert::Infallible;
-use warp::{Filter, Rejection, Reply};
+use warp::{filters::BoxedFilter, Filter, Rejection, Reply};
 
 use crate::{Bobtimus, CreateSwapPayload, LatestRate, Rate};
 
-pub async fn start<R, RS>(
+pub fn routes<R, RS>(
     bobtimus: &Bobtimus<R, RS>,
     latest_rate_subscription: impl Stream<Item = Rate> + Clone + Send + Sync + 'static,
-    port: u16,
-) where
+) -> BoxedFilter<(impl Reply,)>
+where
     R: RngCore + CryptoRng + Clone + Send + Sync + 'static,
     RS: LatestRate + Clone + Send + Sync + 'static,
 {
@@ -30,8 +30,7 @@ pub async fn start<R, RS>(
         .and(warp::body::json())
         .and_then(create_swap);
 
-    let routes = health.or(latest_rate).or(create_swap);
-    warp::serve(routes).run(([127, 0, 0, 1], port)).await;
+    health.or(latest_rate).or(create_swap).boxed()
 }
 
 async fn create_swap<R, RS>(
