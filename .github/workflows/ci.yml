@@ -107,9 +107,20 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         run: cargo test --workspace --all-features
 
+      - name: Use docker
+        uses: docker-practice/actions-setup-docker@master
+        with:
+          docker_channel: stable
+          # this value please see https://github.com/AkihiroSuda/moby-snapshot/releases
+#          docker_nightly_version: snapshot-20201008
+      - run: |
+          set -x
+          docker version
+          docker run --rm hello-world
+
       - name: Cargo build (all workspace without elements-fuzz )
         if: matrix.os == 'macos-latest'
-        run: cargo build --workspace --exclude elements-fuzz --all-features
+        run: cargo test --workspace --exclude elements-fuzz --all-features
 
   swap_wasm:
     runs-on: ubuntu-latest
