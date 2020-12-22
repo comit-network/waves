@@ -1,4 +1,8 @@
-use elements_fun::secp256k1::rand::{CryptoRng, RngCore};
+use crate::{Bobtimus, CreateSwapPayload, LatestRate, Rate};
+use elements_fun::{
+    encode::serialize_hex,
+    secp256k1::rand::{CryptoRng, RngCore},
+};
 use futures::{Stream, StreamExt};
 use rust_embed::RustEmbed;
 use std::convert::Infallible;
@@ -6,8 +10,6 @@ use warp::{
     filters::BoxedFilter, http::header::HeaderValue, path::Tail, reply::Response, Filter,
     Rejection, Reply,
 };
-
-use crate::{Bobtimus, CreateSwapPayload, LatestRate, Rate};
 
 #[derive(RustEmbed)]
 #[folder = "../waves/dist/"]
@@ -62,7 +64,7 @@ where
     bobtimus
         .handle_create_swap(payload)
         .await
-        .map(|message1| warp::reply::json(&message1.transaction))
+        .map(|transaction| serialize_hex(&transaction))
         .map_err(|e| {
             log::error!("{}", e);
             warp::reject::reject()

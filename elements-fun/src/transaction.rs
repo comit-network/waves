@@ -538,7 +538,7 @@ impl TxOut {
     /// Creates a new confidential output that is **not** the last one in the transaction.
     pub fn new_not_last_confidential<R, C>(
         rng: &mut R,
-        secp: &bitcoin::secp256k1::Secp256k1<C>,
+        secp: &Secp256k1<C>,
         value: u64,
         address: Address,
         asset: AssetId,

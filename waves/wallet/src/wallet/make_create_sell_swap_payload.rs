@@ -68,8 +68,7 @@ pub async fn make_create_sell_swap_payload(
     .context("failed to select coins"))?;
 
     let payload = CreateSwapPayload {
-        address_change: wallet.get_address()?,
-        address_redeem: wallet.get_address()?,
+        address: wallet.get_address()?,
         alice_inputs: output
             .coins
             .into_iter()
@@ -78,7 +77,6 @@ pub async fn make_create_sell_swap_payload(
                 blinding_key,
             })
             .collect(),
-        fee: output.recommended_fee,
         btc_amount: output.target_amount,
     };
 

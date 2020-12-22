@@ -11,7 +11,7 @@ use elements_fun::{
 };
 use elements_harness::{elementd_rpc::ElementsRpc, Client, Elementsd};
 use secp256k1::{rand::thread_rng, Message, SecretKey, SECP256K1};
-use swap::{Alice0, Bob0};
+use swap::{alice_finalize_transaction, bob_create_transaction, sign_with_key, Actor, Input};
 use testcontainers::clients::Cli;
 
 #[tokio::test]
@@ -26,8 +26,8 @@ async fn collaborative_create_and_sign() {
         )
     };
 
-    let asset_id_alice = client.get_bitcoin_asset_id().await.unwrap();
-    let asset_id_bob = client.issueasset(10.0, 0.0, true).await.unwrap().asset;
+    let asset_id_lbtc = client.get_bitcoin_asset_id().await.unwrap();
+    let asset_id_usdt = client.issueasset(10.0, 0.0, true).await.unwrap().asset;
 
     // fund keypairs and addresses
     let (
@@ -45,7 +45,7 @@ async fn collaborative_create_and_sign() {
         final_address_alice,
         _final_sk_alice,
         _final_pk_alice,
-        final_blinding_sk_alice,
+        _final_blinding_sk_alice,
         _final_blinding_pk_alice,
     ) = make_confidential_address();
     let (
@@ -56,39 +56,22 @@ async fn collaborative_create_and_sign() {
         _final_blinding_pk_bob,
     ) = make_confidential_address();
 
-    // change keypairs and addresses
-    let (
-        change_address_alice,
-        change_sk_alice,
-        _change_pk_alice,
-        change_blinding_sk_alice,
-        _change_blinding_pk_alice,
-    ) = make_confidential_address();
-    let (
-        change_address_bob,
-        _change_sk_bob,
-        _change_pk_bob,
-        _change_blinding_sk_bob,
-        _change_blinding_pk_bob,
-    ) = make_confidential_address();
-
     // initial funding
     let fund_amount_alice = bitcoin::Amount::ONE_BTC;
     let fund_amount_bob = bitcoin::Amount::ONE_BTC;
 
     let fund_alice_txid = client
-        .send_asset_to_address(&fund_address_alice, fund_amount_alice, Some(asset_id_alice))
+        .send_asset_to_address(&fund_address_alice, fund_amount_alice, Some(asset_id_lbtc))
         .await
         .unwrap();
 
     let fund_bob_txid = client
-        .send_asset_to_address(&fund_address_bob, fund_amount_bob, Some(asset_id_bob))
+        .send_asset_to_address(&fund_address_bob, fund_amount_bob, Some(asset_id_usdt))
         .await
         .unwrap();
 
     let amount_alice = bitcoin::Amount::from_sat(50_000_000);
     let amount_bob = bitcoin::Amount::from_sat(25_000_000);
-    let fee = bitcoin::Amount::from_sat(900_000);
 
     let input_alice = extract_input(
         &client.get_raw_transaction(fund_alice_txid).await.unwrap(),
@@ -98,62 +81,114 @@ async fn collaborative_create_and_sign() {
 
     let input_bob = extract_input(
         &client.get_raw_transaction(fund_bob_txid).await.unwrap(),
-        fund_address_bob,
+        fund_address_bob.clone(),
     )
     .unwrap();
 
-    let alice = Alice0::new(
+    let alice = Actor::new(
+        &SECP256K1,
+        vec![Input {
+            tx_in: TxIn {
+                previous_output: input_alice.0,
+                is_pegin: false,
+                has_issuance: false,
+                script_sig: Default::default(),
+                sequence: 0,
+                asset_issuance: Default::default(),
+                witness: Default::default(),
+            },
+            tx_out: input_alice.1.clone(),
+            blinding_key: fund_blinding_sk_alice,
+        }],
+        final_address_alice,
+        asset_id_usdt,
         amount_alice,
-        amount_bob,
-        input_alice,
-        fund_sk_alice,
-        fund_blinding_sk_alice,
-        asset_id_bob,
-        final_address_alice.clone(),
-        final_blinding_sk_alice,
-        change_address_alice.clone(),
-        change_blinding_sk_alice,
-        fee,
-    );
+    )
+    .unwrap();
 
-    let bob = Bob0::new(
-        amount_alice,
-        amount_bob,
-        input_bob,
-        fund_blinding_sk_bob,
-        asset_id_alice,
+    let bob = Actor::new(
+        &SECP256K1,
+        vec![Input {
+            tx_in: TxIn {
+                previous_output: input_bob.0,
+                is_pegin: false,
+                has_issuance: false,
+                script_sig: Default::default(),
+                sequence: 0,
+                asset_issuance: Default::default(),
+                witness: Default::default(),
+            },
+            tx_out: input_bob.1.clone(),
+            blinding_key: fund_blinding_sk_bob,
+        }],
         final_address_bob.clone(),
-        change_address_bob.clone(),
-    );
+        asset_id_lbtc,
+        amount_bob,
+    )
+    .unwrap();
 
-    let message0 = alice.compose();
-    let bob1 = bob
-        .interpret(&mut thread_rng(), SECP256K1, message0)
-        .unwrap();
-    let message1 = bob1
-        .compose(async { bob1.sign_with_key(&fund_sk_bob) })
-        .await
-        .unwrap();
+    let transaction = bob_create_transaction(
+        &mut thread_rng(),
+        SECP256K1,
+        alice,
+        bob,
+        asset_id_lbtc,
+        Amount::from_sat(1), // sats / vbyte
+        {
+            let commitment_1 = input_bob.1.into_confidential().unwrap().value;
+            move |mut tx| async move {
+                let input_index_1 = tx
+                    .input
+                    .iter()
+                    .position(|txin| fund_bob_txid == txin.previous_output.txid)
+                    .context("transaction does not contain input")?;
 
-    let tx = alice.interpret(message1).unwrap();
-    let _txid = client.send_raw_transaction(&tx).await.unwrap();
+                tx.input[input_index_1].witness.script_witness = sign_with_key(
+                    &SECP256K1,
+                    &mut SigHashCache::new(&tx),
+                    input_index_1,
+                    &fund_sk_bob,
+                    commitment_1,
+                );
 
-    let (final_output_bob, _) = extract_input(&tx, final_address_bob).unwrap();
+                Ok(tx)
+            }
+        },
+    )
+    .await
+    .unwrap();
+
+    let transaction = alice_finalize_transaction(transaction, {
+        let commitment = input_alice.1.into_confidential().unwrap().value;
+        move |mut tx| async move {
+            let input_index = tx
+                .input
+                .iter()
+                .position(|txin| fund_alice_txid == txin.previous_output.txid)
+                .context("transaction does not contain input")?;
+
+            tx.input[input_index].witness.script_witness = sign_with_key(
+                &SECP256K1,
+                &mut SigHashCache::new(&tx),
+                input_index,
+                &fund_sk_alice,
+                commitment,
+            );
+
+            Ok(tx)
+        }
+    })
+    .await
+    .unwrap();
+
+    let _txid = client.send_raw_transaction(&transaction).await.unwrap();
+
+    let (final_output_bob, _) = extract_input(&transaction, final_address_bob).unwrap();
     let _txid = move_output_to_wallet(
         &client,
         final_output_bob,
         final_sk_bob,
         final_blinding_sk_bob,
-    )
-    .await
-    .unwrap();
-
-    let (change_output_alice, _) = extract_input(&tx, change_address_alice).unwrap();
-    let _txid = move_output_to_wallet(
-        &client,
-        change_output_alice,
-        change_sk_alice,
-        change_blinding_sk_alice,
     )
     .await
     .unwrap();

@@ -276,10 +276,7 @@ impl fmt::Display for ListOfWallets {
 #[derive(Debug, serde::Serialize)]
 pub struct CreateSwapPayload {
     pub alice_inputs: Vec<SwapUtxo>,
-    pub address_change: Address,
-    pub address_redeem: Address,
-    #[serde(with = "elements_fun::bitcoin::util::amount::serde::as_sat")]
-    pub fee: Amount,
+    pub address: Address,
     #[serde(with = "elements_fun::bitcoin::util::amount::serde::as_sat")]
     pub btc_amount: Amount,
 }
