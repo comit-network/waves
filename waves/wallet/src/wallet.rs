@@ -97,8 +97,6 @@ async fn get_txouts<T, FM: Fn(Utxo, TxOut) -> Result<Option<T>> + Copy>(
     Ok(txouts)
 }
 
-/// Estimate the virtual size of a transaction based on the number of inputs and outputs.
-///
 /// These constants have been reverse engineered through the following transactions:
 ///
 /// https://blockstream.info/liquid/tx/a17f4063b3a5fdf46a7012c82390a337e9a0f921933dccfb8a40241b828702f2
@@ -112,12 +110,15 @@ async fn get_txouts<T, FM: Fn(Utxo, TxOut) -> Result<Option<T>> + Copy>(
 /// - 2 in, 2 out, 1 fee = 2623
 ///
 /// Which we can solve using wolfram alpha: https://www.wolframalpha.com/input/?i=1x+%2B+1y+%2B+1z+%3D+1332%2C+1x+%2B+2y+%2B+1z+%3D+2516%2C+2x+%2B+2y+%2B+1z+%3D+2623
-fn estimate_virtual_transaction_size(number_of_inputs: u64, number_of_outputs: u64) -> u64 {
-    let avg_input_vb = 107;
-    let avg_output_vb = 1184;
-    let avg_fee_vb = 41;
+pub mod avg_vbytes {
+    pub const INPUT: u64 = 107;
+    pub const OUTPUT: u64 = 1184;
+    pub const FEE: u64 = 41;
+}
 
-    number_of_inputs * avg_input_vb + number_of_outputs * avg_output_vb + avg_fee_vb
+/// Estimate the virtual size of a transaction based on the number of inputs and outputs.
+fn estimate_virtual_transaction_size(number_of_inputs: u64, number_of_outputs: u64) -> u64 {
+    number_of_inputs * avg_vbytes::INPUT + number_of_outputs * avg_vbytes::OUTPUT + avg_vbytes::FEE
 }
 
 async fn current<'n, 'w>(
