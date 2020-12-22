@@ -10,7 +10,7 @@ use reqwest::StatusCode;
 static ELEMENTS_ESPLORA_URL: Lazy<&str> = Lazy::new(|| {
     option_env!("ESPLORA_URL")
         .as_deref()
-        .unwrap_or_else(|| "https://blockstream.info/liquid/api")
+        .unwrap_or("https://blockstream.info/liquid/api")
 });
 
 /// Fetch the UTXOs of an address.
