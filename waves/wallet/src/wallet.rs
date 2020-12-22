@@ -50,9 +50,9 @@ static ADDRESS_PARAMS: Lazy<&'static AddressParams> =
         Some(chain) => panic!("unsupported elements chain {}", chain),
     });
 
-const MIN_RELAY_FEE: f64 = 1.0;
+const MIN_RELAY_FEE: f32 = 1.0;
 
-static DEFAULT_SAT_PER_VBYTE: Lazy<f64> = Lazy::new(|| {
+static DEFAULT_SAT_PER_VBYTE: Lazy<f32> = Lazy::new(|| {
     option_env!("DEFAULT_SAT_PER_VBYTE")
         .as_deref()
         .map(|v| {
@@ -301,7 +301,7 @@ pub async fn withdraw_everything_to(
     let estimated_virtual_size =
         estimate_virtual_transaction_size(prevout_values.len() as u64, txouts.len() as u64);
 
-    let fee = (estimated_virtual_size as f64
+    let fee = (estimated_virtual_size as f32
         * fee_estimates.b_6.unwrap_or_else(|| {
             let default_fee_rate = *DEFAULT_SAT_PER_VBYTE;
             log::info!(
