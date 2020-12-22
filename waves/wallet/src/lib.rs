@@ -1,7 +1,10 @@
 use crate::{utils::set_panic_hook, wallet::Wallet};
 use anyhow::{Context, Result};
 use conquer_once::Lazy;
-use elements_fun::bitcoin::{Amount, Denomination};
+use elements_fun::{
+    bitcoin::{Amount, Denomination},
+    encode::deserialize,
+};
 use futures::lock::Mutex;
 use js_sys::Array;
 use wasm_bindgen::prelude::*;
@@ -130,6 +133,27 @@ pub async fn make_create_sell_swap_payload(
     .await?;
 
     Ok(JsValue::from_serde(&payload).unwrap_throw())
+}
+
+/// Sign the given swap transaction and broadcast it to the network.
+///
+/// Returns the transaction ID.
+#[wasm_bindgen]
+pub async fn sign_and_send_swap_transaction(
+    wallet_name: String,
+    transaction: String,
+) -> Result<JsValue, JsValue> {
+    let txid = wallet::sign_and_send_swap_transaction(
+        wallet_name,
+        &LOADED_WALLET,
+        map_err_from_anyhow!(deserialize(&map_err_from_anyhow!(
+            hex::decode(&transaction).context("failed to decode string as hex")
+        )?)
+        .context("failed to deserialize bytes as elements transaction"))?,
+    )
+    .await?;
+
+    Ok(JsValue::from_str(&txid.to_string()))
 }
 
 #[cfg(test)]
