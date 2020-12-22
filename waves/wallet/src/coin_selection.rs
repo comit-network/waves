@@ -16,7 +16,12 @@ use elements_fun::{bitcoin::Denomination, AssetId, OutPoint, Script};
 /// provided by `bdk`.
 ///
 /// Only supports P2PK, P2PKH and P2WPKH UTXOs.
-pub fn coin_select(utxos: Vec<Utxo>, target: Amount) -> Result<Output> {
+pub fn coin_select(
+    utxos: Vec<Utxo>,
+    target: Amount,
+    fee_rate_sat_per_vbyte: f32,
+    fee_offset: Amount,
+) -> Result<Output> {
     let asset = utxos[0].asset;
     if utxos.iter().any(|utxo| utxo.asset != asset) {
         bail!("all UTXOs must have the same asset ID")
@@ -39,12 +44,12 @@ pub fn coin_select(utxos: Vec<Utxo>, target: Amount) -> Result<Output> {
         &DummyDb,
         Vec::new(),
         bdk_utxos,
-        bdk::FeeRate::default(),
+        bdk::FeeRate::from_sat_per_vb(fee_rate_sat_per_vbyte),
         target.as_sat(),
         // TODO: Set a realistic value for the fees unrelated to the
         // inputs. Consider the fact that elements outputs are
         // generally heavier than bitcoin outputs
-        0.0,
+        fee_offset.as_sat() as f32,
     )?;
 
     let selected_utxos = selected_utxos
@@ -155,7 +160,7 @@ mod tests {
         };
 
         let target_amount = Amount::from_sat(90_000_000);
-        let selection = coin_select(vec![utxo.clone()], target_amount).unwrap();
+        let selection = coin_select(vec![utxo.clone()], target_amount, 1.0, Amount::ZERO).unwrap();
 
         assert!(selection.coins.len() == 1);
         assert!(selection.coins.contains(&utxo));
