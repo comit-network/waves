@@ -50,6 +50,21 @@ static ADDRESS_PARAMS: Lazy<&'static AddressParams> =
         Some(chain) => panic!("unsupported elements chain {}", chain),
     });
 
+const MIN_RELAY_FEE: f64 = 1.0;
+
+static DEFAULT_SAT_PER_VBYTE: Lazy<f64> = Lazy::new(|| {
+    option_env!("DEFAULT_SAT_PER_VBYTE")
+        .as_deref()
+        .map(|v| {
+            v.parse().unwrap_or_else(|e| {
+                log::debug!("failed to parse {} as f32: {}", v, e);
+
+                MIN_RELAY_FEE
+            })
+        })
+        .unwrap_or(MIN_RELAY_FEE)
+});
+
 pub async fn create_new(
     name: String,
     password: String,
@@ -286,7 +301,16 @@ pub async fn withdraw_everything_to(
     let estimated_virtual_size =
         estimate_virtual_transaction_size(prevout_values.len() as u64, txouts.len() as u64);
 
-    let fee = (estimated_virtual_size as f64 * fee_estimates.b_6) as u64; // try to get into the next 6 blocks
+    let fee = (estimated_virtual_size as f64
+        * fee_estimates.b_6.unwrap_or_else(|| {
+            let default_fee_rate = *DEFAULT_SAT_PER_VBYTE;
+            log::info!(
+                "fee estimate for block target '6' unavailable, falling back to default fee {}",
+                default_fee_rate
+            );
+
+            default_fee_rate
+        })) as u64; // try to get into the next 6 blocks
 
     let txouts_grouped_by_asset = txouts
         .into_iter()
