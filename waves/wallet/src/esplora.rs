@@ -94,7 +94,7 @@ pub async fn broadcast(tx: Transaction) -> Result<Txid> {
     Ok(txid)
 }
 
-pub async fn get_fee_estimates() -> Result<FeeEstimates> {
+pub async fn get_fee_estimates() -> Result<FeeEstimatesResponse> {
     let url = &format!("{}/fee-estimates", ELEMENTS_ESPLORA_URL);
 
     let fee_estimates = reqwest::get(url)
@@ -107,8 +107,12 @@ pub async fn get_fee_estimates() -> Result<FeeEstimates> {
     Ok(fee_estimates)
 }
 
+/// The response object for the `/fee-estimates` endpoint.
+///
+/// The key is the confirmation target (in number of blocks) and the value is the estimated feerate (in sat/vB).
+/// The available confirmation targets are 1-25, 144, 504 and 1008 blocks.
 #[derive(serde::Deserialize, Debug)]
-pub struct FeeEstimates {
+pub struct FeeEstimatesResponse {
     #[serde(rename = "1")]
     pub b_1: Option<f32>,
     #[serde(rename = "2")]
