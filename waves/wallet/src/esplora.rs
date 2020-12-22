@@ -7,7 +7,7 @@ use elements_fun::{
 };
 use reqwest::StatusCode;
 
-static LIQUID_ESPLORA_URL: Lazy<&str> = Lazy::new(|| {
+static ELEMENTS_ESPLORA_URL: Lazy<&str> = Lazy::new(|| {
     option_env!("ESPLORA_URL")
         .as_deref()
         .unwrap_or_else(|| "https://blockstream.info/liquid/api")
@@ -17,7 +17,7 @@ static LIQUID_ESPLORA_URL: Lazy<&str> = Lazy::new(|| {
 ///
 /// UTXOs change over time and as such, this function never uses a cache.
 pub async fn fetch_utxos(address: &Address) -> Result<Vec<Utxo>> {
-    let url = format!("{}/address/{}/utxo", LIQUID_ESPLORA_URL, address);
+    let url = format!("{}/address/{}/utxo", ELEMENTS_ESPLORA_URL, address);
     let response = reqwest::get(&url).await.context("failed to fetch UTXOs")?;
 
     if response.status() == StatusCode::NOT_FOUND {
@@ -46,7 +46,7 @@ pub async fn fetch_asset_description(asset: AssetId) -> Result<AssetDescription>
         .await?;
 
     let asset_description = cache
-        .match_or_add(&format!("{}/asset/{}", LIQUID_ESPLORA_URL, asset))
+        .match_or_add(&format!("{}/asset/{}", ELEMENTS_ESPLORA_URL, asset))
         .await?
         .json()
         .await?;
@@ -62,7 +62,7 @@ pub async fn fetch_transaction(txid: Txid) -> Result<Transaction> {
     let cache = CacheStorage::from_window()?.open("transactions").await?;
 
     let body = cache
-        .match_or_add(&format!("{}/tx/{}/hex", LIQUID_ESPLORA_URL, txid))
+        .match_or_add(&format!("{}/tx/{}/hex", ELEMENTS_ESPLORA_URL, txid))
         .await?
         .text()
         .await?;
@@ -74,7 +74,7 @@ pub async fn broadcast(tx: Transaction) -> Result<Txid> {
     let client = reqwest::Client::new();
 
     let response = client
-        .post(&format!("{}/tx", LIQUID_ESPLORA_URL))
+        .post(&format!("{}/tx", ELEMENTS_ESPLORA_URL))
         .body(serialize_hex(&tx))
         .send()
         .await?;
@@ -95,7 +95,7 @@ pub async fn broadcast(tx: Transaction) -> Result<Txid> {
 }
 
 pub async fn get_fee_estimates() -> Result<FeeEstimates> {
-    let fee_estimates = reqwest::get(&format!("{}/fee-estimates", LIQUID_ESPLORA_URL))
+    let fee_estimates = reqwest::get(&format!("{}/fee-estimates", ELEMENTS_ESPLORA_URL))
         .await?
         .json()
         .await?;

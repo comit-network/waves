@@ -43,6 +43,13 @@ static NATIVE_ASSET_ID: Lazy<AssetId> = Lazy::new(|| {
         .expect("valid asset ID")
 });
 
+static ADDRESS_PARAMS: Lazy<&'static AddressParams> =
+    Lazy::new(|| match option_env!("ELEMENTS_CHAIN") {
+        None | Some("LIQUID") => &AddressParams::LIQUID,
+        Some("ELEMENTS") => &AddressParams::ELEMENTS,
+        Some(chain) => panic!("unsupported elements chain {}", chain),
+    });
+
 pub async fn create_new(
     name: String,
     password: String,
@@ -696,7 +703,7 @@ impl Wallet {
                 key: public_key,
             },
             Some(blinding_key),
-            &AddressParams::ELEMENTS,
+            &ADDRESS_PARAMS,
         );
 
         Ok(address)
