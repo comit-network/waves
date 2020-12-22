@@ -211,7 +211,7 @@ pub async fn get_balances(
 ) -> Result<Vec<BalanceEntry>, JsValue> {
     let wallet = current(name, current_wallet).await?;
 
-    let txouts = get_txouts(&wallet).await?;
+    let txouts = get_txouts(&wallet, |_, txout| Ok(Some(txout))).await?;
 
     let balances = compute_balances(
         &wallet,
@@ -255,33 +255,21 @@ pub async fn withdraw_everything_to(
     let wallet = current(&name, current_wallet).await?;
     let blinding_key = wallet.blinding_key();
 
-    let utxos = map_err_from_anyhow!(esplora::fetch_utxos(&address).await)?;
-    let utxos = utxos
-        .into_iter()
-        .map(|utxo| async move {
-            let mut tx = esplora::fetch_transaction(utxo.txid).await?;
+    let txouts = get_txouts(&wallet, |utxo, txout| {
+        Ok(match txout {
+            TxOut::Confidential(confidential) => {
+                let unblinded_txout = confidential.unblind(&*SECP, blinding_key)?;
 
-            let txout = tx.output.remove(utxo.vout as usize);
-
-            Result::<_, anyhow::Error>::Ok(match txout {
-                TxOut::Confidential(confidential) => {
-                    let unblinded_txout = confidential.unblind(&*SECP, blinding_key)?;
-
-                    Some((utxo, confidential, unblinded_txout))
-                }
-                TxOut::Explicit(_) => {
-                    log::warn!("spending explicit txouts is unsupported");
-                    None
-                }
-                TxOut::Null(_) => None,
-            })
+                Some((utxo, confidential, unblinded_txout))
+            }
+            TxOut::Explicit(_) => {
+                log::warn!("spending explicit txouts is unsupported");
+                None
+            }
+            TxOut::Null(_) => None,
         })
-        .collect::<FuturesUnordered<_>>()
-        .filter_map(|result| async { result.transpose() })
-        .try_collect::<Vec<_>>()
-        .await;
-
-    let txouts = map_err_from_anyhow!(utxos)?;
+    })
+    .await?;
 
     let prevout_values = txouts
         .iter()
@@ -504,7 +492,10 @@ pub async fn withdraw_everything_to(
     Ok(txid)
 }
 
-async fn get_txouts(wallet: &Wallet) -> Result<Vec<TxOut>, JsValue> {
+async fn get_txouts<T, FM: Fn(Utxo, TxOut) -> Result<Option<T>> + Copy>(
+    wallet: &Wallet,
+    filter_map: FM,
+) -> Result<Vec<T>, JsValue> {
     let address = wallet.get_address()?;
 
     let utxos = map_err_from_anyhow!(esplora::fetch_utxos(&address).await)?;
@@ -512,12 +503,14 @@ async fn get_txouts(wallet: &Wallet) -> Result<Vec<TxOut>, JsValue> {
     let txouts = map_err_from_anyhow!(
         utxos
             .into_iter()
-            .map(|Utxo { txid, vout, .. }| async move {
-                let tx = esplora::fetch_transaction(txid).await;
+            .map(move |utxo| async move {
+                let mut tx = esplora::fetch_transaction(utxo.txid).await?;
+                let txout = tx.output.remove(utxo.vout as usize);
 
-                tx.map(|mut tx| tx.output.remove(vout as usize))
+                filter_map(utxo, txout)
             })
             .collect::<FuturesUnordered<_>>()
+            .filter_map(|r| std::future::ready(r.transpose()))
             .try_collect::<Vec<_>>()
             .await
     )?;
