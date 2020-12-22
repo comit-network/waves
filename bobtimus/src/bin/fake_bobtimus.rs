@@ -58,7 +58,7 @@ async fn faucet<RS>(
     bobtimus: Bobtimus<StdRng, RS>,
 ) -> Result<impl Reply, Rejection> {
     let mut txids = Vec::new();
-    for (asset_id, amount) in [
+    for (asset_id, amount) in &[
         (bobtimus.btc_asset_id, Amount::from_sat(1_000_000_000)),
         (
             bobtimus.usdt_asset_id,
@@ -66,13 +66,10 @@ async fn faucet<RS>(
                 .expect("valid dollars")
                 .into(),
         ),
-    ]
-    .iter()
-    .copied()
-    {
+    ] {
         let txid = bobtimus
             .elementsd
-            .send_asset_to_address(&address, amount, Some(asset_id))
+            .send_asset_to_address(&address, *amount, Some(*asset_id))
             .await
             .map_err(|e| {
                 log::error!(
