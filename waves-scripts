@@ -82,7 +82,7 @@ start_frontend () {
     __read_env_file
 
     local -r chopsticks_url="http://127.0.0.1:$LIQUID_CHOPSTICKS_PORT"
-    cd waves && yarn install && ESPLORA_URL=$chopsticks_url REACT_APP_ESPLORA_URL=$chopsticks_url yarn start
+    cd waves && yarn install && ELEMENTS_CHAIN=ELEMENTS ESPLORA_URL=$chopsticks_url REACT_APP_ESPLORA_URL=$chopsticks_url yarn start
 }
 
 stop_nodes () {
