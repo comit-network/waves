@@ -40,3 +40,8 @@ export async function getBalances(): Promise<BalanceEntry[]> {
     const { get_balances } = await import("./wallet");
     return get_balances(WALLET_NAME);
 }
+
+export async function withdrawAll(address: string): Promise<String> {
+    const { withdraw_everything_to } = await import("./wallet");
+    return withdraw_everything_to(WALLET_NAME, address);
+}
