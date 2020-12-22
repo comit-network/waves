@@ -95,7 +95,7 @@ jobs:
           override: true
 
       - name: Cache target directory
-        if: ${{ matrix.os }} != 'macos-latest' # Need to disable cache until https://github.com/actions/cache/issues/403 is fixed.
+        if: matrix.os != 'macos-latest' # Need to disable cache until https://github.com/actions/cache/issues/403 is fixed.
         uses: actions/cache@v2
         with:
           path: target
