@@ -50,9 +50,6 @@ pub fn coin_select(
         bdk_utxos,
         bdk::FeeRate::from_sat_per_vb(fee_rate_sat_per_vbyte),
         target.as_sat(),
-        // TODO: Set a realistic value for the fees unrelated to the
-        // inputs. Consider the fact that elements outputs are
-        // generally heavier than bitcoin outputs
         fee_offset.as_sat() as f32,
     )?;
 

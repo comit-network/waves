@@ -1,7 +1,10 @@
 use crate::{utils::set_panic_hook, wallet::Wallet};
 use anyhow::{Context, Result};
 use conquer_once::Lazy;
-use elements_fun::secp256k1::{All, Secp256k1};
+use elements_fun::{
+    bitcoin::{Amount, Denomination},
+    secp256k1::{All, Secp256k1},
+};
 use futures::lock::Mutex;
 use js_sys::Array;
 use wasm_bindgen::prelude::*;
@@ -109,4 +112,24 @@ pub async fn withdraw_everything_to(name: String, address: String) -> Result<Str
     .await?;
 
     Ok(txid.to_string())
+}
+
+/// Constructs a new [`CreateSwapPayload`] with the given Bitcoin amount.
+///
+/// This will select UTXOs from the wallet and compute an appropriate fee to spend them into a single output + a change output if necessary.
+/// The other party (Bob) has to separately account for the cost of their transaction elements.
+#[wasm_bindgen]
+pub async fn make_create_swap_payload(
+    wallet_name: String,
+    btc: String,
+) -> Result<JsValue, JsValue> {
+    let payload = wallet::make_create_swap_payload(
+        wallet_name,
+        &LOADED_WALLET,
+        map_err_from_anyhow!(Amount::from_str_in(&btc, Denomination::Bitcoin)
+            .context("failed to parse amount from string"))?,
+    )
+    .await?;
+
+    Ok(JsValue::from_serde(&payload).unwrap_throw())
 }
