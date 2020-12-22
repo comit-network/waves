@@ -6,7 +6,7 @@ start_dev_env () {
     start_nodes
 
     local usdt_asset_id=$(mint_usdt)
-    start_bobtimus usdt_asset_id
+    start_bobtimus $usdt_asset_id
 
     start_frontend
 }

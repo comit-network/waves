@@ -245,7 +245,7 @@ mod tests {
 
         let fund_alice_txid = client
             .send_asset_to_address(
-                fund_address_alice.clone(),
+                &fund_address_alice,
                 Amount::from(redeem_amount_bob) + Amount::ONE_BTC,
                 Some(have_asset_id_alice),
             )
@@ -279,7 +279,7 @@ mod tests {
         let address = client.getnewaddress().await.unwrap();
         let _txid = client
             .send_asset_to_address(
-                address,
+                &address,
                 Amount::from_btc(10.0).unwrap(),
                 Some(have_asset_id_bob),
             )

@@ -41,13 +41,8 @@ export default function WalletInfo({ balance }: WalletInfoProps) {
 
     async function fundWallet(): Promise<any> {
         let address = await getAddress();
-        await fetch(process.env.REACT_APP_ESPLORA_URL + "/faucet", {
+        await fetch("/faucet/" + address, {
             method: "POST",
-            mode: "no-cors",
-            headers: {
-                "Content-Type": "application/json",
-            },
-            body: JSON.stringify({ address }),
         });
     }
 
@@ -138,16 +133,22 @@ export default function WalletInfo({ balance }: WalletInfoProps) {
                                         </Button>
                                     </HStack>
                                 </VStack>
-                                {process.env.NODE_ENV === "development"
-                                    && <VStack bg="gray.100" align="center" borderRadius={"md"} p={1}>
+                                {process.env.NODE_ENV === "development" && (
+                                    <VStack
+                                        bg="gray.100"
+                                        align="center"
+                                        borderRadius={"md"}
+                                        p={1}
+                                    >
                                         <Button
                                             size="md"
                                             variant="wallet_button"
                                             onClick={fundWallet}
                                         >
-                                            Fund wallet
+                                            Fund
                                         </Button>
-                                    </VStack>}
+                                    </VStack>
+                                )}
                             </VStack>
                         </DrawerBody>
 

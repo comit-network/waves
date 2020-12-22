@@ -51,11 +51,13 @@ jobs:
       - name: Cache honggfuzz
         uses: actions/cache@v2
         with:
-          path: ~/.cargo/bin/cargo-honggfuzz
-          key: ubuntu-rust-${{ env.RUST_TOOLCHAIN }}-cargo-honggfuzz
+          path: |
+            ~/.cargo/bin/cargo-honggfuzz
+            ~/.cargo/bin/cargo-hfuzz
+          key: ubuntu-rust-${{ env.RUST_TOOLCHAIN }}-honggfuzz
 
       - name: Install honggfuzz
-        run: which cargo-honggfuzz || cargo install honggfuzz
+        run: which cargo-honggfuzz && which cargo-hfuzz || cargo install honggfuzz
 
       - name: Install fuzz dependencies
         run: |
@@ -95,7 +97,7 @@ jobs:
           override: true
 
       - name: Cache target directory
-        if: ${{ matrix.os }} != 'macos-latest' # Need to disable cache until https://github.com/actions/cache/issues/403 is fixed.
+        if: matrix.os != 'macos-latest' # Need to disable cache until https://github.com/actions/cache/issues/403 is fixed.
         uses: actions/cache@v2
         with:
           path: target
