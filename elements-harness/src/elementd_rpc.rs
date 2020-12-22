@@ -14,7 +14,7 @@ pub trait ElementsRpc {
     #[allow(clippy::too_many_arguments)]
     async fn sendtoaddress(
         &self,
-        address: Address,
+        address: &Address,
         amount: f64,
         comment: Option<String>,
         comment_to: Option<String>,
@@ -98,7 +98,7 @@ impl Client {
 
     pub async fn send_asset_to_address(
         &self,
-        address: Address,
+        address: &Address,
         amount: Amount,
         asset_id: Option<AssetId>,
     ) -> Result<Txid> {
@@ -301,7 +301,9 @@ mod test {
 
         let address = client.getnewaddress().await.unwrap();
         let _txid = client
-            .sendtoaddress(address, 1.0, None, None, None, None, None, None, None, true)
+            .sendtoaddress(
+                &address, 1.0, None, None, None, None, None, None, None, true,
+            )
             .await
             .unwrap();
     }

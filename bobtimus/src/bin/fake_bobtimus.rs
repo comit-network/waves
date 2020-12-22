@@ -1,12 +1,11 @@
 use anyhow::Result;
-use bobtimus::{cli::StartCommand, fixed_rate, http, Bobtimus};
+use bobtimus::{cli::StartCommand, fixed_rate, http, Bobtimus, LiquidUsdt};
 use elements_fun::{
     bitcoin::{secp256k1::Secp256k1, Amount},
     secp256k1::rand::{rngs::StdRng, thread_rng, SeedableRng},
     Address,
 };
 use elements_harness::{elementd_rpc::ElementsRpc, Client};
-use serde::{Deserialize, Serialize};
 use structopt::StructOpt;
 use warp::{Filter, Rejection, Reply};
 
@@ -40,36 +39,53 @@ async fn main() -> Result<()> {
         let bobtimus = bobtimus.clone();
         move || bobtimus.clone()
     });
-    let lusdt_faucet = warp::post()
-        .and(warp::path!("faucet" / "lusdt"))
+    let faucet = warp::post()
+        .and(warp::path("faucet"))
+        .and(warp::path::param())
         .and(warp::path::end())
         .and(bobtimus_filter)
-        .and(warp::body::json())
-        .and_then(lusdt_faucet);
+        .and_then(faucet);
 
-    warp::serve(routes.or(lusdt_faucet))
+    warp::serve(routes.or(faucet))
         .run(([127, 0, 0, 1], api_port))
         .await;
 
     Ok(())
 }
 
-async fn lusdt_faucet<RS>(
+async fn faucet<RS>(
+    address: Address,
     bobtimus: Bobtimus<StdRng, RS>,
-    payload: LusdtFaucetPayload,
 ) -> Result<impl Reply, Rejection> {
-    let txid = bobtimus
-        .elementsd
-        .send_asset_to_address(
-            payload.address,
-            payload.amount,
-            Some(bobtimus.usdt_asset_id),
-        )
-        .await
-        .map_err(|e| {
-            log::error!("could not fund address: {}", e);
-            warp::reject::reject()
-        })?;
+    let mut txids = Vec::new();
+    for (asset_id, amount) in [
+        (bobtimus.btc_asset_id, Amount::from_sat(1_000_000_000)),
+        (
+            bobtimus.usdt_asset_id,
+            LiquidUsdt::from_str_in_dollar("200000.0")
+                .expect("valid dollars")
+                .into(),
+        ),
+    ]
+    .iter()
+    .copied()
+    {
+        let txid = bobtimus
+            .elementsd
+            .send_asset_to_address(&address, amount, Some(asset_id))
+            .await
+            .map_err(|e| {
+                log::error!(
+                    "could not fund address {} with asset {}: {}",
+                    address,
+                    asset_id,
+                    e
+                );
+                warp::reject::reject()
+            })?;
+
+        txids.push(txid);
+    }
 
     let address = bobtimus.elementsd.getnewaddress().await.map_err(|e| {
         log::error!("could not get new address: {}", e);
@@ -84,12 +100,5 @@ async fn lusdt_faucet<RS>(
             warp::reject::reject()
         })?;
 
-    Ok(warp::reply::json(&txid))
-}
-
-#[derive(Serialize, Deserialize, Debug, PartialEq)]
-struct LusdtFaucetPayload {
-    address: Address,
-    #[serde(with = "::elements_fun::bitcoin::util::amount::serde::as_sat")]
-    amount: Amount,
+    Ok(warp::reply::json(&txids))
 }

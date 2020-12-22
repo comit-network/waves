@@ -39,27 +39,10 @@ export default function WalletInfo({ balance }: WalletInfoProps) {
         console.log("Withdrawing to " + withDrawAddress);
     };
 
-    async function fundLbtc(): Promise<any> {
+    async function fundWallet(): Promise<any> {
         let address = await getAddress();
-        await fetch(process.env.REACT_APP_ESPLORA_URL + "/faucet", {
+        await fetch("/faucet/" + address, {
             method: "POST",
-            mode: "no-cors",
-            headers: {
-                "Content-Type": "application/json",
-            },
-            body: JSON.stringify({ address }),
-        });
-    }
-
-    async function fundLusdt(): Promise<any> {
-        let address = await getAddress();
-        await fetch("/faucet/lusdt", {
-            method: "POST",
-            headers: {
-                "Accept": "application/json",
-                "Content-Type": "application/json",
-            },
-            body: JSON.stringify({ address, amount: 100000000 }),
         });
     }
 
@@ -150,26 +133,22 @@ export default function WalletInfo({ balance }: WalletInfoProps) {
                                         </Button>
                                     </HStack>
                                 </VStack>
-                                {process.env.NODE_ENV === "development"
-                                    && <VStack bg="gray.100" align="center" borderRadius={"md"} p={1}>
+                                {process.env.NODE_ENV === "development" && (
+                                    <VStack
+                                        bg="gray.100"
+                                        align="center"
+                                        borderRadius={"md"}
+                                        p={1}
+                                    >
                                         <Button
                                             size="md"
                                             variant="wallet_button"
-                                            onClick={fundLbtc}
+                                            onClick={fundWallet}
                                         >
-                                            Fund L-BTC
+                                            Fund
                                         </Button>
-                                    </VStack>}
-                                {process.env.NODE_ENV === "development"
-                                    && <VStack bg="gray.100" align="center" borderRadius={"md"} p={1}>
-                                        <Button
-                                            size="md"
-                                            variant="wallet_button"
-                                            onClick={fundLusdt}
-                                        >
-                                            Fund L-USDt
-                                        </Button>
-                                    </VStack>}
+                                    </VStack>
+                                )}
                             </VStack>
                         </DrawerBody>
 

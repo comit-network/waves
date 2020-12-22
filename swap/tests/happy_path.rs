@@ -77,20 +77,12 @@ async fn collaborative_create_and_sign() {
     let fund_amount_bob = bitcoin::Amount::ONE_BTC;
 
     let fund_alice_txid = client
-        .send_asset_to_address(
-            fund_address_alice.clone(),
-            fund_amount_alice,
-            Some(asset_id_alice),
-        )
+        .send_asset_to_address(&fund_address_alice, fund_amount_alice, Some(asset_id_alice))
         .await
         .unwrap();
 
     let fund_bob_txid = client
-        .send_asset_to_address(
-            fund_address_bob.clone(),
-            fund_amount_bob,
-            Some(asset_id_bob),
-        )
+        .send_asset_to_address(&fund_address_bob, fund_amount_bob, Some(asset_id_bob))
         .await
         .unwrap();
 
