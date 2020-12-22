@@ -13,3 +13,5 @@ This wallet can be customized through the following **build-time** environment v
 - `ELEMENTS_CHAIN`: The name of the Elements chain we are targeting.
   Defaults to `LIQUID`.
   Supported values are: `LIQUID` and `ELEMENTS`.
+- `DEFAULT_SAT_PER_VBYTE`: The default fee rate in case fee estimation using Esplora fails.
+  Defaults to 1sat / vbyte.
