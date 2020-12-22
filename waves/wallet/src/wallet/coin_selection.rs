@@ -37,11 +37,14 @@ pub fn coin_select(
         .map(|(utxo, weight)| (bdk::UTXO::from(utxo), weight))
         .collect();
 
+    // a change is a regular output
+    let size_of_change = crate::wallet::avg_vbytes::OUTPUT;
+
     let CoinSelectionResult {
         selected: selected_utxos,
         fee_amount,
         ..
-    } = BranchAndBoundCoinSelection::default().coin_select(
+    } = BranchAndBoundCoinSelection::new(size_of_change).coin_select(
         &DummyDb,
         Vec::new(),
         bdk_utxos,
