@@ -8,6 +8,7 @@ use bdk::{
         BranchAndBoundCoinSelection, CoinSelectionAlgorithm, CoinSelectionResult,
     },
 };
+
 use elements_fun::{bitcoin::Denomination, AssetId, OutPoint, Script};
 
 /// Select a subset of `utxos` to cover the `target` amount.

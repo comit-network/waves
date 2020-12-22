@@ -1,14 +1,3 @@
-#[macro_use]
-mod macros;
-
-mod cache_storage;
-mod coin_selection;
-mod esplora;
-mod storage;
-mod typed_js_future;
-mod utils;
-pub mod wallet;
-
 use crate::{utils::set_panic_hook, wallet::Wallet};
 use anyhow::{Context, Result};
 use conquer_once::Lazy;
@@ -16,6 +5,16 @@ use elements_fun::secp256k1::{All, Secp256k1};
 use futures::lock::Mutex;
 use js_sys::Array;
 use wasm_bindgen::prelude::*;
+
+#[macro_use]
+mod macros;
+
+mod cache_storage;
+mod esplora;
+mod storage;
+mod typed_js_future;
+mod utils;
+mod wallet;
 
 // When the `wee_alloc` feature is enabled, use `wee_alloc` as the global
 // allocator.

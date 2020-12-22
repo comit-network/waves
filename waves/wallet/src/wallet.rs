@@ -1,9 +1,4 @@
-use crate::{
-    esplora,
-    esplora::{AssetDescription, Utxo},
-    storage::Storage,
-    SECP,
-};
+use crate::{esplora, esplora::Utxo, SECP};
 use aes_gcm_siv::{
     aead::{Aead, NewAead},
     Aes256GcmSiv,
@@ -13,12 +8,8 @@ use conquer_once::Lazy;
 use elements_fun::{
     bitcoin,
     bitcoin::secp256k1::SecretKey,
-    hashes::{hash160, Hash},
-    opcodes,
-    script::Builder,
-    secp256k1::{rand, Message, PublicKey},
-    sighash::SigHashCache,
-    Address, AddressParams, AssetId, OutPoint, SigHashType, Transaction, TxIn, TxOut, Txid,
+    secp256k1::{rand, PublicKey},
+    Address, AddressParams, AssetId, TxOut,
 };
 use futures::{
     lock::{MappedMutexGuard, Mutex, MutexGuard},
@@ -26,12 +17,27 @@ use futures::{
     StreamExt, TryStreamExt,
 };
 use hkdf::Hkdf;
-use itertools::Itertools;
 use rand::{thread_rng, Rng};
-use rust_decimal::{prelude::ToPrimitive, Decimal};
 use sha2::{digest::generic_array::GenericArray, Sha256};
-use std::{collections::HashMap, fmt, future::Future, iter, str};
+use std::{fmt, str};
 use wasm_bindgen::{JsValue, UnwrapThrowExt};
+
+pub use create_new::create_new;
+pub use get_address::get_address;
+pub use get_balances::get_balances;
+pub use get_status::get_status;
+pub use load_existing::load_existing;
+pub use unload_current::unload_current;
+pub use withdraw_everything_to::withdraw_everything_to;
+
+mod coin_selection;
+mod create_new;
+mod get_address;
+mod get_balances;
+mod get_status;
+mod load_existing;
+mod unload_current;
+mod withdraw_everything_to;
 
 static NATIVE_ASSET_TICKER: Lazy<&str> =
     Lazy::new(|| option_env!("NATIVE_ASSET_TICKER").unwrap_or("L-BTC"));
@@ -65,433 +71,6 @@ static DEFAULT_SAT_PER_VBYTE: Lazy<f32> = Lazy::new(|| {
         .unwrap_or(MIN_RELAY_FEE)
 });
 
-pub async fn create_new(
-    name: String,
-    password: String,
-    current_wallet: &Mutex<Option<Wallet>>,
-) -> Result<(), JsValue> {
-    let storage = Storage::local_storage()?;
-
-    let mut wallets = storage
-        .get_item::<ListOfWallets>("wallets")?
-        .unwrap_or_default();
-
-    if wallets.has(&name) {
-        return Err(JsValue::from_str(&format!(
-            "wallet with name '{}' already exists",
-            name
-        )));
-    }
-
-    let params = if cfg!(debug_assertions) {
-        // use weak parameters in debug mode, otherwise this is awfully slow
-        log::warn!("using extremely weak scrypt parameters for password hashing");
-        scrypt::ScryptParams::new(1, 1, 1).unwrap()
-    } else {
-        scrypt::ScryptParams::recommended()
-    };
-
-    let hashed_password = map_err_from_anyhow!(
-        scrypt::scrypt_simple(&password, &params).context("failed to hash password")
-    )?;
-
-    let new_wallet = Wallet::initialize_new(
-        name.clone(),
-        password,
-        SecretKey::new(&mut rand::thread_rng()),
-    )?;
-
-    storage.set_item(&format!("wallets.{}.password", name), hashed_password)?;
-    storage.set_item(
-        &format!("wallets.{}.secret_key", name),
-        format!(
-            "{}${}",
-            hex::encode(new_wallet.sk_salt),
-            hex::encode(new_wallet.encrypted_secret_key()?)
-        ),
-    )?;
-    wallets.add(name);
-    storage.set_item("wallets", wallets)?;
-
-    current_wallet.lock().await.replace(new_wallet);
-
-    log::info!("New wallet successfully initialized");
-
-    Ok(())
-}
-
-pub async fn load_existing(
-    name: String,
-    password: String,
-    current_wallet: &Mutex<Option<Wallet>>,
-) -> Result<(), JsValue> {
-    let mut guard = current_wallet.lock().await;
-
-    if let Some(Wallet { name: loaded, .. }) = &*guard {
-        return Err(JsValue::from_str(&format!(
-            "cannot load wallet '{}' because wallet '{}' is currently loaded",
-            name, loaded
-        )));
-    }
-
-    let storage = Storage::local_storage()?;
-    let wallets = storage
-        .get_item::<ListOfWallets>("wallets")?
-        .unwrap_or_default();
-
-    if !wallets.has(&name) {
-        return Err(JsValue::from_str(&format!(
-            "wallet '{}' does not exist",
-            name
-        )));
-    }
-
-    let stored_password = storage
-        .get_item::<String>(&format!("wallets.{}.password", name))?
-        .ok_or_else(|| JsValue::from_str("no password stored for wallet"))?;
-
-    scrypt::scrypt_check(&password, &stored_password)
-        .map_err(|_| JsValue::from_str(&format!("bad password for wallet '{}'", name)))?;
-
-    let sk_ciphertext = storage
-        .get_item::<String>(&format!("wallets.{}.secret_key", name))?
-        .ok_or_else(|| JsValue::from_str("no secret key for wallet"))?;
-
-    let wallet = Wallet::initialize_existing(name, password, sk_ciphertext)?;
-
-    guard.replace(wallet);
-
-    log::info!("Wallet successfully loaded");
-
-    Ok(())
-}
-
-pub async fn unload_current(current_wallet: &Mutex<Option<Wallet>>) {
-    let mut guard = current_wallet.lock().await;
-
-    if guard.is_none() {
-        log::debug!("Wallet is already unloaded");
-        return;
-    }
-
-    *guard = None;
-}
-
-pub async fn get_status(
-    name: String,
-    current_wallet: &Mutex<Option<Wallet>>,
-) -> Result<WalletStatus, JsValue> {
-    let storage = Storage::local_storage()?;
-
-    let wallets = storage
-        .get_item::<ListOfWallets>("wallets")?
-        .unwrap_or_default();
-    let exists = wallets.has(&name);
-
-    let guard = current_wallet.lock().await;
-    let loaded = guard.as_ref().map_or(false, |w| w.name == name);
-
-    Ok(WalletStatus { loaded, exists })
-}
-
-pub async fn get_address(
-    name: String,
-    current_wallet: &Mutex<Option<Wallet>>,
-) -> Result<Address, JsValue> {
-    let wallet = current(&name, current_wallet).await?;
-
-    let address = wallet.get_address()?;
-
-    Ok(address)
-}
-
-pub async fn get_balances(
-    name: &str,
-    current_wallet: &Mutex<Option<Wallet>>,
-) -> Result<Vec<BalanceEntry>, JsValue> {
-    let wallet = current(name, current_wallet).await?;
-
-    let txouts = get_txouts(&wallet, |_, txout| Ok(Some(txout))).await?;
-
-    let balances = compute_balances(
-        &wallet,
-        &txouts,
-        esplora::fetch_asset_description,
-        &NATIVE_ASSET_TICKER,
-    )
-    .await;
-
-    Ok(balances)
-}
-
-pub async fn current<'n, 'w>(
-    name: &'n str,
-    current_wallet: &'w Mutex<Option<Wallet>>,
-) -> Result<MappedMutexGuard<'w, Option<Wallet>, Wallet>, JsValue> {
-    let mut guard = current_wallet.lock().await;
-
-    match &mut *guard {
-        Some(wallet) if wallet.name == name => {}
-        _ => {
-            return Err(JsValue::from_str(&format!(
-                "wallet with name '{}' is currently not loaded",
-                name
-            )))
-        }
-    };
-
-    Ok(MutexGuard::map(guard, |w| w.as_mut().unwrap_throw()))
-}
-
-pub async fn withdraw_everything_to(
-    name: String,
-    current_wallet: &Mutex<Option<Wallet>>,
-    address: Address,
-) -> Result<Txid, JsValue> {
-    if !address.is_blinded() {
-        return Err(JsValue::from_str("can only withdraw to blinded addresses"));
-    }
-
-    let wallet = current(&name, current_wallet).await?;
-    let blinding_key = wallet.blinding_key();
-
-    let txouts = get_txouts(&wallet, |utxo, txout| {
-        Ok(match txout {
-            TxOut::Confidential(confidential) => {
-                let unblinded_txout = confidential.unblind(&*SECP, blinding_key)?;
-
-                Some((utxo, confidential, unblinded_txout))
-            }
-            TxOut::Explicit(_) => {
-                log::warn!("spending explicit txouts is unsupported");
-                None
-            }
-            TxOut::Null(_) => None,
-        })
-    })
-    .await?;
-
-    let prevout_values = txouts
-        .iter()
-        .map(|(utxo, _, unblinded)| {
-            (
-                OutPoint {
-                    txid: utxo.txid,
-                    vout: utxo.vout,
-                },
-                unblinded.value,
-            )
-        })
-        .collect::<HashMap<_, _>>();
-
-    let fee_estimates = map_err_from_anyhow!(esplora::get_fee_estimates().await)?;
-
-    let estimated_virtual_size =
-        estimate_virtual_transaction_size(prevout_values.len() as u64, txouts.len() as u64);
-
-    let fee = (estimated_virtual_size as f32
-        * fee_estimates.b_6.unwrap_or_else(|| {
-            let default_fee_rate = *DEFAULT_SAT_PER_VBYTE;
-            log::info!(
-                "fee estimate for block target '6' unavailable, falling back to default fee {}",
-                default_fee_rate
-            );
-
-            default_fee_rate
-        })) as u64; // try to get into the next 6 blocks
-
-    let txouts_grouped_by_asset = txouts
-        .into_iter()
-        .group_by(|(_, _, unblinded)| unblinded.asset);
-
-    // prepare the data exactly as we need it to create the transaction
-    let txouts_grouped_by_asset = (&txouts_grouped_by_asset)
-        .into_iter()
-        .map(|(asset, txouts)| {
-            let txouts = txouts.collect::<Vec<_>>();
-
-            // calculate the total amount we want to spend for this asset
-            // if this is the native asset, subtract the fee
-            let total_input = txouts.iter().map(|(_, _, txout)| txout.value).sum::<u64>();
-            let to_spend = if asset == *NATIVE_ASSET_ID {
-                log::debug!(
-                    "{} is the native asset, subtracting a fee of {} from it",
-                    asset,
-                    fee
-                );
-
-                total_input - fee
-            } else {
-                total_input
-            };
-
-            // re-arrange the data into the format needed for creating the transaction
-            // this creates two vectors:
-            // 1. the `TxIn`s that will go into the transaction
-            // 2. the "inputs" required for constructing a blinded `TxOut`
-            let (txins, txout_inputs) = txouts
-                .into_iter()
-                .map(|(utxo, confidential, unblinded)| {
-                    (
-                        TxIn {
-                            previous_output: OutPoint {
-                                txid: utxo.txid,
-                                vout: utxo.vout,
-                            },
-                            is_pegin: false,
-                            has_issuance: false,
-                            script_sig: Default::default(),
-                            sequence: 0,
-                            asset_issuance: Default::default(),
-                            witness: Default::default(),
-                        },
-                        (
-                            unblinded.asset,
-                            unblinded.value,
-                            confidential.asset,
-                            unblinded.asset_blinding_factor,
-                            unblinded.value_blinding_factor,
-                        ),
-                    )
-                })
-                .unzip::<_, _, Vec<_>, Vec<_>>();
-
-            log::debug!(
-                "found {} UTXOs for asset {} worth {} in total",
-                txins.len(),
-                asset,
-                total_input
-            );
-
-            (asset, txins, txout_inputs, to_spend)
-        })
-        .collect::<Vec<_>>();
-
-    // build transaction from grouped txouts
-    let mut transaction = match txouts_grouped_by_asset.as_slice() {
-        [] => return Err(JsValue::from_str("no balances in wallet")),
-        [(asset, _, _, _)] if asset != &*NATIVE_ASSET_ID => {
-            return Err(JsValue::from_str(&format!(
-                "cannot spend from wallet without native asset {} because we cannot pay a fee",
-                NATIVE_ASSET_TICKER
-            )))
-        }
-        // handle last group separately because we need to create it is as the `last_confidential` output
-        [other @ .., (last_asset, last_txins, last_txout_inputs, to_spend_last_txout)] => {
-            // first, build all "non-last" outputs
-            let other_txouts = map_err_from_anyhow!(other
-                .iter()
-                .map(|(asset, txins, txout_inputs, to_spend)| {
-                    let (txout, abf, vbf) = TxOut::new_not_last_confidential(
-                        &mut thread_rng(),
-                        &*SECP,
-                        *to_spend,
-                        address.clone(),
-                        *asset,
-                        &txout_inputs,
-                    )?;
-
-                    log::debug!(
-                        "constructed non-last confidential output for asset {} with value {}",
-                        asset,
-                        to_spend
-                    );
-
-                    Ok((txins, txout, *to_spend, abf, vbf))
-                })
-                .collect::<Result<Vec<_>>>())?;
-
-            // second, make the last one, depending on the previous ones
-            let last_txout = {
-                let other_outputs = other_txouts
-                    .iter()
-                    .map(|(_, _, value, abf, vbf)| (*value, *abf, *vbf))
-                    .collect::<Vec<_>>();
-
-                let txout = map_err_from_anyhow!(TxOut::new_last_confidential(
-                    &mut thread_rng(),
-                    &*SECP,
-                    *to_spend_last_txout,
-                    address,
-                    *last_asset,
-                    last_txout_inputs.as_slice(),
-                    other_outputs.as_slice()
-                )
-                .context("failed to make confidential txout"))?;
-
-                log::debug!(
-                    "constructed last confidential output for asset {} with value {}",
-                    last_asset,
-                    to_spend_last_txout
-                );
-
-                txout
-            };
-
-            // concatenate all inputs and outputs together to build the transaction
-            let txins = other_txouts
-                .iter()
-                .map(|(txins, _, _, _, _)| txins.iter())
-                .flatten()
-                .chain(last_txins.iter())
-                .cloned()
-                .collect::<Vec<_>>();
-            let txouts = other_txouts
-                .iter()
-                .map(|(_, txout, _, _, _)| txout)
-                .chain(iter::once(&last_txout))
-                .cloned()
-                .collect::<Vec<_>>();
-
-            Transaction {
-                version: 2,
-                lock_time: 0,
-                input: txins,
-                output: txouts,
-            }
-        }
-    };
-
-    let tx_clone = transaction.clone();
-    let mut cache = SigHashCache::new(&tx_clone);
-
-    for (index, input) in transaction.input.iter_mut().enumerate() {
-        input.witness.script_witness = {
-            let hash = hash160::Hash::hash(&wallet.get_public_key().serialize());
-            let script = Builder::new()
-                .push_opcode(opcodes::all::OP_DUP)
-                .push_opcode(opcodes::all::OP_HASH160)
-                .push_slice(&hash.into_inner())
-                .push_opcode(opcodes::all::OP_EQUALVERIFY)
-                .push_opcode(opcodes::all::OP_CHECKSIG)
-                .into_script();
-
-            let sighash = cache.segwitv0_sighash(
-                index,
-                &script,
-                prevout_values[&input.previous_output],
-                SigHashType::All,
-            );
-
-            let sig = SECP.sign(&Message::from(sighash), &wallet.secret_key);
-
-            let mut serialized_signature = sig.serialize_der().to_vec();
-            serialized_signature.push(SigHashType::All as u8);
-
-            vec![
-                serialized_signature,
-                wallet.get_public_key().serialize().to_vec(),
-            ]
-        }
-    }
-
-    let txid = map_err_from_anyhow!(esplora::broadcast(transaction)
-        .await
-        .context("failed to broadcast transaction via esplora"))?;
-
-    Ok(txid)
-}
-
 async fn get_txouts<T, FM: Fn(Utxo, TxOut) -> Result<Option<T>> + Copy>(
     wallet: &Wallet,
     filter_map: FM,
@@ -518,56 +97,6 @@ async fn get_txouts<T, FM: Fn(Utxo, TxOut) -> Result<Option<T>> + Copy>(
     Ok(txouts)
 }
 
-/// A pure function to compute the balances of the wallet given a set of [`TxOut`]s.
-///
-/// This function needs an `asset_resolver` that can return asset descriptions for the assets included in the [`TxOut`]s.
-async fn compute_balances<R, F>(
-    wallet: &Wallet,
-    txouts: &[TxOut],
-    asset_resolver: R,
-    native_asset_ticker: &str,
-) -> Vec<BalanceEntry>
-where
-    R: Fn(AssetId) -> F + Copy,
-    F: Future<Output = Result<AssetDescription>>,
-{
-    let grouped_txouts = txouts
-        .iter()
-        .filter_map(|utxo| match utxo {
-            TxOut::Explicit(explicit) => Some((explicit.asset.0, explicit.value.0)),
-            TxOut::Confidential(confidential) => {
-                match confidential.unblind(&*SECP, wallet.blinding_key()) {
-                    Ok(unblinded_txout) => Some((unblinded_txout.asset, unblinded_txout.value)),
-                    Err(e) => {
-                        log::warn!("failed to unblind txout: {}", e);
-                        None
-                    }
-                }
-            }
-            TxOut::Null(_) => None,
-        })
-        .group_by(|(asset, _)| *asset);
-
-    (&grouped_txouts)
-        .into_iter()
-        .map(|(asset, utxos)| async move {
-            let ad = match asset_resolver(asset).await {
-                Ok(ad) => ad,
-                Err(e) => {
-                    log::debug!("failed to fetched asset description: {}", e);
-
-                    AssetDescription::default(asset)
-                }
-            };
-            let total_sum = utxos.map(|(_, value)| value).sum();
-
-            BalanceEntry::for_asset(total_sum, ad, native_asset_ticker)
-        })
-        .collect::<FuturesUnordered<_>>()
-        .collect()
-        .await
-}
-
 /// Estimate the virtual size of a transaction based on the number of inputs and outputs.
 ///
 /// These constants have been reverse engineered through the following transactions:
@@ -591,54 +120,23 @@ fn estimate_virtual_transaction_size(number_of_inputs: u64, number_of_outputs: u
     number_of_inputs * avg_input_vb + number_of_outputs * avg_output_vb + avg_fee_vb
 }
 
-/// A single balance entry as returned by [`get_balances`].
-#[derive(Debug, serde::Serialize)]
-pub struct BalanceEntry {
-    value: Decimal,
-    asset: AssetId,
-    /// The ticker symbol of the asset.
-    ///
-    /// Not all assets are part of the registry and as such, not all of them have a ticker symbol.
-    ticker: Option<String>,
-}
+async fn current<'n, 'w>(
+    name: &'n str,
+    current_wallet: &'w Mutex<Option<Wallet>>,
+) -> Result<MappedMutexGuard<'w, Option<Wallet>, Wallet>, JsValue> {
+    let mut guard = current_wallet.lock().await;
 
-impl BalanceEntry {
-    pub fn sat_value(&self) -> u64 {
-        let mut clone = self.value;
-        clone.set_scale(0).expect("0 is smaller than 28");
-
-        clone.to_u64().expect("always fits in a u64")
-    }
-}
-
-impl BalanceEntry {
-    /// Construct a new [`BalanceEntry`] using the given value and [`AssetDescription`].
-    ///
-    /// [`AssetDescriptions`] are different for native vs user-issued assets. To properly handle these cases, we pass in the `native_asset_ticker` that should be used in case we are handling a native asset.
-    pub fn for_asset(value: u64, asset: AssetDescription, native_asset_ticker: &str) -> Self {
-        let precision = if asset.is_native_asset() {
-            8
-        } else {
-            asset.precision.unwrap_or(0)
-        };
-
-        let mut decimal = Decimal::from(value);
-        decimal
-            .set_scale(precision)
-            .expect("precision must be < 28");
-
-        let ticker = if asset.is_native_asset() {
-            Some(native_asset_ticker.to_owned())
-        } else {
-            asset.ticker
-        };
-
-        Self {
-            value: decimal,
-            asset: asset.asset_id,
-            ticker,
+    match &mut *guard {
+        Some(wallet) if wallet.name == name => {}
+        _ => {
+            return Err(JsValue::from_str(&format!(
+                "wallet with name '{}' is currently not loaded",
+                name
+            )))
         }
-    }
+    };
+
+    Ok(MutexGuard::map(guard, |w| w.as_mut().unwrap_throw()))
 }
 
 #[derive(Debug)]
@@ -794,12 +292,6 @@ impl Wallet {
     }
 }
 
-#[derive(Debug, serde::Serialize)]
-pub struct WalletStatus {
-    loaded: bool,
-    exists: bool,
-}
-
 #[derive(Default)]
 pub struct ListOfWallets(Vec<String>);
 
@@ -831,10 +323,15 @@ impl fmt::Display for ListOfWallets {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::esplora::AssetStatus;
     #[cfg(target_arch = "wasm32")]
     use wasm_bindgen_test::wasm_bindgen_test as test;
+
+    use crate::{
+        esplora::{AssetDescription, AssetStatus},
+        wallet::get_balances::BalanceEntry,
+    };
+
+    use super::*;
 
     #[test]
     fn new_balance_entry_bitcoin_serializes_to_nominal_representation() {
@@ -906,8 +403,10 @@ mod tests {
 
 #[cfg(all(test, target_arch = "wasm32"))]
 mod browser_tests {
-    use super::*;
     use wasm_bindgen_test::*;
+
+    use super::*;
+
     wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
 
     #[wasm_bindgen_test]
