@@ -214,6 +214,7 @@ pub async fn withdraw_everything_to(
                 .iter()
                 .map(|(_, txout, _, _, _)| txout)
                 .chain(iter::once(&last_txout))
+                .chain(iter::once(&TxOut::new_fee(NATIVE_ASSET_ID, fee)))
                 .cloned()
                 .collect::<Vec<_>>();
 
