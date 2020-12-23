@@ -1,15 +1,19 @@
-use crate::{esplora, esplora::Utxo, SECP};
+use crate::{
+    constants::{ADDRESS_PARAMS, DEFAULT_SAT_PER_VBYTE, NATIVE_ASSET_ID, NATIVE_ASSET_TICKER},
+    esplora,
+    esplora::Utxo,
+    SECP,
+};
 use aes_gcm_siv::{
     aead::{Aead, NewAead},
     Aes256GcmSiv,
 };
 use anyhow::{Context, Result};
-use conquer_once::Lazy;
 use elements_fun::{
     bitcoin,
     bitcoin::secp256k1::SecretKey,
     secp256k1::{rand, PublicKey},
-    Address, AddressParams, AssetId, TxOut,
+    Address, TxOut,
 };
 use futures::{
     lock::{MappedMutexGuard, Mutex, MutexGuard},
@@ -40,38 +44,6 @@ mod load_existing;
 mod make_create_swap_payload;
 mod unload_current;
 mod withdraw_everything_to;
-
-static NATIVE_ASSET_TICKER: Lazy<&str> =
-    Lazy::new(|| option_env!("NATIVE_ASSET_TICKER").unwrap_or("L-BTC"));
-
-static NATIVE_ASSET_ID: Lazy<AssetId> = Lazy::new(|| {
-    option_env!("NATIVE_ASSET_ID")
-        .unwrap_or("6f0279e9ed041c3d710a9f57d0c02928416460c4b722ae3457a11eec381c526d")
-        .parse()
-        .expect("valid asset ID")
-});
-
-static ADDRESS_PARAMS: Lazy<&'static AddressParams> =
-    Lazy::new(|| match option_env!("ELEMENTS_CHAIN") {
-        None | Some("LIQUID") => &AddressParams::LIQUID,
-        Some("ELEMENTS") => &AddressParams::ELEMENTS,
-        Some(chain) => panic!("unsupported elements chain {}", chain),
-    });
-
-const MIN_RELAY_FEE: f32 = 1.0;
-
-static DEFAULT_SAT_PER_VBYTE: Lazy<f32> = Lazy::new(|| {
-    option_env!("DEFAULT_SAT_PER_VBYTE")
-        .as_deref()
-        .map(|v| {
-            v.parse().unwrap_or_else(|e| {
-                log::debug!("failed to parse {} as f32: {}", v, e);
-
-                MIN_RELAY_FEE
-            })
-        })
-        .unwrap_or(MIN_RELAY_FEE)
-});
 
 async fn get_txouts<T, FM: Fn(Utxo, TxOut) -> Result<Option<T>> + Copy>(
     wallet: &Wallet,
@@ -333,8 +305,7 @@ mod tests {
         esplora::{AssetDescription, AssetStatus},
         wallet::get_balances::BalanceEntry,
     };
-
-    use super::*;
+    use elements_fun::AssetId;
 
     #[test]
     fn new_balance_entry_bitcoin_serializes_to_nominal_representation() {

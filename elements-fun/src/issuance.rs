@@ -90,6 +90,14 @@ impl AssetId {
         Self::from(fast_merkle_root(&[entropy.into_inner(), ZERO32]))
     }
 
+    pub const fn from_bytes(bytes: [u8; 32]) -> Self {
+        Self(sha256::Midstate(bytes))
+    }
+
+    pub const fn into_bytes(self) -> [u8; 32] {
+        (self.0).0
+    }
+
     /// Calculate the reissuance token asset ID from the asset entropy.
     pub fn reissuance_token_from_entropy(entropy: sha256::Midstate, confidential: bool) -> Self {
         // H_a : asset reissuance tag

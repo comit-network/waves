@@ -1,17 +1,10 @@
-use crate::cache_storage::CacheStorage;
+use crate::{cache_storage::CacheStorage, constants::ELEMENTS_ESPLORA_URL};
 use anyhow::{anyhow, bail, Context, Result};
-use conquer_once::Lazy;
 use elements_fun::{
     encode::{deserialize, serialize_hex},
     Address, AssetId, BlockHash, Transaction, Txid,
 };
 use reqwest::StatusCode;
-
-static ELEMENTS_ESPLORA_URL: Lazy<&str> = Lazy::new(|| {
-    option_env!("ESPLORA_URL")
-        .as_deref()
-        .unwrap_or("https://blockstream.info/liquid/api")
-});
 
 /// Fetch the UTXOs of an address.
 ///

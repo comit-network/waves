@@ -19,6 +19,10 @@ mod typed_js_future;
 mod utils;
 mod wallet;
 
+mod constants {
+    include!(concat!(env!("OUT_DIR"), "/", "constants.rs"));
+}
+
 // When the `wee_alloc` feature is enabled, use `wee_alloc` as the global
 // allocator.
 #[cfg(feature = "wee_alloc")]
@@ -33,7 +37,7 @@ static LOADED_WALLET: Lazy<Mutex<Option<Wallet>>> = Lazy::new(Mutex::default);
 pub fn setup_lib() {
     set_panic_hook();
     wasm_logger::init(wasm_logger::Config::default());
-    log::debug!("Wasm lib initialized");
+    log::debug!("wallet initialized");
 }
 
 /// Create a new wallet with the given name and password.
@@ -132,4 +136,74 @@ pub async fn make_create_swap_payload(
     .await?;
 
     Ok(JsValue::from_serde(&payload).unwrap_throw())
+}
+
+#[cfg(test)]
+mod constants_tests {
+    use elements_fun::{AddressParams, AssetId};
+    use std::str::FromStr;
+
+    #[test]
+    fn assert_native_asset_ticker_constant() {
+        match option_env!("NATIVE_ASSET_TICKER") {
+            Some(native_asset_ticker) => {
+                assert_eq!(crate::constants::NATIVE_ASSET_TICKER, native_asset_ticker)
+            }
+            None => assert_eq!(crate::constants::NATIVE_ASSET_TICKER, "L-BTC"),
+        }
+    }
+
+    #[test]
+    fn assert_native_asset_id_constant() {
+        match option_env!("NATIVE_ASSET_ID") {
+            Some(native_asset_id) => assert_eq!(
+                crate::constants::NATIVE_ASSET_ID,
+                AssetId::from_str(native_asset_id).unwrap()
+            ),
+            None => assert_eq!(
+                crate::constants::NATIVE_ASSET_ID,
+                AssetId::from_str(
+                    "6f0279e9ed041c3d710a9f57d0c02928416460c4b722ae3457a11eec381c526d"
+                )
+                .unwrap()
+            ),
+        }
+    }
+
+    #[test]
+    fn assert_esplora_url_constant() {
+        match option_env!("ESPLORA_URL") {
+            Some(esplora_url) => assert_eq!(crate::constants::ELEMENTS_ESPLORA_URL, esplora_url),
+            None => assert_eq!(
+                crate::constants::ELEMENTS_ESPLORA_URL,
+                "https://blockstream.info/liquid/api"
+            ),
+        }
+    }
+
+    #[test]
+    fn assert_address_params_constant() {
+        match option_env!("ELEMENTS_CHAIN") {
+            None | Some("LIQUID") => {
+                assert_eq!(crate::constants::ADDRESS_PARAMS, &AddressParams::LIQUID)
+            }
+            Some("ELEMENTS") => {
+                assert_eq!(crate::constants::ADDRESS_PARAMS, &AddressParams::ELEMENTS)
+            }
+            Some(chain) => panic!("unsupported chain {}", chain),
+        }
+    }
+
+    #[test]
+    fn assert_default_fee_constant() {
+        let error_margin = f32::EPSILON;
+
+        match option_env!("DEFAULT_SAT_PER_VBYTE") {
+            Some(rate) => assert!(
+                crate::constants::DEFAULT_SAT_PER_VBYTE - f32::from_str(rate).unwrap()
+                    < error_margin
+            ),
+            None => assert!(crate::constants::DEFAULT_SAT_PER_VBYTE - 1.0f32 < error_margin),
+        }
+    }
 }

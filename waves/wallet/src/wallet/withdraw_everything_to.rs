@@ -69,7 +69,7 @@ pub async fn withdraw_everything_to(
 
     let fee = (estimated_virtual_size as f32
         * fee_estimates.b_6.unwrap_or_else(|| {
-            let default_fee_rate = *DEFAULT_SAT_PER_VBYTE;
+            let default_fee_rate = DEFAULT_SAT_PER_VBYTE;
             log::info!(
                 "fee estimate for block target '6' unavailable, falling back to default fee {}",
                 default_fee_rate
@@ -91,7 +91,7 @@ pub async fn withdraw_everything_to(
             // calculate the total amount we want to spend for this asset
             // if this is the native asset, subtract the fee
             let total_input = txouts.iter().map(|(_, _, txout)| txout.value).sum::<u64>();
-            let to_spend = if asset == *NATIVE_ASSET_ID {
+            let to_spend = if asset == NATIVE_ASSET_ID {
                 log::debug!(
                     "{} is the native asset, subtracting a fee of {} from it",
                     asset,
@@ -148,7 +148,7 @@ pub async fn withdraw_everything_to(
     // build transaction from grouped txouts
     let mut transaction = match txouts_grouped_by_asset.as_slice() {
         [] => return Err(JsValue::from_str("no balances in wallet")),
-        [(asset, _, _, _)] if asset != &*NATIVE_ASSET_ID => {
+        [(asset, _, _, _)] if asset != &NATIVE_ASSET_ID => {
             return Err(JsValue::from_str(&format!(
                 "cannot spend from wallet without native asset {} because we cannot pay a fee",
                 NATIVE_ASSET_TICKER
