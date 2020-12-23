@@ -171,11 +171,11 @@ mod constants_tests {
     }
 
     #[test]
-    fn assert_esplora_url_constant() {
-        match option_env!("ESPLORA_URL") {
-            Some(esplora_url) => assert_eq!(crate::constants::ELEMENTS_ESPLORA_URL, esplora_url),
+    fn assert_esplora_api_url_constant() {
+        match option_env!("ESPLORA_API_URL") {
+            Some(esplora_api_url) => assert_eq!(crate::constants::ESPLORA_API_URL, esplora_api_url),
             None => assert_eq!(
-                crate::constants::ELEMENTS_ESPLORA_URL,
+                crate::constants::ESPLORA_API_URL,
                 "https://blockstream.info/liquid/api"
             ),
         }
@@ -183,7 +183,7 @@ mod constants_tests {
 
     #[test]
     fn assert_address_params_constant() {
-        match option_env!("ELEMENTS_CHAIN") {
+        match option_env!("CHAIN") {
             None | Some("LIQUID") => {
                 assert_eq!(crate::constants::ADDRESS_PARAMS, &AddressParams::LIQUID)
             }

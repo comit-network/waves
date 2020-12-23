@@ -14,11 +14,11 @@ fn main() -> Result<()> {
         .parse::<AssetId>()
         .with_context(|| format!("failed to parse {} as asset id", asset_id))?;
 
-    let elements_esplora_url = option_env!("ESPLORA_URL")
+    let esplora_api_url = option_env!("ESPLORA_API_URL")
         .as_deref()
         .unwrap_or("https://blockstream.info/liquid/api");
 
-    let address_params = match option_env!("ELEMENTS_CHAIN") {
+    let address_params = match option_env!("CHAIN") {
         None | Some("LIQUID") => "&elements_fun::AddressParams::LIQUID",
         Some("ELEMENTS") => "&elements_fun::AddressParams::ELEMENTS",
         Some(chain) => bail!("unsupported elements chain {}", chain),
@@ -37,13 +37,13 @@ fn main() -> Result<()> {
             r#"
 pub const NATIVE_ASSET_TICKER: &str = "{}";
 pub const NATIVE_ASSET_ID: elements_fun::AssetId = elements_fun::AssetId::from_bytes({:?});
-pub const ELEMENTS_ESPLORA_URL: &str = "{}";
+pub const ESPLORA_API_URL: &str = "{}";
 pub const ADDRESS_PARAMS: &elements_fun::AddressParams = {};
 pub const DEFAULT_SAT_PER_VBYTE: f32 = {:.4};
 "#,
             native_asset_ticker,
             native_asset_id.into_bytes(),
-            elements_esplora_url,
+            esplora_api_url,
             address_params,
             rate
         ),
