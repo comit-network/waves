@@ -22,7 +22,7 @@ import { Async } from "react-async";
 import { WalletBalance } from "./App";
 import Btc from "./components/bitcoin.svg";
 import Usdt from "./components/tether.svg";
-import { getAddress } from "./wasmProxy";
+import { getAddress, withdrawAll } from "./wasmProxy";
 
 interface WalletInfoProps {
     balance: WalletBalance;
@@ -31,12 +31,13 @@ interface WalletInfoProps {
 export default function WalletInfo({ balance }: WalletInfoProps) {
     const { isOpen, onOpen, onClose } = useDisclosure();
     const btnRef = React.useRef(null);
-    const [withDrawAddress, setWithDrawAddress] = React.useState("");
+    const [withdrawAddress, setWithdrawAddress] = React.useState("");
 
-    const handleWithdrawAddress = (event: ChangeEvent<HTMLInputElement>) => setWithDrawAddress(event.target.value);
+    const handleWithdrawAddress = (event: ChangeEvent<HTMLInputElement>) => setWithdrawAddress(event.target.value);
 
-    const withdraw = () => {
-        console.log("Withdrawing to " + withDrawAddress);
+    const withdraw = async () => {
+        let txId = await withdrawAll(withdrawAddress);
+        console.log("Withdrew everything. Resulting txId: {}", txId);
     };
 
     async function fundWallet(): Promise<any> {
@@ -121,7 +122,7 @@ export default function WalletInfo({ balance }: WalletInfoProps) {
                                             placeholder="Address"
                                             size="md"
                                             bg={"white"}
-                                            value={withDrawAddress}
+                                            value={withdrawAddress}
                                             onChange={handleWithdrawAddress}
                                         />
                                         <Button

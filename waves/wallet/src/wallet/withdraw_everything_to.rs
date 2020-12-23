@@ -51,13 +51,13 @@ pub async fn withdraw_everything_to(
 
     let prevout_values = txouts
         .iter()
-        .map(|(utxo, _, unblinded)| {
+        .map(|(utxo, confidential, _)| {
             (
                 OutPoint {
                     txid: utxo.txid,
                     vout: utxo.vout,
                 },
-                unblinded.value,
+                confidential.value,
             )
         })
         .collect::<HashMap<_, _>>();
@@ -78,15 +78,28 @@ pub async fn withdraw_everything_to(
             default_fee_rate
         })) as u64; // try to get into the next 6 blocks
 
+    let txout_inputs = txouts
+        .iter()
+        .map(|(_, confidential, unblinded)| {
+            (
+                unblinded.asset,
+                unblinded.value,
+                confidential.asset,
+                unblinded.asset_blinding_factor,
+                unblinded.value_blinding_factor,
+            )
+        })
+        .collect::<Vec<_>>();
+
     let txouts_grouped_by_asset = txouts
-        .into_iter()
-        .map(|(utxo, confidential, unblinded)| (unblinded.asset, (utxo, confidential, unblinded)))
+        .iter()
+        .map(|(utxo, _, unblinded)| (unblinded.asset, (utxo, unblinded)))
         .into_group_map()
         .into_iter()
         .map(|(asset, txouts)| {
             // calculate the total amount we want to spend for this asset
             // if this is the native asset, subtract the fee
-            let total_input = txouts.iter().map(|(_, _, txout)| txout.value).sum::<u64>();
+            let total_input = txouts.iter().map(|(_, txout)| txout.value).sum::<u64>();
             let to_spend = if asset == NATIVE_ASSET_ID {
                 log::debug!(
                     "{} is the native asset, subtracting a fee of {} from it",
@@ -99,63 +112,32 @@ pub async fn withdraw_everything_to(
                 total_input
             };
 
-            // re-arrange the data into the format needed for creating the transaction
-            // this creates two vectors:
-            // 1. the `TxIn`s that will go into the transaction
-            // 2. the "inputs" required for constructing a blinded `TxOut`
-            let (txins, txout_inputs) = txouts
-                .into_iter()
-                .map(|(utxo, confidential, unblinded)| {
-                    (
-                        TxIn {
-                            previous_output: OutPoint {
-                                txid: utxo.txid,
-                                vout: utxo.vout,
-                            },
-                            is_pegin: false,
-                            has_issuance: false,
-                            script_sig: Default::default(),
-                            sequence: 0,
-                            asset_issuance: Default::default(),
-                            witness: Default::default(),
-                        },
-                        (
-                            unblinded.asset,
-                            unblinded.value,
-                            confidential.asset,
-                            unblinded.asset_blinding_factor,
-                            unblinded.value_blinding_factor,
-                        ),
-                    )
-                })
-                .unzip::<_, _, Vec<_>, Vec<_>>();
-
             log::debug!(
                 "found {} UTXOs for asset {} worth {} in total",
-                txins.len(),
+                txouts.len(),
                 asset,
                 total_input
             );
 
-            (asset, txins, txout_inputs, to_spend)
+            (asset, to_spend)
         })
         .collect::<Vec<_>>();
 
     // build transaction from grouped txouts
     let mut transaction = match txouts_grouped_by_asset.as_slice() {
         [] => return Err(JsValue::from_str("no balances in wallet")),
-        [(asset, _, _, _)] if asset != &NATIVE_ASSET_ID => {
+        [(asset, _)] if asset != &NATIVE_ASSET_ID => {
             return Err(JsValue::from_str(&format!(
                 "cannot spend from wallet without native asset {} because we cannot pay a fee",
                 NATIVE_ASSET_TICKER
             )))
         }
         // handle last group separately because we need to create it is as the `last_confidential` output
-        [other @ .., (last_asset, last_txins, last_txout_inputs, to_spend_last_txout)] => {
+        [other @ .., (last_asset, to_spend_last_txout)] => {
             // first, build all "non-last" outputs
             let other_txouts = map_err_from_anyhow!(other
                 .iter()
-                .map(|(asset, txins, txout_inputs, to_spend)| {
+                .map(|(asset, to_spend)| {
                     let (txout, abf, vbf) = TxOut::new_not_last_confidential(
                         &mut thread_rng(),
                         &*SECP,
@@ -171,7 +153,7 @@ pub async fn withdraw_everything_to(
                         to_spend
                     );
 
-                    Ok((txins, txout, *to_spend, abf, vbf))
+                    Ok((txout, *to_spend, abf, vbf))
                 })
                 .collect::<Result<Vec<_>>>())?;
 
@@ -179,7 +161,7 @@ pub async fn withdraw_everything_to(
             let last_txout = {
                 let other_outputs = other_txouts
                     .iter()
-                    .map(|(_, _, value, abf, vbf)| (*value, *abf, *vbf))
+                    .map(|(_, value, abf, vbf)| (*value, *abf, *vbf))
                     .collect::<Vec<_>>();
 
                 let txout = map_err_from_anyhow!(TxOut::new_last_confidential(
@@ -188,7 +170,7 @@ pub async fn withdraw_everything_to(
                     *to_spend_last_txout,
                     address,
                     *last_asset,
-                    last_txout_inputs.as_slice(),
+                    txout_inputs.as_slice(),
                     other_outputs.as_slice()
                 )
                 .context("failed to make confidential txout"))?;
@@ -202,18 +184,26 @@ pub async fn withdraw_everything_to(
                 txout
             };
 
-            // concatenate all inputs and outputs together to build the transaction
-            let txins = other_txouts
-                .iter()
-                .map(|(txins, _, _, _, _)| txins.iter())
-                .flatten()
-                .chain(last_txins.iter())
-                .cloned()
+            let txins = txouts
+                .into_iter()
+                .map(|(utxo, _, _)| TxIn {
+                    previous_output: OutPoint {
+                        txid: utxo.txid,
+                        vout: utxo.vout,
+                    },
+                    is_pegin: false,
+                    has_issuance: false,
+                    script_sig: Default::default(),
+                    sequence: 0,
+                    asset_issuance: Default::default(),
+                    witness: Default::default(),
+                })
                 .collect::<Vec<_>>();
             let txouts = other_txouts
                 .iter()
-                .map(|(_, txout, _, _, _)| txout)
+                .map(|(txout, _, _, _)| txout)
                 .chain(iter::once(&last_txout))
+                .chain(iter::once(&TxOut::new_fee(NATIVE_ASSET_ID, fee)))
                 .cloned()
                 .collect::<Vec<_>>();
 
