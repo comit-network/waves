@@ -10,7 +10,7 @@ import theme from "./theme";
 ReactDOM.render(
     <React.StrictMode>
         <ChakraProvider theme={theme}>
-            <SSEProvider endpoint="http://localhost:3031/rate/lbtc-lusdt">
+            <SSEProvider endpoint="/rate/lbtc-lusdt">
                 <App />
             </SSEProvider>
         </ChakraProvider>
