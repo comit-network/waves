@@ -181,27 +181,33 @@ function App() {
     };
 
     useEffect(() => {
-        getWalletStatus().then((wallet_status) => {
-            if (wallet_status.exists) {
-                dispatch({
-                    type: "UpdateWalletStatus",
-                    value: {
-                        exists: wallet_status.exists,
-                        loaded: wallet_status.loaded,
-                    },
-                });
-            } // by default `wallet.exists` is set to false, hence no need to handle
-        }).catch((e) => {
-            // TODO: handle error
-        });
+        getWalletStatus()
+            .then(wallet_status => {
+                if (wallet_status.exists) {
+                    dispatch({
+                        type: "UpdateWalletStatus",
+                        value: {
+                            exists: wallet_status.exists,
+                            loaded: wallet_status.loaded,
+                        },
+                    });
+                } // by default `wallet.exists` is set to false, hence no need to handle
+            })
+            .catch(e => {
+                // TODO: handle error
+            });
     }, []);
 
     useInterval(
         () => {
-            getBalances().then((balances) => {
+            getBalances().then(balances => {
                 console.log(`Updated balances: `, balances);
-                let btcBalanceEntry = balances.find((balance) => balance.ticker === LBTC_TICKER);
-                let usdtBalanceEntry = balances.find((balance) => balance.ticker === LUSDT_TICKER);
+                let btcBalanceEntry = balances.find(
+                    balance => balance.ticker === LBTC_TICKER,
+                );
+                let usdtBalanceEntry = balances.find(
+                    balance => balance.ticker === LUSDT_TICKER,
+                );
 
                 const btcBalance = btcBalanceEntry ? btcBalanceEntry.value : 0;
                 const usdtBalance = usdtBalanceEntry ? usdtBalanceEntry.value : 0;
@@ -222,23 +228,22 @@ function App() {
         bid: 19133.74,
     });
 
-    const betaAmount = calculateBetaAmount(state.alpha.type, state.alpha.amount, rate);
+    const betaAmount = calculateBetaAmount(
+        state.alpha.type,
+        state.alpha.amount,
+        rate,
+    );
 
     return (
         <BrowserRouter>
             <div className="App">
                 <header className="App-header">
                     <Route path="/swap">
-                        <WalletInfo
-                            balance={state.wallet.balance}
-                        />
+                        <WalletInfo balance={state.wallet.balance} />
                     </Route>
                 </header>
                 <Center className="App-body">
-                    <VStack
-                        spacing={4}
-                        align="stretch"
-                    >
+                    <VStack spacing={4} align="stretch">
                         <Flex color="white">
                             <AssetSelector
                                 assetSide="Alpha"
@@ -274,8 +279,12 @@ function App() {
                         <Box>
                             <Switch>
                                 <Route exact path="/">
-                                    {state.wallet.status.exists && <UnlockWallet dispatch={dispatch} />}
-                                    {!state.wallet.status.exists && <CreateWallet dispatch={dispatch} />}
+                                    {state.wallet.status.exists && (
+                                        <UnlockWallet dispatch={dispatch} />
+                                    )}
+                                    {!state.wallet.status.exists && (
+                                        <CreateWallet dispatch={dispatch} />
+                                    )}
                                 </Route>
                                 <Route
                                     exact
@@ -308,7 +317,8 @@ function App() {
                                 <Route exact path="/swap/done">
                                     <VStack>
                                         <Text textStyle="info">
-                                            Check in <Link
+                                            Check in{" "}
+                                            <Link
                                                 href={`https://blockstream.info/liquid/tx/${state.txId}`}
                                                 isExternal
                                             >

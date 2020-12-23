@@ -9,6 +9,14 @@ export interface WalletStatus {
     exists: boolean;
 }
 
+export interface CreateSwapPayload {
+    alice_inputs: { txid: string; vout: number }[];
+    address_redeem: string;
+    address_change: string;
+    fee: number;
+    btc_amount: number;
+}
+
 const WALLET_NAME = "wallet-1";
 
 export async function getAddress() {
@@ -44,4 +52,11 @@ export async function getBalances(): Promise<BalanceEntry[]> {
 export async function withdrawAll(address: string): Promise<String> {
     const { withdraw_everything_to } = await import("./wallet");
     return withdraw_everything_to(WALLET_NAME, address);
+}
+
+export async function makeCreateSwapPayload(
+    btc: string,
+): Promise<CreateSwapPayload> {
+    const { make_create_swap_payload } = await import("./wallet");
+    return make_create_swap_payload(WALLET_NAME, btc);
 }

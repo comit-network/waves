@@ -12,8 +12,8 @@ start_dev_env () {
 }
 
 stop_dev_env () {
-    stop_bobtimus
     stop_nodes
+    stop_bobtimus
 }
 
 start_nodes () {
@@ -58,7 +58,7 @@ start_bobtimus () {
 
     local -r elementsd_rpc_user="admin1"
     local -r elementsd_rpc_password="123"
-    RUST_LOG=info cargo run --bin fake_bobtimus -- \
+    RUST_LOG=debug cargo run --bin fake_bobtimus -- \
             --elementsd http://$elementsd_rpc_user:$elementsd_rpc_password@127.0.0.1:$LIQUID_NODE_PORT \
             --usdt $1 > $log_dir/bobtimus 2>&1 &
     bobtimus_pid=$!

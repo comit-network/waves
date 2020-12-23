@@ -17,11 +17,12 @@ import {
     Text,
     useDisclosure,
 } from "@chakra-ui/react";
-import React, { Dispatch, MouseEvent } from "react";
+import React, { Dispatch, MouseEvent, useState } from "react";
 import { useHistory } from "react-router-dom";
 import { Action, AssetType } from "./App";
 import Bitcoin from "./components/bitcoin.svg";
 import Usdt from "./components/tether.svg";
+import { makeCreateSwapPayload } from "./wasmProxy";
 
 interface SwapWithWalletProps {
     alphaAmount: number;
@@ -34,14 +35,22 @@ interface SwapWithWalletProps {
 
 const DEFAULT_TX_ID = "7565865560cdef747c5358ca9ff46747a82617292452b6392d0d77072701c413";
 
-function SwapWithWallet(
-    { alphaAmount, alphaAsset, betaAmount, betaAsset, onConfirmed, dispatch }: SwapWithWalletProps,
-) {
+function SwapWithWallet({
+    alphaAmount,
+    alphaAsset,
+    betaAmount,
+    betaAsset,
+    onConfirmed,
+    dispatch,
+}: SwapWithWalletProps) {
+    const [transaction, setTransaction] = useState({});
     const { isOpen, onOpen, onClose } = useDisclosure();
     const btnRef = React.useRef(null);
     const history = useHistory();
 
     const onConfirm = (_clicked: MouseEvent) => {
+        /* let txid = await signAndSend(transaction); */
+
         // TODO implement wallet logic
         _clicked.preventDefault();
         onConfirmed(DEFAULT_TX_ID);
@@ -53,11 +62,32 @@ function SwapWithWallet(
         history.push("/swap/done");
     };
 
+    const fetchSwapTransaction = async () => {
+        let payload = await makeCreateSwapPayload(alphaAmount.toString());
+
+        let res = await fetch("/api/swap/lbtc-lusdt", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                Accept: "application/json",
+            },
+            body: JSON.stringify(payload),
+        });
+        console.log(res);
+
+        let tx = (await res.json()) as {};
+        setTransaction(tx);
+
+        console.log(JSON.stringify(transaction));
+
+        onOpen();
+    };
+
     return (
         <>
             <Button
                 ref={btnRef}
-                onClick={onOpen}
+                onClick={fetchSwapTransaction}
                 size="lg"
                 variant="main_button"
             >
@@ -98,7 +128,9 @@ function SwapWithWallet(
                             <Button size="md" mr={3} onClick={onClose}>
                                 Cancel
                             </Button>
-                            <Button size="md" variant="wallet_button" onClick={onConfirm}>Sign and Send</Button>
+                            <Button size="md" variant="wallet_button" onClick={onConfirm}>
+                                Sign and Send
+                            </Button>
                         </DrawerFooter>
                     </DrawerContent>
                 </DrawerOverlay>
@@ -116,7 +148,12 @@ interface YouSwapItemProps {
     balanceAfter: number;
 }
 
-function YouSwapItem({ asset, amount, balanceBefore, balanceAfter }: YouSwapItemProps) {
+function YouSwapItem({
+    asset,
+    amount,
+    balanceBefore,
+    balanceAfter,
+}: YouSwapItemProps) {
     return (
         <Box w="100%">
             <Flex>
@@ -125,13 +162,13 @@ function YouSwapItem({ asset, amount, balanceBefore, balanceAfter }: YouSwapItem
                 </Box>
                 <Spacer />
                 <Box w="40px" h="40px">
-                    {asset === AssetType.BTC
-                        && <Image src={Bitcoin} h="32px" />}
-                    {asset === AssetType.USDT
-                        && <Image src={Usdt} h="32px" />}
+                    {asset === AssetType.BTC && <Image src={Bitcoin} h="32px" />}
+                    {asset === AssetType.USDT && <Image src={Usdt} h="32px" />}
                 </Box>
                 <Box h="40px" justify="right" p="1">
-                    <Text align="center" justify="center">{asset}</Text>
+                    <Text align="center" justify="center">
+                        {asset}
+                    </Text>
                 </Box>
             </Flex>
             <Box bg="gray.100" borderRadius={"md"}>
@@ -142,19 +179,29 @@ function YouSwapItem({ asset, amount, balanceBefore, balanceAfter }: YouSwapItem
                             templateColumns="repeat(2, 1fr)"
                         >
                             <GridItem colSpan={1}>
-                                <Text align="left" textStyle="info">Old balance</Text>
+                                <Text align="left" textStyle="info">
+                                    Old balance
+                                </Text>
                             </GridItem>
                             <GridItem colSpan={1}>
-                                <Text align="right" textStyle="info">{balanceBefore}</Text>
+                                <Text align="right" textStyle="info">
+                                    {balanceBefore}
+                                </Text>
                             </GridItem>
                             <GridItem colSpan={4}>
-                                <Text align="center" textStyle="lg">{amount}</Text>
+                                <Text align="center" textStyle="lg">
+                                    {amount}
+                                </Text>
                             </GridItem>
                             <GridItem colSpan={1}>
-                                <Text align="left" textStyle="info">New balance</Text>
+                                <Text align="left" textStyle="info">
+                                    New balance
+                                </Text>
                             </GridItem>
                             <GridItem colSpan={1}>
-                                <Text align="right" textStyle="info">{balanceAfter}</Text>
+                                <Text align="right" textStyle="info">
+                                    {balanceAfter}
+                                </Text>
                             </GridItem>
                         </Grid>
                     </Box>

@@ -10,7 +10,7 @@ use elements_fun::{
 };
 use elements_harness::{elementd_rpc::ElementsRpc, Client as ElementsdClient};
 use futures::{stream::FuturesUnordered, TryStreamExt};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use swap::{Bob0, Message0, Message1};
 
 mod amounts;
@@ -35,7 +35,7 @@ pub struct Bobtimus<R, RS> {
     pub usdt_asset_id: AssetId,
 }
 
-#[derive(Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct CreateSwapPayload {
     pub alice_inputs: Vec<AliceInput>,
     pub address_redeem: Address,
@@ -45,18 +45,20 @@ pub struct CreateSwapPayload {
     pub btc_amount: LiquidBtc,
 }
 
-#[derive(Deserialize, Clone, Copy)]
+#[derive(Debug, Serialize, Deserialize, Clone, Copy)]
 pub struct AliceInput {
     pub outpoint: OutPoint,
     pub blinding_key: SecretKey,
 }
 
 impl<R, RS> Bobtimus<R, RS> {
-    pub async fn handle_create_swap(&mut self, payload: CreateSwapPayload) -> Result<Message1>
+    pub async fn handle_create_swap(&mut self, payload: String) -> Result<Message1>
     where
         R: RngCore + CryptoRng,
         RS: LatestRate,
     {
+        let payload: CreateSwapPayload = serde_json::from_str(&payload)?;
+
         let latest_rate = self
             .rate_service
             .latest_rate()
@@ -66,7 +68,7 @@ impl<R, RS> Bobtimus<R, RS> {
 
         let bob_inputs = self
             .elementsd
-            .select_inputs_for(self.usdt_asset_id, usdt_amount.into(), true)
+            .select_inputs_for(self.usdt_asset_id, usdt_amount.into(), false)
             .await
             .context("failed to select inputs for swap")?;
 
@@ -315,16 +317,19 @@ mod tests {
         };
 
         let message1 = bob
-            .handle_create_swap(CreateSwapPayload {
-                alice_inputs: vec![AliceInput {
-                    outpoint: message0.input.previous_output,
-                    blinding_key: message0.input_blinding_sk,
-                }],
-                address_redeem: message0.address_redeem,
-                address_change: message0.address_change,
-                fee: message0.fee,
-                btc_amount: redeem_amount_bob,
-            })
+            .handle_create_swap(
+                serde_json::to_string(&CreateSwapPayload {
+                    alice_inputs: vec![AliceInput {
+                        outpoint: message0.input.previous_output,
+                        blinding_key: message0.input_blinding_sk,
+                    }],
+                    address_redeem: message0.address_redeem,
+                    address_change: message0.address_change,
+                    fee: message0.fee,
+                    btc_amount: redeem_amount_bob,
+                })
+                .unwrap(),
+            )
             .await
             .unwrap();
 

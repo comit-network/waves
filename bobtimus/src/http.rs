@@ -7,7 +7,7 @@ use warp::{
     Rejection, Reply,
 };
 
-use crate::{Bobtimus, CreateSwapPayload, LatestRate, Rate};
+use crate::{Bobtimus, LatestRate, Rate};
 
 #[derive(RustEmbed)]
 #[folder = "../waves/build/"]
@@ -33,7 +33,7 @@ where
         move || bobtimus.clone()
     });
     let create_swap = warp::post()
-        .and(warp::path!("swap" / "lbtc-lusdt"))
+        .and(warp::path!("api" / "swap" / "lbtc-lusdt"))
         .and(warp::path::end())
         .and(bobtimus_filter)
         .and(warp::body::json())
@@ -48,17 +48,22 @@ where
 
 async fn create_swap<R, RS>(
     mut bobtimus: Bobtimus<R, RS>,
-    payload: CreateSwapPayload,
+    payload: serde_json::Value,
 ) -> Result<impl Reply, Rejection>
 where
     R: RngCore + CryptoRng,
     RS: LatestRate,
 {
+    let payload = payload.to_string();
+
     bobtimus
         .handle_create_swap(payload)
         .await
         .map(|message1| warp::reply::json(&message1.transaction))
-        .map_err(|_| warp::reject::reject())
+        .map_err(|e| {
+            log::error!("{}", e);
+            warp::reject::reject()
+        })
 }
 
 fn latest_rate<S>(stream: S) -> impl Reply

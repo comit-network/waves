@@ -106,7 +106,7 @@ impl TryFrom<f64> for LiquidUsdt {
     }
 }
 
-#[derive(Debug, Clone, Copy, Deserialize)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct LiquidBtc(
     #[serde(with = "::elements_fun::bitcoin::util::amount::serde::as_sat")] Amount,
 );
