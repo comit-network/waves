@@ -1,5 +1,5 @@
 use anyhow::{anyhow, Result};
-use elements_fun::bitcoin::Amount;
+use elements_fun::bitcoin::{Amount, Denomination};
 use rust_decimal::{prelude::ToPrimitive, Decimal};
 use serde::{Deserialize, Serialize};
 use std::{convert::TryFrom, fmt::Debug};
@@ -10,7 +10,9 @@ use std::{convert::TryFrom, fmt::Debug};
 /// - The `bid` represents the maximum price we are willing pay for 1 L-BTC.
 #[derive(Debug, Clone, Copy, Serialize, PartialEq)]
 pub struct Rate {
+    #[serde(serialize_with = "LiquidUsdt::serialize_to_nominal")]
     pub ask: LiquidUsdt,
+    #[serde(serialize_with = "LiquidUsdt::serialize_to_nominal")]
     pub bid: LiquidUsdt,
 }
 
@@ -70,6 +72,17 @@ impl LiquidUsdt {
         let amount = Amount::from_str_in(s, elements_fun::bitcoin::Denomination::Bitcoin)?;
 
         Ok(Self(amount))
+    }
+
+    fn serialize_to_nominal<S>(amount: &LiquidUsdt, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let float = &amount.0.to_float_in(Denomination::Bitcoin);
+        let rounded = format!("{:.2}", float);
+        let rounded: f64 = rounded.parse().expect("valid float");
+
+        serializer.serialize_f64(rounded)
     }
 }
 
@@ -140,5 +153,16 @@ mod tests {
         let usdt_amount = rate.buy_quote(btc_amount).unwrap();
 
         assert_eq!(usdt_amount, LiquidUsdt::try_from(48_033.80).unwrap())
+    }
+
+    #[test]
+    fn rate_serialized_with_nominal_unit() {
+        let rate = Rate {
+            ask: LiquidUsdt::try_from(19_313.524).unwrap(),
+            bid: LiquidUsdt::try_from(19_213.525).unwrap(),
+        };
+        let serialized = serde_json::to_string(&rate).unwrap();
+
+        assert_eq!(serialized, "{\"ask\":19313.52,\"bid\":19213.53}")
     }
 }
