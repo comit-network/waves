@@ -10,7 +10,7 @@ use reqwest::StatusCode;
 static ELEMENTS_ESPLORA_URL: Lazy<&str> = Lazy::new(|| {
     option_env!("ESPLORA_URL")
         .as_deref()
-        .unwrap_or_else(|| "https://blockstream.info/liquid/api")
+        .unwrap_or("https://blockstream.info/liquid/api")
 });
 
 /// Fetch the UTXOs of an address.
@@ -94,7 +94,7 @@ pub async fn broadcast(tx: Transaction) -> Result<Txid> {
     Ok(txid)
 }
 
-pub async fn get_fee_estimates() -> Result<FeeEstimates> {
+pub async fn get_fee_estimates() -> Result<FeeEstimatesResponse> {
     let url = &format!("{}/fee-estimates", ELEMENTS_ESPLORA_URL);
 
     let fee_estimates = reqwest::get(url)
@@ -107,64 +107,68 @@ pub async fn get_fee_estimates() -> Result<FeeEstimates> {
     Ok(fee_estimates)
 }
 
+/// The response object for the `/fee-estimates` endpoint.
+///
+/// The key is the confirmation target (in number of blocks) and the value is the estimated feerate (in sat/vB).
+/// The available confirmation targets are 1-25, 144, 504 and 1008 blocks.
 #[derive(serde::Deserialize, Debug)]
-pub struct FeeEstimates {
+pub struct FeeEstimatesResponse {
     #[serde(rename = "1")]
-    pub b_1: Option<f64>,
+    pub b_1: Option<f32>,
     #[serde(rename = "2")]
-    pub b_2: Option<f64>,
+    pub b_2: Option<f32>,
     #[serde(rename = "3")]
-    pub b_3: Option<f64>,
+    pub b_3: Option<f32>,
     #[serde(rename = "4")]
-    pub b_4: Option<f64>,
+    pub b_4: Option<f32>,
     #[serde(rename = "5")]
-    pub b_5: Option<f64>,
+    pub b_5: Option<f32>,
     #[serde(rename = "6")]
-    pub b_6: Option<f64>,
+    pub b_6: Option<f32>,
     #[serde(rename = "7")]
-    pub b_7: Option<f64>,
+    pub b_7: Option<f32>,
     #[serde(rename = "8")]
-    pub b_8: Option<f64>,
+    pub b_8: Option<f32>,
     #[serde(rename = "9")]
-    pub b_9: Option<f64>,
+    pub b_9: Option<f32>,
     #[serde(rename = "10")]
-    pub b_10: Option<f64>,
+    pub b_10: Option<f32>,
     #[serde(rename = "11")]
-    pub b_11: Option<f64>,
+    pub b_11: Option<f32>,
     #[serde(rename = "12")]
-    pub b_12: Option<f64>,
+    pub b_12: Option<f32>,
     #[serde(rename = "13")]
-    pub b_13: Option<f64>,
+    pub b_13: Option<f32>,
     #[serde(rename = "14")]
-    pub b_14: Option<f64>,
+    pub b_14: Option<f32>,
     #[serde(rename = "15")]
-    pub b_15: Option<f64>,
+    pub b_15: Option<f32>,
     #[serde(rename = "16")]
-    pub b_16: Option<f64>,
+    pub b_16: Option<f32>,
     #[serde(rename = "17")]
-    pub b_17: Option<f64>,
+    pub b_17: Option<f32>,
     #[serde(rename = "18")]
-    pub b_18: Option<f64>,
+    pub b_18: Option<f32>,
     #[serde(rename = "19")]
-    pub b_19: Option<f64>,
+    pub b_19: Option<f32>,
     #[serde(rename = "20")]
-    pub b_20: Option<f64>,
+    pub b_20: Option<f32>,
     #[serde(rename = "21")]
-    pub b_21: Option<f64>,
+    pub b_21: Option<f32>,
     #[serde(rename = "22")]
-    pub b_22: Option<f64>,
+    pub b_22: Option<f32>,
     #[serde(rename = "23")]
-    pub b_23: Option<f64>,
+    pub b_23: Option<f32>,
     #[serde(rename = "24")]
-    pub b_24: Option<f64>,
+    pub b_24: Option<f32>,
     #[serde(rename = "25")]
-    pub b_25: Option<f64>,
+    pub b_25: Option<f32>,
     #[serde(rename = "144")]
-    pub b_144: Option<f64>,
+    pub b_144: Option<f32>,
     #[serde(rename = "504")]
-    pub b_504: Option<f64>,
+    pub b_504: Option<f32>,
     #[serde(rename = "1008")]
-    pub b_1008: Option<f64>,
+    pub b_1008: Option<f32>,
 }
 
 /// Represents a UTXO as it is modeled by esplora.

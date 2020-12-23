@@ -8,7 +8,8 @@ use bdk::{
         BranchAndBoundCoinSelection, CoinSelectionAlgorithm, CoinSelectionResult,
     },
 };
-use elements_fun::{bitcoin::Denomination, ExplicitTxOut, OutPoint, Script};
+
+use elements_fun::{bitcoin::Denomination, AssetId, OutPoint, Script};
 
 /// Select a subset of `utxos` to cover the `target` amount.
 ///
@@ -16,9 +17,14 @@ use elements_fun::{bitcoin::Denomination, ExplicitTxOut, OutPoint, Script};
 /// provided by `bdk`.
 ///
 /// Only supports P2PK, P2PKH and P2WPKH UTXOs.
-pub fn coin_select(utxos: Vec<Utxo>, target: Amount) -> Result<Output> {
-    let asset = utxos[0].txout.asset;
-    if utxos.iter().any(|utxo| utxo.txout.asset != asset) {
+pub fn coin_select(
+    utxos: Vec<Utxo>,
+    target: Amount,
+    fee_rate_sat_per_vbyte: f32,
+    fee_offset: Amount,
+) -> Result<Output> {
+    let asset = utxos[0].asset;
+    if utxos.iter().any(|utxo| utxo.asset != asset) {
         bail!("all UTXOs must have the same asset ID")
     }
 
@@ -26,25 +32,25 @@ pub fn coin_select(utxos: Vec<Utxo>, target: Amount) -> Result<Output> {
         .iter()
         .cloned()
         .filter_map(|utxo| {
-            max_satisfaction_weight(&utxo.txout.script_pubkey).map(|weight| (utxo, weight))
+            max_satisfaction_weight(&utxo.script_pubkey).map(|weight| (utxo, weight))
         })
         .map(|(utxo, weight)| (bdk::UTXO::from(utxo), weight))
         .collect();
+
+    // a change is a regular output
+    let size_of_change = crate::wallet::avg_vbytes::OUTPUT;
 
     let CoinSelectionResult {
         selected: selected_utxos,
         fee_amount,
         ..
-    } = BranchAndBoundCoinSelection::default().coin_select(
+    } = BranchAndBoundCoinSelection::new(size_of_change).coin_select(
         &DummyDb,
         Vec::new(),
         bdk_utxos,
-        bdk::FeeRate::default(),
+        bdk::FeeRate::from_sat_per_vb(fee_rate_sat_per_vbyte),
         target.as_sat(),
-        // TODO: Set a realistic value for the fees unrelated to the
-        // inputs. Consider the fact that elements outputs are
-        // generally heavier than bitcoin outputs
-        0.0,
+        fee_offset.as_sat() as f32,
     )?;
 
     let selected_utxos = selected_utxos
@@ -73,13 +79,15 @@ pub fn coin_select(utxos: Vec<Utxo>, target: Amount) -> Result<Output> {
 #[derive(Debug, Clone, PartialEq)]
 pub struct Utxo {
     pub outpoint: OutPoint,
-    pub txout: ExplicitTxOut,
+    pub value: u64,
+    pub script_pubkey: Script,
+    pub asset: AssetId,
 }
 
 impl From<Utxo> for bdk::UTXO {
     fn from(utxo: Utxo) -> Self {
-        let value = utxo.txout.value.0;
-        let script_pubkey = utxo.txout.script_pubkey.into_bytes();
+        let value = utxo.value;
+        let script_pubkey = utxo.script_pubkey.into_bytes();
         let script_pubkey = bdk::bitcoin::Script::from(script_pubkey);
 
         Self {
@@ -110,10 +118,7 @@ impl Output {
     }
 
     pub fn selected_amount(&self) -> Amount {
-        let amount = self
-            .coins
-            .iter()
-            .fold(0, |acc, utxo| acc + utxo.txout.value.0);
+        let amount = self.coins.iter().fold(0, |acc, utxo| acc + utxo.value);
         Amount::from_sat(amount)
     }
 }
@@ -137,7 +142,7 @@ fn max_satisfaction_weight(script_pubkey: &Script) -> Option<usize> {
 mod tests {
     use std::str::FromStr;
 
-    use elements_fun::{Address, AssetId, ExplicitAsset, ExplicitValue, Txid};
+    use elements_fun::{Address, Txid};
 
     use super::*;
 
@@ -148,23 +153,15 @@ mod tests {
                 txid: Txid::default(),
                 vout: 0,
             },
-            txout: ExplicitTxOut {
-                asset: ExplicitAsset(
-                    AssetId::from_str(
-                        "0000000000000000000000000000000000000000000000000000000000000000",
-                    )
-                    .unwrap(),
-                ),
-                value: ExplicitValue(100_000_000),
-                script_pubkey: Address::from_str("ert1qxzlkf3t275hwszualaf35spcfuq4s5tqtxj4tl")
-                    .unwrap()
-                    .script_pubkey(),
-                nonce: None,
-            },
+            value: 100_000_000,
+            script_pubkey: Address::from_str("ert1qxzlkf3t275hwszualaf35spcfuq4s5tqtxj4tl")
+                .unwrap()
+                .script_pubkey(),
+            asset: AssetId::default(),
         };
 
         let target_amount = Amount::from_sat(90_000_000);
-        let selection = coin_select(vec![utxo.clone()], target_amount).unwrap();
+        let selection = coin_select(vec![utxo.clone()], target_amount, 1.0, Amount::ZERO).unwrap();
 
         assert!(selection.coins.len() == 1);
         assert!(selection.coins.contains(&utxo));
