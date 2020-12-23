@@ -1,4 +1,4 @@
-use crate::{cache_storage::CacheStorage, constants::ELEMENTS_ESPLORA_URL};
+use crate::{cache_storage::CacheStorage, constants::ESPLORA_API_URL};
 use anyhow::{anyhow, bail, Context, Result};
 use elements_fun::{
     encode::{deserialize, serialize_hex},
@@ -10,7 +10,7 @@ use reqwest::StatusCode;
 ///
 /// UTXOs change over time and as such, this function never uses a cache.
 pub async fn fetch_utxos(address: &Address) -> Result<Vec<Utxo>> {
-    let url = format!("{}/address/{}/utxo", ELEMENTS_ESPLORA_URL, address);
+    let url = format!("{}/address/{}/utxo", ESPLORA_API_URL, address);
     let response = reqwest::get(&url).await.context("failed to fetch UTXOs")?;
 
     if response.status() == StatusCode::NOT_FOUND {
@@ -39,7 +39,7 @@ pub async fn fetch_asset_description(asset: AssetId) -> Result<AssetDescription>
         .await?;
 
     let asset_description = cache
-        .match_or_add(&format!("{}/asset/{}", ELEMENTS_ESPLORA_URL, asset))
+        .match_or_add(&format!("{}/asset/{}", ESPLORA_API_URL, asset))
         .await?
         .json()
         .await?;
@@ -55,7 +55,7 @@ pub async fn fetch_transaction(txid: Txid) -> Result<Transaction> {
     let cache = CacheStorage::from_window()?.open("transactions").await?;
 
     let body = cache
-        .match_or_add(&format!("{}/tx/{}/hex", ELEMENTS_ESPLORA_URL, txid))
+        .match_or_add(&format!("{}/tx/{}/hex", ESPLORA_API_URL, txid))
         .await?
         .text()
         .await?;
@@ -67,7 +67,7 @@ pub async fn broadcast(tx: Transaction) -> Result<Txid> {
     let client = reqwest::Client::new();
 
     let response = client
-        .post(&format!("{}/tx", ELEMENTS_ESPLORA_URL))
+        .post(&format!("{}/tx", ESPLORA_API_URL))
         .body(serialize_hex(&tx))
         .send()
         .await?;
@@ -88,7 +88,7 @@ pub async fn broadcast(tx: Transaction) -> Result<Txid> {
 }
 
 pub async fn get_fee_estimates() -> Result<FeeEstimatesResponse> {
-    let url = &format!("{}/fee-estimates", ELEMENTS_ESPLORA_URL);
+    let url = &format!("{}/fee-estimates", ESPLORA_API_URL);
 
     let fee_estimates = reqwest::get(url)
         .await
