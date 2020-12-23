@@ -183,7 +183,7 @@ mod constants_tests {
 
     #[test]
     fn assert_address_params_constant() {
-        match option_env!("ELEMENTS_CHAIN") {
+        match option_env!("CHAIN") {
             None | Some("LIQUID") => {
                 assert_eq!(crate::constants::ADDRESS_PARAMS, &AddressParams::LIQUID)
             }

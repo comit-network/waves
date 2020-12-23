@@ -18,7 +18,7 @@ fn main() -> Result<()> {
         .as_deref()
         .unwrap_or("https://blockstream.info/liquid/api");
 
-    let address_params = match option_env!("ELEMENTS_CHAIN") {
+    let address_params = match option_env!("CHAIN") {
         None | Some("LIQUID") => "&elements_fun::AddressParams::LIQUID",
         Some("ELEMENTS") => "&elements_fun::AddressParams::ELEMENTS",
         Some(chain) => bail!("unsupported elements chain {}", chain),
