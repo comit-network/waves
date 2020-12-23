@@ -103,9 +103,9 @@ where
             }
             TxOut::Null(_) => None,
         })
-        .group_by(|(asset, _)| *asset);
+        .into_group_map();
 
-    (&grouped_txouts)
+    grouped_txouts
         .into_iter()
         .map(|(asset, utxos)| async move {
             let ad = match asset_resolver(asset).await {
@@ -116,7 +116,7 @@ where
                     AssetDescription::default(asset)
                 }
             };
-            let total_sum = utxos.map(|(_, value)| value).sum();
+            let total_sum = utxos.into_iter().sum();
 
             BalanceEntry::for_asset(total_sum, ad, native_asset_ticker)
         })
