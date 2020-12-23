@@ -167,6 +167,37 @@ jobs:
           yarn run build
           yarn run test
 
+  wallet_buildscript_test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v2
+
+      - name: Install Rust toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          override: true
+
+      - name: Cache target directory
+        if: matrix.os != 'macos-latest' # Need to disable cache until https://github.com/actions/cache/issues/403 is fixed.
+        uses: actions/cache@v2
+        with:
+          path: target
+          key: ${{ matrix.os }}-target-directory-${{ hashFiles('Cargo.lock') }}-v1
+
+      - name: Build wallet with default configuration
+        run: cargo test -p wallet constants_tests
+
+      - name: Build wallet with custom configuration
+        run: cargo test -p wallet constants_tests
+        env:
+          NATIVE_ASSET_TICKER: FOO-BTC
+          NATIVE_ASSET_ID: 2dcf5a8834645654911964ec3602426fd3b9b4017554d3f9c19403e7fc1411d3
+          ESPLORA_URL: http://localhost:3000/
+          ELEMENTS_CHAIN: ELEMENTS
+          DEFAULT_FEE_PER_VBYTE: 13.37
+
   wasm_wallet_test:
     runs-on: ubuntu-latest
     steps:

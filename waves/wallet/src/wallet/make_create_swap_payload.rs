@@ -32,7 +32,7 @@ pub async fn make_create_swap_payload(
                 };
                 let candidate_asset = unblinded_txout.asset;
 
-                if candidate_asset == *NATIVE_ASSET_ID {
+                if candidate_asset == NATIVE_ASSET_ID {
                     Some(coin_selection::Utxo {
                         outpoint,
                         value: unblinded_txout.value,
@@ -59,7 +59,7 @@ pub async fn make_create_swap_payload(
 
     let fee_estimates = map_err_from_anyhow!(esplora::get_fee_estimates().await)?;
 
-    let chosen_fee_rate = fee_estimates.b_6.unwrap_or(*DEFAULT_SAT_PER_VBYTE);
+    let chosen_fee_rate = fee_estimates.b_6.unwrap_or(DEFAULT_SAT_PER_VBYTE);
 
     let fee_for_our_output = (avg_vbytes::OUTPUT as f32 * chosen_fee_rate) as u64;
     let output = map_err_from_anyhow!(coin_select(
