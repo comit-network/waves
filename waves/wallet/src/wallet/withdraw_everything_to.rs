@@ -80,14 +80,10 @@ pub async fn withdraw_everything_to(
 
     let txouts_grouped_by_asset = txouts
         .into_iter()
-        .group_by(|(_, _, unblinded)| unblinded.asset);
-
-    // prepare the data exactly as we need it to create the transaction
-    let txouts_grouped_by_asset = (&txouts_grouped_by_asset)
+        .map(|(utxo, confidential, unblinded)| (unblinded.asset, (utxo, confidential, unblinded)))
+        .into_group_map()
         .into_iter()
         .map(|(asset, txouts)| {
-            let txouts = txouts.collect::<Vec<_>>();
-
             // calculate the total amount we want to spend for this asset
             // if this is the native asset, subtract the fee
             let total_input = txouts.iter().map(|(_, _, txout)| txout.value).sum::<u64>();
