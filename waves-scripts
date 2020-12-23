@@ -87,7 +87,6 @@ start_frontend () {
     export NATIVE_ASSET_ID=$(nigiri rpc --liquid dumpassetlabels | jq -r '.bitcoin')
     export CHAIN=ELEMENTS
     export ESPLORA_URL=$chopsticks_url
-    export REACT_APP_ESPLORA_URL=$chopsticks_url
     yarn start
 }
 
