@@ -65,7 +65,7 @@ function SwapWithWallet({
     const fetchSwapTransaction = async () => {
         let payload = await makeCreateSwapPayload(alphaAmount.toString());
 
-        let res = await fetch("/api/swap/lbtc-lusdt", {
+        let res = await fetch("/api/swap/lbtc-lusdt/sell", {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
