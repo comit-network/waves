@@ -89,16 +89,16 @@ pub fn decode(s: &str) -> Result<(&str, Vec<u5>), Error> {
     let mut hrp_bytes: Vec<u8> = Vec::new();
     for b in raw_hrp.bytes() {
         // Valid subset of ASCII
-        if b < 33 || b > 126 {
+        if !(33..=126).contains(&b) {
             return Err(Error::InvalidChar(b as char));
         }
         let mut c = b;
         // Lowercase
-        if b >= b'a' && b <= b'z' {
+        if (b'a'..=b'z').contains(&b) {
             has_lower = true;
         }
         // Uppercase
-        if b >= b'A' && b <= b'Z' {
+        if (b'A'..=b'Z').contains(&b) {
             has_upper = true;
             // Convert to lowercase
             c = b + (b'a' - b'A');
@@ -125,7 +125,7 @@ pub fn decode(s: &str) -> Result<(&str, Vec<u5>), Error> {
             // c should be <128 since it is in the ASCII range, CHARSET_REV.len() == 128
             let num_value = CHARSET_REV[c as usize];
 
-            if num_value > 31 || num_value < 0 {
+            if !(0..=31).contains(&num_value) {
                 return Err(Error::InvalidChar(c));
             }
 

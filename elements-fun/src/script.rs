@@ -704,7 +704,7 @@ impl Builder {
     /// dedicated opcodes to push some small integers.
     pub fn push_int(self, data: i64) -> Builder {
         // We can special-case -1, 1-16
-        if data == -1 || (data >= 1 && data <= 16) {
+        if data == -1 || (1..=16).contains(&data) {
             let opcode = opcodes::All::from((data - 1 + opcodes::OP_TRUE.into_u8() as i64) as u8);
             self.push_opcode(opcode)
         }
