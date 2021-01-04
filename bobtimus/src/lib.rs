@@ -1,5 +1,4 @@
 use anyhow::{Context, Result};
-use async_trait::async_trait;
 use elements_fun::{
     bitcoin::{
         secp256k1::{All, Secp256k1},
@@ -12,8 +11,9 @@ use elements_fun::{
     Address, AssetId, OutPoint, Transaction, TxIn,
 };
 use elements_harness::{elementd_rpc::ElementsRpc, Client as ElementsdClient};
-use futures::{stream::FuturesUnordered, TryStreamExt};
+use futures::{stream, stream::FuturesUnordered, Stream, TryStreamExt};
 use serde::{Deserialize, Serialize};
+use tokio::sync::watch::Receiver;
 
 mod amounts;
 
@@ -55,11 +55,7 @@ impl<R, RS> Bobtimus<R, RS> {
         R: RngCore + CryptoRng,
         RS: LatestRate,
     {
-        let latest_rate = self
-            .rate_service
-            .latest_rate()
-            .await
-            .context("failed to get latest rate")?;
+        let latest_rate = self.rate_service.latest_rate();
         let usdt_amount = latest_rate.buy_quote(payload.btc_amount)?;
 
         let bob_inputs = self
@@ -197,9 +193,34 @@ impl<R, RS> Bobtimus<R, RS> {
     }
 }
 
-#[async_trait]
 pub trait LatestRate {
-    async fn latest_rate(&mut self) -> Result<Rate>;
+    fn latest_rate(&mut self) -> Rate;
+}
+
+#[derive(Clone)]
+pub struct RateSubscription {
+    receiver: Receiver<Rate>,
+}
+
+impl From<Receiver<Rate>> for RateSubscription {
+    fn from(receiver: Receiver<Rate>) -> Self {
+        Self { receiver }
+    }
+}
+
+impl RateSubscription {
+    pub fn into_stream(self) -> impl Stream<Item = Result<Rate>> {
+        stream::try_unfold(self.receiver, |mut receiver| async move {
+            receiver
+                .changed()
+                .await
+                .context("failed to receive latest rate update")?;
+
+            let latest_rate = *receiver.borrow();
+
+            Ok(Some((latest_rate, receiver)))
+        })
+    }
 }
 
 #[cfg(test)]

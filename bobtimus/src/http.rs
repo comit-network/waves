@@ -1,11 +1,12 @@
-use crate::{problem, Bobtimus, CreateSwapPayload, LatestRate, Rate};
+use crate::{problem, Bobtimus, CreateSwapPayload, LatestRate, RateSubscription};
+use anyhow::Context;
 use elements_fun::{
     encode::serialize_hex,
     secp256k1::rand::{CryptoRng, RngCore},
 };
-use futures::{Stream, StreamExt};
+use futures::{StreamExt, TryStreamExt};
 use rust_embed::RustEmbed;
-use std::{convert::Infallible, sync::Arc};
+use std::{error::Error, fmt, sync::Arc};
 use tokio::sync::Mutex;
 use warp::{
     filters::BoxedFilter, http::header::HeaderValue, path::Tail, reply::Response, Filter,
@@ -18,7 +19,7 @@ struct Waves;
 
 pub fn routes<R, RS>(
     bobtimus: Arc<Mutex<Bobtimus<R, RS>>>,
-    latest_rate_subscription: impl Stream<Item = Rate> + Clone + Send + Sync + 'static,
+    latest_rate_subscription: RateSubscription,
 ) -> BoxedFilter<(impl Reply,)>
 where
     R: RngCore + CryptoRng + Clone + Send + Sync + 'static,
@@ -73,13 +74,46 @@ where
         .map_err(warp::reject::custom)
 }
 
-fn latest_rate<S>(stream: S) -> impl Reply
-where
-    S: Stream<Item = Rate> + Clone + Send + 'static,
-{
-    warp::sse::reply(warp::sse::keep_alive().stream(stream.map(|data| {
-        Result::<_, Infallible>::Ok((warp::sse::event("rate"), warp::sse::json(data)))
-    })))
+fn latest_rate(subscription: RateSubscription) -> impl Reply {
+    let stream = subscription
+        .into_stream()
+        .map_ok(|data| {
+            let event = warp::sse::Event::default()
+                .id("rate")
+                .json_data(data)
+                .context("failed to attach json data to sse event")?;
+
+            Ok(event)
+        })
+        .map(|result| match result {
+            Ok(Ok(ok)) => Ok(ok),
+            Ok(Err(e)) => Err(e),
+            Err(e) => Err(e),
+        })
+        .err_into::<RateStreamError>();
+
+    warp::sse::reply(warp::sse::keep_alive().stream(stream))
+}
+
+#[derive(Debug)]
+struct RateStreamError(anyhow::Error);
+
+impl fmt::Display for RateStreamError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{:#}", self.0)
+    }
+}
+
+impl std::error::Error for RateStreamError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        self.0.source()
+    }
+}
+
+impl From<anyhow::Error> for RateStreamError {
+    fn from(e: anyhow::Error) -> Self {
+        RateStreamError(e)
+    }
 }
 
 async fn serve_index() -> Result<impl Reply, Rejection> {
