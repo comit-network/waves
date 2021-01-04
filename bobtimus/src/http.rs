@@ -7,7 +7,7 @@ use warp::{
     Rejection, Reply,
 };
 
-use crate::{Bobtimus, LatestRate, Rate};
+use crate::{Bobtimus, CreateSwapPayload, LatestRate, Rate};
 
 #[derive(RustEmbed)]
 #[folder = "../waves/dist/"]
@@ -55,6 +55,10 @@ where
     RS: LatestRate,
 {
     let payload = payload.to_string();
+    let payload: CreateSwapPayload = serde_json::from_str(&payload).map_err(|e| {
+        log::error!("Failed to deserialize create swap payload: {}", e);
+        warp::reject::reject()
+    })?;
 
     bobtimus
         .handle_create_swap(payload)

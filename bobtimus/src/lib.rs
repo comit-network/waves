@@ -52,13 +52,11 @@ pub struct AliceInput {
 }
 
 impl<R, RS> Bobtimus<R, RS> {
-    pub async fn handle_create_swap(&mut self, payload: String) -> Result<Message1>
+    pub async fn handle_create_swap(&mut self, payload: CreateSwapPayload) -> Result<Message1>
     where
         R: RngCore + CryptoRng,
         RS: LatestRate,
     {
-        let payload: CreateSwapPayload = serde_json::from_str(&payload)?;
-
         let latest_rate = self
             .rate_service
             .latest_rate()
@@ -317,19 +315,16 @@ mod tests {
         };
 
         let message1 = bob
-            .handle_create_swap(
-                serde_json::to_string(&CreateSwapPayload {
-                    alice_inputs: vec![AliceInput {
-                        outpoint: message0.input.previous_output,
-                        blinding_key: message0.input_blinding_sk,
-                    }],
-                    address_redeem: message0.address_redeem,
-                    address_change: message0.address_change,
-                    fee: message0.fee,
-                    btc_amount: redeem_amount_bob,
-                })
-                .unwrap(),
-            )
+            .handle_create_swap(CreateSwapPayload {
+                alice_inputs: vec![AliceInput {
+                    outpoint: message0.input.previous_output,
+                    blinding_key: message0.input_blinding_sk,
+                }],
+                address_redeem: message0.address_redeem,
+                address_change: message0.address_change,
+                fee: message0.fee,
+                btc_amount: redeem_amount_bob,
+            })
             .await
             .unwrap();
 
