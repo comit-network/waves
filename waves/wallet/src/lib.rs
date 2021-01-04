@@ -1,10 +1,7 @@
 use crate::{utils::set_panic_hook, wallet::Wallet};
 use anyhow::{Context, Result};
 use conquer_once::Lazy;
-use elements_fun::{
-    bitcoin::{Amount, Denomination},
-    secp256k1::{All, Secp256k1},
-};
+use elements_fun::bitcoin::{Amount, Denomination};
 use futures::lock::Mutex;
 use js_sys::Array;
 use wasm_bindgen::prelude::*;
@@ -28,8 +25,6 @@ mod constants {
 #[cfg(feature = "wee_alloc")]
 #[global_allocator]
 static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
-
-static SECP: Lazy<Secp256k1<All>> = Lazy::new(Secp256k1::new);
 
 static LOADED_WALLET: Lazy<Mutex<Option<Wallet>>> = Lazy::new(Mutex::default);
 

@@ -2,7 +2,6 @@ use crate::{
     constants::{ADDRESS_PARAMS, DEFAULT_SAT_PER_VBYTE, NATIVE_ASSET_ID, NATIVE_ASSET_TICKER},
     esplora,
     esplora::Utxo,
-    SECP,
 };
 use aes_gcm_siv::{
     aead::{Aead, NewAead},
@@ -11,7 +10,10 @@ use aes_gcm_siv::{
 use anyhow::{Context, Result};
 use elements_fun::{
     bitcoin,
-    bitcoin::{secp256k1::SecretKey, Amount},
+    bitcoin::{
+        secp256k1::{SecretKey, SECP256K1},
+        Amount,
+    },
     secp256k1::{rand, PublicKey},
     Address, OutPoint, TxOut,
 };
@@ -156,12 +158,12 @@ impl Wallet {
     }
 
     pub fn get_public_key(&self) -> PublicKey {
-        PublicKey::from_secret_key(&*SECP, &self.secret_key)
+        PublicKey::from_secret_key(SECP256K1, &self.secret_key)
     }
 
     pub fn get_address(&self) -> Result<Address, JsValue> {
         let public_key = self.get_public_key();
-        let blinding_key = PublicKey::from_secret_key(&*SECP, &self.blinding_key());
+        let blinding_key = PublicKey::from_secret_key(SECP256K1, &self.blinding_key());
 
         let address = Address::p2wpkh(
             &bitcoin::PublicKey {

@@ -1,12 +1,9 @@
-use crate::{
-    wallet::{
-        coin_selection, coin_selection::coin_select, current, get_txouts, CreateSwapPayload,
-        SwapUtxo, Wallet, NATIVE_ASSET_ID,
-    },
-    SECP,
+use crate::wallet::{
+    coin_selection, coin_selection::coin_select, current, get_txouts, CreateSwapPayload, SwapUtxo,
+    Wallet, NATIVE_ASSET_ID,
 };
 use anyhow::{Context, Result};
-use elements_fun::{bitcoin::Amount, transaction, OutPoint, TxOut};
+use elements_fun::{bitcoin::Amount, secp256k1::SECP256K1, transaction, OutPoint, TxOut};
 use futures::lock::Mutex;
 use wasm_bindgen::JsValue;
 
@@ -21,7 +18,7 @@ pub async fn make_create_sell_swap_payload(
     let utxos = get_txouts(&wallet, |utxo, txout| {
         Ok(match txout {
             TxOut::Confidential(confidential) => {
-                let unblinded_txout = confidential.unblind(&*SECP, blinding_key)?;
+                let unblinded_txout = confidential.unblind(SECP256K1, blinding_key)?;
                 let outpoint = OutPoint {
                     txid: utxo.txid,
                     vout: utxo.vout,
