@@ -10,7 +10,7 @@ use warp::{
 use crate::{Bobtimus, LatestRate, Rate};
 
 #[derive(RustEmbed)]
-#[folder = "../waves/build/"]
+#[folder = "../waves/dist/"]
 struct Waves;
 
 pub fn routes<R, RS>(
