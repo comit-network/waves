@@ -1,6 +1,7 @@
 const path = require("path");
 const WasmPackPlugin = require("@wasm-tool/wasm-pack-plugin");
 const webpack = require("webpack");
+const FileManagerPlugin = require("filemanager-webpack-plugin");
 
 module.exports = function override(config, env) {
     config.resolve.extensions.push(".wasm");
@@ -28,6 +29,18 @@ module.exports = function override(config, env) {
                 return data;
             },
         ),
+        new FileManagerPlugin({
+            events: {
+                onStart: {
+                    delete: ["./dist/[!.gitignore]*"],
+                },
+                onEnd: {
+                    copy: [
+                        { source: "./build", destination: "./dist" },
+                    ],
+                },
+            },
+        }),
     ]);
 
     return config;

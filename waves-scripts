@@ -12,8 +12,8 @@ start_dev_env () {
 }
 
 stop_dev_env () {
-    stop_bobtimus
     stop_nodes
+    stop_bobtimus
 }
 
 start_nodes () {
@@ -56,16 +56,33 @@ start_bobtimus () {
 
     cargo build --bin fake_bobtimus
 
+    set +e
+    find ./waves/build ./waves/build/index.html &> /dev/null
+    set -e
+
+    if [ $? -ne 0 ]; then
+        echo "Frontend not yet built"
+
+        cd waves
+        yarn
+        yarn run build
+        cd -
+    fi
+
     local -r elementsd_rpc_user="admin1"
     local -r elementsd_rpc_password="123"
-    RUST_LOG=info cargo run --bin fake_bobtimus -- \
+    RUST_LOG=debug cargo run --bin fake_bobtimus -- \
             --elementsd http://$elementsd_rpc_user:$elementsd_rpc_password@127.0.0.1:$LIQUID_NODE_PORT \
             --usdt $1 > $log_dir/bobtimus 2>&1 &
     bobtimus_pid=$!
 
     sleep 1
-    curl --fail --output /dev/null  http://127.0.0.1:3030
+    curl --fail http://127.0.0.1:3030 &> /dev/null
     if [ $? -ne 0 ]; then
+        set +e
+        pkill bobtimus_pid
+        set -e
+
         echo "Failed to start Bobtimus"
         exit 1
     fi

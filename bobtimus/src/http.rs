@@ -10,7 +10,7 @@ use warp::{
 use crate::{Bobtimus, CreateSwapPayload, LatestRate, Rate};
 
 #[derive(RustEmbed)]
-#[folder = "../waves/build/"]
+#[folder = "../waves/dist/"]
 struct Waves;
 
 pub fn routes<R, RS>(
@@ -33,7 +33,7 @@ where
         move || bobtimus.clone()
     });
     let create_swap = warp::post()
-        .and(warp::path!("swap" / "lbtc-lusdt"))
+        .and(warp::path!("api" / "swap" / "lbtc-lusdt" / "sell"))
         .and(warp::path::end())
         .and(bobtimus_filter)
         .and(warp::body::json())
@@ -48,17 +48,26 @@ where
 
 async fn create_swap<R, RS>(
     mut bobtimus: Bobtimus<R, RS>,
-    payload: CreateSwapPayload,
+    payload: serde_json::Value,
 ) -> Result<impl Reply, Rejection>
 where
     R: RngCore + CryptoRng,
     RS: LatestRate,
 {
+    let payload = payload.to_string();
+    let payload: CreateSwapPayload = serde_json::from_str(&payload).map_err(|e| {
+        log::error!("Failed to deserialize create swap payload: {}", e);
+        warp::reject::reject()
+    })?;
+
     bobtimus
         .handle_create_swap(payload)
         .await
         .map(|message1| warp::reply::json(&message1.transaction))
-        .map_err(|_| warp::reject::reject())
+        .map_err(|e| {
+            log::error!("{}", e);
+            warp::reject::reject()
+        })
 }
 
 fn latest_rate<S>(stream: S) -> impl Reply
