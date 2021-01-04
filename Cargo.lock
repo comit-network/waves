@@ -181,8 +181,7 @@ checksum = "cdcf67bb7ba7797a081cd19009948ab533af7c355d5caf1d08c777582d351e9c"
 [[package]]
 name = "bitcoin"
 version = "0.25.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "aefc9be9f17185f4ebccae6575d342063f775924d57df0000edb1880c0fb7095"
+source = "git+https://github.com/thomaseizinger/rust-bitcoin?branch=secp-0.20-rust-bitcoin-0.25.2#3751b736f28c9960bb8a8172e29fe0a2688bb868"
 dependencies = [
  "bech32",
  "bitcoin_hashes 0.9.4",
@@ -1597,7 +1596,8 @@ dependencies = [
 [[package]]
 name = "reqwest"
 version = "0.10.10"
-source = "git+https://github.com/seanmonstar/reqwest#5099192b92df49f5fe7794b0112ec0f3a0a58ca7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0718f81a8e14c4dbb3b34cf23dc6aaf9ab8a0dfec160c534b3dbca1aaa21f47c"
 dependencies = [
  "base64 0.13.0",
  "bytes",
@@ -1789,8 +1789,9 @@ dependencies = [
 
 [[package]]
 name = "secp256k1"
-version = "0.19.0"
-source = "git+https://github.com/rust-bitcoin/rust-secp256k1#11e9641d21c861ef33272bdde7bf01bec73e4e7d"
+version = "0.20.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fcfd0eece5bc8fca7ca07a0c17ffd334b028f72ffbe9dd8ec924a8c885753278"
 dependencies = [
  "bitcoin_hashes 0.9.4",
  "rand 0.6.5",
@@ -1800,8 +1801,9 @@ dependencies = [
 
 [[package]]
 name = "secp256k1-sys"
-version = "0.3.1"
-source = "git+https://github.com/rust-bitcoin/rust-secp256k1#11e9641d21c861ef33272bdde7bf01bec73e4e7d"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "67e4b6455ee49f5901c8985b88f98fb0a0e1d90a6661f5a03f4888bd987dad29"
 dependencies = [
  "cc",
 ]
@@ -1809,7 +1811,7 @@ dependencies = [
 [[package]]
 name = "secp256k1-zkp"
 version = "0.1.0"
-source = "git+https://github.com/comit-network/rust-secp256k1-zkp#7397ca919b0097c73c808c7cb02f15f7716a4b0d"
+source = "git+https://github.com/comit-network/rust-secp256k1-zkp#73526ee20b8448ab5eaa36eee656cf6bc9e4a96a"
 dependencies = [
  "bitcoin_hashes 0.9.4",
  "rand 0.6.5",
@@ -1821,7 +1823,7 @@ dependencies = [
 [[package]]
 name = "secp256k1-zkp-sys"
 version = "0.1.0"
-source = "git+https://github.com/comit-network/rust-secp256k1-zkp#7397ca919b0097c73c808c7cb02f15f7716a4b0d"
+source = "git+https://github.com/comit-network/rust-secp256k1-zkp#73526ee20b8448ab5eaa36eee656cf6bc9e4a96a"
 dependencies = [
  "cc",
  "secp256k1-sys",

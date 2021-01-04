@@ -2,8 +2,7 @@
 members = [ "elements-harness", "swap", "elements-fun", "elements-fun/fuzz", "waves/wallet", "bobtimus" ]
 
 [patch.crates-io]
-# Patch reqwest until this commit is released: https://github.com/seanmonstar/reqwest/commit/e7be3eda04ffff53adf9fcc52ea3e61b1ad9ccda
-reqwest = { git = "https://github.com/seanmonstar/reqwest" }
 # Until bdk depends on a version of rust-miniscript (likely v4.1) that includes this commit: https://github.com/rust-bitcoin/rust-miniscript/commit/f43f7e6edd06ac659500eb8177ef300e49affe92
 miniscript = { git = "https://github.com/coblox/rust-miniscript", branch = "wasm-bdk" }
-secp256k1 = { git = "https://github.com/rust-bitcoin/rust-secp256k1" } # need to use latest HEAD until rust-secp256k1-zkp depends on a released version
+# Until next version with secp256k1 0.20 is released. This purposely points to a branch that backports this change to the 0.25.2 tag to avoid compilation errors in miniscript.
+bitcoin = { git = "https://github.com/thomaseizinger/rust-bitcoin", branch = "secp-0.20-rust-bitcoin-0.25.2" }
