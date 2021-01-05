@@ -1,8 +1,8 @@
 import { ChakraProvider } from "@chakra-ui/react";
 import React from "react";
 import ReactDOM from "react-dom";
-import { SSEProvider } from "react-hooks-sse";
 import App from "./App";
+import { BobtimusRateProvider } from "./Bobtimus";
 import "./index.css";
 import reportWebVitals from "./reportWebVitals";
 import theme from "./theme";
@@ -10,9 +10,7 @@ import theme from "./theme";
 ReactDOM.render(
     <React.StrictMode>
         <ChakraProvider theme={theme}>
-            <SSEProvider endpoint="/rate/lbtc-lusdt">
-                <App />
-            </SSEProvider>
+            <BobtimusRateProvider children={<App />} />
         </ChakraProvider>
     </React.StrictMode>,
     document.getElementById("root"),

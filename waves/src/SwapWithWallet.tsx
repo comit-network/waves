@@ -20,6 +20,7 @@ import {
 import React, { Dispatch, MouseEvent, useState } from "react";
 import { useHistory } from "react-router-dom";
 import { Action, AssetType } from "./App";
+import { postSellPayload } from "./Bobtimus";
 import Bitcoin from "./components/bitcoin.svg";
 import Usdt from "./components/tether.svg";
 import { makeCreateSwapPayload } from "./wasmProxy";
@@ -64,18 +65,8 @@ function SwapWithWallet({
 
     const fetchSwapTransaction = async () => {
         let payload = await makeCreateSwapPayload(alphaAmount.toString());
+        let tx = await postSellPayload(payload);
 
-        let res = await fetch("/api/swap/lbtc-lusdt/sell", {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                Accept: "application/json",
-            },
-            body: JSON.stringify(payload),
-        });
-        console.log(res);
-
-        let tx = (await res.json()) as {};
         setTransaction(tx);
 
         console.log(JSON.stringify(transaction));

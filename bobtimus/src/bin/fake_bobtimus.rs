@@ -43,7 +43,7 @@ async fn main() -> Result<()> {
     let cors = warp::cors().allow_any_origin();
 
     let faucet = warp::post()
-        .and(warp::path("faucet"))
+        .and(warp::path!("api" / "faucet" / ..))
         .and(warp::path::param())
         .and(warp::path::end())
         .and(bobtimus_filter)
