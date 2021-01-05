@@ -1,17 +1,19 @@
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result};
 use async_trait::async_trait;
 use elements_fun::{
-    bitcoin::Amount,
+    bitcoin::{
+        secp256k1::{All, Secp256k1},
+        Amount,
+    },
     secp256k1::{
         rand::{CryptoRng, RngCore},
         SecretKey,
     },
-    Address, AssetId, OutPoint, TxIn,
+    Address, AssetId, OutPoint, Transaction, TxIn,
 };
 use elements_harness::{elementd_rpc::ElementsRpc, Client as ElementsdClient};
 use futures::{stream::FuturesUnordered, TryStreamExt};
 use serde::{Deserialize, Serialize};
-use swap::{Bob0, Message0, Message1};
 
 mod amounts;
 
@@ -21,7 +23,6 @@ pub mod http;
 pub mod kraken;
 
 pub use amounts::*;
-use elements_fun::bitcoin::secp256k1::{All, Secp256k1};
 
 pub const USDT_ASSET_ID: &str = "ce091c998b83c78bb71a632313ba3760f1763d9cfcffae02258ffa9865a37bd2";
 
@@ -38,10 +39,7 @@ pub struct Bobtimus<R, RS> {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct CreateSwapPayload {
     pub alice_inputs: Vec<AliceInput>,
-    pub address_redeem: Address,
-    pub address_change: Address,
-    #[serde(with = "::elements_fun::bitcoin::util::amount::serde::as_sat")]
-    pub fee: Amount,
+    pub address: Address,
     pub btc_amount: LiquidBtc,
 }
 
@@ -52,7 +50,7 @@ pub struct AliceInput {
 }
 
 impl<R, RS> Bobtimus<R, RS> {
-    pub async fn handle_create_swap(&mut self, payload: CreateSwapPayload) -> Result<Message1>
+    pub async fn handle_create_swap(&mut self, payload: CreateSwapPayload) -> Result<Transaction>
     where
         R: RngCore + CryptoRng,
         RS: LatestRate,
@@ -70,17 +68,18 @@ impl<R, RS> Bobtimus<R, RS> {
             .await
             .context("failed to select inputs for swap")?;
 
-        let (input, input_blinding_sk) = match bob_inputs.as_slice() {
-            [(outpoint, txout)] => {
+        let master_blinding_key = self
+            .elementsd
+            .dumpmasterblindingkey()
+            .await
+            .context("failed to dump master blinding key")?;
+        let master_blinding_key = hex::decode(master_blinding_key)?;
+
+        let bob_inputs = bob_inputs
+            .into_iter()
+            .map(|(outpoint, txout)| {
                 use hmac::{Hmac, Mac, NewMac};
                 use sha2::Sha256;
-
-                let master_blinding_key = self
-                    .elementsd
-                    .dumpmasterblindingkey()
-                    .await
-                    .context("failed to dump master blinding key")?;
-                let master_blinding_key = hex::decode(master_blinding_key)?;
 
                 let mut mac = Hmac::<Sha256>::new_varkey(&master_blinding_key)
                     .expect("HMAC can take key of any size");
@@ -89,32 +88,27 @@ impl<R, RS> Bobtimus<R, RS> {
                 let result = mac.finalize();
                 let input_blinding_sk = SecretKey::from_slice(&result.into_bytes())?;
 
-                ((*outpoint, txout.clone()), input_blinding_sk)
-            }
-            [] => bail!("found no inputs"),
-            _ => bail!("TODO: Support multiple inputs per party"),
-        };
+                Result::<_, anyhow::Error>::Ok(swap::Input {
+                    txin: TxIn {
+                        previous_output: outpoint,
+                        is_pegin: false,
+                        has_issuance: false,
+                        script_sig: Default::default(),
+                        sequence: 0,
+                        asset_issuance: Default::default(),
+                        witness: Default::default(),
+                    },
+                    txout,
+                    blinding_key: input_blinding_sk,
+                })
+            })
+            .collect::<Result<Vec<_>, _>>()?;
 
-        let redeem_address = self
+        let bob_address = self
             .elementsd
             .getnewaddress()
             .await
             .context("failed to get redeem address")?;
-        let change_address = self
-            .elementsd
-            .getnewaddress()
-            .await
-            .context("failed to get change address")?;
-
-        let protocol_state = Bob0::new(
-            usdt_amount.into(),
-            payload.btc_amount.into(),
-            input,
-            input_blinding_sk,
-            self.btc_asset_id,
-            redeem_address,
-            change_address,
-        );
 
         let alice_inputs = payload
             .alice_inputs
@@ -143,7 +137,7 @@ impl<R, RS> Bobtimus<R, RS> {
                             asset_issuance: Default::default(),
                             witness: Default::default(),
                         };
-                        let txin_as_txout = transaction
+                        let txout = transaction
                             .output
                             .get(outpoint.vout as usize)
                             .with_context(|| {
@@ -154,7 +148,11 @@ impl<R, RS> Bobtimus<R, RS> {
                             })?
                             .clone();
 
-                        Result::<_, anyhow::Error>::Ok((txin, txin_as_txout, blinding_key))
+                        Result::<_, anyhow::Error>::Ok(swap::Input {
+                            txin,
+                            txout,
+                            blinding_key,
+                        })
                     }
                 },
             )
@@ -162,32 +160,40 @@ impl<R, RS> Bobtimus<R, RS> {
             .try_collect::<Vec<_>>()
             .await?;
 
-        let (input, input_as_txout, input_blinding_sk) = alice_inputs
-            .get(0) // TODO: Handle multiple inputs from Alice
-            .context("alice needs to send at least one input")?
-            .clone();
+        let alice = swap::Actor::new(
+            &self.secp,
+            alice_inputs,
+            payload.address,
+            self.usdt_asset_id,
+            usdt_amount.into(),
+        )?;
+        let bob = swap::Actor::new(
+            &self.secp,
+            bob_inputs,
+            bob_address,
+            self.btc_asset_id,
+            payload.btc_amount.into(),
+        )?;
 
-        let message0 = Message0 {
-            input,
-            input_as_txout,
-            input_blinding_sk,
-            address_redeem: payload.address_redeem,
-            address_change: payload.address_change,
-            fee: payload.fee,
-        };
+        let transaction = swap::bob_create_transaction(
+            &mut self.rng,
+            &self.secp,
+            alice,
+            bob,
+            self.btc_asset_id,
+            Amount::from_sat(1), // TODO: Make this dynamic once there is something going on on Liquid
+            {
+                let elementsd = self.elementsd.clone();
+                move |transaction| async move {
+                    let tx = elementsd.sign_raw_transaction(&transaction).await?;
 
-        let bob1 = protocol_state.interpret(&mut self.rng, &self.secp, message0)?;
+                    Result::<_, anyhow::Error>::Ok(tx)
+                }
+            },
+        )
+        .await?;
 
-        let elementsd = self.elementsd.clone();
-        let signer = bob1.sign_with_wallet(move |transaction| async move {
-            let tx = elementsd.sign_raw_transaction(transaction).await?;
-
-            Result::<_, anyhow::Error>::Ok(tx)
-        });
-
-        let message = bob1.compose(signer).await?;
-
-        Ok(message)
+        Ok(transaction)
     }
 }
 
@@ -204,13 +210,14 @@ mod tests {
     use elements_fun::{
         bitcoin::{secp256k1::Secp256k1, Amount, Network, PrivateKey, PublicKey},
         secp256k1::{rand::thread_rng, SecretKey, SECP256K1},
+        sighash::SigHashCache,
         Address, AddressParams, OutPoint, Transaction, TxOut,
     };
     use elements_harness::{
         elementd_rpc::{ElementsRpc, ListUnspentOptions},
         Client, Elementsd,
     };
-    use swap::Alice0;
+    use swap::sign_with_key;
     use testcontainers::clients::Cli;
 
     #[tokio::test]
@@ -229,11 +236,8 @@ mod tests {
         let have_asset_id_alice = client.get_bitcoin_asset_id().await.unwrap();
         let have_asset_id_bob = client.issueasset(100_000.0, 0.0, true).await.unwrap().asset;
 
-        let mut rate_service = fixed_rate::Service::new();
+        let rate_service = fixed_rate::Service::new();
         let redeem_amount_bob = LiquidBtc::from(Amount::ONE_BTC);
-
-        let rate = rate_service.latest_rate().await.unwrap();
-        let redeem_amount_alice = rate.buy_quote(redeem_amount_bob).unwrap();
 
         let (
             fund_address_alice,
@@ -263,16 +267,8 @@ mod tests {
             final_address_alice,
             _final_sk_alice,
             _final_pk_alice,
-            final_blinding_sk_alice,
+            _final_blinding_sk_alice,
             _final_blinding_pk_alice,
-        ) = make_confidential_address();
-
-        let (
-            change_address_alice,
-            _change_sk_alice,
-            _change_pk_alice,
-            change_blinding_sk_alice,
-            _change_blinding_pk_alice,
         ) = make_confidential_address();
 
         // move issued asset to wallet address
@@ -287,24 +283,6 @@ mod tests {
             .unwrap();
         client.generatetoaddress(1, &mining_address).await.unwrap();
 
-        let fee = Amount::from_sat(10_000);
-
-        let alice = Alice0::new(
-            redeem_amount_alice.into(),
-            redeem_amount_bob.into(),
-            input_alice,
-            fund_sk_alice,
-            fund_blinding_sk_alice,
-            have_asset_id_bob,
-            final_address_alice.clone(),
-            final_blinding_sk_alice,
-            change_address_alice.clone(),
-            change_blinding_sk_alice,
-            fee,
-        );
-
-        let message0 = alice.compose();
-
         let mut bob = Bobtimus {
             rng: &mut thread_rng(),
             rate_service,
@@ -314,21 +292,41 @@ mod tests {
             usdt_asset_id: have_asset_id_bob,
         };
 
-        let message1 = bob
+        let transaction = bob
             .handle_create_swap(CreateSwapPayload {
                 alice_inputs: vec![AliceInput {
-                    outpoint: message0.input.previous_output,
-                    blinding_key: message0.input_blinding_sk,
+                    outpoint: input_alice.0,
+                    blinding_key: fund_blinding_sk_alice,
                 }],
-                address_redeem: message0.address_redeem,
-                address_change: message0.address_change,
-                fee: message0.fee,
+                address: final_address_alice,
                 btc_amount: redeem_amount_bob,
             })
             .await
             .unwrap();
 
-        let transaction = alice.interpret(message1).unwrap();
+        let transaction = swap::alice_finalize_transaction(transaction, {
+            let commitment = input_alice.1.into_confidential().unwrap().value;
+            move |mut tx| async move {
+                let input_index = tx
+                    .input
+                    .iter()
+                    .position(|txin| fund_alice_txid == txin.previous_output.txid)
+                    .context("transaction does not contain input")?;
+                let mut cache = SigHashCache::new(&tx);
+
+                tx.input[input_index].witness.script_witness = sign_with_key(
+                    &SECP256K1,
+                    &mut cache,
+                    input_index,
+                    &fund_sk_alice,
+                    commitment,
+                );
+
+                Ok(tx)
+            }
+        })
+        .await
+        .unwrap();
 
         let _txid = client.send_raw_transaction(&transaction).await.unwrap();
         let _txid = client.generatetoaddress(1, &mining_address).await.unwrap();
@@ -365,8 +363,8 @@ mod tests {
             txid: tx.txid(),
             vout: vout as u32,
         };
-        let tx_out = tx.output[vout].clone();
-        Ok((outpoint, tx_out))
+        let txout = tx.output[vout].clone();
+        Ok((outpoint, txout))
     }
 
     fn make_keypair() -> (SecretKey, PublicKey) {

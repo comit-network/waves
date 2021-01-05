@@ -2,10 +2,9 @@ use crate::{
     esplora,
     esplora::AssetDescription,
     wallet::{current, get_txouts, Wallet, NATIVE_ASSET_TICKER},
-    SECP,
 };
 use anyhow::Result;
-use elements_fun::{AssetId, TxOut};
+use elements_fun::{secp256k1::SECP256K1, AssetId, TxOut};
 use futures::{
     lock::Mutex,
     stream::{FuturesUnordered, StreamExt},
@@ -93,7 +92,7 @@ where
         .filter_map(|utxo| match utxo {
             TxOut::Explicit(explicit) => Some((explicit.asset.0, explicit.value.0)),
             TxOut::Confidential(confidential) => {
-                match confidential.unblind(&*SECP, wallet.blinding_key()) {
+                match confidential.unblind(SECP256K1, wallet.blinding_key()) {
                     Ok(unblinded_txout) => Some((unblinded_txout.asset, unblinded_txout.value)),
                     Err(e) => {
                         log::warn!("failed to unblind txout: {}", e);

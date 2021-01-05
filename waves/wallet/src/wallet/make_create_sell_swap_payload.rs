@@ -1,20 +1,13 @@
-use crate::{
-    esplora,
-    wallet::{
-        avg_vbytes, coin_selection, coin_selection::coin_select, current, get_txouts, Wallet,
-        DEFAULT_SAT_PER_VBYTE, NATIVE_ASSET_ID,
-    },
-    SECP,
+use crate::wallet::{
+    coin_selection, coin_selection::coin_select, current, get_txouts, CreateSwapPayload, SwapUtxo,
+    Wallet, NATIVE_ASSET_ID,
 };
 use anyhow::{Context, Result};
-use elements_fun::{
-    bitcoin::{secp256k1::SecretKey, Amount},
-    Address, OutPoint, TxOut,
-};
+use elements_fun::{bitcoin::Amount, secp256k1::SECP256K1, transaction, OutPoint, TxOut};
 use futures::lock::Mutex;
 use wasm_bindgen::JsValue;
 
-pub async fn make_create_swap_payload(
+pub async fn make_create_sell_swap_payload(
     name: String,
     current_wallet: &Mutex<Option<Wallet>>,
     btc: Amount,
@@ -25,7 +18,7 @@ pub async fn make_create_swap_payload(
     let utxos = get_txouts(&wallet, |utxo, txout| {
         Ok(match txout {
             TxOut::Confidential(confidential) => {
-                let unblinded_txout = confidential.unblind(&*SECP, blinding_key)?;
+                let unblinded_txout = confidential.unblind(SECP256K1, blinding_key)?;
                 let outpoint = OutPoint {
                     txid: utxo.txid,
                     vout: utxo.vout,
@@ -57,22 +50,19 @@ pub async fn make_create_swap_payload(
     })
     .await?;
 
-    let fee_estimates = map_err_from_anyhow!(esplora::get_fee_estimates().await)?;
+    // Bob currently hardcodes a fee-rate of 1 sat / vbyte, hence there is no need for us to perform fee estimation.
+    // Later on, both parties should probably agree on a block-target and use the same estimation service.
+    let bobs_fee_rate = Amount::from_sat(1);
+    let fee_offset = calculate_fee_offset(bobs_fee_rate);
 
-    let chosen_fee_rate = fee_estimates.b_6.unwrap_or(DEFAULT_SAT_PER_VBYTE);
-
-    let fee_for_our_output = (avg_vbytes::OUTPUT as f32 * chosen_fee_rate) as u64;
-    let output = map_err_from_anyhow!(coin_select(
-        utxos,
-        btc,
-        chosen_fee_rate,
-        Amount::from_sat(fee_for_our_output)
-    )
-    .context("failed to select coins"))?;
+    let output =
+        map_err_from_anyhow!(
+            coin_select(utxos, btc, bobs_fee_rate.as_sat() as f32, fee_offset)
+                .context("failed to select coins")
+        )?;
 
     let payload = CreateSwapPayload {
-        address_change: wallet.get_address()?,
-        address_redeem: wallet.get_address()?,
+        address: wallet.get_address()?,
         alice_inputs: output
             .coins
             .into_iter()
@@ -81,26 +71,21 @@ pub async fn make_create_swap_payload(
                 blinding_key,
             })
             .collect(),
-        fee: output.recommended_fee,
         btc_amount: output.target_amount,
     };
 
     Ok(payload)
 }
 
-#[derive(Debug, serde::Serialize)]
-pub struct CreateSwapPayload {
-    pub alice_inputs: Vec<SwapUtxo>,
-    pub address_redeem: Address,
-    pub address_change: Address,
-    #[serde(with = "elements_fun::bitcoin::util::amount::serde::as_sat")]
-    pub fee: Amount,
-    #[serde(with = "elements_fun::bitcoin::util::amount::serde::as_sat")]
-    pub btc_amount: Amount,
-}
+/// Calculate the fee offset required for the coin selection algorithm.
+///
+/// We are calculating this fee offset here so that we select enough coins to pay for the asset + the fee.
+fn calculate_fee_offset(fee_sats_per_vbyte: Amount) -> Amount {
+    let bobs_outputs = 2; // bob will create two outputs for himself (receive + change)
+    let our_output = 1; // we have one additional output (the change output is priced in by the coin-selection algorithm)
 
-#[derive(Debug, serde::Serialize)]
-pub struct SwapUtxo {
-    pub outpoint: OutPoint,
-    pub blinding_key: SecretKey,
+    let fee_offset = ((bobs_outputs + our_output) * transaction::avg_vbytes::OUTPUT)
+        * fee_sats_per_vbyte.as_sat();
+
+    Amount::from_sat(fee_offset)
 }

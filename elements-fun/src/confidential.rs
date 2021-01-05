@@ -21,15 +21,13 @@ use crate::{
     encode::{Decodable, Encodable},
     AssetId,
 };
-use bitcoin::secp256k1::{
-    bitcoin_hashes::{sha256d, Hash},
+use bitcoin::hashes::{sha256d, Hash};
+use secp256k1_zkp::{
+    compute_adaptive_blinding_factor,
     ecdh::SharedSecret,
     rand::{CryptoRng, Rng, RngCore},
+    CommitmentSecrets, Error, Generator, PedersenCommitment, PublicKey, Secp256k1, SecretKey,
     Signing,
-};
-use secp256k1_zkp::{
-    compute_adaptive_blinding_factor, CommitmentSecrets, Error, Generator, PedersenCommitment,
-    PublicKey, Secp256k1, SecretKey,
 };
 use std::io;
 

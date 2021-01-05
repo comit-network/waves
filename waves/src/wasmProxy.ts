@@ -54,9 +54,9 @@ export async function withdrawAll(address: string): Promise<String> {
     return withdraw_everything_to(WALLET_NAME, address);
 }
 
-export async function makeCreateSwapPayload(
+export async function makeCreateSellSwapPayload(
     btc: string,
 ): Promise<CreateSwapPayload> {
-    const { make_create_swap_payload } = await import("./wallet");
-    return make_create_swap_payload(WALLET_NAME, btc);
+    const { make_create_sell_swap_payload } = await import("./wallet");
+    return make_create_sell_swap_payload(WALLET_NAME, btc);
 }

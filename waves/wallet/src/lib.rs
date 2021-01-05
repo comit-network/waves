@@ -3,7 +3,7 @@ use anyhow::{Context, Result};
 use conquer_once::Lazy;
 use elements_fun::{
     bitcoin::{Amount, Denomination},
-    secp256k1::{All, Secp256k1},
+    encode::deserialize,
 };
 use futures::lock::Mutex;
 use js_sys::Array;
@@ -28,8 +28,6 @@ mod constants {
 #[cfg(feature = "wee_alloc")]
 #[global_allocator]
 static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
-
-static SECP: Lazy<Secp256k1<All>> = Lazy::new(Secp256k1::new);
 
 static LOADED_WALLET: Lazy<Mutex<Option<Wallet>>> = Lazy::new(Mutex::default);
 
@@ -120,14 +118,13 @@ pub async fn withdraw_everything_to(name: String, address: String) -> Result<Str
 
 /// Constructs a new [`CreateSwapPayload`] with the given Bitcoin amount.
 ///
-/// This will select UTXOs from the wallet and compute an appropriate fee to spend them into a single output + a change output if necessary.
-/// The other party (Bob) has to separately account for the cost of their transaction elements.
+/// This will select UTXOs from the wallet to cover the given amount.
 #[wasm_bindgen]
-pub async fn make_create_swap_payload(
+pub async fn make_create_sell_swap_payload(
     wallet_name: String,
     btc: String,
 ) -> Result<JsValue, JsValue> {
-    let payload = wallet::make_create_swap_payload(
+    let payload = wallet::make_create_sell_swap_payload(
         wallet_name,
         &LOADED_WALLET,
         map_err_from_anyhow!(Amount::from_str_in(&btc, Denomination::Bitcoin)
@@ -136,6 +133,27 @@ pub async fn make_create_swap_payload(
     .await?;
 
     Ok(JsValue::from_serde(&payload).unwrap_throw())
+}
+
+/// Sign the given swap transaction and broadcast it to the network.
+///
+/// Returns the transaction ID.
+#[wasm_bindgen]
+pub async fn sign_and_send_swap_transaction(
+    wallet_name: String,
+    transaction: String,
+) -> Result<JsValue, JsValue> {
+    let txid = wallet::sign_and_send_swap_transaction(
+        wallet_name,
+        &LOADED_WALLET,
+        map_err_from_anyhow!(deserialize(&map_err_from_anyhow!(
+            hex::decode(&transaction).context("failed to decode string as hex")
+        )?)
+        .context("failed to deserialize bytes as elements transaction"))?,
+    )
+    .await?;
+
+    Ok(JsValue::from_str(&txid.to_string()))
 }
 
 #[cfg(test)]

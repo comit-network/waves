@@ -1,19 +1,17 @@
 use crate::{
     esplora,
     wallet::{
-        current, estimate_virtual_transaction_size, get_txouts, Wallet, DEFAULT_SAT_PER_VBYTE,
-        NATIVE_ASSET_ID, NATIVE_ASSET_TICKER,
+        current, get_txouts, Wallet, DEFAULT_SAT_PER_VBYTE, NATIVE_ASSET_ID, NATIVE_ASSET_TICKER,
     },
-    SECP,
 };
 use anyhow::{Context, Result};
 use elements_fun::{
     hashes::{hash160, Hash},
     opcodes,
     script::Builder,
-    secp256k1::{rand, Message},
+    secp256k1::{rand, Message, SECP256K1},
     sighash::SigHashCache,
-    Address, OutPoint, SigHashType, Transaction, TxIn, TxOut, Txid,
+    transaction, Address, OutPoint, SigHashType, Transaction, TxIn, TxOut, Txid,
 };
 use futures::lock::Mutex;
 use itertools::Itertools;
@@ -36,7 +34,7 @@ pub async fn withdraw_everything_to(
     let txouts = get_txouts(&wallet, |utxo, txout| {
         Ok(match txout {
             TxOut::Confidential(confidential) => {
-                let unblinded_txout = confidential.unblind(&*SECP, blinding_key)?;
+                let unblinded_txout = confidential.unblind(SECP256K1, blinding_key)?;
 
                 Some((utxo, confidential, unblinded_txout))
             }
@@ -65,7 +63,7 @@ pub async fn withdraw_everything_to(
     let fee_estimates = map_err_from_anyhow!(esplora::get_fee_estimates().await)?;
 
     let estimated_virtual_size =
-        estimate_virtual_transaction_size(prevout_values.len() as u64, txouts.len() as u64);
+        transaction::estimate_virtual_size(prevout_values.len() as u64, txouts.len() as u64);
 
     let fee = (estimated_virtual_size as f32
         * fee_estimates.b_6.unwrap_or_else(|| {
@@ -140,7 +138,7 @@ pub async fn withdraw_everything_to(
                 .map(|(asset, to_spend)| {
                     let (txout, abf, vbf) = TxOut::new_not_last_confidential(
                         &mut thread_rng(),
-                        &*SECP,
+                        SECP256K1,
                         *to_spend,
                         address.clone(),
                         *asset,
@@ -166,7 +164,7 @@ pub async fn withdraw_everything_to(
 
                 let txout = map_err_from_anyhow!(TxOut::new_last_confidential(
                     &mut thread_rng(),
-                    &*SECP,
+                    SECP256K1,
                     *to_spend_last_txout,
                     address,
                     *last_asset,
@@ -237,7 +235,7 @@ pub async fn withdraw_everything_to(
                 SigHashType::All,
             );
 
-            let sig = SECP.sign(&Message::from(sighash), &wallet.secret_key);
+            let sig = SECP256K1.sign(&Message::from(sighash), &wallet.secret_key);
 
             let mut serialized_signature = sig.serialize_der().to_vec();
             serialized_signature.push(SigHashType::All as u8);
