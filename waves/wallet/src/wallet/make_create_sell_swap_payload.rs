@@ -1,20 +1,17 @@
 use crate::{
     esplora,
     wallet::{
-        avg_vbytes, coin_selection, coin_selection::coin_select, current, get_txouts, Wallet,
-        DEFAULT_SAT_PER_VBYTE, NATIVE_ASSET_ID,
+        avg_vbytes, coin_selection, coin_selection::coin_select, current, get_txouts,
+        CreateSwapPayload, SwapUtxo, Wallet, DEFAULT_SAT_PER_VBYTE, NATIVE_ASSET_ID,
     },
     SECP,
 };
 use anyhow::{Context, Result};
-use elements_fun::{
-    bitcoin::{secp256k1::SecretKey, Amount},
-    Address, OutPoint, TxOut,
-};
+use elements_fun::{bitcoin::Amount, OutPoint, TxOut};
 use futures::lock::Mutex;
 use wasm_bindgen::JsValue;
 
-pub async fn make_create_swap_payload(
+pub async fn make_create_sell_swap_payload(
     name: String,
     current_wallet: &Mutex<Option<Wallet>>,
     btc: Amount,
@@ -86,21 +83,4 @@ pub async fn make_create_swap_payload(
     };
 
     Ok(payload)
-}
-
-#[derive(Debug, serde::Serialize)]
-pub struct CreateSwapPayload {
-    pub alice_inputs: Vec<SwapUtxo>,
-    pub address_redeem: Address,
-    pub address_change: Address,
-    #[serde(with = "elements_fun::bitcoin::util::amount::serde::as_sat")]
-    pub fee: Amount,
-    #[serde(with = "elements_fun::bitcoin::util::amount::serde::as_sat")]
-    pub btc_amount: Amount,
-}
-
-#[derive(Debug, serde::Serialize)]
-pub struct SwapUtxo {
-    pub outpoint: OutPoint,
-    pub blinding_key: SecretKey,
 }

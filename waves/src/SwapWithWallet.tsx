@@ -23,7 +23,7 @@ import { Action, AssetType } from "./App";
 import { postSellPayload } from "./Bobtimus";
 import Bitcoin from "./components/bitcoin.svg";
 import Usdt from "./components/tether.svg";
-import { makeCreateSwapPayload } from "./wasmProxy";
+import { makeCreateSellSwapPayload } from "./wasmProxy";
 
 interface SwapWithWalletProps {
     alphaAmount: number;
@@ -64,7 +64,7 @@ function SwapWithWallet({
     };
 
     const fetchSwapTransaction = async () => {
-        let payload = await makeCreateSwapPayload(alphaAmount.toString());
+        let payload = await makeCreateSellSwapPayload(alphaAmount.toString());
         let tx = await postSellPayload(payload);
 
         setTransaction(tx);

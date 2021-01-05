@@ -123,11 +123,11 @@ pub async fn withdraw_everything_to(name: String, address: String) -> Result<Str
 /// This will select UTXOs from the wallet and compute an appropriate fee to spend them into a single output + a change output if necessary.
 /// The other party (Bob) has to separately account for the cost of their transaction elements.
 #[wasm_bindgen]
-pub async fn make_create_swap_payload(
+pub async fn make_create_sell_swap_payload(
     wallet_name: String,
     btc: String,
 ) -> Result<JsValue, JsValue> {
-    let payload = wallet::make_create_swap_payload(
+    let payload = wallet::make_create_sell_swap_payload(
         wallet_name,
         &LOADED_WALLET,
         map_err_from_anyhow!(Amount::from_str_in(&btc, Denomination::Bitcoin)

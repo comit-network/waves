@@ -11,9 +11,9 @@ use aes_gcm_siv::{
 use anyhow::{Context, Result};
 use elements_fun::{
     bitcoin,
-    bitcoin::secp256k1::SecretKey,
+    bitcoin::{secp256k1::SecretKey, Amount},
     secp256k1::{rand, PublicKey},
-    Address, TxOut,
+    Address, OutPoint, TxOut,
 };
 use futures::{
     lock::{MappedMutexGuard, Mutex, MutexGuard},
@@ -31,7 +31,7 @@ pub use get_address::get_address;
 pub use get_balances::get_balances;
 pub use get_status::get_status;
 pub use load_existing::load_existing;
-pub use make_create_swap_payload::make_create_swap_payload;
+pub use make_create_sell_swap_payload::make_create_sell_swap_payload;
 pub use unload_current::unload_current;
 pub use withdraw_everything_to::withdraw_everything_to;
 
@@ -41,7 +41,7 @@ mod get_address;
 mod get_balances;
 mod get_status;
 mod load_existing;
-mod make_create_swap_payload;
+mod make_create_sell_swap_payload;
 mod unload_current;
 mod withdraw_everything_to;
 
@@ -294,6 +294,24 @@ impl fmt::Display for ListOfWallets {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.0.join("\t"))
     }
+}
+
+/// Represents the payload for creating a swap.
+#[derive(Debug, serde::Serialize)]
+pub struct CreateSwapPayload {
+    pub alice_inputs: Vec<SwapUtxo>,
+    pub address_change: Address,
+    pub address_redeem: Address,
+    #[serde(with = "elements_fun::bitcoin::util::amount::serde::as_sat")]
+    pub fee: Amount,
+    #[serde(with = "elements_fun::bitcoin::util::amount::serde::as_sat")]
+    pub btc_amount: Amount,
+}
+
+#[derive(Debug, serde::Serialize)]
+pub struct SwapUtxo {
+    pub outpoint: OutPoint,
+    pub blinding_key: SecretKey,
 }
 
 #[cfg(test)]
