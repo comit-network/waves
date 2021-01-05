@@ -21,6 +21,9 @@ start_nodes () {
 
     # start elementsd, esplora (et al)
     nigiri start --liquid
+
+    # wait for everything to be started up
+    sleep 2
 }
 
 mint_usdt () {
