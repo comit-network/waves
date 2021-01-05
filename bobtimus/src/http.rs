@@ -66,7 +66,7 @@ where
         .await
         .map(|transaction| serialize_hex(&transaction))
         .map_err(|e| {
-            log::error!("{}", e);
+            log::error!("Failed to handle create swap: {}", e);
             warp::reject::reject()
         })
 }

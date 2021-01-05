@@ -17,7 +17,8 @@ export async function postSellPayload(payload: CreateSwapPayload) {
         },
         body: JSON.stringify(payload),
     });
-    return (await res.json()) as {};
+
+    return await res.text();
 }
 
 interface RateProviderProps {
@@ -25,9 +26,5 @@ interface RateProviderProps {
 }
 
 export function BobtimusRateProvider({ children }: RateProviderProps) {
-    return (
-        <SSEProvider endpoint="/api/rate/lbtc-lusdt">
-            {children}
-        </SSEProvider>
-    );
+    return <SSEProvider endpoint="/api/rate/lbtc-lusdt">{children}</SSEProvider>;
 }
