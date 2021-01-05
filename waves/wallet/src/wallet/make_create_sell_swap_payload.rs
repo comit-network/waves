@@ -1,8 +1,7 @@
 use crate::{
-    esplora,
     wallet::{
         coin_selection, coin_selection::coin_select, current, get_txouts, CreateSwapPayload,
-        SwapUtxo, Wallet, DEFAULT_SAT_PER_VBYTE, NATIVE_ASSET_ID,
+        SwapUtxo, Wallet, NATIVE_ASSET_ID,
     },
     SECP,
 };
@@ -54,18 +53,16 @@ pub async fn make_create_sell_swap_payload(
     })
     .await?;
 
-    let fee_estimates = map_err_from_anyhow!(esplora::get_fee_estimates().await)?;
+    // Bob currently hardcodes a fee-rate of 1 sat / vbyte, hence there is no need for us to perform fee estimation.
+    // Later on, both parties should probably agree on a block-target and use the same estimation service.
+    let bobs_fee_rate = Amount::from_sat(1);
+    let fee_offset = calculate_fee_offset(bobs_fee_rate);
 
-    let chosen_fee_rate = fee_estimates.b_6.unwrap_or(DEFAULT_SAT_PER_VBYTE);
-
-    let fee_for_our_output = (transaction::avg_vbytes::OUTPUT as f32 * chosen_fee_rate) as u64;
-    let output = map_err_from_anyhow!(coin_select(
-        utxos,
-        btc,
-        chosen_fee_rate,
-        Amount::from_sat(fee_for_our_output)
-    )
-    .context("failed to select coins"))?;
+    let output =
+        map_err_from_anyhow!(
+            coin_select(utxos, btc, bobs_fee_rate.as_sat() as f32, fee_offset)
+                .context("failed to select coins")
+        )?;
 
     let payload = CreateSwapPayload {
         address: wallet.get_address()?,
@@ -81,4 +78,17 @@ pub async fn make_create_sell_swap_payload(
     };
 
     Ok(payload)
+}
+
+/// Calculate the fee offset required for the coin selection algorithm.
+///
+/// We are calculating this fee offset here so that we select enough coins to pay for the asset + the fee.
+fn calculate_fee_offset(fee_sats_per_vbyte: Amount) -> Amount {
+    let bobs_outputs = 2; // bob will create two outputs for himself (receive + change)
+    let our_output = 1; // we have one additional output (the change output is priced in by the coin-selection algorithm)
+
+    let fee_offset = ((bobs_outputs + our_output) * transaction::avg_vbytes::OUTPUT)
+        * fee_sats_per_vbyte.as_sat();
+
+    Amount::from_sat(fee_offset)
 }

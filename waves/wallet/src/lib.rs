@@ -120,8 +120,7 @@ pub async fn withdraw_everything_to(name: String, address: String) -> Result<Str
 
 /// Constructs a new [`CreateSwapPayload`] with the given Bitcoin amount.
 ///
-/// This will select UTXOs from the wallet and compute an appropriate fee to spend them into a single output + a change output if necessary.
-/// The other party (Bob) has to separately account for the cost of their transaction elements.
+/// This will select UTXOs from the wallet to cover the given amount.
 #[wasm_bindgen]
 pub async fn make_create_sell_swap_payload(
     wallet_name: String,
