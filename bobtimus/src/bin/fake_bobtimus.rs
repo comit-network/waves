@@ -39,6 +39,9 @@ async fn main() -> Result<()> {
         let bobtimus = bobtimus.clone();
         move || bobtimus.clone()
     });
+
+    let cors = warp::cors().allow_any_origin();
+
     let faucet = warp::post()
         .and(warp::path("faucet"))
         .and(warp::path::param())
@@ -46,7 +49,7 @@ async fn main() -> Result<()> {
         .and(bobtimus_filter)
         .and_then(faucet);
 
-    warp::serve(routes.or(faucet))
+    warp::serve(routes.or(faucet).with(cors))
         .run(([127, 0, 0, 1], api_port))
         .await;
 
