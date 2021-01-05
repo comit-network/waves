@@ -89,7 +89,7 @@ impl<R, RS> Bobtimus<R, RS> {
                 let input_blinding_sk = SecretKey::from_slice(&result.into_bytes())?;
 
                 Result::<_, anyhow::Error>::Ok(swap::Input {
-                    tx_in: TxIn {
+                    txin: TxIn {
                         previous_output: outpoint,
                         is_pegin: false,
                         has_issuance: false,
@@ -98,7 +98,7 @@ impl<R, RS> Bobtimus<R, RS> {
                         asset_issuance: Default::default(),
                         witness: Default::default(),
                     },
-                    tx_out: txout,
+                    txout,
                     blinding_key: input_blinding_sk,
                 })
             })
@@ -128,7 +128,7 @@ impl<R, RS> Bobtimus<R, RS> {
                                 format!("failed to fetch transaction {}", outpoint.txid)
                             })?;
 
-                        let tx_in = TxIn {
+                        let txin = TxIn {
                             previous_output: outpoint,
                             is_pegin: false,
                             has_issuance: false,
@@ -137,7 +137,7 @@ impl<R, RS> Bobtimus<R, RS> {
                             asset_issuance: Default::default(),
                             witness: Default::default(),
                         };
-                        let tx_out = transaction
+                        let txout = transaction
                             .output
                             .get(outpoint.vout as usize)
                             .with_context(|| {
@@ -149,8 +149,8 @@ impl<R, RS> Bobtimus<R, RS> {
                             .clone();
 
                         Result::<_, anyhow::Error>::Ok(swap::Input {
-                            tx_in,
-                            tx_out,
+                            txin,
+                            txout,
                             blinding_key,
                         })
                     }
@@ -363,8 +363,8 @@ mod tests {
             txid: tx.txid(),
             vout: vout as u32,
         };
-        let tx_out = tx.output[vout].clone();
-        Ok((outpoint, tx_out))
+        let txout = tx.output[vout].clone();
+        Ok((outpoint, txout))
     }
 
     fn make_keypair() -> (SecretKey, PublicKey) {

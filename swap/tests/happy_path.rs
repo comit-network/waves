@@ -88,7 +88,7 @@ async fn collaborative_create_and_sign() {
     let alice = Actor::new(
         &SECP256K1,
         vec![Input {
-            tx_in: TxIn {
+            txin: TxIn {
                 previous_output: input_alice.0,
                 is_pegin: false,
                 has_issuance: false,
@@ -97,7 +97,7 @@ async fn collaborative_create_and_sign() {
                 asset_issuance: Default::default(),
                 witness: Default::default(),
             },
-            tx_out: input_alice.1.clone(),
+            txout: input_alice.1.clone(),
             blinding_key: fund_blinding_sk_alice,
         }],
         final_address_alice,
@@ -109,7 +109,7 @@ async fn collaborative_create_and_sign() {
     let bob = Actor::new(
         &SECP256K1,
         vec![Input {
-            tx_in: TxIn {
+            txin: TxIn {
                 previous_output: input_bob.0,
                 is_pegin: false,
                 has_issuance: false,
@@ -118,7 +118,7 @@ async fn collaborative_create_and_sign() {
                 asset_issuance: Default::default(),
                 witness: Default::default(),
             },
-            tx_out: input_bob.1.clone(),
+            txout: input_bob.1.clone(),
             blinding_key: fund_blinding_sk_bob,
         }],
         final_address_bob.clone(),
@@ -300,8 +300,8 @@ fn extract_input(tx: &Transaction, address: Address) -> Result<(OutPoint, TxOut)
         txid: tx.txid(),
         vout: vout as u32,
     };
-    let tx_out = tx.output[vout].clone();
-    Ok((outpoint, tx_out))
+    let txout = tx.output[vout].clone();
+    Ok((outpoint, txout))
 }
 
 fn make_keypair() -> (SecretKey, PublicKey) {

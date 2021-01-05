@@ -124,8 +124,8 @@ where
         &outputs,
     )?;
 
-    let alice_inputs_iter = alice.inputs.iter().map(|input| input.tx_in.clone());
-    let bob_inputs_iter = bob.inputs.iter().map(|input| input.tx_in.clone());
+    let alice_inputs_iter = alice.inputs.iter().map(|input| input.txin.clone());
+    let bob_inputs_iter = bob.inputs.iter().map(|input| input.txin.clone());
     let inputs = alice_inputs_iter.chain(bob_inputs_iter).collect::<Vec<_>>();
 
     let fee = TxOut::new_fee(fee_asset, fee_amount.as_sat());
@@ -192,8 +192,8 @@ where
 
 #[derive(Debug)]
 pub struct Input {
-    pub tx_in: TxIn,
-    pub tx_out: TxOut,
+    pub txin: TxIn,
+    pub txout: TxOut,
     pub blinding_key: SecretKey,
 }
 
@@ -202,16 +202,16 @@ impl Input {
     where
         C: Verification,
     {
-        let tx_in = self.tx_in;
+        let txin = self.txin;
         let confidential = self
-            .tx_out
+            .txout
             .into_confidential()
-            .with_context(|| format!("input {} is not confidential", tx_in.previous_output))?;
+            .with_context(|| format!("input {} is not confidential", txin.previous_output))?;
 
         let unblinded = confidential.unblind(secp, self.blinding_key)?;
 
         Ok(UnblindedInput {
-            tx_in,
+            txin,
             confidential,
             unblinded,
         })
@@ -220,7 +220,7 @@ impl Input {
 
 #[derive(Debug)]
 struct UnblindedInput {
-    pub tx_in: TxIn,
+    pub txin: TxIn,
     pub confidential: ConfidentialTxOut,
     pub unblinded: UnblindedTxOut,
 }
