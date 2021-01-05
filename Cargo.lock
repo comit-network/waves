@@ -179,16 +179,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cdcf67bb7ba7797a081cd19009948ab533af7c355d5caf1d08c777582d351e9c"
 
 [[package]]
-name = "bincode"
-version = "1.3.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f30d3a39baa26f9651f17b375061f3233dde33424a8b72b0dbe93a68a0bc896d"
-dependencies = [
- "byteorder",
- "serde",
-]
-
-[[package]]
 name = "bitcoin"
 version = "0.25.2"
 source = "git+https://github.com/thomaseizinger/rust-bitcoin?branch=secp-0.20-rust-bitcoin-0.25.2#3751b736f28c9960bb8a8172e29fe0a2688bb868"
@@ -256,7 +246,6 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-trait",
- "bincode",
  "elements-fun",
  "elements-harness",
  "env_logger",
