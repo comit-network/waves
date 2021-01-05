@@ -63,5 +63,5 @@ pub use script::Script;
 pub use transaction::{
     AssetIssuance, ConfidentialAssetIssuance, ConfidentialTxOut, ExplicitAsset,
     ExplicitAssetIssuance, ExplicitTxOut, ExplicitValue, OutPoint, PeginData, PegoutData,
-    SigHashType, Transaction, TxIn, TxInWitness, TxOut, TxOutWitness, UnblindedTxOut,
+    SigHashType, Transaction, TxIn, TxInWitness, TxOut, TxOutWitness, UnblindError, UnblindedTxOut,
 };

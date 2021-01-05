@@ -156,6 +156,28 @@ pub async fn sign_and_send_swap_transaction(
     Ok(JsValue::from_str(&txid.to_string()))
 }
 
+/// Decomposes a transaction into asset-value pairs for:
+///
+/// - Inputs that come from our wallet.
+/// - Outputs that pay to our wallet.
+///
+/// To do so we unblind confidential `TxOut`s whenever necessary.
+#[wasm_bindgen]
+pub async fn decompose_transaction(
+    wallet_name: String,
+    transaction: String,
+) -> Result<JsValue, JsValue> {
+    let bytes =
+        map_err_from_anyhow!(hex::decode(transaction).context("failed to decode hex into bytes"))?;
+    let transaction = map_err_from_anyhow!(
+        deserialize(&bytes).context("failed to deserialise bytes into transaction")
+    )?;
+
+    let unblinded = wallet::decompose_transaction(wallet_name, &LOADED_WALLET, transaction).await?;
+
+    Ok(JsValue::from_serde(&unblinded).unwrap_throw())
+}
+
 #[cfg(test)]
 mod constants_tests {
     use elements_fun::{AddressParams, AssetId};

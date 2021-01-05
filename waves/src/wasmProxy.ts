@@ -17,6 +17,11 @@ export interface CreateSwapPayload {
     btc_amount: number;
 }
 
+export interface TransactionElements {
+    our_inputs: [string, number][];
+    our_outputs: [string, number][];
+}
+
 const WALLET_NAME = "wallet-1";
 
 export async function getAddress() {
@@ -59,4 +64,11 @@ export async function makeCreateSellSwapPayload(
 ): Promise<CreateSwapPayload> {
     const { make_create_sell_swap_payload } = await import("./wallet");
     return make_create_sell_swap_payload(WALLET_NAME, btc);
+}
+
+export async function decomposeTransaction(
+    transaction: string,
+): Promise<TransactionElements> {
+    const { decompose_transaction } = await import("./wallet");
+    return decompose_transaction(WALLET_NAME, transaction);
 }

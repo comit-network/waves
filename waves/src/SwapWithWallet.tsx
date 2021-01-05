@@ -23,7 +23,7 @@ import { Action, AssetType } from "./App";
 import { postSellPayload } from "./Bobtimus";
 import Bitcoin from "./components/bitcoin.svg";
 import Usdt from "./components/tether.svg";
-import { makeCreateSellSwapPayload } from "./wasmProxy";
+import { decomposeTransaction, makeCreateSellSwapPayload, TransactionElements } from "./wasmProxy";
 
 interface SwapWithWalletProps {
     alphaAmount: number;
@@ -44,7 +44,12 @@ function SwapWithWallet({
     onConfirmed,
     dispatch,
 }: SwapWithWalletProps) {
-    const [transaction, setTransaction] = useState({});
+    // eslint-disable-next-line
+    const [transaction, setTransaction] = useState("");
+    // eslint-disable-next-line
+    const [transactionElements, setTransactionElements] = useState<
+        TransactionElements | undefined
+    >(undefined);
     const { isOpen, onOpen, onClose } = useDisclosure();
     const btnRef = React.useRef(null);
     const history = useHistory();
@@ -69,7 +74,10 @@ function SwapWithWallet({
 
         setTransaction(tx);
 
-        console.log(JSON.stringify(transaction));
+        let elements = await decomposeTransaction(tx);
+        setTransactionElements(elements);
+
+        console.log("Transaction elements: " + JSON.stringify(elements));
 
         onOpen();
     };

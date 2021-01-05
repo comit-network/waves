@@ -29,6 +29,7 @@ use std::{fmt, str};
 use wasm_bindgen::{JsValue, UnwrapThrowExt};
 
 pub use create_new::create_new;
+pub use decompose_transaction::decompose_transaction;
 pub use get_address::get_address;
 pub use get_balances::get_balances;
 pub use get_status::get_status;
@@ -40,6 +41,7 @@ pub use withdraw_everything_to::withdraw_everything_to;
 
 mod coin_selection;
 mod create_new;
+mod decompose_transaction;
 mod get_address;
 mod get_balances;
 mod get_status;
