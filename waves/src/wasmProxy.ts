@@ -72,3 +72,10 @@ export async function decomposeTransaction(
     const { decompose_transaction } = await import("./wallet");
     return decompose_transaction(WALLET_NAME, transaction);
 }
+
+export async function signAndSend(
+    transaction: string,
+): Promise<string> {
+    const { sign_and_send_swap_transaction } = await import("./wallet");
+    return sign_and_send_swap_transaction(WALLET_NAME, transaction);
+}
