@@ -2,32 +2,9 @@ extern crate elements_fun;
 
 #[cfg(any(feature = "afl", feature = "honggfuzz", test))]
 fn do_test(data: &[u8]) {
-    let tx_result: Result<elements_fun::Transaction, _> = elements_fun::encode::deserialize(data);
-    match tx_result {
+    match elements_fun::encode::deserialize::<elements_fun::Transaction>(data) {
         Err(_) => {}
-        Ok(mut tx) => {
-            let reser = elements_fun::encode::serialize(&tx);
-            // FIXME(?): This comparison can fail because we might discard data early during deserialization if the tag for example indicates an explicit txout.
-            // As such, the data will no longer be present when serialized. We keep the serialization to make sure that one doesn't panic.
-            // assert_eq!(data, &reser[..]);
-            let len = reser.len();
-            let calculated_weight = tx.get_weight();
-            for input in &mut tx.input {
-                input.witness = elements_fun::TxInWitness::default();
-            }
-            for output in &mut tx.output {
-                if let elements_fun::TxOut::Confidential(elements_fun::ConfidentialTxOut {
-                    witness,
-                    ..
-                }) = output
-                {
-                    *witness = elements_fun::TxOutWitness::empty()
-                }
-            }
-            assert_eq!(tx.has_witness(), false);
-            let no_witness_len = elements_fun::encode::serialize(&tx).len();
-            assert_eq!(no_witness_len * 3 + len, calculated_weight);
-
+        Ok(tx) => {
             for output in &tx.output {
                 output.is_null_data();
                 output.is_pegout();
