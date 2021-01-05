@@ -20,6 +20,7 @@ import QRCode from "qrcode.react";
 import React, { ChangeEvent } from "react";
 import { Async } from "react-async";
 import { WalletBalance } from "./App";
+import { fundAddress } from "./Bobtimus";
 import Btc from "./components/bitcoin.svg";
 import Usdt from "./components/tether.svg";
 import { getAddress, withdrawAll } from "./wasmProxy";
@@ -42,9 +43,7 @@ export default function WalletInfo({ balance }: WalletInfoProps) {
 
     async function fundWallet(): Promise<any> {
         let address = await getAddress();
-        await fetch("/faucet/" + address, {
-            method: "POST",
-        });
+        await fundAddress(address);
     }
 
     return (

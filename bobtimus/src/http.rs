@@ -24,7 +24,7 @@ where
     let index_html = warp::path::end().and_then(serve_index);
     let waves_resources = warp::path::tail().and_then(serve_waves_resources);
 
-    let latest_rate = warp::path!("rate" / "lbtc-lusdt")
+    let latest_rate = warp::path!("api" / "rate" / "lbtc-lusdt")
         .and(warp::get())
         .map(move || latest_rate(latest_rate_subscription.clone()));
 
@@ -34,7 +34,6 @@ where
     });
     let create_swap = warp::post()
         .and(warp::path!("api" / "swap" / "lbtc-lusdt" / "sell"))
-        .and(warp::path::end())
         .and(bobtimus_filter)
         .and(warp::body::json())
         .and_then(create_swap);
