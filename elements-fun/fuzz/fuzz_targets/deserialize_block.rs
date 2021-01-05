@@ -2,16 +2,7 @@ extern crate elements_fun;
 
 #[cfg(any(feature = "afl", feature = "honggfuzz", test))]
 fn do_test(data: &[u8]) {
-    let block_result: Result<elements_fun::Block, _> = elements_fun::encode::deserialize(data);
-    match block_result {
-        Err(_) => {}
-        Ok(block) => {
-            let _reser = elements_fun::encode::serialize(&block);
-            // FIXME(?): This comparison can fail because we might discard data early during deserialization if the tag for example indicates an explicit txout.
-            // As such, the data will no longer be present when serialized. We keep the serialization to make sure that one doesn't panic.
-            // assert_eq!(data, &reser[..]);
-        }
-    }
+    let _ = elements_fun::encode::deserialize::<elements_fun::Block>(data);
 }
 
 #[cfg(feature = "afl")]

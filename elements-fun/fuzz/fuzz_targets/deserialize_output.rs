@@ -2,8 +2,7 @@ extern crate elements_fun;
 
 #[cfg(any(feature = "afl", feature = "honggfuzz", test))]
 fn do_test(data: &[u8]) {
-    let result: Result<elements_fun::TxOut, _> = elements_fun::encode::deserialize(data);
-    match result {
+    match elements_fun::encode::deserialize::<elements_fun::TxOut>(data) {
         Err(_) => {}
         Ok(output) => {
             let reser = elements_fun::encode::serialize(&output);
