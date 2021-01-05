@@ -10,7 +10,9 @@ import theme from "./theme";
 ReactDOM.render(
     <React.StrictMode>
         <ChakraProvider theme={theme}>
-            <BobtimusRateProvider children={<App />} />
+            <BobtimusRateProvider>
+                <App />
+            </BobtimusRateProvider>
         </ChakraProvider>
     </React.StrictMode>,
     document.getElementById("root"),

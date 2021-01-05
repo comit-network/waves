@@ -34,7 +34,6 @@ where
     });
     let create_swap = warp::post()
         .and(warp::path!("api" / "swap" / "lbtc-lusdt" / "sell"))
-        .and(warp::path::end())
         .and(bobtimus_filter)
         .and(warp::body::json())
         .and_then(create_swap);

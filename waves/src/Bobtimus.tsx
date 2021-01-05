@@ -17,7 +17,6 @@ export async function postSellPayload(payload: CreateSwapPayload) {
         },
         body: JSON.stringify(payload),
     });
-    console.log(res);
     return (await res.json()) as {};
 }
 
