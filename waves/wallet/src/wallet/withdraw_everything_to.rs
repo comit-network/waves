@@ -1,8 +1,7 @@
 use crate::{
     esplora,
     wallet::{
-        current, estimate_virtual_transaction_size, get_txouts, Wallet, DEFAULT_SAT_PER_VBYTE,
-        NATIVE_ASSET_ID, NATIVE_ASSET_TICKER,
+        current, get_txouts, Wallet, DEFAULT_SAT_PER_VBYTE, NATIVE_ASSET_ID, NATIVE_ASSET_TICKER,
     },
     SECP,
 };
@@ -13,7 +12,7 @@ use elements_fun::{
     script::Builder,
     secp256k1::{rand, Message},
     sighash::SigHashCache,
-    Address, OutPoint, SigHashType, Transaction, TxIn, TxOut, Txid,
+    transaction, Address, OutPoint, SigHashType, Transaction, TxIn, TxOut, Txid,
 };
 use futures::lock::Mutex;
 use itertools::Itertools;
@@ -65,7 +64,7 @@ pub async fn withdraw_everything_to(
     let fee_estimates = map_err_from_anyhow!(esplora::get_fee_estimates().await)?;
 
     let estimated_virtual_size =
-        estimate_virtual_transaction_size(prevout_values.len() as u64, txouts.len() as u64);
+        transaction::estimate_virtual_size(prevout_values.len() as u64, txouts.len() as u64);
 
     let fee = (estimated_virtual_size as f32
         * fee_estimates.b_6.unwrap_or_else(|| {

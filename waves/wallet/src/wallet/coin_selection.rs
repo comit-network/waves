@@ -8,8 +8,7 @@ use bdk::{
         BranchAndBoundCoinSelection, CoinSelectionAlgorithm, CoinSelectionResult,
     },
 };
-
-use elements_fun::{bitcoin::Denomination, AssetId, OutPoint, Script};
+use elements_fun::{bitcoin::Denomination, transaction, AssetId, OutPoint, Script};
 
 /// Select a subset of `utxos` to cover the `target` amount.
 ///
@@ -38,7 +37,7 @@ pub fn coin_select(
         .collect();
 
     // a change is a regular output
-    let size_of_change = crate::wallet::avg_vbytes::OUTPUT;
+    let size_of_change = transaction::avg_vbytes::OUTPUT;
 
     let CoinSelectionResult {
         selected: selected_utxos,

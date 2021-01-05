@@ -1,13 +1,13 @@
 use crate::{
     esplora,
     wallet::{
-        avg_vbytes, coin_selection, coin_selection::coin_select, current, get_txouts,
-        CreateSwapPayload, SwapUtxo, Wallet, DEFAULT_SAT_PER_VBYTE, NATIVE_ASSET_ID,
+        coin_selection, coin_selection::coin_select, current, get_txouts, CreateSwapPayload,
+        SwapUtxo, Wallet, DEFAULT_SAT_PER_VBYTE, NATIVE_ASSET_ID,
     },
     SECP,
 };
 use anyhow::{Context, Result};
-use elements_fun::{bitcoin::Amount, OutPoint, TxOut};
+use elements_fun::{bitcoin::Amount, transaction, OutPoint, TxOut};
 use futures::lock::Mutex;
 use wasm_bindgen::JsValue;
 
@@ -58,7 +58,7 @@ pub async fn make_create_sell_swap_payload(
 
     let chosen_fee_rate = fee_estimates.b_6.unwrap_or(DEFAULT_SAT_PER_VBYTE);
 
-    let fee_for_our_output = (avg_vbytes::OUTPUT as f32 * chosen_fee_rate) as u64;
+    let fee_for_our_output = (transaction::avg_vbytes::OUTPUT as f32 * chosen_fee_rate) as u64;
     let output = map_err_from_anyhow!(coin_select(
         utxos,
         btc,
