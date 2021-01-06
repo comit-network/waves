@@ -31,6 +31,7 @@ export default function UnlockWalletDrawer({ onCancel, onUnlock }: UnlockWalletD
             await unlockWallet(password);
             await onUnlock();
         },
+        onReject: (e) => console.error("failed to unlock wallet", e),
     });
 
     return <Drawer
