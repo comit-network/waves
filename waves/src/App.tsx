@@ -13,7 +13,8 @@ import ConfirmSwapDrawer from "./ConfirmSwapDrawer";
 import CreateWalletDrawer from "./CreateWalletDrawer";
 import { calculateBetaAmount } from "./RateService";
 import UnlockWalletDrawer from "./UnlockWalletDrawer";
-import WalletInfo from "./WalletInfo";
+import WalletBalances from "./WalletBalances";
+import WalletDrawer from "./WalletDrawer";
 import { extractTrade, getBalances, getWalletStatus, makeCreateSellSwapPayload, Trade } from "./wasmProxy";
 
 export enum Asset {
@@ -35,7 +36,7 @@ export type Action =
     }
     | { type: "PublishTransaction"; value: string }
     | { type: "UpdateWalletStatus"; value: WalletStatus }
-    | { type: "UpdateBalance"; value: WalletBalance };
+    | { type: "UpdateBalance"; value: Balances };
 
 interface State {
     alpha: AssetState;
@@ -58,9 +59,9 @@ interface WalletStatus {
     loaded: boolean;
 }
 
-export interface WalletBalance {
-    usdtBalance: number;
-    btcBalance: number;
+export interface Balances {
+    usdt: number;
+    btc: number;
 }
 
 interface AssetState {
@@ -144,8 +145,8 @@ export function reducer(state: State = initialState, action: Action) {
                 wallet: {
                     ...state.wallet,
                     balance: {
-                        usdtBalance: action.value.usdtBalance,
-                        btcBalance: action.value.btcBalance,
+                        usdtBalance: action.value.usdt,
+                        btcBalance: action.value.btc,
                     },
                 },
             };
@@ -178,6 +179,7 @@ function App() {
     let { isOpen: isUnlockWalletOpen, onClose: onUnlockWalletClose, onOpen: onUnlockWalletOpen } = useDisclosure();
     let { isOpen: isCreateWalletOpen, onClose: onCreateWalletClose, onOpen: onCreateWalletOpen } = useDisclosure();
     let { isOpen: isConfirmSwapOpen, onClose: onConfirmSwapClose, onOpen: onConfirmSwapOpen } = useDisclosure();
+    let { isOpen: isWalletOpen, onClose: onWalletClose, onOpen: onWalletOpen } = useDisclosure();
 
     let { data: getWalletStatusResponse, isLoading, reload: reloadWalletStatus } = useAsync({
         promiseFn: getWalletStatus,
@@ -222,10 +224,10 @@ function App() {
         rate,
     );
 
-    let walletInfoButton;
+    let walletBalances;
 
     if (!walletStatus.exists) {
-        walletInfoButton = <Button
+        walletBalances = <Button
             onClick={onCreateWalletOpen}
             size="sm"
             variant="connect_wallet_button"
@@ -234,7 +236,7 @@ function App() {
             Create wallet
         </Button>;
     } else if (walletStatus.exists && !walletStatus.loaded) {
-        walletInfoButton = <Button
+        walletBalances = <Button
             onClick={onUnlockWalletOpen}
             size="sm"
             variant="connect_wallet_button"
@@ -243,11 +245,12 @@ function App() {
             Unlock wallet
         </Button>;
     } else {
-        walletInfoButton = <WalletInfo
-            balance={{
-                usdtBalance,
-                btcBalance,
+        walletBalances = <WalletBalances
+            balances={{
+                usdt: usdtBalance,
+                btc: btcBalance,
             }}
+            onClick={onWalletOpen}
         />;
     }
 
@@ -258,7 +261,7 @@ function App() {
     return (
         <div className="App">
             <header className="App-header">
-                {walletInfoButton}
+                {walletBalances}
             </header>
             <Center className="App-body">
                 <Switch>
@@ -320,6 +323,13 @@ function App() {
                     </Route>
                 </Switch>
             </Center>
+            {isWalletOpen && <WalletDrawer
+                balances={{
+                    usdt: usdtBalance,
+                    btc: btcBalance,
+                }}
+                onClose={onWalletClose}
+            />}
             {isUnlockWalletOpen && <UnlockWalletDrawer
                 onCancel={onUnlockWalletClose}
                 onUnlock={async () => {
