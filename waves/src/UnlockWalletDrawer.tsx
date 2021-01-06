@@ -7,6 +7,9 @@ import {
     DrawerFooter,
     DrawerHeader,
     DrawerOverlay,
+    FormControl,
+    FormErrorMessage,
+    FormLabel,
     Input,
 } from "@chakra-ui/react";
 import React, { ChangeEvent, useRef, useState } from "react";
@@ -23,7 +26,7 @@ export default function UnlockWalletDrawer({ onCancel, onUnlock }: UnlockWalletD
     const onPasswordChange = (event: ChangeEvent<HTMLInputElement>) => setPassword(event.target.value);
     const passwordField = useRef(null);
 
-    let { run, isPending } = useAsync({
+    let { run, isPending, isRejected } = useAsync({
         deferFn: async () => {
             await unlockWallet(password);
             await onUnlock();
@@ -47,14 +50,17 @@ export default function UnlockWalletDrawer({ onCancel, onUnlock }: UnlockWalletD
                     <DrawerCloseButton />
                     <DrawerHeader>Unlock Wallet</DrawerHeader>
                     <DrawerBody>
-                        <Input
-                            ref={passwordField}
-                            pr="4.5rem"
-                            type={"password"}
-                            placeholder="Wallet password"
-                            value={password}
-                            onChange={onPasswordChange}
-                        />
+                        <FormControl id="password" isInvalid={isRejected}>
+                            <FormLabel>Password</FormLabel>
+                            <Input
+                                ref={passwordField}
+                                pr="4.5rem"
+                                type={"password"}
+                                value={password}
+                                onChange={onPasswordChange}
+                            />
+                            <FormErrorMessage>Failed to unlock wallet. Wrong password?</FormErrorMessage>
+                        </FormControl>
                     </DrawerBody>
 
                     <DrawerFooter>
