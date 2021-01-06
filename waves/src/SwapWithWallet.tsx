@@ -23,7 +23,7 @@ import { Action, AssetType } from "./App";
 import { postSellPayload } from "./Bobtimus";
 import Bitcoin from "./components/bitcoin.svg";
 import Usdt from "./components/tether.svg";
-import { decomposeTransaction, makeCreateSellSwapPayload, TransactionElements } from "./wasmProxy";
+import { decomposeTransaction, makeCreateSellSwapPayload, signAndSend, TransactionElements } from "./wasmProxy";
 
 interface SwapWithWalletProps {
     alphaAmount: number;
@@ -33,8 +33,6 @@ interface SwapWithWalletProps {
     onConfirmed: (txId: string) => void;
     dispatch: Dispatch<Action>;
 }
-
-const DEFAULT_TX_ID = "7565865560cdef747c5358ca9ff46747a82617292452b6392d0d77072701c413";
 
 function SwapWithWallet({
     alphaAmount,
@@ -54,15 +52,15 @@ function SwapWithWallet({
     const btnRef = React.useRef(null);
     const history = useHistory();
 
-    const onConfirm = (_clicked: MouseEvent) => {
-        /* let txid = await signAndSend(transaction); */
+    const onConfirm = async (_clicked: MouseEvent) => {
+        let txid = await signAndSend(transaction);
 
         // TODO implement wallet logic
         _clicked.preventDefault();
-        onConfirmed(DEFAULT_TX_ID);
+        onConfirmed(txid);
         dispatch({
             type: "PublishTransaction",
-            value: DEFAULT_TX_ID,
+            value: txid,
         });
         onClose();
         history.push("/swap/done");
