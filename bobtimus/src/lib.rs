@@ -21,6 +21,7 @@ pub mod cli;
 pub mod fixed_rate;
 pub mod http;
 pub mod kraken;
+pub mod problem;
 
 pub use amounts::*;
 
