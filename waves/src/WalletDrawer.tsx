@@ -9,6 +9,8 @@ import {
     DrawerFooter,
     DrawerHeader,
     DrawerOverlay,
+    FormControl,
+    FormErrorMessage,
     HStack,
     Image,
     Input,
@@ -18,7 +20,7 @@ import {
 import Debug from "debug";
 import QRCode from "qrcode.react";
 import React, { ChangeEvent } from "react";
-import { Async } from "react-async";
+import { Async, useAsync } from "react-async";
 import { Balances } from "./App";
 import { fundAddress } from "./Bobtimus";
 import Btc from "./components/bitcoin.svg";
@@ -30,21 +32,26 @@ const debug = Debug("wallet");
 export interface WalletDrawerProps {
     onClose: () => void;
     balances: Balances;
+    reloadBalances: () => Promise<void>;
 }
 
-export default function WalletDrawer({ onClose, balances }: WalletDrawerProps) {
+export default function WalletDrawer({ onClose, balances, reloadBalances }: WalletDrawerProps) {
     const [withdrawAddress, setWithdrawAddress] = React.useState("");
     const handleWithdrawAddress = (event: ChangeEvent<HTMLInputElement>) => setWithdrawAddress(event.target.value);
 
-    const withdraw = async () => {
-        let txId = await withdrawAll(withdrawAddress);
-        debug("Withdrew everything. Resulting txId: %s", txId);
-    };
+    let { isLoading: isWithdrawing, isRejected: withdrawFailed, run: withdraw } = useAsync({
+        deferFn: ([address]) => withdrawAll(address),
+        onReject: (error) => debug("failed to withdraw funds: %s", error),
+    });
 
-    async function fundWallet(): Promise<any> {
-        let address = await getAddress();
-        await fundAddress(address);
-    }
+    let { isLoading: isFunding, run: fund } = useAsync({
+        deferFn: async () => {
+            let address = await getAddress();
+            await fundAddress(address);
+            await reloadBalances();
+        },
+        onReject: (error) => debug("failed to fund wallet: %s", error),
+    });
 
     return <Drawer
         isOpen={true}
@@ -88,23 +95,34 @@ export default function WalletDrawer({ onClose, balances }: WalletDrawerProps) {
                             </Box>
                         </VStack>
                         <VStack bg="gray.100" align="center" borderRadius={"md"} p={1}>
-                            <Text textStyle="actionable">Withdraw everything to:</Text>
-                            <HStack>
-                                <Input
-                                    placeholder="Address"
-                                    size="md"
-                                    bg={"white"}
-                                    value={withdrawAddress}
-                                    onChange={handleWithdrawAddress}
-                                />
-                                <Button
-                                    size="md"
-                                    variant="wallet_button"
-                                    onClick={withdraw}
-                                >
-                                    Send
-                                </Button>
-                            </HStack>
+                            <form
+                                onSubmit={e => {
+                                    e.preventDefault();
+                                    withdraw(withdrawAddress);
+                                }}
+                            >
+                                <Text textStyle="actionable">Withdraw:</Text>
+                                <HStack>
+                                    <FormControl id="password" isInvalid={withdrawFailed}>
+                                        <Input
+                                            placeholder="Address"
+                                            size="md"
+                                            bg={"white"}
+                                            value={withdrawAddress}
+                                            onChange={handleWithdrawAddress}
+                                        />
+                                        <FormErrorMessage>Failed to withdraw funds.</FormErrorMessage>
+                                    </FormControl>
+                                    <Button
+                                        type="submit"
+                                        size="md"
+                                        variant="wallet_button"
+                                        isLoading={isWithdrawing}
+                                    >
+                                        Send
+                                    </Button>
+                                </HStack>
+                            </form>
                         </VStack>
                         {process.env.NODE_ENV === "development" && (
                             <VStack
@@ -116,7 +134,8 @@ export default function WalletDrawer({ onClose, balances }: WalletDrawerProps) {
                                 <Button
                                     size="md"
                                     variant="wallet_button"
-                                    onClick={fundWallet}
+                                    onClick={fund}
+                                    isLoading={isFunding}
                                 >
                                     Fund
                                 </Button>

@@ -329,6 +329,9 @@ function App() {
                     btc: btcBalance,
                 }}
                 onClose={onWalletClose}
+                reloadBalances={async () => {
+                    await reloadWalletBalances();
+                }}
             />}
             {isUnlockWalletOpen && <UnlockWalletDrawer
                 onCancel={onUnlockWalletClose}
