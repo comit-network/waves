@@ -10,6 +10,7 @@ elements-fun = { path = "../elements-fun", features = [ "serde" ] }
 secp256k1 = { version = "0.20.0", features = [ "bitcoin_hashes", "rand" ] }
 serde = { version = "1", features = [ "derive" ] }
 sha2 = "0.9"
+thiserror = "1.0.23"
 
 [dev-dependencies]
 elements-harness = { path = "../elements-harness" }
