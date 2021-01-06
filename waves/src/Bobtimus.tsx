@@ -18,6 +18,11 @@ export async function postSellPayload(payload: CreateSwapPayload) {
         body: JSON.stringify(payload),
     });
 
+    if (res.status !== 200) {
+        console.error("failed to create new swap"); // TODO: use logger instead of console
+        throw new Error("failed to create new swap");
+    }
+
     return await res.text();
 }
 

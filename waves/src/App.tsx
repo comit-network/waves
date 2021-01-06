@@ -1,18 +1,20 @@
 import { ExternalLinkIcon } from "@chakra-ui/icons";
-import { Box, Button, Center, Flex, Link, Text, useInterval, VStack } from "@chakra-ui/react";
-import React, { useEffect, useReducer } from "react";
+import { Box, Button, Center, Flex, Link, Text, useDisclosure, VStack } from "@chakra-ui/react";
+import React, { useReducer, useState } from "react";
+import { useAsync } from "react-async";
 import { useSSE } from "react-hooks-sse";
-import { BrowserRouter, Link as RouterLink, Redirect, Route, Switch } from "react-router-dom";
-import { RingLoader } from "react-spinners";
+import { Route, Switch, useHistory, useParams } from "react-router-dom";
+import useSWR from "swr";
 import "./App.css";
+import { postSellPayload } from "./Bobtimus";
 import AssetSelector from "./components/AssetSelector";
 import ExchangeIcon from "./components/ExchangeIcon";
-import CreateWallet from "./CreateWallet";
+import ConfirmSwapDrawer from "./ConfirmSwapDrawer";
+import CreateWalletDrawer from "./CreateWalletDrawer";
 import { calculateBetaAmount } from "./RateService";
-import SwapWithWallet from "./SwapWithWallet";
-import UnlockWallet from "./UnlockWallet";
+import UnlockWalletDrawer from "./UnlockWalletDrawer";
 import WalletInfo from "./WalletInfo";
-import { getBalances, getWalletStatus } from "./wasmProxy";
+import { getBalances, getWalletStatus, makeCreateSellSwapPayload } from "./wasmProxy";
 
 export const LBTC_TICKER = "L-BTC";
 export const LUSDT_TICKER = "USDt";
@@ -51,7 +53,6 @@ export interface Rate {
 }
 
 interface Wallet {
-    balance: WalletBalance;
     status: WalletStatus;
 }
 
@@ -168,64 +169,53 @@ export function reducer(state: State = initialState, action: Action) {
 }
 
 function App() {
+    const history = useHistory();
+    const [transaction, setTransaction] = useState("");
     const [state, dispatch] = useReducer(reducer, initialState);
-
-    const [txPending, setTxPending] = React.useState(false);
-
-    const onConfirmed = (txId: string) => {
-        // TODO temp UI hack to make the button loading :)
-        setTxPending(true);
-        setTimeout(() => {
-            setTxPending(false);
-        }, 2000);
-    };
-
-    useEffect(() => {
-        getWalletStatus()
-            .then(wallet_status => {
-                if (wallet_status.exists) {
-                    dispatch({
-                        type: "UpdateWalletStatus",
-                        value: {
-                            exists: wallet_status.exists,
-                            loaded: wallet_status.loaded,
-                        },
-                    });
-                } // by default `wallet.exists` is set to false, hence no need to handle
-            })
-            .catch(e => {
-                // TODO: handle error
-            });
-    }, []);
-
-    useInterval(
-        () => {
-            getBalances().then(balances => {
-                console.log(`Updated balances: `, balances);
-                let btcBalanceEntry = balances.find(
-                    balance => balance.ticker === LBTC_TICKER,
-                );
-                let usdtBalanceEntry = balances.find(
-                    balance => balance.ticker === LUSDT_TICKER,
-                );
-
-                const btcBalance = btcBalanceEntry ? btcBalanceEntry.value : 0;
-                const usdtBalance = usdtBalanceEntry ? usdtBalanceEntry.value : 0;
-                dispatch({
-                    type: "UpdateBalance",
-                    value: {
-                        btcBalance,
-                        usdtBalance,
-                    },
-                });
-            });
-        },
-        state.wallet.status.loaded ? 5000 : null,
-    );
 
     const rate = useSSE("rate", {
         ask: 19133.74,
         bid: 19133.74,
+    });
+
+    let { isOpen: isUnlockWalletOpen, onClose: onUnlockWalletClose, onOpen: onUnlockWalletOpen } = useDisclosure();
+    let { isOpen: isCreateWalletOpen, onClose: onCreateWalletClose, onOpen: onCreateWalletOpen } = useDisclosure();
+    let { isOpen: isConfirmSwapOpen, onClose: onConfirmSwapClose, onOpen: onConfirmSwapOpen } = useDisclosure();
+
+    let { data: getWalletStatusResponse, isValidating: isLoading, mutate: reloadWalletStatus } = useSWR(
+        "wallet-status",
+        () => getWalletStatus(),
+    );
+    let walletStatus = getWalletStatusResponse || { exists: false, loaded: false };
+
+    let { data: getBalancesResponse, mutate: reloadWalletBalances } = useSWR(
+        () => walletStatus.loaded ? "wallet-balances" : null,
+        () => getBalances(),
+        {
+            refreshInterval: 5000,
+        },
+    );
+    let balances = getBalancesResponse || [];
+
+    let btcBalanceEntry = balances.find(
+        balance => balance.ticker === LBTC_TICKER,
+    );
+    let usdtBalanceEntry = balances.find(
+        balance => balance.ticker === LUSDT_TICKER,
+    );
+
+    const btcBalance = btcBalanceEntry ? btcBalanceEntry.value : 0;
+    const usdtBalance = usdtBalanceEntry ? usdtBalanceEntry.value : 0;
+
+    let { run: makeNewSwap, isLoading: isCreatingNewSwap } = useAsync({
+        deferFn: async () => {
+            let payload = await makeCreateSellSwapPayload(state.alpha.amount.toString());
+            let tx = await postSellPayload(payload);
+
+            setTransaction(tx);
+
+            onConfirmSwapOpen();
+        },
     });
 
     const betaAmount = calculateBetaAmount(
@@ -234,116 +224,139 @@ function App() {
         rate,
     );
 
+    let button;
+
+    if (!walletStatus.exists) {
+        button = <Button
+            onClick={onCreateWalletOpen}
+            size="lg"
+            variant="main_button"
+            isLoading={isLoading}
+        >
+            Create new wallet
+        </Button>;
+    } else if (walletStatus.exists && !walletStatus.loaded) {
+        button = <Button
+            onClick={onUnlockWalletOpen}
+            size="lg"
+            variant="main_button"
+            isLoading={isLoading}
+        >
+            Unlock wallet
+        </Button>;
+    } else {
+        button = <Button
+            onClick={makeNewSwap}
+            size="lg"
+            variant="main_button"
+            isLoading={isCreatingNewSwap}
+        >
+            Swap
+        </Button>;
+    }
+
     return (
-        <BrowserRouter>
-            <div className="App">
-                <header className="App-header">
-                    <Route path="/swap">
-                        <WalletInfo balance={state.wallet.balance} />
-                    </Route>
-                </header>
-                <Center className="App-body">
-                    <VStack spacing={4} align="stretch">
-                        <Flex color="white">
-                            <AssetSelector
-                                assetSide="Alpha"
-                                placement="left"
-                                amount={state.alpha.amount}
-                                type={state.alpha.type}
-                                dispatch={dispatch}
-                            />
-                            <Center w="10px">
-                                <Box zIndex={2}>
-                                    <ExchangeIcon
-                                        onClick={() =>
-                                            dispatch({
-                                                type: "SwapAssetTypes",
-                                                value: {
-                                                    betaAmount,
-                                                },
-                                            })}
-                                    />
-                                </Box>
-                            </Center>
-                            <AssetSelector
-                                assetSide="Beta"
-                                placement="right"
-                                amount={betaAmount}
-                                type={state.beta}
-                                dispatch={dispatch}
-                            />
-                        </Flex>
-                        <Box>
-                            <Text textStyle="info">1 BTC ~ {rate.ask} USDT</Text>
-                        </Box>
-                        <Box>
-                            <Switch>
-                                <Route exact path="/">
-                                    {state.wallet.status.exists && (
-                                        <UnlockWallet dispatch={dispatch} />
-                                    )}
-                                    {!state.wallet.status.exists && (
-                                        <CreateWallet dispatch={dispatch} />
-                                    )}
-                                </Route>
-                                <Route
-                                    exact
-                                    path="/swap"
-                                    render={({ location }) =>
-                                        state.wallet.status.loaded
-                                            ? (
-                                                <SwapWithWallet
-                                                    onConfirmed={onConfirmed}
-                                                    dispatch={dispatch}
-                                                    alphaAmount={state.alpha.amount}
-                                                    betaAmount={calculateBetaAmount(
-                                                        state.alpha.type,
-                                                        state.alpha.amount,
-                                                        rate,
-                                                    )}
-                                                    alphaAsset={state.alpha.type}
-                                                    betaAsset={state.beta}
-                                                />
-                                            )
-                                            : (
-                                                <Redirect
-                                                    to={{
-                                                        pathname: "/",
-                                                        state: { from: location },
-                                                    }}
-                                                />
-                                            )}
+        <div className="App">
+            <header className="App-header">
+                {walletStatus.loaded && <WalletInfo
+                    balance={{
+                        usdtBalance,
+                        btcBalance,
+                    }}
+                />}
+            </header>
+            <Center className="App-body">
+                <Switch>
+                    <Route exact path="/">
+                        <VStack spacing={4} align="stretch">
+                            <Flex color="white">
+                                <AssetSelector
+                                    assetSide="Alpha"
+                                    placement="left"
+                                    amount={state.alpha.amount}
+                                    type={state.alpha.type}
+                                    dispatch={dispatch}
                                 />
-                                <Route exact path="/swap/done">
-                                    <VStack>
-                                        <Text textStyle="info">
-                                            Check in{" "}
-                                            <Link
-                                                href={`https://blockstream.info/liquid/tx/${state.txId}`}
-                                                isExternal
-                                            >
-                                                Block Explorer <ExternalLinkIcon mx="2px" />
-                                            </Link>
-                                        </Text>
-                                        <Button
-                                            isLoading={txPending}
-                                            size="lg"
-                                            variant="main_button"
-                                            spinner={<RingLoader size={50} color="white" />}
-                                            as={RouterLink}
-                                            to="/swap"
-                                        >
-                                            Swap again?
-                                        </Button>
-                                    </VStack>
-                                </Route>
-                            </Switch>
-                        </Box>
-                    </VStack>
-                </Center>
-            </div>
-        </BrowserRouter>
+                                <Center w="10px">
+                                    <Box zIndex={2}>
+                                        <ExchangeIcon
+                                            onClick={() =>
+                                                dispatch({
+                                                    type: "SwapAssetTypes",
+                                                    value: {
+                                                        betaAmount,
+                                                    },
+                                                })}
+                                        />
+                                    </Box>
+                                </Center>
+                                <AssetSelector
+                                    assetSide="Beta"
+                                    placement="right"
+                                    amount={betaAmount}
+                                    type={state.beta}
+                                    dispatch={dispatch}
+                                />
+                            </Flex>
+                            <Box>
+                                <Text textStyle="info">1 BTC ~ {rate.ask} USDT</Text>
+                            </Box>
+                            <Box>
+                                {button}
+                            </Box>
+                        </VStack>
+                    </Route>
+
+                    <Route exact path="/swapped/:txId">
+                        <VStack>
+                            <Text textStyle="info">
+                                Check in{" "}
+                                <BlockExplorerLink />
+                            </Text>
+                        </VStack>
+                    </Route>
+                </Switch>
+            </Center>
+            {/* TODO: Likely we only want this to be a single drawer because only one of them can be open at a time */}
+            <UnlockWalletDrawer
+                isOpen={isUnlockWalletOpen}
+                onCancel={onUnlockWalletClose}
+                onUnlock={async () => {
+                    await reloadWalletBalances();
+                    await reloadWalletStatus();
+                    onUnlockWalletClose();
+                }}
+            />
+            <CreateWalletDrawer
+                isOpen={isCreateWalletOpen}
+                onCancel={onCreateWalletClose}
+                onCreate={async () => {
+                    await reloadWalletStatus();
+                    onCreateWalletClose();
+                }}
+            />
+            <ConfirmSwapDrawer
+                isOpen={isConfirmSwapOpen}
+                onCancel={onConfirmSwapClose}
+                transaction={transaction}
+                onSwapped={(txId) => {
+                    history.push(`/swapped/${txId}`);
+                    onConfirmSwapClose();
+                }}
+            />
+        </div>
     );
+}
+
+function BlockExplorerLink() {
+    const { txId } = useParams<{ txId: string }>();
+
+    return <Link
+        href={`https://blockstream.info/liquid/tx/${txId}`}
+        isExternal
+    >
+        Block Explorer <ExternalLinkIcon mx="2px" />
+    </Link>;
 }
 
 export default App;
