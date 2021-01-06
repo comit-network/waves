@@ -24,7 +24,6 @@ import Usdt from "./components/tether.svg";
 import { signAndSend, Trade, TradeSide } from "./wasmProxy";
 
 interface ConfirmSwapDrawerProps {
-    isOpen: boolean;
     onCancel: () => void;
     onSwapped: (txId: string) => void;
     transaction: string;
@@ -32,7 +31,7 @@ interface ConfirmSwapDrawerProps {
 }
 
 export default function ConfirmSwapDrawer(
-    { isOpen, onCancel, onSwapped, transaction, trade }: ConfirmSwapDrawerProps,
+    { onCancel, onSwapped, transaction, trade }: ConfirmSwapDrawerProps,
 ) {
     let { isPending, run } = useAsync({
         deferFn: async () => {
@@ -44,7 +43,7 @@ export default function ConfirmSwapDrawer(
     const cancelButton = useRef(null);
 
     return <Drawer
-        isOpen={isOpen}
+        isOpen={true}
         placement="right"
         onClose={onCancel}
         initialFocusRef={cancelButton}

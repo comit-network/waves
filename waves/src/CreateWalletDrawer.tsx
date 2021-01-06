@@ -14,12 +14,11 @@ import { useAsync } from "react-async";
 import { newWallet } from "./wasmProxy";
 
 interface CreateWalletDrawerProps {
-    isOpen: boolean;
     onCancel: () => void;
     onCreate: () => Promise<void>;
 }
 
-export default function CreateWalletDrawer({ isOpen, onCancel, onCreate }: CreateWalletDrawerProps) {
+export default function CreateWalletDrawer({ onCancel, onCreate }: CreateWalletDrawerProps) {
     const [walletName] = React.useState("wallet-1");
     const [password, setPassword] = React.useState("");
     const onPasswordChange = (event: ChangeEvent<HTMLInputElement>) => setPassword(event.target.value);
@@ -33,7 +32,7 @@ export default function CreateWalletDrawer({ isOpen, onCancel, onCreate }: Creat
     });
 
     return <Drawer
-        isOpen={isOpen}
+        isOpen={true}
         placement="right"
         onClose={onCancel}
         initialFocusRef={passwordField}

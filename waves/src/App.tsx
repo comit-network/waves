@@ -320,26 +320,22 @@ function App() {
                     </Route>
                 </Switch>
             </Center>
-            {/* TODO: Likely we only want this to be a single drawer because only one of them can be open at a time */}
-            <UnlockWalletDrawer
-                isOpen={isUnlockWalletOpen}
+            {isUnlockWalletOpen && <UnlockWalletDrawer
                 onCancel={onUnlockWalletClose}
                 onUnlock={async () => {
                     await reloadWalletBalances();
                     await reloadWalletStatus();
                     onUnlockWalletClose();
                 }}
-            />
-            <CreateWalletDrawer
-                isOpen={isCreateWalletOpen}
+            />}
+            {isCreateWalletOpen && <CreateWalletDrawer
                 onCancel={onCreateWalletClose}
                 onCreate={async () => {
                     await reloadWalletStatus();
                     onCreateWalletClose();
                 }}
-            />
-            <ConfirmSwapDrawer
-                isOpen={isConfirmSwapOpen}
+            />}
+            {isConfirmSwapOpen && <ConfirmSwapDrawer
                 onCancel={onConfirmSwapClose}
                 onSwapped={(txId) => {
                     history.push(`/swapped/${txId}`);
@@ -347,7 +343,7 @@ function App() {
                 }}
                 transaction={transaction}
                 trade={trade}
-            />
+            />}
         </div>
     );
 }

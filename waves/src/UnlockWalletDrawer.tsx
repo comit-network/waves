@@ -14,12 +14,11 @@ import { useAsync } from "react-async";
 import { unlockWallet } from "./wasmProxy";
 
 interface UnlockWalletDrawerProps {
-    isOpen: boolean;
     onCancel: () => void;
     onUnlock: () => Promise<void>;
 }
 
-export default function UnlockWalletDrawer({ isOpen, onCancel, onUnlock }: UnlockWalletDrawerProps) {
+export default function UnlockWalletDrawer({ onCancel, onUnlock }: UnlockWalletDrawerProps) {
     const [password, setPassword] = useState("");
     const onPasswordChange = (event: ChangeEvent<HTMLInputElement>) => setPassword(event.target.value);
     const passwordField = useRef(null);
@@ -32,7 +31,7 @@ export default function UnlockWalletDrawer({ isOpen, onCancel, onUnlock }: Unloc
     });
 
     return <Drawer
-        isOpen={isOpen}
+        isOpen={true}
         placement="right"
         onClose={onCancel}
         initialFocusRef={passwordField}
