@@ -1,3 +1,5 @@
+import { Asset } from "./App";
+
 export interface BalanceEntry {
     asset: string;
     value: number;
@@ -17,9 +19,16 @@ export interface CreateSwapPayload {
     btc_amount: number;
 }
 
-export interface TransactionElements {
-    our_inputs: [string, number][];
-    our_outputs: [string, number][];
+export interface Trade {
+    sell: TradeSide;
+    buy: TradeSide;
+}
+
+export interface TradeSide {
+    ticker: Asset;
+    amount: number;
+    balanceBefore: number;
+    balanceAfter: number;
 }
 
 const WALLET_NAME = "wallet-1";
@@ -66,11 +75,11 @@ export async function makeCreateSellSwapPayload(
     return make_create_sell_swap_payload(WALLET_NAME, btc);
 }
 
-export async function decomposeTransaction(
+export async function extractTrade(
     transaction: string,
-): Promise<TransactionElements> {
-    const { decompose_transaction } = await import("./wallet");
-    return decompose_transaction(WALLET_NAME, transaction);
+): Promise<Trade> {
+    const { extract_trade } = await import("./wallet");
+    return extract_trade(WALLET_NAME, transaction);
 }
 
 export async function signAndSend(

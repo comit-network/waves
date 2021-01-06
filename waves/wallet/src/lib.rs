@@ -12,6 +12,7 @@ use wasm_bindgen::prelude::*;
 #[macro_use]
 mod macros;
 
+mod assets;
 mod cache_storage;
 mod esplora;
 mod storage;
@@ -156,26 +157,23 @@ pub async fn sign_and_send_swap_transaction(
     Ok(JsValue::from_str(&txid.to_string()))
 }
 
-/// Decomposes a transaction into asset-value pairs for:
+/// Decomposes a transaction into:
 ///
-/// - Inputs that come from our wallet.
-/// - Outputs that pay to our wallet.
+/// - Sell amount, sell balance before and sell balance after.
+/// - Buy amount, buy balance before and buy balance after.
 ///
 /// To do so we unblind confidential `TxOut`s whenever necessary.
 #[wasm_bindgen]
-pub async fn decompose_transaction(
-    wallet_name: String,
-    transaction: String,
-) -> Result<JsValue, JsValue> {
+pub async fn extract_trade(wallet_name: String, transaction: String) -> Result<JsValue, JsValue> {
     let bytes =
         map_err_from_anyhow!(hex::decode(transaction).context("failed to decode hex into bytes"))?;
     let transaction = map_err_from_anyhow!(
         deserialize(&bytes).context("failed to deserialise bytes into transaction")
     )?;
 
-    let unblinded = wallet::decompose_transaction(wallet_name, &LOADED_WALLET, transaction).await?;
+    let trade = wallet::extract_trade(wallet_name, &LOADED_WALLET, transaction).await?;
 
-    Ok(JsValue::from_serde(&unblinded).unwrap_throw())
+    Ok(JsValue::from_serde(&trade).unwrap_throw())
 }
 
 #[cfg(test)]
@@ -204,6 +202,23 @@ mod constants_tests {
                 crate::constants::NATIVE_ASSET_ID,
                 AssetId::from_str(
                     "6f0279e9ed041c3d710a9f57d0c02928416460c4b722ae3457a11eec381c526d"
+                )
+                .unwrap()
+            ),
+        }
+    }
+
+    #[test]
+    fn assert_usdt_asset_id_constant() {
+        match option_env!("USDT_ASSET_ID") {
+            Some(usdt_asset_id) => assert_eq!(
+                crate::constants::USDT_ASSET_ID,
+                AssetId::from_str(usdt_asset_id).unwrap()
+            ),
+            None => assert_eq!(
+                crate::constants::USDT_ASSET_ID,
+                AssetId::from_str(
+                    "ce091c998b83c78bb71a632313ba3760f1763d9cfcffae02258ffa9865a37bd2"
                 )
                 .unwrap()
             ),

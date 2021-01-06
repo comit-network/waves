@@ -1,4 +1,5 @@
 use crate::{
+    assets::lookup,
     constants::{ADDRESS_PARAMS, DEFAULT_SAT_PER_VBYTE, NATIVE_ASSET_ID, NATIVE_ASSET_TICKER},
     esplora,
     esplora::Utxo,
@@ -15,7 +16,7 @@ use elements_fun::{
         Amount,
     },
     secp256k1::{rand, PublicKey},
-    Address, OutPoint, TxOut,
+    Address, AssetId, OutPoint, TxOut,
 };
 use futures::{
     lock::{MappedMutexGuard, Mutex, MutexGuard},
@@ -23,13 +24,15 @@ use futures::{
     StreamExt, TryStreamExt,
 };
 use hkdf::Hkdf;
+use itertools::Itertools;
 use rand::{thread_rng, Rng};
+use rust_decimal::Decimal;
 use sha2::{digest::generic_array::GenericArray, Sha256};
 use std::{fmt, str};
 use wasm_bindgen::{JsValue, UnwrapThrowExt};
 
 pub use create_new::create_new;
-pub use decompose_transaction::decompose_transaction;
+pub use extract_trade::extract_trade;
 pub use get_address::get_address;
 pub use get_balances::get_balances;
 pub use get_status::get_status;
@@ -41,7 +44,7 @@ pub use withdraw_everything_to::withdraw_everything_to;
 
 mod coin_selection;
 mod create_new;
-mod decompose_transaction;
+mod extract_trade;
 mod get_address;
 mod get_balances;
 mod get_status;
@@ -293,83 +296,62 @@ pub struct SwapUtxo {
     pub blinding_key: SecretKey,
 }
 
-#[cfg(test)]
-mod tests {
-    #[cfg(target_arch = "wasm32")]
-    use wasm_bindgen_test::wasm_bindgen_test as test;
+/// A single balance entry as returned by [`get_balances`].
+#[derive(Debug, serde::Serialize)]
+pub struct BalanceEntry {
+    asset: AssetId,
+    ticker: String,
+    value: Decimal,
+}
 
-    use crate::{
-        esplora::{AssetDescription, AssetStatus},
-        wallet::get_balances::BalanceEntry,
-    };
-    use elements_fun::AssetId;
+impl BalanceEntry {
+    pub fn for_asset(asset: AssetId, ticker: String, value: u64, precision: u32) -> Self {
+        let mut decimal = Decimal::from(value);
+        decimal
+            .set_scale(precision)
+            .expect("precision must be < 28");
 
-    #[test]
-    fn new_balance_entry_bitcoin_serializes_to_nominal_representation() {
-        let liquid_native_ad = AssetDescription::default(AssetId::default());
-        let entry = BalanceEntry::for_asset(100_000_000, liquid_native_ad, "L-BTC");
-
-        let serialized = serde_json::to_string(&entry).unwrap();
-
-        assert_eq!(
-            r#"{"value":"1.00000000","asset":"0000000000000000000000000000000000000000000000000000000000000000","ticker":"L-BTC"}"#,
-            serialized
-        );
+        Self {
+            asset,
+            ticker,
+            value: decimal,
+        }
     }
+}
 
-    #[test]
-    fn new_balance_entry_usdt_serializes_to_nominal_representation() {
-        let usdt_ad = AssetDescription {
-            asset_id: AssetId::default(),
-            ticker: Some("L-USDT".to_string()),
-            precision: Some(8),
-            status: Some(AssetStatus { confirmed: true }),
-        };
-        let entry = BalanceEntry::for_asset(100_000_000, usdt_ad, "L-BTC");
+/// A pure function to compute the balances of the wallet given a set of [`TxOut`]s.
+fn compute_balances(wallet: &Wallet, txouts: &[TxOut]) -> Vec<BalanceEntry> {
+    let grouped_txouts = txouts
+        .iter()
+        .filter_map(|utxo| match utxo {
+            TxOut::Explicit(explicit) => Some((explicit.asset.0, explicit.value.0)),
+            TxOut::Confidential(confidential) => {
+                match confidential.unblind(SECP256K1, wallet.blinding_key()) {
+                    Ok(unblinded_txout) => Some((unblinded_txout.asset, unblinded_txout.value)),
+                    Err(e) => {
+                        log::warn!("failed to unblind txout: {}", e);
+                        None
+                    }
+                }
+            }
+            TxOut::Null(_) => None,
+        })
+        .into_group_map();
 
-        let serialized = serde_json::to_string(&entry).unwrap();
+    grouped_txouts
+        .into_iter()
+        .filter_map(|(asset, utxos)| {
+            let total_sum = utxos.into_iter().sum();
+            let (ticker, precision) = lookup(asset)?;
 
-        assert_eq!(
-            r#"{"value":"1.00000000","asset":"0000000000000000000000000000000000000000000000000000000000000000","ticker":"L-USDT"}"#,
-            serialized
-        );
-    }
-
-    #[test]
-    fn new_balance_entry_custom_asset_serializes_to_nominal_representation() {
-        let usdt_ad = AssetDescription {
-            asset_id: AssetId::default(),
-            ticker: Some("FOO".to_string()),
-            precision: Some(3),
-            status: Some(AssetStatus { confirmed: true }),
-        };
-        let entry = BalanceEntry::for_asset(100_000_000, usdt_ad, "L-BTC");
-
-        let serialized = serde_json::to_string(&entry).unwrap();
-
-        assert_eq!(
-            r#"{"value":"100000.000","asset":"0000000000000000000000000000000000000000000000000000000000000000","ticker":"FOO"}"#,
-            serialized
-        );
-    }
-
-    #[test]
-    fn new_balance_entry_no_precision_uses_0() {
-        let usdt_ad = AssetDescription {
-            asset_id: AssetId::default(),
-            ticker: Some("FOO".to_string()),
-            precision: None,
-            status: Some(AssetStatus { confirmed: true }),
-        };
-        let entry = BalanceEntry::for_asset(100_000_000, usdt_ad, "L-BTC");
-
-        let serialized = serde_json::to_string(&entry).unwrap();
-
-        assert_eq!(
-            r#"{"value":"100000000","asset":"0000000000000000000000000000000000000000000000000000000000000000","ticker":"FOO"}"#,
-            serialized
-        );
-    }
+            Some(BalanceEntry::for_asset(
+                asset,
+                ticker.to_owned(),
+                total_sum,
+                precision as u32,
+            ))
+        })
+        .collect()
 }
 
 #[cfg(all(test, target_arch = "wasm32"))]

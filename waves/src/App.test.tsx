@@ -2,7 +2,7 @@ import { act, render, screen } from "@testing-library/react";
 import React from "react";
 import { Listener, Source, SSEProvider } from "react-hooks-sse";
 import { BrowserRouter } from "react-router-dom";
-import App, { AssetType, reducer } from "./App";
+import App, { Asset, reducer } from "./App";
 import { calculateBetaAmount } from "./RateService";
 
 // implementation of customSource does not matter but functions need to be there
@@ -33,10 +33,10 @@ test("Test if rendering works by asserting `create new wallet` button", () => {
 
 const defaultState = {
     alpha: {
-        type: AssetType.BTC,
+        type: Asset.LBTC,
         amount: 0,
     },
-    beta: AssetType.USDT,
+    beta: Asset.USDT,
     txId: "",
     wallet: {
         balance: {
@@ -54,10 +54,10 @@ test("update alpha amount logic", () => {
     const initialState = {
         ...defaultState,
         alpha: {
-            type: AssetType.BTC,
+            type: Asset.LBTC,
             amount: 0.01,
         },
-        beta: AssetType.USDT,
+        beta: Asset.USDT,
     };
 
     let newValue = 42;
@@ -73,13 +73,13 @@ test("update alpha asset logic - should flip asset types", () => {
     const initialState = {
         ...defaultState,
         alpha: {
-            type: AssetType.BTC,
+            type: Asset.LBTC,
             amount: 0.01,
         },
-        beta: AssetType.USDT,
+        beta: Asset.USDT,
     };
 
-    let newValue = AssetType.USDT;
+    let newValue = Asset.USDT;
     expect(
         reducer(initialState, {
             type: "UpdateAlphaAssetType",
@@ -107,13 +107,13 @@ test("update beta asset logic - should flip asset types", () => {
     const initialState = {
         ...defaultState,
         alpha: {
-            type: AssetType.BTC,
+            type: Asset.LBTC,
             amount: 0.01,
         },
-        beta: AssetType.USDT,
+        beta: Asset.USDT,
     };
 
-    let newValue = AssetType.BTC;
+    let newValue = Asset.LBTC;
     expect(
         reducer(initialState, {
             type: "UpdateBetaAssetType",
@@ -141,10 +141,10 @@ test("Swap asset types", () => {
     const initialState = {
         ...defaultState,
         alpha: {
-            type: AssetType.BTC,
+            type: Asset.LBTC,
             amount: 0.01,
         },
-        beta: AssetType.USDT,
+        beta: Asset.USDT,
     };
 
     const rate = {
