@@ -23,19 +23,19 @@ import {
 } from "@chakra-ui/react";
 import React, { MouseEvent } from "react";
 import { GrGithub } from "react-icons/gr";
-import { AssetType } from "../App";
+import { Asset } from "../App";
 import Bitcoin from "./bitcoin.svg";
 import Xmr from "./monero.svg";
 import Usdt from "./tether.svg";
 
 interface CurrencySelectProps {
-    type: AssetType;
-    onAssetChange: (asset: AssetType) => void;
+    type: Asset;
+    onAssetChange: (asset: Asset) => void;
     placement: "left" | "right";
 }
 
 function AssetSelect({ type, onAssetChange, placement }: CurrencySelectProps) {
-    const onChange = (value: AssetType) => {
+    const onChange = (value: Asset) => {
         onAssetChange(value);
         onClose();
     };
@@ -46,8 +46,8 @@ function AssetSelect({ type, onAssetChange, placement }: CurrencySelectProps) {
     return (
         <>
             <Button ref={btnRef} w="100%" bg="white" border="grey" size="lg" shadow="md" onClick={onOpen}>
-                {type === "BTC" && <BitcoinSelect />}
-                {type === "USDT" && <UsdtSelect />}
+                {type === Asset.LBTC && <BitcoinSelect />}
+                {type === Asset.USDT && <UsdtSelect />}
             </Button>
 
             <Drawer placement={placement} onClose={onClose} isOpen={isOpen} size="sm">
@@ -103,11 +103,11 @@ function UsdtSelect() {
 }
 
 interface CurrencyBoxProps {
-    onSelect: (asset: AssetType) => void;
+    onSelect: (asset: Asset) => void;
 }
 
 function BitcoinBox({ onSelect }: CurrencyBoxProps) {
-    return (<Box h="100px" as={Button} onClick={(_e) => onSelect(AssetType.BTC)}>
+    return (<Box h="100px" as={Button} onClick={(_e) => onSelect(Asset.LBTC)}>
         <VStack spacing="24px">
             <Box h="40px">
                 <Image src={Bitcoin} h="100%" />
@@ -120,7 +120,7 @@ function BitcoinBox({ onSelect }: CurrencyBoxProps) {
 }
 
 function UsdtBox({ onSelect }: CurrencyBoxProps) {
-    return (<Box h="100px" as={Button} onClick={(e) => onSelect(AssetType.USDT)}>
+    return (<Box h="100px" as={Button} onClick={(e) => onSelect(Asset.USDT)}>
         <VStack spacing="24px">
             <Box h="40px">
                 <Image src={Usdt} h="100%" />

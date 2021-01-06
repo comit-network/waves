@@ -18,35 +18,30 @@ import {
 } from "@chakra-ui/react";
 import React, { useRef } from "react";
 import { useAsync } from "react-async";
-import useSWR from "swr";
-import { AssetType } from "./App";
+import { Asset } from "./App";
 import Bitcoin from "./components/bitcoin.svg";
 import Usdt from "./components/tether.svg";
-import { decomposeTransaction, signAndSend } from "./wasmProxy";
+import { signAndSend, Trade, TradeSide } from "./wasmProxy";
 
 interface ConfirmSwapDrawerProps {
     isOpen: boolean;
     onCancel: () => void;
     onSwapped: (txId: string) => void;
     transaction: string;
+    trade: Trade;
 }
 
-export default function ConfirmSwapDrawer({ isOpen, onCancel, onSwapped, transaction }: ConfirmSwapDrawerProps) {
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    let { data, error } = useSWR("decompose-transaction", () => decomposeTransaction(transaction));
+export default function ConfirmSwapDrawer(
+    { isOpen, onCancel, onSwapped, transaction, trade }: ConfirmSwapDrawerProps,
+) {
     let { isPending, run } = useAsync({
         deferFn: async () => {
             let txId = await signAndSend(transaction);
             onSwapped(txId);
         },
     });
-    const cancelButton = useRef(null);
 
-    // TODO: get these out of data
-    let alphaAsset = AssetType.BTC;
-    let alphaAmount = 0;
-    let betaAsset = AssetType.USDT;
-    let betaAmount = 0;
+    const cancelButton = useRef(null);
 
     return <Drawer
         isOpen={isOpen}
@@ -68,18 +63,14 @@ export default function ConfirmSwapDrawer({ isOpen, onCancel, onSwapped, transac
                     <DrawerBody>
                         <Box>
                             <YouSwapItem
-                                asset={alphaAsset}
-                                amount={alphaAmount}
-                                balanceAfter={0}
-                                balanceBefore={0}
+                                tradeSide={trade.sell}
+                                action={"send"}
                             />
                         </Box>
                         <Box>
                             <YouSwapItem
-                                asset={betaAsset}
-                                amount={betaAmount}
-                                balanceAfter={0}
-                                balanceBefore={0}
+                                tradeSide={trade.buy}
+                                action={"receive"}
                             />
                         </Box>
                     </DrawerBody>
@@ -109,32 +100,33 @@ export default function ConfirmSwapDrawer({ isOpen, onCancel, onSwapped, transac
 }
 
 interface YouSwapItemProps {
-    asset: AssetType;
-    amount: number;
-    balanceBefore: number;
-    balanceAfter: number;
+    tradeSide: TradeSide;
+    action: "send" | "receive";
 }
 
 function YouSwapItem({
-    asset,
-    amount,
-    balanceBefore,
-    balanceAfter,
+    tradeSide: {
+        ticker,
+        amount,
+        balanceBefore,
+        balanceAfter,
+    },
+    action,
 }: YouSwapItemProps) {
     return (
         <Box w="100%">
             <Flex>
                 <Box h="40px" p="1">
-                    <Text>You send</Text>
+                    <Text>You {action}</Text>
                 </Box>
                 <Spacer />
                 <Box w="40px" h="40px">
-                    {asset === AssetType.BTC && <Image src={Bitcoin} h="32px" />}
-                    {asset === AssetType.USDT && <Image src={Usdt} h="32px" />}
+                    {ticker === Asset.LBTC && <Image src={Bitcoin} h="32px" />}
+                    {ticker === Asset.USDT && <Image src={Usdt} h="32px" />}
                 </Box>
                 <Box h="40px" justify="right" p="1">
                     <Text align="center" justify="center">
-                        {asset}
+                        {ticker}
                     </Text>
                 </Box>
             </Flex>

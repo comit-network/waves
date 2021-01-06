@@ -8,12 +8,12 @@ import {
     VStack,
 } from "@chakra-ui/react";
 import React, { Dispatch } from "react";
-import { Action, AssetSide, AssetType } from "../App";
+import { Action, Asset, AssetSide } from "../App";
 import AssetSelect from "./AssetSelect";
 
 interface AssetSelectorProps {
     assetSide: AssetSide;
-    type: AssetType;
+    type: Asset;
     amount: number;
     placement: "left" | "right";
     dispatch: Dispatch<Action>;
@@ -36,7 +36,7 @@ function AssetSelector({ assetSide, type, amount, placement, dispatch }: AssetSe
         }
     };
 
-    const onAssetTypeChange = (newType: AssetType) => {
+    const onAssetTypeChange = (newType: Asset) => {
         switch (assetSide) {
             case "Alpha":
                 dispatch({
@@ -60,7 +60,7 @@ function AssetSelector({ assetSide, type, amount, placement, dispatch }: AssetSe
             <VStack spacing={4} id="select{type}">
                 <AssetSelect type={type} onAssetChange={onAssetTypeChange} placement={placement} />
                 {/* asset is BTC: render BTC input*/}
-                {type === AssetType.BTC
+                {type === Asset.LBTC
                     && <NumberInput
                         currency="₿"
                         value={amount}
@@ -70,7 +70,7 @@ function AssetSelector({ assetSide, type, amount, placement, dispatch }: AssetSe
                         isDisabled={assetSide === "Beta"}
                     />}
                 {/* asset is USDT: render USDT input*/}
-                {type === AssetType.USDT
+                {type === Asset.USDT
                     && <NumberInput
                         currency="$"
                         value={amount}

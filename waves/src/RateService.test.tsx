@@ -1,4 +1,4 @@
-import { AssetType } from "./App";
+import { Asset } from "./App";
 import { calculateBetaAmount } from "./RateService";
 
 test("test bid amount", () => {
@@ -6,7 +6,7 @@ test("test bid amount", () => {
         bid: 1900,
         ask: 2000,
     };
-    const alpha = AssetType.BTC;
+    const alpha = Asset.LBTC;
 
     const alphaAmount = 1.0;
     const expectedBetaAmount = 1900;
@@ -21,7 +21,7 @@ test("test ask amount", () => {
         bid: 1900,
         ask: 2000,
     };
-    const alpha = AssetType.USDT;
+    const alpha = Asset.USDT;
 
     const alphaAmount = 2000;
     const expectedBetaAmount = 1.0;
