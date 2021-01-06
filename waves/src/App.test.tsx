@@ -1,6 +1,7 @@
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import React from "react";
 import { Listener, Source, SSEProvider } from "react-hooks-sse";
+import { BrowserRouter } from "react-router-dom";
 import App, { AssetType, reducer } from "./App";
 import { calculateBetaAmount } from "./RateService";
 
@@ -17,11 +18,15 @@ class DummySource implements Source {
 }
 
 test("Test if rendering works by asserting `create new wallet` button", () => {
-    render(
-        <SSEProvider source={() => new DummySource()}>
-            <App />
-        </SSEProvider>,
-    );
+    act(() => {
+        render(
+            <SSEProvider source={() => new DummySource()}>
+                <BrowserRouter>
+                    <App />
+                </BrowserRouter>
+            </SSEProvider>,
+        );
+    });
     const linkElement = screen.getByText(/Create new wallet/i);
     expect(linkElement).toBeInTheDocument();
 });

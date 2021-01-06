@@ -1,4 +1,4 @@
-import { AssetType, reducer } from "./App";
+import { AssetType } from "./App";
 import { calculateBetaAmount } from "./RateService";
 
 test("test bid amount", () => {
