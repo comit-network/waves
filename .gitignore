@@ -9,3 +9,7 @@
 
 # file containing pid for bobtimus started up for local development
 .bobtimus
+
+# files containing asset IDs for frontend and bobtimus
+.native_asset_id
+.usdt_asset_id

@@ -5,8 +5,10 @@ start_dev_env () {
 
     start_nodes
 
-    local usdt_asset_id=$(mint_usdt)
-    start_bobtimus $usdt_asset_id
+    load_native_asset
+    mint_usdt
+
+    start_bobtimus
 
     start_frontend
 }
@@ -26,6 +28,17 @@ start_nodes () {
     sleep 2
 }
 
+load_native_asset () {
+    # get native asset ID.
+    local native_asset_id=$(nigiri rpc --liquid dumpassetlabels | jq -r '.bitcoin')
+    if [ "$native_asset_id" = "null" ]; then
+      echo "Bitcoin asset id not found."
+      exit 1
+    fi
+
+    echo "$native_asset_id" > .native_asset_id
+}
+
 mint_usdt () {
     set -e
 
@@ -36,21 +49,29 @@ mint_usdt () {
     sleep 2
 
     response=$(nigiri mint $address $amount "Tether USD" "USDt")
-    asset_id=$(echo $response | sed -n -e 's/^.*\(asset: \)\(.*\)\( issuance_txin: .*$\)/\2/p')
+    usdt_asset_id=$(echo $response | sed -n -e 's/^.*\(asset: \)\(.*\)\( issuance_txin: .*$\)/\2/p')
 
-    echo "$asset_id"
+    # get usdt asset ID.
+    if [ "$usdt_asset_id" = "null" ]; then
+      echo "Usdt asset id not found."
+      exit 1
+    fi
+
+    echo "$usdt_asset_id" > .usdt_asset_id
 }
 
 start_bobtimus () {
-    if [ $# -ne 1 ]; then
-        echo "Incorrect number of arguments"
-        exit 1
-    fi
-
     if [ -f ".bobtimus" ]; then
         echo "Are you sure Bobtimus is not already up?"
         exit 1
     fi
+
+    if [ ! -f ".usdt_asset_id" ]; then
+        echo "Usdt asset id not configured. Did you run `mint_usdt`?"
+        exit 1
+    fi
+
+    usdt_asset_id=$(cat .usdt_asset_id)
 
     set -e
 
@@ -60,7 +81,7 @@ start_bobtimus () {
     cargo build --bin fake_bobtimus
 
     set +e
-    find ./waves/build ./waves/build/index.html &> /dev/null
+    find ./waves/dist ./waves/dist/index.html &> /dev/null
     set -e
 
     if [ $? -ne 0 ]; then
@@ -76,7 +97,7 @@ start_bobtimus () {
     local -r elementsd_rpc_password="123"
     RUST_LOG=debug cargo run --bin fake_bobtimus -- \
             --elementsd http://$elementsd_rpc_user:$elementsd_rpc_password@127.0.0.1:$LIQUID_NODE_PORT \
-            --usdt $1 > $log_dir/bobtimus 2>&1 &
+            --usdt $usdt_asset_id > $log_dir/bobtimus 2>&1 &
     bobtimus_pid=$!
 
     sleep 1
@@ -99,12 +120,17 @@ start_bobtimus () {
 start_frontend () {
     set -e
 
+    if [ ! -f ".native_asset_id" ]; then
+        echo "Native asset id not configured."
+        exit 1
+    fi
+
     __read_env_file
 
     local -r chopsticks_url="http://127.0.0.1:$LIQUID_CHOPSTICKS_PORT"
     cd waves
     yarn install
-    export NATIVE_ASSET_ID=$(nigiri rpc --liquid dumpassetlabels | jq -r '.bitcoin')
+    export NATIVE_ASSET_ID=$(cat .native_asset_id)
     export CHAIN=ELEMENTS
     export ESPLORA_API_URL=$chopsticks_url
     yarn start
@@ -112,6 +138,8 @@ start_frontend () {
 
 stop_nodes () {
     nigiri stop --delete
+    rm .native_asset_id
+    rm .usdt_asset_id
 }
 
 stop_bobtimus () {
@@ -123,12 +151,18 @@ stop_bobtimus () {
     fi
 
     kill -9 $bobtimus_pid
+    echo "Terminated bobtimus with pid $bobtimus_pid"
 
     if [ $? -ne 0 ]; then
         echo "Bobtimus is not running"
     fi
 
     rm .bobtimus
+}
+
+restart_bobtimus () {
+  stop_bobtimus
+  start_bobtimus
 }
 
 __read_env_file () {
