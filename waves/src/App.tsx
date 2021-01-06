@@ -350,9 +350,12 @@ function App() {
 
 function BlockExplorerLink() {
     const { txId } = useParams<{ txId: string }>();
+    const baseUrl = process.env.REACT_APP_BLOCKEXPLORER_URL
+        ? `${process.env.REACT_APP_BLOCKEXPLORER_URL}`
+        : "https://blockstream.info/liquid";
 
     return <Link
-        href={`https://blockstream.info/liquid/tx/${txId}`}
+        href={`${baseUrl}/tx/${txId}`}
         isExternal
     >
         Block Explorer <ExternalLinkIcon mx="2px" />
