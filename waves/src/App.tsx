@@ -179,10 +179,9 @@ function App() {
     let { isOpen: isCreateWalletOpen, onClose: onCreateWalletClose, onOpen: onCreateWalletOpen } = useDisclosure();
     let { isOpen: isConfirmSwapOpen, onClose: onConfirmSwapClose, onOpen: onConfirmSwapOpen } = useDisclosure();
 
-    let { data: getWalletStatusResponse, isValidating: isLoading, mutate: reloadWalletStatus } = useSWR(
-        "wallet-status",
-        () => getWalletStatus(),
-    );
+    let { data: getWalletStatusResponse, isLoading, reload: reloadWalletStatus } = useAsync({
+        promiseFn: getWalletStatus,
+    });
     let walletStatus = getWalletStatusResponse || { exists: false, loaded: false };
 
     let { data: getBalancesResponse, mutate: reloadWalletBalances } = useSWR(
