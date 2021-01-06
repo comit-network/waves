@@ -80,19 +80,6 @@ start_bobtimus () {
 
     cargo build --bin fake_bobtimus
 
-    set +e
-    find ./waves/dist ./waves/dist/index.html &> /dev/null
-    set -e
-
-    if [ $? -ne 0 ]; then
-        echo "Frontend not yet built"
-
-        cd waves
-        yarn
-        yarn run build
-        cd -
-    fi
-
     local -r elementsd_rpc_user="admin1"
     local -r elementsd_rpc_password="123"
     RUST_LOG=debug cargo run --bin fake_bobtimus -- \
