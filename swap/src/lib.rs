@@ -294,26 +294,12 @@ impl Actor {
 
         let change_amount = Amount::from_sat(amount_in)
             .checked_sub(other_receive_amount)
-            .with_context(|| {
-                format!(
-                    "amount_in ({}) < amount_out ({})",
-                    amount_in,
-                    other_receive_amount.as_sat()
-                )
-            })
-            .map_err(|_| InputAmountTooSmall(amount_in, other_receive_amount.as_sat()))?;
+            .with_context(|| InputAmountTooSmall(amount_in, other_receive_amount.as_sat()))?;
 
         let change_amount = if other_receive_asset == fee_asset {
-            change_amount
-                .checked_sub(fee_amount)
-                .with_context(|| {
-                    format!(
-                        "change_amount ({}) < fee ({})",
-                        change_amount.as_sat(),
-                        fee_amount.as_sat()
-                    )
-                })
-                .map_err(|_| ChangeAmountTooSmall(change_amount.as_sat(), fee_amount.as_sat()))?
+            change_amount.checked_sub(fee_amount).with_context(|| {
+                ChangeAmountTooSmall(change_amount.as_sat(), fee_amount.as_sat())
+            })?
         } else {
             change_amount
         };
