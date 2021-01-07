@@ -3,7 +3,7 @@ import { Box, Button, Center, Flex, Link, Text, useDisclosure, VStack } from "@c
 import React, { useReducer, useState } from "react";
 import { useAsync } from "react-async";
 import { useSSE } from "react-hooks-sse";
-import { Route, Switch, useHistory, useParams } from "react-router-dom";
+import { Link as RouterLink, Route, Switch, useHistory, useParams } from "react-router-dom";
 import useSWR from "swr";
 import "./App.css";
 import { postSellPayload } from "./Bobtimus";
@@ -318,6 +318,14 @@ function App() {
                                 Check in{" "}
                                 <BlockExplorerLink />
                             </Text>
+                            <Button
+                                size="lg"
+                                variant="main_button"
+                                as={RouterLink}
+                                to="/"
+                            >
+                                Home
+                            </Button>
                         </VStack>
                     </Route>
                 </Switch>
