@@ -129,7 +129,7 @@ start_frontend () {
 
     cd waves
     yarn install
-    export NATIVE_ASSET_ID=$(cat .native_asset_id)
+    export NATIVE_ASSET_ID=$(cat ../.native_asset_id)
     export CHAIN=ELEMENTS
     export ESPLORA_API_URL=$LIQUID_ESPLORA_URL
     export REACT_APP_BLOCKEXPLORER_URL="http://localhost:$LIQUID_ESPLORA_PORT"
