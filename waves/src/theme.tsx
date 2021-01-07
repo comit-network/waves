@@ -19,14 +19,6 @@ const theme = extendTheme({
             color: "gray.500",
         },
     },
-    swapButton: {
-        baseStyle: {
-            colorScheme: "teal",
-            size: "lg",
-            bg: "#304FFE",
-            rounded: "md",
-        },
-    },
     components: {
         Button: {
             baseStyle: {
@@ -50,6 +42,16 @@ const theme = extendTheme({
                     color: "white",
                     _hover: {
                         bg: "blue.300",
+                        _disabled: {
+                            bg: "",
+                        },
+                    },
+                },
+                "connect_wallet_button": {
+                    color: "white",
+                    bg: "red.500",
+                    _hover: {
+                        bg: "red.300",
                     },
                 },
                 "wallet_button": {
