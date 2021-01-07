@@ -16,6 +16,7 @@ import {
     useDisclosure,
     VStack,
 } from "@chakra-ui/react";
+import Debug from "debug";
 import QRCode from "qrcode.react";
 import React, { ChangeEvent } from "react";
 import { Async } from "react-async";
@@ -24,6 +25,8 @@ import { fundAddress } from "./Bobtimus";
 import Btc from "./components/bitcoin.svg";
 import Usdt from "./components/tether.svg";
 import { getAddress, withdrawAll } from "./wasmProxy";
+
+const debug = Debug("wallet");
 
 interface WalletInfoProps {
     balance: WalletBalance;
@@ -38,7 +41,7 @@ export default function WalletInfo({ balance }: WalletInfoProps) {
 
     const withdraw = async () => {
         let txId = await withdrawAll(withdrawAddress);
-        console.log("Withdrew everything. Resulting txId: {}", txId);
+        debug("Withdrew everything. Resulting txId: %s", txId);
     };
 
     async function fundWallet(): Promise<any> {

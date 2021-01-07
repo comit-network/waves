@@ -1,6 +1,9 @@
+import Debug from "debug";
 import React, { ReactElement } from "react";
 import { SSEProvider } from "react-hooks-sse";
 import { CreateSwapPayload } from "./wasmProxy";
+
+const debug = Debug("bobtimus");
 
 export async function fundAddress(address: string): Promise<any> {
     await fetch("/api/faucet/" + address, {
@@ -19,7 +22,7 @@ export async function postSellPayload(payload: CreateSwapPayload) {
     });
 
     if (res.status !== 200) {
-        console.error("failed to create new swap"); // TODO: use logger instead of console
+        debug("failed to create new swap");
         throw new Error("failed to create new swap");
     }
 
