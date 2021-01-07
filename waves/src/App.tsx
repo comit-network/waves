@@ -245,11 +245,15 @@ function App() {
             Unlock wallet
         </Button>;
     } else {
+        let disabled = state.alpha.type == AssetType.BTC
+            ? btcBalance < state.alpha.amount
+            : usdtBalance < state.alpha.amount;
         button = <Button
             onClick={makeNewSwap}
             size="lg"
             variant="main_button"
             isLoading={isCreatingNewSwap}
+            disabled={disabled}
         >
             Swap
         </Button>;
