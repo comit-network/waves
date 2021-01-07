@@ -80,19 +80,6 @@ start_bobtimus () {
 
     cargo build --bin fake_bobtimus
 
-    set +e
-    find ./waves/dist ./waves/dist/index.html &> /dev/null
-    set -e
-
-    if [ $? -ne 0 ]; then
-        echo "Frontend not yet built"
-
-        cd waves
-        yarn
-        yarn run build
-        cd -
-    fi
-
     local -r elementsd_rpc_user="admin1"
     local -r elementsd_rpc_password="123"
     RUST_LOG=debug cargo run --bin fake_bobtimus -- \
@@ -130,6 +117,7 @@ start_frontend () {
     cd waves
     yarn install
     export NATIVE_ASSET_ID=$(cat ../.native_asset_id)
+    export USDT_ASSET_ID=$(cat ../.usdt_asset_id)
     export CHAIN=ELEMENTS
     export ESPLORA_API_URL=$LIQUID_ESPLORA_URL
     export REACT_APP_BLOCKEXPLORER_URL="http://localhost:$LIQUID_ESPLORA_PORT"

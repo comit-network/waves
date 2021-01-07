@@ -1,6 +1,5 @@
 use crate::typed_js_future::TypedJsFuture;
 use anyhow::{Context, Result};
-use serde::de::DeserializeOwned;
 use wasm_bindgen::{JsCast, JsValue};
 use wasm_bindgen_futures::JsFuture;
 
@@ -83,17 +82,6 @@ pub struct Response {
 }
 
 impl Response {
-    pub async fn json<T: DeserializeOwned>(&self) -> Result<T> {
-        let promise = map_err_to_anyhow!(self.inner.json())?;
-        let future = JsFuture::from(promise);
-
-        let response = map_err_to_anyhow!(future.await)?;
-
-        Ok(response
-            .into_serde()
-            .context("failed to deserialize response to json")?)
-    }
-
     pub async fn text(&self) -> Result<String> {
         let promise = map_err_to_anyhow!(self.inner.text())?;
         let future = JsFuture::from(promise);

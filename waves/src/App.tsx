@@ -14,22 +14,19 @@ import CreateWalletDrawer from "./CreateWalletDrawer";
 import { calculateBetaAmount } from "./RateService";
 import UnlockWalletDrawer from "./UnlockWalletDrawer";
 import WalletInfo from "./WalletInfo";
-import { getBalances, getWalletStatus, makeCreateSellSwapPayload } from "./wasmProxy";
+import { extractTrade, getBalances, getWalletStatus, makeCreateSellSwapPayload, Trade } from "./wasmProxy";
 
-export const LBTC_TICKER = "L-BTC";
-export const LUSDT_TICKER = "USDt";
-
-export enum AssetType {
-    BTC = "BTC",
-    USDT = "USDT",
+export enum Asset {
+    LBTC = "L-BTC",
+    USDT = "USDt",
 }
 
 export type AssetSide = "Alpha" | "Beta";
 
 export type Action =
     | { type: "UpdateAlphaAmount"; value: number }
-    | { type: "UpdateAlphaAssetType"; value: AssetType }
-    | { type: "UpdateBetaAssetType"; value: AssetType }
+    | { type: "UpdateAlphaAssetType"; value: Asset }
+    | { type: "UpdateBetaAssetType"; value: Asset }
     | {
         type: "SwapAssetTypes";
         value: {
@@ -42,7 +39,7 @@ export type Action =
 
 interface State {
     alpha: AssetState;
-    beta: AssetType;
+    beta: Asset;
     txId: string;
     wallet: Wallet;
 }
@@ -67,16 +64,16 @@ export interface WalletBalance {
 }
 
 interface AssetState {
-    type: AssetType;
+    type: Asset;
     amount: number;
 }
 
 const initialState = {
     alpha: {
-        type: AssetType.BTC,
+        type: Asset.LBTC,
         amount: 0.01,
     },
-    beta: AssetType.USDT,
+    beta: Asset.USDT,
     rate: {
         ask: 19133.74,
         bid: 19133.74,
@@ -170,7 +167,7 @@ export function reducer(state: State = initialState, action: Action) {
 
 function App() {
     const history = useHistory();
-    const [transaction, setTransaction] = useState("");
+    const [[transaction, trade], setTransaction] = useState<[string, Trade]>(["", {} as any]);
     const [state, dispatch] = useReducer(reducer, initialState);
 
     const rate = useSSE("rate", {
@@ -198,10 +195,10 @@ function App() {
     let balances = getBalancesResponse || [];
 
     let btcBalanceEntry = balances.find(
-        balance => balance.ticker === LBTC_TICKER,
+        balance => balance.ticker === Asset.LBTC,
     );
     let usdtBalanceEntry = balances.find(
-        balance => balance.ticker === LUSDT_TICKER,
+        balance => balance.ticker === Asset.USDT,
     );
 
     const btcBalance = btcBalanceEntry ? btcBalanceEntry.value : 0;
@@ -212,7 +209,9 @@ function App() {
             let payload = await makeCreateSellSwapPayload(state.alpha.amount.toString());
             let tx = await postSellPayload(payload);
 
-            setTransaction(tx);
+            let trade = await extractTrade(tx);
+
+            setTransaction([tx, trade]);
 
             onConfirmSwapOpen();
         },
@@ -253,7 +252,7 @@ function App() {
         />;
     }
 
-    let isSwapButtonDisabled = state.alpha.type === AssetType.BTC
+    let isSwapButtonDisabled = state.alpha.type === Asset.LBTC
         ? btcBalance < state.alpha.amount
         : usdtBalance < state.alpha.amount;
 
@@ -343,11 +342,12 @@ function App() {
             <ConfirmSwapDrawer
                 isOpen={isConfirmSwapOpen}
                 onCancel={onConfirmSwapClose}
-                transaction={transaction}
                 onSwapped={(txId) => {
                     history.push(`/swapped/${txId}`);
                     onConfirmSwapClose();
                 }}
+                transaction={transaction}
+                trade={trade}
             />
         </div>
     );
