@@ -239,6 +239,18 @@ pub struct Actor {
     receive_amount: Amount,
 }
 
+#[derive(thiserror::Error, Debug, Clone, Copy)]
+#[error("The inputs contain an AssetId != {0}.")]
+pub struct InvalidAssetTypes(pub AssetId);
+
+#[derive(thiserror::Error, Debug, Clone, Copy)]
+#[error("Amount_in ({0}) < amount_out ({1})")]
+pub struct InputAmountTooSmall(pub u64, pub u64);
+
+#[derive(thiserror::Error, Debug, Clone, Copy)]
+#[error("Change_amount ({0}) < fee ({1})")]
+pub struct ChangeAmountTooSmall(pub u64, pub u64);
+
 impl Actor {
     pub fn new<C>(
         secp: &Secp256k1<C>,
@@ -270,33 +282,23 @@ impl Actor {
         fee_asset: AssetId,
         fee_amount: Amount,
     ) -> Result<Amount> {
-        if !self
+        if self
             .inputs
             .iter()
-            .all(|input| input.unblinded.asset == other_receive_asset)
+            .any(|input| input.unblinded.asset != other_receive_asset)
         {
-            bail!("all inputs must be asset {}", other_receive_asset)
+            bail!(InvalidAssetTypes(other_receive_asset))
         }
 
         let amount_in = self.inputs.iter().map(|input| input.unblinded.value).sum();
 
         let change_amount = Amount::from_sat(amount_in)
             .checked_sub(other_receive_amount)
-            .with_context(|| {
-                format!(
-                    "amount_in ({}) < amount_out ({})",
-                    amount_in,
-                    other_receive_amount.as_sat()
-                )
-            })?;
+            .with_context(|| InputAmountTooSmall(amount_in, other_receive_amount.as_sat()))?;
 
         let change_amount = if other_receive_asset == fee_asset {
             change_amount.checked_sub(fee_amount).with_context(|| {
-                format!(
-                    "change_amount ({}) < fee ({})",
-                    change_amount.as_sat(),
-                    fee_amount.as_sat()
-                )
+                ChangeAmountTooSmall(change_amount.as_sat(), fee_amount.as_sat())
             })?
         } else {
             change_amount

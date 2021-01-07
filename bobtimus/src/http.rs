@@ -1,4 +1,4 @@
-use crate::{Bobtimus, CreateSwapPayload, LatestRate, Rate};
+use crate::{problem, Bobtimus, CreateSwapPayload, LatestRate, Rate};
 use elements_fun::{
     encode::serialize_hex,
     secp256k1::rand::{CryptoRng, RngCore},
@@ -44,6 +44,7 @@ where
         .or(latest_rate)
         .or(create_swap)
         .or(waves_resources)
+        .recover(problem::unpack_problem)
         .boxed()
 }
 
@@ -56,19 +57,18 @@ where
     RS: LatestRate,
 {
     let payload = payload.to_string();
-    let payload: CreateSwapPayload = serde_json::from_str(&payload).map_err(|e| {
-        log::error!("Failed to deserialize create swap payload: {}", e);
-        warp::reject::reject()
-    })?;
+    let payload: CreateSwapPayload = serde_json::from_str(&payload)
+        .map_err(anyhow::Error::from)
+        .map_err(problem::from_anyhow)
+        .map_err(warp::reject::custom)?;
 
     bobtimus
         .handle_create_swap(payload)
         .await
         .map(|transaction| serialize_hex(&transaction))
-        .map_err(|e| {
-            log::error!("Failed to handle create swap: {}", e);
-            warp::reject::reject()
-        })
+        .map_err(anyhow::Error::from)
+        .map_err(problem::from_anyhow)
+        .map_err(warp::reject::custom)
 }
 
 fn latest_rate<S>(stream: S) -> impl Reply

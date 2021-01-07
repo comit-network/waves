@@ -252,6 +252,7 @@ dependencies = [
  "futures",
  "hex",
  "hmac 0.10.1",
+ "http-api-problem",
  "log",
  "mime_guess",
  "reqwest",
@@ -858,6 +859,18 @@ dependencies = [
  "bytes",
  "fnv",
  "itoa",
+]
+
+[[package]]
+name = "http-api-problem"
+version = "0.15.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9ea904a890b9a8803939988503ba27ba7c298bcaca9a65d0e311a827583d4621"
+dependencies = [
+ "http",
+ "serde",
+ "serde_json",
+ "warp",
 ]
 
 [[package]]
@@ -2040,6 +2053,7 @@ dependencies = [
  "serde",
  "sha2",
  "testcontainers",
+ "thiserror",
  "tokio",
 ]
 
@@ -2104,18 +2118,18 @@ dependencies = [
 
 [[package]]
 name = "thiserror"
-version = "1.0.22"
+version = "1.0.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0e9ae34b84616eedaaf1e9dd6026dbe00dcafa92aa0c8077cb69df1fcfe5e53e"
+checksum = "76cc616c6abf8c8928e2fdcc0dbfab37175edd8fb49a4641066ad1364fdab146"
 dependencies = [
  "thiserror-impl",
 ]
 
 [[package]]
 name = "thiserror-impl"
-version = "1.0.22"
+version = "1.0.23"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9ba20f23e85b10754cd195504aebf6a27e2e6cbe28c17778a0c930724628dd56"
+checksum = "9be73a2caec27583d0046ef3796c3794f868a5bc813db689eed00c7631275cd1"
 dependencies = [
  "proc-macro2",
  "quote",
