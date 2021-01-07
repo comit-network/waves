@@ -19,6 +19,7 @@ function checkLogger() {
 
     if (process.env.NODE_ENV === "production") {
         // if `debug` variable is not set and we are in production mode: give a warning that user won't see logs.
+        // eslint-disable-next-line no-console
         console.log("`debug` variable not set. You won't see any logs unless you add `debug=*` to your localStorage.");
     } else if (process.env.NODE_ENV === "development") {
         // if `debug` variable is not set but we are in development mode: enable all logs.
