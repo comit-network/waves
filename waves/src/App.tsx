@@ -224,50 +224,43 @@ function App() {
         rate,
     );
 
-    let button;
+    let walletInfoButton;
 
     if (!walletStatus.exists) {
-        button = <Button
+        walletInfoButton = <Button
             onClick={onCreateWalletOpen}
-            size="lg"
-            variant="main_button"
+            size="sm"
+            variant="connect_wallet_button"
             isLoading={isLoading}
         >
-            Create new wallet
+            Create wallet
         </Button>;
     } else if (walletStatus.exists && !walletStatus.loaded) {
-        button = <Button
+        walletInfoButton = <Button
             onClick={onUnlockWalletOpen}
-            size="lg"
-            variant="main_button"
+            size="sm"
+            variant="connect_wallet_button"
             isLoading={isLoading}
         >
             Unlock wallet
         </Button>;
     } else {
-        let disabled = state.alpha.type == AssetType.BTC
-            ? btcBalance < state.alpha.amount
-            : usdtBalance < state.alpha.amount;
-        button = <Button
-            onClick={makeNewSwap}
-            size="lg"
-            variant="main_button"
-            isLoading={isCreatingNewSwap}
-            disabled={disabled}
-        >
-            Swap
-        </Button>;
+        walletInfoButton = <WalletInfo
+            balance={{
+                usdtBalance,
+                btcBalance,
+            }}
+        />;
     }
+
+    let isSwapButtonDisabled = state.alpha.type === AssetType.BTC
+        ? btcBalance < state.alpha.amount
+        : usdtBalance < state.alpha.amount;
 
     return (
         <div className="App">
             <header className="App-header">
-                {walletStatus.loaded && <WalletInfo
-                    balance={{
-                        usdtBalance,
-                        btcBalance,
-                    }}
-                />}
+                {walletInfoButton}
             </header>
             <Center className="App-body">
                 <Switch>
@@ -306,7 +299,15 @@ function App() {
                                 <Text textStyle="info">1 BTC ~ {rate.ask} USDT</Text>
                             </Box>
                             <Box>
-                                {button}
+                                <Button
+                                    onClick={makeNewSwap}
+                                    size="lg"
+                                    variant="main_button"
+                                    isLoading={isCreatingNewSwap}
+                                    disabled={isSwapButtonDisabled}
+                                >
+                                    Swap
+                                </Button>
                             </Box>
                         </VStack>
                     </Route>
