@@ -5,7 +5,8 @@ use elements_fun::{
 };
 use futures::{Stream, StreamExt};
 use rust_embed::RustEmbed;
-use std::convert::Infallible;
+use std::{convert::Infallible, sync::Arc};
+use tokio::sync::Mutex;
 use warp::{
     filters::BoxedFilter, http::header::HeaderValue, path::Tail, reply::Response, Filter,
     Rejection, Reply,
@@ -16,7 +17,7 @@ use warp::{
 struct Waves;
 
 pub fn routes<R, RS>(
-    bobtimus: &Bobtimus<R, RS>,
+    bobtimus: Arc<Mutex<Bobtimus<R, RS>>>,
     latest_rate_subscription: impl Stream<Item = Rate> + Clone + Send + Sync + 'static,
 ) -> BoxedFilter<(impl Reply,)>
 where
@@ -30,15 +31,16 @@ where
         .and(warp::get())
         .map(move || latest_rate(latest_rate_subscription.clone()));
 
-    let bobtimus_filter = warp::any().map({
-        let bobtimus = bobtimus.clone();
-        move || bobtimus.clone()
-    });
     let create_swap = warp::post()
         .and(warp::path!("api" / "swap" / "lbtc-lusdt" / "sell"))
-        .and(bobtimus_filter)
         .and(warp::body::json())
-        .and_then(create_swap);
+        .and_then(move |payload| {
+            let bobtimus = bobtimus.clone();
+            async move {
+                let mut bobtimus = bobtimus.lock().await;
+                create_swap(&mut bobtimus, payload).await
+            }
+        });
 
     index_html
         .or(latest_rate)
@@ -49,7 +51,7 @@ where
 }
 
 async fn create_swap<R, RS>(
-    mut bobtimus: Bobtimus<R, RS>,
+    bobtimus: &mut Bobtimus<R, RS>,
     payload: serde_json::Value,
 ) -> Result<impl Reply, Rejection>
 where
