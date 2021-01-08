@@ -25,7 +25,7 @@ export enum Asset {
 export type AssetSide = "Alpha" | "Beta";
 
 export type Action =
-    | { type: "UpdateAlphaAmount"; value: number }
+    | { type: "UpdateAlphaAmount"; value: string }
     | { type: "UpdateAlphaAssetType"; value: Asset }
     | { type: "UpdateBetaAssetType"; value: Asset }
     | {
@@ -66,13 +66,13 @@ export interface Balances {
 
 interface AssetState {
     type: Asset;
-    amount: number;
+    amount: string;
 }
 
 const initialState = {
     alpha: {
         type: Asset.LBTC,
-        amount: 0.01,
+        amount: "0.01",
     },
     beta: Asset.USDT,
     rate: {
@@ -131,7 +131,7 @@ export function reducer(state: State = initialState, action: Action) {
                 ...state,
                 alpha: {
                     type: state.beta,
-                    amount: action.value.betaAmount,
+                    amount: action.value.betaAmount.toString(),
                 },
                 beta: state.alpha.type,
             };
@@ -218,9 +218,10 @@ function App() {
         },
     });
 
+    const alphaAmount = Number.parseFloat(state.alpha.amount);
     const betaAmount = calculateBetaAmount(
         state.alpha.type,
-        state.alpha.amount,
+        alphaAmount,
         rate,
     );
 
@@ -255,8 +256,8 @@ function App() {
     }
 
     let isSwapButtonDisabled = state.alpha.type === Asset.LBTC
-        ? btcBalance < state.alpha.amount
-        : usdtBalance < state.alpha.amount;
+        ? btcBalance < alphaAmount
+        : usdtBalance < alphaAmount;
 
     return (
         <div className="App">

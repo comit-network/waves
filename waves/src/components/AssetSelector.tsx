@@ -11,10 +11,12 @@ import React, { Dispatch } from "react";
 import { Action, Asset, AssetSide } from "../App";
 import AssetSelect from "./AssetSelect";
 
+type StringOrNumber = string | number;
+
 interface AssetSelectorProps {
     assetSide: AssetSide;
     type: Asset;
-    amount: number;
+    amount: StringOrNumber;
     placement: "left" | "right";
     dispatch: Dispatch<Action>;
 }
@@ -23,7 +25,7 @@ function AssetSelector({ assetSide, type, amount, placement, dispatch }: AssetSe
     const box_width = 400;
     const box_height = 220;
 
-    const onAmountChange = (newAmount: number) => {
+    const onAmountChange = (newAmount: string) => {
         switch (assetSide) {
             case "Alpha":
                 dispatch({
@@ -88,10 +90,10 @@ export default AssetSelector;
 
 interface CustomInputProps {
     currency: string;
-    value: number;
+    value: StringOrNumber;
     precision: number;
     step: number;
-    onAmountChange: (val: number) => void;
+    onAmountChange: (val: string) => void;
     isDisabled: boolean;
 }
 
@@ -129,7 +131,7 @@ function NumberInput({ currency, value, onAmountChange, precision, step, isDisab
             />
             <CUINumberInput
                 {...inputProps}
-                onChange={(_, valueNumber) => onAmountChange(valueNumber)}
+                onChange={(valueString, _) => onAmountChange(valueString)}
                 value={value}
                 precision={precision}
                 step={step}

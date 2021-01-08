@@ -34,7 +34,7 @@ test("if rendering works by asserting `create new wallet` button", () => {
 const defaultState = {
     alpha: {
         type: Asset.LBTC,
-        amount: 0,
+        amount: "0",
     },
     beta: Asset.USDT,
     txId: "",
@@ -55,12 +55,12 @@ test("update alpha amount logic", () => {
         ...defaultState,
         alpha: {
             type: Asset.LBTC,
-            amount: 0.01,
+            amount: "0.01",
         },
         beta: Asset.USDT,
     };
 
-    let newValue = 42;
+    let newValue = "42";
     expect(
         reducer(initialState, {
             type: "UpdateAlphaAmount",
@@ -74,7 +74,7 @@ test("update alpha asset logic - should flip asset types", () => {
         ...defaultState,
         alpha: {
             type: Asset.LBTC,
-            amount: 0.01,
+            amount: "0.01",
         },
         beta: Asset.USDT,
     };
@@ -108,7 +108,7 @@ test("update beta asset logic - should flip asset types", () => {
         ...defaultState,
         alpha: {
             type: Asset.LBTC,
-            amount: 0.01,
+            amount: "0.01",
         },
         beta: Asset.USDT,
     };
@@ -142,7 +142,7 @@ test("Swap asset types", () => {
         ...defaultState,
         alpha: {
             type: Asset.LBTC,
-            amount: 0.01,
+            amount: "0.01",
         },
         beta: Asset.USDT,
     };
@@ -153,7 +153,8 @@ test("Swap asset types", () => {
     };
     // This is just showing how the beta amount is calculated in "reality". The actual amounts and rates don't matter
     // in this test.
-    let betaAmount = calculateBetaAmount(initialState.alpha.type, initialState.alpha.amount, rate);
+    let amountAsNumber = Number.parseFloat(initialState.alpha.amount);
+    let betaAmount = calculateBetaAmount(initialState.alpha.type, amountAsNumber, rate);
 
     expect(
         reducer(initialState, {
@@ -182,6 +183,6 @@ test("Swap asset types", () => {
             },
         }).alpha.amount,
     ).toBe(
-        betaAmount,
+        betaAmount.toString(),
     );
 });
