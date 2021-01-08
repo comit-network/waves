@@ -7,6 +7,9 @@ import {
     DrawerFooter,
     DrawerHeader,
     DrawerOverlay,
+    FormControl,
+    FormErrorMessage,
+    FormLabel,
     Input,
 } from "@chakra-ui/react";
 import React, { ChangeEvent, useRef, useState } from "react";
@@ -14,25 +17,25 @@ import { useAsync } from "react-async";
 import { unlockWallet } from "./wasmProxy";
 
 interface UnlockWalletDrawerProps {
-    isOpen: boolean;
     onCancel: () => void;
     onUnlock: () => Promise<void>;
 }
 
-export default function UnlockWalletDrawer({ isOpen, onCancel, onUnlock }: UnlockWalletDrawerProps) {
+export default function UnlockWalletDrawer({ onCancel, onUnlock }: UnlockWalletDrawerProps) {
     const [password, setPassword] = useState("");
     const onPasswordChange = (event: ChangeEvent<HTMLInputElement>) => setPassword(event.target.value);
     const passwordField = useRef(null);
 
-    let { run, isPending } = useAsync({
+    let { run, isPending, isRejected } = useAsync({
         deferFn: async () => {
             await unlockWallet(password);
             await onUnlock();
         },
+        onReject: (e) => console.error("failed to unlock wallet", e),
     });
 
     return <Drawer
-        isOpen={isOpen}
+        isOpen={true}
         placement="right"
         onClose={onCancel}
         initialFocusRef={passwordField}
@@ -48,14 +51,17 @@ export default function UnlockWalletDrawer({ isOpen, onCancel, onUnlock }: Unloc
                     <DrawerCloseButton />
                     <DrawerHeader>Unlock Wallet</DrawerHeader>
                     <DrawerBody>
-                        <Input
-                            ref={passwordField}
-                            pr="4.5rem"
-                            type={"password"}
-                            placeholder="Wallet password"
-                            value={password}
-                            onChange={onPasswordChange}
-                        />
+                        <FormControl id="password" isInvalid={isRejected}>
+                            <FormLabel>Password</FormLabel>
+                            <Input
+                                ref={passwordField}
+                                pr="4.5rem"
+                                type={"password"}
+                                value={password}
+                                onChange={onPasswordChange}
+                            />
+                            <FormErrorMessage>Failed to unlock wallet. Wrong password?</FormErrorMessage>
+                        </FormControl>
                     </DrawerBody>
 
                     <DrawerFooter>
