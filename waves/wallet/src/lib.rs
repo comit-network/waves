@@ -29,7 +29,7 @@ static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
 static LOADED_WALLET: Lazy<Mutex<Option<Wallet>>> = Lazy::new(Mutex::default);
 
 #[wasm_bindgen(start)]
-pub fn setup_lib() {
+pub fn setup() {
     #[cfg(feature = "console_error_panic_hook")]
     console_error_panic_hook::set_once();
 
