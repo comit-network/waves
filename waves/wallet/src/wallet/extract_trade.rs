@@ -2,20 +2,23 @@ use crate::{
     assets,
     wallet::{compute_balances, current, get_txouts, Wallet},
 };
-use anyhow::{anyhow, Context, Result};
-use elements_fun::{secp256k1::SECP256K1, AssetId, Transaction, TxOut};
+use anyhow::{bail, Context, Result};
+use elements_fun::{encode::deserialize, secp256k1::SECP256K1, AssetId, Transaction, TxOut};
 use futures::lock::Mutex;
 use itertools::Itertools;
 use rust_decimal::Decimal;
 use serde::Serialize;
 use std::ops::{Add, Sub};
-use wasm_bindgen::JsValue;
 
 pub async fn extract_trade(
     name: String,
     current_wallet: &Mutex<Option<Wallet>>,
-    transaction: Transaction,
-) -> Result<Trade, JsValue> {
+    transaction: String,
+) -> Result<Trade> {
+    let bytes = hex::decode(transaction).context("failed to decode hex into bytes")?;
+    let transaction = deserialize::<Transaction>(&bytes)
+        .context("failed to deserialise bytes into transaction")?;
+
     let wallet = current(&name, current_wallet).await?;
 
     let txouts = get_txouts(&wallet, |utxo, txout| Ok(Some((utxo, txout)))).await?;
@@ -56,20 +59,18 @@ pub async fn extract_trade(
                 .find_map(|res| res.transpose())
         })
         .collect::<Result<Vec<_>>>()
-        .context("failed to unblind one of our inputs");
-    let our_inputs = map_err_from_anyhow!(our_inputs)?;
+        .context("failed to unblind one of our inputs")?;
 
-    let sell = our_inputs
+    let (sell_asset, sell_input) = our_inputs
         .into_iter()
         .into_grouping_map()
         .fold(0, |sum, _asset, value| sum + value)
         .into_iter()
-        .exactly_one();
-    let (sell_asset, sell_input) =
-        map_err_from_anyhow!(sell.context("expected single input asset type"))?;
+        .exactly_one()
+        .context("expected single input asset type")?;
 
-    let our_address = wallet.get_address()?;
-    let our_outputs: Option<(_, _)> = transaction
+    let our_address = wallet.get_address();
+    let our_outputs = transaction
         .output
         .iter()
         .filter_map(|txout| match txout {
@@ -93,9 +94,8 @@ pub async fn extract_trade(
         .into_grouping_map()
         .fold(0, |sum, _asset, value| sum + value)
         .into_iter()
-        .collect_tuple();
-    let our_outputs =
-        map_err_from_anyhow!(our_outputs.context("wrong number of outputs, expected 2"))?;
+        .collect_tuple()
+        .context("wrong number of outputs, expected 2")?;
 
     let ((buy_asset, buy_amount), change_amount) = match our_outputs {
         ((change_asset, change_amount), buy_output) if change_asset == sell_asset => {
@@ -104,18 +104,20 @@ pub async fn extract_trade(
         (buy_output, (change_asset, change_amount)) if change_asset == sell_asset => {
             (buy_output, change_amount)
         }
-        _ => return map_err_from_anyhow!(Err(anyhow!("no output corresponds to the sell asset"))),
+        _ => bail!("no output corresponds to the sell asset"),
     };
     let sell_amount = sell_input - change_amount;
 
-    let sell_balance = map_err_from_anyhow!(balances
+    let sell_balance = balances
         .iter()
-        .find_map(|entry| if entry.asset == sell_asset {
-            Some(entry.value)
-        } else {
-            None
+        .find_map(|entry| {
+            if entry.asset == sell_asset {
+                Some(entry.value)
+            } else {
+                None
+            }
         })
-        .context("no balance for sell asset"))?;
+        .context("no balance for sell asset")?;
 
     let buy_balance = balances
         .iter()
@@ -129,8 +131,8 @@ pub async fn extract_trade(
         .unwrap_or_default();
 
     Ok(Trade {
-        sell: map_err_from_anyhow!(TradeSide::new_sell(sell_asset, sell_amount, sell_balance))?,
-        buy: map_err_from_anyhow!(TradeSide::new_buy(buy_asset, buy_amount, buy_balance))?,
+        sell: TradeSide::new_sell(sell_asset, sell_amount, sell_balance)?,
+        buy: TradeSide::new_buy(buy_asset, buy_amount, buy_balance)?,
     })
 }
 

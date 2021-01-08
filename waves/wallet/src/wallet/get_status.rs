@@ -4,12 +4,11 @@ use crate::{
 };
 use anyhow::Result;
 use futures::lock::Mutex;
-use wasm_bindgen::JsValue;
 
 pub async fn get_status(
     name: String,
     current_wallet: &Mutex<Option<Wallet>>,
-) -> Result<WalletStatus, JsValue> {
+) -> Result<WalletStatus> {
     let storage = Storage::local_storage()?;
 
     let wallets = storage

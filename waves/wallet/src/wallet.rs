@@ -8,7 +8,7 @@ use aes_gcm_siv::{
     aead::{Aead, NewAead},
     Aes256GcmSiv,
 };
-use anyhow::{Context, Result};
+use anyhow::{bail, Context, Result};
 use elements_fun::{
     bitcoin,
     bitcoin::{
@@ -29,9 +29,10 @@ use rand::{thread_rng, Rng};
 use rust_decimal::Decimal;
 use sha2::{digest::generic_array::GenericArray, Sha256};
 use std::{fmt, str};
-use wasm_bindgen::{JsValue, UnwrapThrowExt};
+use wasm_bindgen::UnwrapThrowExt;
 
 pub use create_new::create_new;
+use elements_fun::bitcoin_hashes::core::convert::Infallible;
 pub use extract_trade::extract_trade;
 pub use get_address::get_address;
 pub use get_balances::get_balances;
@@ -57,25 +58,23 @@ mod withdraw_everything_to;
 async fn get_txouts<T, FM: Fn(Utxo, TxOut) -> Result<Option<T>> + Copy>(
     wallet: &Wallet,
     filter_map: FM,
-) -> Result<Vec<T>, JsValue> {
-    let address = wallet.get_address()?;
+) -> Result<Vec<T>> {
+    let address = wallet.get_address();
 
-    let utxos = map_err_from_anyhow!(esplora::fetch_utxos(&address).await)?;
+    let utxos = esplora::fetch_utxos(&address).await?;
 
-    let txouts = map_err_from_anyhow!(
-        utxos
-            .into_iter()
-            .map(move |utxo| async move {
-                let mut tx = esplora::fetch_transaction(utxo.txid).await?;
-                let txout = tx.output.remove(utxo.vout as usize);
+    let txouts = utxos
+        .into_iter()
+        .map(move |utxo| async move {
+            let mut tx = esplora::fetch_transaction(utxo.txid).await?;
+            let txout = tx.output.remove(utxo.vout as usize);
 
-                filter_map(utxo, txout)
-            })
-            .collect::<FuturesUnordered<_>>()
-            .filter_map(|r| std::future::ready(r.transpose()))
-            .try_collect::<Vec<_>>()
-            .await
-    )?;
+            filter_map(utxo, txout)
+        })
+        .collect::<FuturesUnordered<_>>()
+        .filter_map(|r| std::future::ready(r.transpose()))
+        .try_collect::<Vec<_>>()
+        .await?;
 
     Ok(txouts)
 }
@@ -83,17 +82,12 @@ async fn get_txouts<T, FM: Fn(Utxo, TxOut) -> Result<Option<T>> + Copy>(
 async fn current<'n, 'w>(
     name: &'n str,
     current_wallet: &'w Mutex<Option<Wallet>>,
-) -> Result<MappedMutexGuard<'w, Option<Wallet>, Wallet>, JsValue> {
+) -> Result<MappedMutexGuard<'w, Option<Wallet>, Wallet>> {
     let mut guard = current_wallet.lock().await;
 
     match &mut *guard {
         Some(wallet) if wallet.name == name => {}
-        _ => {
-            return Err(JsValue::from_str(&format!(
-                "wallet with name '{}' is currently not loaded",
-                name
-            )))
-        }
+        _ => bail!("wallet with name '{}' is currently not loaded", name),
     };
 
     Ok(MutexGuard::map(guard, |w| w.as_mut().unwrap_throw()))
@@ -110,11 +104,7 @@ pub struct Wallet {
 const SECRET_KEY_ENCRYPTION_NONCE: &[u8; 12] = b"SECRET_KEY!!";
 
 impl Wallet {
-    pub fn initialize_new(
-        name: String,
-        password: String,
-        secret_key: SecretKey,
-    ) -> Result<Self, JsValue> {
+    pub fn initialize_new(name: String, password: String, secret_key: SecretKey) -> Result<Self> {
         let sk_salt = thread_rng().gen::<[u8; 32]>();
 
         let encryption_key = Self::derive_encryption_key(&password, &sk_salt)?;
@@ -131,35 +121,32 @@ impl Wallet {
         name: String,
         password: String,
         sk_ciphertext: String,
-    ) -> Result<Self, JsValue> {
+    ) -> Result<Self> {
         let mut parts = sk_ciphertext.split('$');
 
-        let salt = map_err_from_anyhow!(parts.next().context("no salt in cipher text"))?;
-        let sk = map_err_from_anyhow!(parts.next().context("no secret key in cipher text"))?;
+        let salt = parts.next().context("no salt in cipher text")?;
+        let sk = parts.next().context("no secret key in cipher text")?;
 
         let mut sk_salt = [0u8; 32];
-        map_err_from_anyhow!(
-            hex::decode_to_slice(salt, &mut sk_salt).context("failed to decode salt as hex")
-        )?;
+        hex::decode_to_slice(salt, &mut sk_salt).context("failed to decode salt as hex")?;
 
         let encryption_key = Self::derive_encryption_key(&password, &sk_salt)?;
 
         let cipher = Aes256GcmSiv::new(GenericArray::from_slice(&encryption_key));
         let nonce = GenericArray::from_slice(SECRET_KEY_ENCRYPTION_NONCE);
-        let sk = map_err_from_anyhow!(cipher
+        let sk = cipher
             .decrypt(
                 nonce,
-                map_err_from_anyhow!(hex::decode(sk).context("failed to decode sk as hex"))?
-                    .as_slice()
+                hex::decode(sk)
+                    .context("failed to decode sk as hex")?
+                    .as_slice(),
             )
-            .context("failed to decrypt secret key"))?;
+            .context("failed to decrypt secret key")?;
 
         Ok(Self {
             name,
             encryption_key,
-            secret_key: map_err_from_anyhow!(
-                SecretKey::from_slice(&sk).context("invalid secret key")
-            )?,
+            secret_key: SecretKey::from_slice(&sk).context("invalid secret key")?,
             sk_salt,
         })
     }
@@ -168,20 +155,18 @@ impl Wallet {
         PublicKey::from_secret_key(SECP256K1, &self.secret_key)
     }
 
-    pub fn get_address(&self) -> Result<Address, JsValue> {
+    pub fn get_address(&self) -> Address {
         let public_key = self.get_public_key();
         let blinding_key = PublicKey::from_secret_key(SECP256K1, &self.blinding_key());
 
-        let address = Address::p2wpkh(
+        Address::p2wpkh(
             &bitcoin::PublicKey {
                 compressed: true,
                 key: public_key,
             },
             Some(blinding_key),
             &ADDRESS_PARAMS,
-        );
-
-        Ok(address)
+        )
     }
 
     /// Encrypts the secret key with the encryption key.
@@ -190,14 +175,14 @@ impl Wallet {
     ///
     /// We store the secret key on disk and as such have to use a constant nonce, otherwise we would not be able to decrypt it again.
     /// The encryption only happens once and as such, there is conceptually only one message and we are not "reusing" the nonce which would be insecure.
-    fn encrypted_secret_key(&self) -> Result<Vec<u8>, JsValue> {
+    fn encrypted_secret_key(&self) -> Result<Vec<u8>> {
         let cipher = Aes256GcmSiv::new(&GenericArray::from_slice(&self.encryption_key));
-        let enc_sk = map_err_from_anyhow!(cipher
+        let enc_sk = cipher
             .encrypt(
                 GenericArray::from_slice(SECRET_KEY_ENCRYPTION_NONCE),
-                &self.secret_key[..]
+                &self.secret_key[..],
             )
-            .context("failed to encrypt secret key"))?;
+            .context("failed to encrypt secret key")?;
 
         Ok(enc_sk)
     }
@@ -241,12 +226,11 @@ impl Wallet {
     /// In our case, we use the encryption key to encrypt the secret key and as such, tag it with `b"ENCRYPTION_KEY"`.
     ///
     /// [0]: https://tools.ietf.org/html/rfc5869#section-3.1
-    fn derive_encryption_key(password: &str, salt: &[u8]) -> Result<[u8; 32], JsValue> {
+    fn derive_encryption_key(password: &str, salt: &[u8]) -> Result<[u8; 32]> {
         let h = Hkdf::<Sha256>::new(Some(salt), password.as_bytes());
         let mut enc_key = [0u8; 32];
-        map_err_from_anyhow!(h
-            .expand(b"ENCRYPTION_KEY", &mut enc_key)
-            .context("failed to derive encryption key"))?;
+        h.expand(b"ENCRYPTION_KEY", &mut enc_key)
+            .context("failed to derive encryption key")?;
 
         Ok(enc_key)
     }
@@ -266,7 +250,7 @@ impl ListOfWallets {
 }
 
 impl str::FromStr for ListOfWallets {
-    type Err = String;
+    type Err = Infallible;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         let split = s.split('\t');
@@ -366,13 +350,13 @@ mod browser_tests {
     pub async fn given_no_wallet_when_getting_address_then_fails() {
         let current_wallet = Mutex::default();
 
-        let result = get_address("no-existent-wallet".to_owned(), &current_wallet).await;
+        let error = get_address("no-existent-wallet".to_owned(), &current_wallet)
+            .await
+            .unwrap_err();
 
         assert_eq!(
-            result,
-            Err(JsValue::from_str(
-                "wallet with name 'no-existent-wallet' is currently not loaded"
-            ))
+            error.to_string(),
+            "wallet with name 'no-existent-wallet' is currently not loaded"
         );
     }
 
@@ -398,13 +382,13 @@ mod browser_tests {
             .unwrap();
 
         unload_current(&current_wallet).await;
-        let result = get_address("wallet-2".to_owned(), &current_wallet).await;
+        let error = get_address("wallet-2".to_owned(), &current_wallet)
+            .await
+            .unwrap_err();
 
         assert_eq!(
-            result,
-            Err(JsValue::from_str(
-                "wallet with name 'wallet-2' is currently not loaded"
-            ))
+            error.to_string(),
+            "wallet with name 'wallet-2' is currently not loaded"
         );
     }
 
@@ -415,13 +399,13 @@ mod browser_tests {
         create_new("wallet-3".to_owned(), "foo".to_owned(), &current_wallet)
             .await
             .unwrap();
-        let result = create_new("wallet-3".to_owned(), "foo".to_owned(), &current_wallet).await;
+        let error = create_new("wallet-3".to_owned(), "foo".to_owned(), &current_wallet)
+            .await
+            .unwrap_err();
 
         assert_eq!(
-            result,
-            Err(JsValue::from_str(
-                "wallet with name 'wallet-3' already exists"
-            ))
+            error.to_string(),
+            "wallet with name 'wallet-3' already exists"
         );
     }
 
@@ -436,13 +420,13 @@ mod browser_tests {
             .await
             .unwrap();
 
-        let result = load_existing("wallet-4".to_owned(), "foo".to_owned(), &current_wallet).await;
+        let error = load_existing("wallet-4".to_owned(), "foo".to_owned(), &current_wallet)
+            .await
+            .unwrap_err();
 
         assert_eq!(
-            result,
-            Err(JsValue::from_str(
-                "cannot load wallet 'wallet-4' because wallet 'wallet-5' is currently loaded"
-            ))
+            error.to_string(),
+            "cannot load wallet 'wallet-4' because wallet 'wallet-5' is currently loaded"
         );
     }
 
@@ -455,24 +439,22 @@ mod browser_tests {
             .unwrap();
         unload_current(&current_wallet).await;
 
-        let result = load_existing("wallet-6".to_owned(), "bar".to_owned(), &current_wallet).await;
+        let error = load_existing("wallet-6".to_owned(), "bar".to_owned(), &current_wallet)
+            .await
+            .unwrap_err();
 
-        assert_eq!(
-            result,
-            Err(JsValue::from_str("bad password for wallet 'wallet-6'"))
-        );
+        assert_eq!(error.to_string(), "bad password for wallet 'wallet-6'");
     }
 
     #[wasm_bindgen_test]
     pub async fn cannot_load_wallet_that_doesnt_exist() {
         let current_wallet = Mutex::default();
 
-        let result = load_existing("foobar".to_owned(), "bar".to_owned(), &current_wallet).await;
+        let error = load_existing("foobar".to_owned(), "bar".to_owned(), &current_wallet)
+            .await
+            .unwrap_err();
 
-        assert_eq!(
-            result,
-            Err(JsValue::from_str("wallet 'foobar' does not exist"))
-        );
+        assert_eq!(error.to_string(), "wallet 'foobar' does not exist");
     }
 
     #[wasm_bindgen_test]
