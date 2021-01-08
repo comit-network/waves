@@ -17,7 +17,7 @@ class DummySource implements Source {
     }
 }
 
-test("Test if rendering works by asserting `create new wallet` button", () => {
+test("if rendering works by asserting `create new wallet` button", () => {
     act(() => {
         render(
             <SSEProvider source={() => new DummySource()}>

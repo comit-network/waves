@@ -1,7 +1,7 @@
 import { Asset } from "./App";
 import calculateBetaAmount from "./calculateBetaAmount";
 
-test("test bid amount", () => {
+test("bid amount", () => {
     const rate = {
         bid: 1900,
         ask: 2000,
@@ -16,7 +16,7 @@ test("test bid amount", () => {
     expect(betaAmount).toBe(expectedBetaAmount);
 });
 
-test("test ask amount", () => {
+test("ask amount", () => {
     const rate = {
         bid: 1900,
         ask: 2000,
