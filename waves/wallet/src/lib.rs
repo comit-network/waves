@@ -11,6 +11,7 @@ mod macros;
 mod assets;
 mod cache_storage;
 mod esplora;
+mod logger;
 mod storage;
 mod typed_js_future;
 mod utils;
@@ -31,8 +32,10 @@ static LOADED_WALLET: Lazy<Mutex<Option<Wallet>>> = Lazy::new(Mutex::default);
 #[wasm_bindgen(start)]
 pub fn setup_lib() {
     set_panic_hook();
-    wasm_logger::init(wasm_logger::Config::default());
-    log::debug!("wallet initialized");
+
+    let _ = logger::try_init();
+
+    log::info!("wallet initialized");
 }
 
 /// Create a new wallet with the given name and password.

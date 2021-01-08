@@ -15,3 +15,5 @@ This wallet can be customized through the following **build-time** environment v
   Supported values are: `LIQUID` and `ELEMENTS`.
 - `DEFAULT_SAT_PER_VBYTE`: The default fee rate in case fee estimation using Esplora fails.
   Defaults to 1sat / vbyte.
+
+At runtime, you can set the `wallet_log` localStorage key to any log level supports by the `log` crate to receive log message in the browser console.
