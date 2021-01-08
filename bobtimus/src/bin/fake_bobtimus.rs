@@ -6,7 +6,9 @@ use elements_fun::{
     Address,
 };
 use elements_harness::{elementd_rpc::ElementsRpc, Client};
+use std::sync::Arc;
 use structopt::StructOpt;
+use tokio::sync::Mutex;
 use warp::{Filter, Rejection, Reply};
 
 #[tokio::main]
@@ -23,6 +25,7 @@ async fn main() -> Result<()> {
     let btc_asset_id = elementsd.get_bitcoin_asset_id().await?;
 
     let rate_service = fixed_rate::Service::new();
+    let subscription = rate_service.subscribe();
 
     let bobtimus = Bobtimus {
         rng: StdRng::from_rng(&mut thread_rng()).unwrap(),
@@ -32,20 +35,21 @@ async fn main() -> Result<()> {
         btc_asset_id,
         usdt_asset_id,
     };
+    let bobtimus = Arc::new(Mutex::new(bobtimus));
 
-    let routes = http::routes(&bobtimus, bobtimus.rate_service.subscribe());
-
-    let bobtimus_filter = warp::any().map({
-        let bobtimus = bobtimus.clone();
-        move || bobtimus.clone()
-    });
+    let routes = http::routes(bobtimus.clone(), subscription);
 
     let cors = warp::cors().allow_any_origin();
 
     let faucet = warp::post()
         .and(warp::path!("api" / "faucet" / Address))
-        .and(bobtimus_filter)
-        .and_then(faucet);
+        .and_then(move |address| {
+            let bobtimus = bobtimus.clone();
+            async move {
+                let mut bobtimus = bobtimus.lock().await;
+                faucet(&mut bobtimus, address).await
+            }
+        });
 
     warp::serve(routes.or(faucet).with(cors))
         .run(([127, 0, 0, 1], api_port))
@@ -54,9 +58,9 @@ async fn main() -> Result<()> {
     Ok(())
 }
 
-async fn faucet<RS>(
+async fn faucet<R, RS>(
+    bobtimus: &mut Bobtimus<R, RS>,
     address: Address,
-    bobtimus: Bobtimus<StdRng, RS>,
 ) -> Result<impl Reply, Rejection> {
     let mut txids = Vec::new();
     for (asset_id, amount) in &[
