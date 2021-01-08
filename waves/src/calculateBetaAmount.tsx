@@ -9,7 +9,7 @@ import { Asset, Rate } from "./App";
  *  The bid price is what the LP is willing to pay for the currency, while
  *  the ask price is the rate at which the LP will sell the same currency.
  */
-export const calculateBetaAmount = (alphaAsset: Asset, amount: number, rate: Rate) => {
+export default function calculateBetaAmount(alphaAsset: Asset, amount: number, rate: Rate) {
     type Direction = "ask" | "bid";
     let direction: Direction = "ask";
     // we only support these two assets right now
@@ -31,4 +31,4 @@ export const calculateBetaAmount = (alphaAsset: Asset, amount: number, rate: Rat
         case "ask":
             return amount * (1 / rate.ask); // to make it obvious
     }
-};
+}

@@ -3,7 +3,7 @@ import React from "react";
 import { Listener, Source, SSEProvider } from "react-hooks-sse";
 import { BrowserRouter } from "react-router-dom";
 import App, { Asset, reducer } from "./App";
-import { calculateBetaAmount } from "./RateService";
+import calculateBetaAmount from "./calculateBetaAmount";
 
 // implementation of customSource does not matter but functions need to be there
 class DummySource implements Source {

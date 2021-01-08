@@ -1,5 +1,5 @@
 import { Asset } from "./App";
-import { calculateBetaAmount } from "./RateService";
+import calculateBetaAmount from "./calculateBetaAmount";
 
 test("test bid amount", () => {
     const rate = {
