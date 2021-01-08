@@ -1,4 +1,4 @@
-use crate::{utils::set_panic_hook, wallet::Wallet};
+use crate::wallet::Wallet;
 use anyhow::Result;
 use conquer_once::Lazy;
 use futures::lock::Mutex;
@@ -14,7 +14,6 @@ mod esplora;
 mod logger;
 mod storage;
 mod typed_js_future;
-mod utils;
 mod wallet;
 
 mod constants {
@@ -31,7 +30,8 @@ static LOADED_WALLET: Lazy<Mutex<Option<Wallet>>> = Lazy::new(Mutex::default);
 
 #[wasm_bindgen(start)]
 pub fn setup_lib() {
-    set_panic_hook();
+    #[cfg(feature = "console_error_panic_hook")]
+    console_error_panic_hook::set_once();
 
     let _ = logger::try_init();
 
