@@ -27,7 +27,6 @@ pub use amounts::*;
 
 pub const USDT_ASSET_ID: &str = "ce091c998b83c78bb71a632313ba3760f1763d9cfcffae02258ffa9865a37bd2";
 
-#[derive(Clone)]
 pub struct Bobtimus<R, RS> {
     pub rng: R,
     pub rate_service: RS,
