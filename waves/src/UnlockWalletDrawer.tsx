@@ -12,9 +12,12 @@ import {
     FormLabel,
     Input,
 } from "@chakra-ui/react";
+import Debug from "debug";
 import React, { ChangeEvent, useRef, useState } from "react";
 import { useAsync } from "react-async";
 import { unlockWallet } from "./wasmProxy";
+
+const debug = Debug("wallet");
 
 interface UnlockWalletDrawerProps {
     onCancel: () => void;
@@ -31,7 +34,7 @@ export default function UnlockWalletDrawer({ onCancel, onUnlock }: UnlockWalletD
             await unlockWallet(password);
             await onUnlock();
         },
-        onReject: (e) => console.error("failed to unlock wallet", e),
+        onReject: (e) => debug("failed to unlock wallet: %s", e),
     });
 
     return <Drawer
