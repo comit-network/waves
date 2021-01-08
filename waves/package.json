@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "proxy": "http://localhost:3030",
+  "homepage": "/app",
   "dependencies": {
     "@chakra-ui/icons": "^1.0.1",
     "@chakra-ui/react": "^1.0.1",
