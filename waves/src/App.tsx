@@ -1,6 +1,6 @@
 import { ExternalLinkIcon } from "@chakra-ui/icons";
 import { Box, Button, Center, Flex, Link, Text, useDisclosure, VStack } from "@chakra-ui/react";
-import React, { useReducer, useState } from "react";
+import React, { useEffect, useReducer, useState } from "react";
 import { useAsync } from "react-async";
 import { useSSE } from "react-hooks-sse";
 import { Route, Switch, useHistory, useParams } from "react-router-dom";
@@ -168,6 +168,14 @@ export function reducer(state: State = initialState, action: Action) {
 
 function App() {
     const history = useHistory();
+    const path = history.location.pathname;
+
+    useEffect(() => {
+        if (path === "/app") {
+            history.replace("/");
+        }
+    }, [path, history]);
+
     const [[transaction, trade], setTransaction] = useState<[string, Trade]>(["", {} as any]);
     const [state, dispatch] = useReducer(reducer, initialState);
 
