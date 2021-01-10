@@ -54,6 +54,7 @@ export default function ConfirmSwapDrawer(
 
                 run();
             }}
+            data-cy="confirm-swap-form"
         >
             <DrawerOverlay>
                 <DrawerContent>
@@ -88,6 +89,7 @@ export default function ConfirmSwapDrawer(
                             size="md"
                             variant="wallet_button"
                             isLoading={isPending}
+                            data-cy="sign-and-send-button"
                         >
                             Sign and send
                         </Button>

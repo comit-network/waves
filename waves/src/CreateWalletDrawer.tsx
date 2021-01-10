@@ -42,6 +42,7 @@ export default function CreateWalletDrawer({ onCancel, onCreate }: CreateWalletD
                 e.preventDefault();
                 run();
             }}
+            data-cy="create-wallet-form"
         >
             <DrawerOverlay>
                 <DrawerContent>
@@ -62,6 +63,7 @@ export default function CreateWalletDrawer({ onCancel, onCreate }: CreateWalletD
                             placeholder="Wallet password"
                             value={password}
                             onChange={onPasswordChange}
+                            data-cy="wallet-password-input"
                         />
                     </DrawerBody>
 
