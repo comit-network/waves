@@ -89,6 +89,15 @@ async fn faucet<R, RS>(
         txids.push(txid);
     }
 
+    let _ = bobtimus
+        .elementsd
+        .reissueasset(bobtimus.usdt_asset_id, 200000.0)
+        .await
+        .map_err(|e| {
+            log::error!("could not reissue asset: {}", e);
+            warp::reject::reject()
+        })?;
+
     let address = bobtimus.elementsd.getnewaddress().await.map_err(|e| {
         log::error!("could not get new address: {}", e);
         warp::reject::reject()

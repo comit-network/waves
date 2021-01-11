@@ -59,6 +59,7 @@ pub trait ElementsRpc {
     async fn dumpmasterblindingkey(&self) -> String;
     async fn unblindrawtransaction(&self, tx_hex: String) -> UnblindRawTransactionResponse;
     async fn lockunspent(&self, unlock: bool, utxos: Vec<OutPoint>) -> bool;
+    async fn reissueasset(&self, asset: AssetId, amount: f64) -> ReissueAssetResponse;
 }
 
 #[jsonrpc_client::implement(ElementsRpc)]
@@ -76,6 +77,12 @@ pub struct UnblindRawTransactionResponse {
 #[derive(Debug, Deserialize)]
 pub struct SignRawTransactionWithWalletResponse {
     hex: String,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize)]
+pub struct ReissueAssetResponse {
+    txid: Txid,
+    vin: u8,
 }
 
 impl Client {
