@@ -1,8 +1,6 @@
-use anyhow::Context;
-use futures::lock::Mutex;
-use wasm_bindgen::JsValue;
-
+use anyhow::{bail, Context, Result};
 use elements_fun::secp256k1::SecretKey;
+use futures::lock::Mutex;
 
 use crate::{
     storage::Storage,
@@ -13,7 +11,7 @@ pub async fn create_new(
     name: String,
     password: String,
     current_wallet: &Mutex<Option<Wallet>>,
-) -> Result<(), JsValue> {
+) -> Result<()> {
     let storage = Storage::local_storage()?;
 
     let mut wallets = storage
@@ -21,10 +19,7 @@ pub async fn create_new(
         .unwrap_or_default();
 
     if wallets.has(&name) {
-        return Err(JsValue::from_str(&format!(
-            "wallet with name '{}' already exists",
-            name
-        )));
+        bail!("wallet with name '{}' already exists", name);
     }
 
     let params = if cfg!(debug_assertions) {
@@ -35,9 +30,8 @@ pub async fn create_new(
         scrypt::ScryptParams::recommended()
     };
 
-    let hashed_password = map_err_from_anyhow!(
-        scrypt::scrypt_simple(&password, &params).context("failed to hash password")
-    )?;
+    let hashed_password =
+        scrypt::scrypt_simple(&password, &params).context("failed to hash password")?;
 
     let new_wallet = Wallet::initialize_new(
         name.clone(),

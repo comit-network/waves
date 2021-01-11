@@ -3,15 +3,21 @@ use crate::wallet::{
     Wallet, NATIVE_ASSET_ID,
 };
 use anyhow::{Context, Result};
-use elements_fun::{bitcoin::Amount, secp256k1::SECP256K1, transaction, OutPoint, TxOut};
+use elements_fun::{
+    bitcoin::{Amount, Denomination},
+    secp256k1::SECP256K1,
+    transaction, OutPoint, TxOut,
+};
 use futures::lock::Mutex;
-use wasm_bindgen::JsValue;
 
 pub async fn make_create_sell_swap_payload(
     name: String,
     current_wallet: &Mutex<Option<Wallet>>,
-    btc: Amount,
-) -> Result<CreateSwapPayload, JsValue> {
+    btc: String,
+) -> Result<CreateSwapPayload> {
+    let btc = Amount::from_str_in(&btc, Denomination::Bitcoin)
+        .context("failed to parse amount from string")?;
+
     let wallet = current(&name, current_wallet).await?;
     let blinding_key = wallet.blinding_key();
 
@@ -55,14 +61,11 @@ pub async fn make_create_sell_swap_payload(
     let bobs_fee_rate = Amount::from_sat(1);
     let fee_offset = calculate_fee_offset(bobs_fee_rate);
 
-    let output =
-        map_err_from_anyhow!(
-            coin_select(utxos, btc, bobs_fee_rate.as_sat() as f32, fee_offset)
-                .context("failed to select coins")
-        )?;
+    let output = coin_select(utxos, btc, bobs_fee_rate.as_sat() as f32, fee_offset)
+        .context("failed to select coins")?;
 
-    let payload = CreateSwapPayload {
-        address: wallet.get_address()?,
+    Ok(CreateSwapPayload {
+        address: wallet.get_address(),
         alice_inputs: output
             .coins
             .into_iter()
@@ -72,9 +75,7 @@ pub async fn make_create_sell_swap_payload(
             })
             .collect(),
         btc_amount: output.target_amount,
-    };
-
-    Ok(payload)
+    })
 }
 
 /// Calculate the fee offset required for the coin selection algorithm.

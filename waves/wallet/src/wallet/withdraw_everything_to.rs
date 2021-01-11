@@ -4,7 +4,7 @@ use crate::{
         current, get_txouts, Wallet, DEFAULT_SAT_PER_VBYTE, NATIVE_ASSET_ID, NATIVE_ASSET_TICKER,
     },
 };
-use anyhow::{Context, Result};
+use anyhow::{bail, Context, Result};
 use elements_fun::{
     hashes::{hash160, Hash},
     opcodes,
@@ -17,15 +17,18 @@ use futures::lock::Mutex;
 use itertools::Itertools;
 use rand::thread_rng;
 use std::{collections::HashMap, iter};
-use wasm_bindgen::JsValue;
 
 pub async fn withdraw_everything_to(
     name: String,
     current_wallet: &Mutex<Option<Wallet>>,
-    address: Address,
-) -> Result<Txid, JsValue> {
+    address: String,
+) -> Result<Txid> {
+    let address = address
+        .parse::<Address>()
+        .context("failed to parse address from string")?;
+
     if !address.is_blinded() {
-        return Err(JsValue::from_str("can only withdraw to blinded addresses"));
+        bail!("can only withdraw to blinded addresses")
     }
 
     let wallet = current(&name, current_wallet).await?;
@@ -60,7 +63,7 @@ pub async fn withdraw_everything_to(
         })
         .collect::<HashMap<_, _>>();
 
-    let fee_estimates = map_err_from_anyhow!(esplora::get_fee_estimates().await)?;
+    let fee_estimates = esplora::get_fee_estimates().await?;
 
     let estimated_virtual_size =
         transaction::estimate_virtual_size(prevout_values.len() as u64, txouts.len() as u64);
@@ -123,17 +126,15 @@ pub async fn withdraw_everything_to(
 
     // build transaction from grouped txouts
     let mut transaction = match txouts_grouped_by_asset.as_slice() {
-        [] => return Err(JsValue::from_str("no balances in wallet")),
-        [(asset, _)] if asset != &NATIVE_ASSET_ID => {
-            return Err(JsValue::from_str(&format!(
-                "cannot spend from wallet without native asset {} because we cannot pay a fee",
-                NATIVE_ASSET_TICKER
-            )))
-        }
+        [] => bail!("no balances in wallet"),
+        [(asset, _)] if asset != &NATIVE_ASSET_ID => bail!(
+            "cannot spend from wallet without native asset {} because we cannot pay a fee",
+            NATIVE_ASSET_TICKER
+        ),
         // handle last group separately because we need to create it is as the `last_confidential` output
         [other @ .., (last_asset, to_spend_last_txout)] => {
             // first, build all "non-last" outputs
-            let other_txouts = map_err_from_anyhow!(other
+            let other_txouts = other
                 .iter()
                 .map(|(asset, to_spend)| {
                     let (txout, abf, vbf) = TxOut::new_not_last_confidential(
@@ -153,7 +154,7 @@ pub async fn withdraw_everything_to(
 
                     Ok((txout, *to_spend, abf, vbf))
                 })
-                .collect::<Result<Vec<_>>>())?;
+                .collect::<Result<Vec<_>>>()?;
 
             // second, make the last one, depending on the previous ones
             let last_txout = {
@@ -162,16 +163,16 @@ pub async fn withdraw_everything_to(
                     .map(|(_, value, abf, vbf)| (*value, *abf, *vbf))
                     .collect::<Vec<_>>();
 
-                let txout = map_err_from_anyhow!(TxOut::new_last_confidential(
+                let txout = TxOut::new_last_confidential(
                     &mut thread_rng(),
                     SECP256K1,
                     *to_spend_last_txout,
                     address,
                     *last_asset,
                     txout_inputs.as_slice(),
-                    other_outputs.as_slice()
+                    other_outputs.as_slice(),
                 )
-                .context("failed to make confidential txout"))?;
+                .context("failed to make confidential txout")?;
 
                 log::debug!(
                     "constructed last confidential output for asset {} with value {}",
@@ -247,9 +248,9 @@ pub async fn withdraw_everything_to(
         }
     }
 
-    let txid = map_err_from_anyhow!(esplora::broadcast(transaction)
+    let txid = esplora::broadcast(transaction)
         .await
-        .context("failed to broadcast transaction via esplora"))?;
+        .context("failed to broadcast transaction via esplora")?;
 
     Ok(txid)
 }
