@@ -1823,8 +1823,9 @@ dependencies = [
 
 [[package]]
 name = "secp256k1-zkp"
-version = "0.1.0"
-source = "git+https://github.com/comit-network/rust-secp256k1-zkp#73526ee20b8448ab5eaa36eee656cf6bc9e4a96a"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9b81e77e1be160d1b0ddb40af572fc0916c8c084c8046403ff5653779954c62f"
 dependencies = [
  "bitcoin_hashes 0.9.4",
  "rand 0.6.5",
@@ -1835,8 +1836,9 @@ dependencies = [
 
 [[package]]
 name = "secp256k1-zkp-sys"
-version = "0.1.0"
-source = "git+https://github.com/comit-network/rust-secp256k1-zkp#73526ee20b8448ab5eaa36eee656cf6bc9e4a96a"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "828abf66fbfb25cb471b2ff5a83864e27e6af8b1382345a9d4aab1afe47f5082"
 dependencies = [
  "cc",
  "secp256k1-sys",
