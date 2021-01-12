@@ -70,6 +70,7 @@ function AssetSelector({ assetSide, type, amount, placement, dispatch }: AssetSe
                         step={0.000001}
                         onAmountChange={onAmountChange}
                         isDisabled={assetSide === "Beta"}
+                        data_cy={assetSide}
                     />}
                 {/* asset is USDT: render USDT input*/}
                 {type === Asset.USDT
@@ -80,6 +81,7 @@ function AssetSelector({ assetSide, type, amount, placement, dispatch }: AssetSe
                         step={0.01}
                         onAmountChange={onAmountChange}
                         isDisabled={assetSide === "Beta"}
+                        data_cy={assetSide}
                     />}
             </VStack>
         </Center>
@@ -95,6 +97,7 @@ interface CustomInputProps {
     step: number;
     onAmountChange: (val: string) => void;
     isDisabled: boolean;
+    data_cy: string;
 }
 
 const ASSET_INPUT_LEFT_ADDON_PROPS = {
@@ -121,7 +124,7 @@ const ASSET_INPUT_DISABLED_PROPS = {
     bg: "grey.50",
 };
 
-function NumberInput({ currency, value, onAmountChange, precision, step, isDisabled }: CustomInputProps) {
+function NumberInput({ currency, value, onAmountChange, precision, step, isDisabled, data_cy }: CustomInputProps) {
     const inputProps = isDisabled ? ASSET_INPUT_DISABLED_PROPS : ASSET_INPUT_PROPS;
     return (
         <InputGroup>
@@ -137,6 +140,7 @@ function NumberInput({ currency, value, onAmountChange, precision, step, isDisab
                 step={step}
                 isDisabled={isDisabled}
                 min={0}
+                data-cy={`${data_cy}-amount-input`}
             >
                 <NumberInputField />
                 <NumberInputStepper />

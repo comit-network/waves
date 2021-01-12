@@ -59,6 +59,7 @@ pub trait ElementsRpc {
     async fn dumpmasterblindingkey(&self) -> String;
     async fn unblindrawtransaction(&self, tx_hex: String) -> UnblindRawTransactionResponse;
     async fn lockunspent(&self, unlock: bool, utxos: Vec<OutPoint>) -> bool;
+    async fn reissueasset(&self, asset: AssetId, amount: f64) -> ReissueAssetResponse;
 }
 
 #[jsonrpc_client::implement(ElementsRpc)]
@@ -76,6 +77,12 @@ pub struct UnblindRawTransactionResponse {
 #[derive(Debug, Deserialize)]
 pub struct SignRawTransactionWithWalletResponse {
     hex: String,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize)]
+pub struct ReissueAssetResponse {
+    txid: Txid,
+    vin: u8,
 }
 
 impl Client {
@@ -166,18 +173,28 @@ impl Client {
         };
 
         let tx_hex = serialize_hex(&tx);
-        let res = self.fundrawtransaction(tx_hex).await?;
+        let res = self
+            .fundrawtransaction(tx_hex)
+            .await
+            .context("cannot fund raw transaction")?;
 
         let tx: Transaction =
-            elements_fun::encode::deserialize(&Vec::<u8>::from_hex(&res.hex).unwrap())?;
+            elements_fun::encode::deserialize(&Vec::<u8>::from_hex(&res.hex).unwrap())
+                .context("cannot deserialize funded transaction")?;
 
         let mut utxos = Vec::new();
         for input in tx.input.iter() {
             let source_txid = input.previous_output.txid;
             let source_vout = input.previous_output.vout;
-            let source_tx = self.get_raw_transaction(source_txid).await?;
+            let source_tx = self
+                .get_raw_transaction(source_txid)
+                .await
+                .context("cannot get raw source transaction")?;
 
-            let unblinded_raw_tx = self.unblind_raw_transaction(&source_tx).await?;
+            let unblinded_raw_tx = self
+                .unblind_raw_transaction(&source_tx)
+                .await
+                .context("cannot unblind raw source transaction")?;
             if unblinded_raw_tx.output[source_vout as usize]
                 .as_explicit()
                 .expect("explicit output")

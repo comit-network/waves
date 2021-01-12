@@ -50,6 +50,7 @@ export default function UnlockWalletDrawer({ onCancel, onUnlock }: UnlockWalletD
                         e.preventDefault();
                         run();
                     }}
+                    data-cy="unlock-wallet-form"
                 >
                     <DrawerCloseButton />
                     <DrawerHeader>Unlock Wallet</DrawerHeader>

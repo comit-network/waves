@@ -10,7 +10,7 @@ interface WalletBalancesProps {
 }
 
 export default function WalletBalances({ balances, onClick }: WalletBalancesProps) {
-    return <Box as={Button} onClick={onClick} bg="#FFFFFF">
+    return <Box as={Button} onClick={onClick} bg="#FFFFFF" data-cy="wallet-info-button">
         <HStack align="left">
             <Box>
                 <HStack>
@@ -18,7 +18,7 @@ export default function WalletBalances({ balances, onClick }: WalletBalancesProp
                         <Image src={Usdt} h="20px" />
                     </Box>
                     <Box>
-                        <Text textStyle="info">L-USDT: {balances.usdt}</Text>
+                        <Text textStyle="info" data-cy="usdt-balance">L-USDT: {balances.usdt}</Text>
                     </Box>
                 </HStack>
             </Box>
@@ -28,7 +28,7 @@ export default function WalletBalances({ balances, onClick }: WalletBalancesProp
                         <Image src={Btc} h="20px" />
                     </Box>
                     <Box>
-                        <Text textStyle="info">L-BTC: {balances.btc}</Text>
+                        <Text textStyle="info" data-cy="btc-balance">L-BTC: {balances.btc}</Text>
                     </Box>
                 </HStack>
             </Box>

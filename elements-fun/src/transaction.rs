@@ -222,7 +222,7 @@ pub struct ExplicitAssetIssuance {
     /// Amount of asset to issue
     pub amount: ExplicitValue,
     /// Amount of inflation keys to issue
-    pub inflation_keys: ExplicitValue,
+    pub inflation_keys: Option<ExplicitValue>,
 }
 
 #[derive(Copy, Clone, Debug, Eq, Hash, PartialEq)]
@@ -925,7 +925,12 @@ impl AssetIssuance {
 
 impl ExplicitAssetIssuance {
     pub fn encoded_length(&self) -> usize {
-        32 + 32 + self.amount.encoded_length() + self.inflation_keys.encoded_length()
+        32 + 32
+            + self.amount.encoded_length()
+            + match self.inflation_keys {
+                Some(keys) => keys.encoded_length(),
+                None => 1,
+            }
     }
 }
 
@@ -990,7 +995,10 @@ impl Encodable for ExplicitAssetIssuance {
         Ok(self.asset_blinding_nonce.consensus_encode(&mut s)?
             + self.asset_entropy.consensus_encode(&mut s)?
             + self.amount.consensus_encode(&mut s)?
-            + self.inflation_keys.consensus_encode(&mut s)?)
+            + match self.inflation_keys {
+                Some(keys) => keys.consensus_encode(&mut s)?,
+                None => 0u8.consensus_encode(&mut s)?,
+            })
     }
 }
 
@@ -1063,7 +1071,20 @@ impl Decodable for AssetIssuance {
                 asset_blinding_nonce,
                 asset_entropy,
                 amount: Decodable::consensus_decode(&mut d)?,
-                inflation_keys: Decodable::consensus_decode(&mut d)?,
+                inflation_keys: {
+                    let buffer = d.fill_buf()?;
+
+                    if buffer.is_empty() {
+                        return Err(Error::UnexpectedEOF);
+                    }
+
+                    if buffer[0] == 0 {
+                        d.consume(1);
+                        None
+                    } else {
+                        Some(Decodable::consensus_decode(&mut d)?)
+                    }
+                },
             }),
             _ => AssetIssuance::Confidential(ConfidentialAssetIssuance {
                 asset_blinding_nonce,
@@ -2016,6 +2037,14 @@ mod tests {
              14ecb0fc5a9c86781876b3af7fa5bd566158ee143c8701230f4f5d4b7c6fa845\
              806ee4f67713459e1b69e8e60fcee2e4940c7a0d5de1b2010000000000000aee\
              000000000000";
+        let tx: Transaction = hex_deserialize!(tx_hex);
+
+        let tx_hex_serialized = serialize_hex(&tx);
+        assert_eq!(tx_hex, tx_hex_serialized);
+
+        // Explicit issuance transaction without inflation keys
+        let tx_hex = "020000000102eda92b35e44560a9a72a852dba1ddbe0d9f857485fae21e8496dcc3664ea9ed80100008000fdffffff44e63b13f2bf9ab1a6dc13b322e06e2783792a396fb2cf40a4bd025c51e9bc38947bb63023f12b486efb198aa64ef0e4e761b9f797a0f77682a549180705abf501000012309ce5400000f0d3aaa8681fa292003c20fa997ab794da78f58b1689aa166c0ed9f5b8079b110200000000fdffffff040125b251070e29ca19043cf33ccd7324e2ddab03ecc4ae0b5e77c4fc0e5cf6c95a01000775f01e6bf06a00160014c26a4e498a00e06f09ea355946924b1545fd722201d31114fce70394c1f9d3547501b4b9d36f420236ec64199154566434885acf2d01000012309ce54000001600143c7e3d68993fda52bcb48fb5619f265401d8626a01ca9fcde7c935266933942b710288ea9add56e4d9093a658feda899319e508e50010000000005f5e1000016001499392c3ac02a8f21aeb565959e6da5f8cb35e92d0125b251070e29ca19043cf33ccd7324e2ddab03ecc4ae0b5e77c4fc0e5cf6c95a010000000000002686000066000000000002473044022006ad71106a6e73a9869191a6f1aeb2b9616d5c858d648d85b1d3e2e9a9fafee802202c9aacf74f4f50318c30843c1a167a1522c7fae60a086c33a793596d649bdb9f012102d75b52328b9f0e729b4a6492204eeea83987182df0a16d5f2175f9b6ca88ce5000000002473044022025928e8d28941b3e8324317c4ed869aed3dd45874a6b6e59697b0b87469c7ca40220456f5537083823f1b56462cf1ccac89d35750b046087b39cb25ce2b90cf5b914012103273373f496b1b77cff1185d13786597b49507a37704dfcfbe65d5b28c48bb36f000000000000000000";
+
         let tx: Transaction = hex_deserialize!(tx_hex);
 
         let tx_hex_serialized = serialize_hex(&tx);

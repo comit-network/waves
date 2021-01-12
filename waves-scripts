@@ -43,13 +43,11 @@ mint_usdt () {
     set -e
 
     local -r amount=1000000
+    usdt_asset_id=$(docker exec liquid elements-cli -rpcuser=admin1 -rpcpassword=123 -rpcport=18884 issueasset $amount 1  | jq -r '.asset')
+
+    # mine a block
     address=$(nigiri rpc --liquid getnewaddress)
-
-    # need to wait a couple of seconds so that we don't fail on the second request
-    sleep 2
-
-    response=$(nigiri mint $address $amount "Tether USD" "USDt")
-    usdt_asset_id=$(echo $response | sed -n -e 's/^.*\(asset: \)\(.*\)\( issuance_txin: .*$\)/\2/p')
+    docker exec liquid elements-cli -rpcuser=admin1 -rpcpassword=123 -rpcport=18884 generatetoaddress 1 $address &> /dev/null
 
     # get usdt asset ID.
     if [ "$usdt_asset_id" = "null" ]; then
