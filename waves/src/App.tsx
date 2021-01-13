@@ -1,5 +1,5 @@
 import { ExternalLinkIcon } from "@chakra-ui/icons";
-import { Box, Button, Center, Flex, Link, Text, useDisclosure, VStack } from "@chakra-ui/react";
+import { Box, Button, Center, Flex, Image, Link, Text, useDisclosure, VStack } from "@chakra-ui/react";
 import React, { useEffect, useReducer, useState } from "react";
 import { useAsync } from "react-async";
 import { useSSE } from "react-hooks-sse";
@@ -9,6 +9,7 @@ import "./App.css";
 import { postSellPayload } from "./Bobtimus";
 import calculateBetaAmount from "./calculateBetaAmount";
 import AssetSelector from "./components/AssetSelector";
+import COMIT from "./components/comit_logo_spellout_opacity_50.svg";
 import ExchangeIcon from "./components/ExchangeIcon";
 import ConfirmSwapDrawer from "./ConfirmSwapDrawer";
 import CreateWalletDrawer from "./CreateWalletDrawer";
@@ -270,7 +271,7 @@ function App() {
         : usdtBalance < alphaAmount;
 
     return (
-        <div className="App">
+        <Box className="App">
             <header className="App-header">
                 {walletBalances}
             </header>
@@ -369,7 +370,13 @@ function App() {
                 transaction={transaction}
                 trade={trade}
             />}
-        </div>
+
+            <footer className="App-footer">
+                <Center>
+                    <Image src={COMIT} h="24px" />
+                </Center>
+            </footer>
+        </Box>
     );
 }
 
