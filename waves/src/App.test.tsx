@@ -174,7 +174,7 @@ test("Swap asset types", () => {
         }).beta,
     ).toBe(initialState.alpha.type);
 
-    // amounts should be flipped as well (the rate here does not really matter.
+    // amounts should not be flipped.
     expect(
         reducer(initialState, {
             type: "SwapAssetTypes",
@@ -183,6 +183,6 @@ test("Swap asset types", () => {
             },
         }).alpha.amount,
     ).toBe(
-        betaAmount.toString(),
+        initialState.alpha.amount.toString(),
     );
 });

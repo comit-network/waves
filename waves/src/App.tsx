@@ -1,5 +1,5 @@
 import { ExternalLinkIcon } from "@chakra-ui/icons";
-import { Box, Button, Center, Flex, Link, Text, useDisclosure, VStack } from "@chakra-ui/react";
+import { Box, Button, Center, Flex, Image, Link, Text, useDisclosure, VStack } from "@chakra-ui/react";
 import React, { useEffect, useReducer, useState } from "react";
 import { useAsync } from "react-async";
 import { useSSE } from "react-hooks-sse";
@@ -7,8 +7,9 @@ import { Route, Switch, useHistory, useParams } from "react-router-dom";
 import useSWR from "swr";
 import "./App.css";
 import { postSellPayload } from "./Bobtimus";
-import calculateBetaAmount from "./calculateBetaAmount";
+import calculateBetaAmount, { getDirection } from "./calculateBetaAmount";
 import AssetSelector from "./components/AssetSelector";
+import COMIT from "./components/comit_logo_spellout_opacity_50.svg";
 import ExchangeIcon from "./components/ExchangeIcon";
 import ConfirmSwapDrawer from "./ConfirmSwapDrawer";
 import CreateWalletDrawer from "./CreateWalletDrawer";
@@ -76,8 +77,8 @@ const initialState = {
     },
     beta: Asset.USDT,
     rate: {
-        ask: 19133.74,
-        bid: 19133.74,
+        ask: 33766.30,
+        bid: 33670.10,
     },
     txId: "",
     wallet: {
@@ -131,7 +132,7 @@ export function reducer(state: State = initialState, action: Action) {
                 ...state,
                 alpha: {
                     type: state.beta,
-                    amount: action.value.betaAmount.toString(),
+                    amount: state.alpha.amount,
                 },
                 beta: state.alpha.type,
             };
@@ -180,8 +181,8 @@ function App() {
     const [state, dispatch] = useReducer(reducer, initialState);
 
     const rate = useSSE("rate", {
-        ask: 19133.74,
-        bid: 19133.74,
+        ask: 33766.30,
+        bid: 33670.10,
     });
 
     let { isOpen: isUnlockWalletOpen, onClose: onUnlockWalletClose, onOpen: onUnlockWalletOpen } = useDisclosure();
@@ -270,7 +271,7 @@ function App() {
         : usdtBalance < alphaAmount;
 
     return (
-        <div className="App">
+        <Box className="App">
             <header className="App-header">
                 {walletBalances}
             </header>
@@ -307,9 +308,7 @@ function App() {
                                     dispatch={dispatch}
                                 />
                             </Flex>
-                            <Box>
-                                <Text textStyle="info">1 BTC ~ {rate.ask} USDT</Text>
-                            </Box>
+                            <RateInfo rate={rate} direction={getDirection(state.alpha.type)} />
                             <Box>
                                 <Button
                                     onClick={makeNewSwap}
@@ -369,7 +368,13 @@ function App() {
                 transaction={transaction}
                 trade={trade}
             />}
-        </div>
+
+            <footer className="App-footer">
+                <Center>
+                    <Image src={COMIT} h="24px" />
+                </Center>
+            </footer>
+        </Box>
     );
 }
 
@@ -385,6 +390,24 @@ function BlockExplorerLink() {
     >
         Block Explorer <ExternalLinkIcon mx="2px" />
     </Link>;
+}
+
+interface RateInfoProps {
+    rate: Rate;
+    direction: "ask" | "bid";
+}
+
+function RateInfo({ rate, direction }: RateInfoProps) {
+    switch (direction) {
+        case "ask":
+            return <Box>
+                <Text textStyle="info">{rate.ask} USDT ~ 1 BTC</Text>
+            </Box>;
+        case "bid":
+            return <Box>
+                <Text textStyle="info">1 BTC ~ {rate.bid} USDT</Text>
+            </Box>;
+    }
 }
 
 export default App;
