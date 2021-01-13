@@ -132,7 +132,7 @@ export function reducer(state: State = initialState, action: Action) {
                 ...state,
                 alpha: {
                     type: state.beta,
-                    amount: action.value.betaAmount.toString(),
+                    amount: state.alpha.amount,
                 },
                 beta: state.alpha.type,
             };
