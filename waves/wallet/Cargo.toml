@@ -26,7 +26,7 @@ js-sys = "0.3"
 log = "0.4"
 rand = { version = "0.6", features = [ "wasm-bindgen" ] }
 rand_core = { version = "0.5", features = [ "std" ] }
-reqwest = { version = "0.10", default-features = false, features = [ "rustls", "json" ] }
+reqwest = { version = "0.11", default-features = false, features = [ "rustls", "json" ] }
 rust_decimal = "1"
 scrypt = { version = "0.5" }
 serde = { version = "1", features = [ "derive" ] }
