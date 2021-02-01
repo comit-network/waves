@@ -54,10 +54,10 @@ jobs:
           path: |
             ~/.cargo/bin/cargo-honggfuzz
             ~/.cargo/bin/cargo-hfuzz
-          key: ubuntu-rust-${{ env.RUST_TOOLCHAIN }}-honggfuzz
+          key: ubuntu-rust-${{ env.RUST_TOOLCHAIN }}-honggfuzz-0.5.51
 
       - name: Install honggfuzz
-        run: which cargo-honggfuzz && which cargo-hfuzz || cargo install honggfuzz
+        run: which cargo-honggfuzz && which cargo-hfuzz || cargo install honggfuzz --version 0.5.51
 
       - name: Install fuzz dependencies
         run: |
