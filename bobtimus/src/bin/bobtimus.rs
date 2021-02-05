@@ -1,6 +1,6 @@
 use anyhow::Result;
 use bobtimus::{cli::StartCommand, http, kraken, Bobtimus};
-use elements_fun::{
+use elements::{
     bitcoin::secp256k1::Secp256k1,
     secp256k1::rand::{rngs::StdRng, thread_rng, SeedableRng},
 };

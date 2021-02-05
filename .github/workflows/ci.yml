@@ -78,46 +78,6 @@ jobs:
           path: |
             ./waves/cypress/videos/e2e.spec.ts.mp4
 
-  fuzz:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout sources
-        uses: actions/checkout@v2
-
-      - name: Install Rust
-        uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          override: true
-
-      - name: Cache honggfuzz
-        uses: actions/cache@v2
-        with:
-          path: |
-            ~/.cargo/bin/cargo-honggfuzz
-            ~/.cargo/bin/cargo-hfuzz
-          key: ubuntu-rust-${{ env.RUST_TOOLCHAIN }}-honggfuzz-0.5.51
-
-      - name: Install honggfuzz
-        run: which cargo-honggfuzz && which cargo-hfuzz || cargo install honggfuzz --version 0.5.51
-
-      - name: Install fuzz dependencies
-        run: |
-          sudo apt-get -qq update
-          sudo apt-get install -y binutils-dev libunwind8-dev
-
-      - name: Fuzz
-        run: |
-          cd ./elements-fun/fuzz
-          ./fuzz.sh
-
-      - name: Upload fuzz workspace on failure
-        if: ${{ failure() }}
-        uses: actions/upload-artifact@v2
-        with:
-          name: hfuzz_workspace
-          path: ./elements-fun/fuzz/hfuzz_workspace
-
   build_test_workspace:
     strategy:
       matrix:
@@ -148,9 +108,9 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         run: cargo test --workspace --all-features
 
-      - name: Cargo build (all workspace without elements-fuzz )
+      - name: Cargo build
         if: matrix.os == 'macos-latest'
-        run: cargo build --workspace --exclude elements-fuzz --all-features
+        run: cargo build --workspace --all-features
 
   swap_wasm:
     runs-on: ubuntu-latest

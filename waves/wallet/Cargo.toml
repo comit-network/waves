@@ -17,7 +17,7 @@ anyhow = "1"
 bdk = { git = "https://github.com/bitcoindevkit/bdk", default-features = false }
 conquer-once = "0.3"
 console_error_panic_hook = { version = "0.1.6", optional = true }
-elements-fun = { path = "../../elements-fun", features = [ "serde" ] }
+elements = { version = "0.15", features = [ "serde-feature" ] }
 futures = "0.3"
 getrandom = { version = "0.1", features = [ "wasm-bindgen" ] }
 hex = "0.4"
@@ -44,7 +44,8 @@ wasm-bindgen-test = "0.3.13"
 
 [build-dependencies]
 anyhow = "1"
-elements-fun = { path = "../../elements-fun" }
+conquer-once = "0.3"
+elements = { version = "0.15" }
 
 # By default wasm-opt is true which makes the build fail.
 [package.metadata.wasm-pack.profile.release]

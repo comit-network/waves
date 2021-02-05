@@ -1,17 +1,18 @@
 use crate::{
     esplora,
     wallet::{
-        current, get_txouts, Wallet, DEFAULT_SAT_PER_VBYTE, NATIVE_ASSET_ID, NATIVE_ASSET_TICKER,
+        current, estimate_virtual_size, get_txouts, Wallet, DEFAULT_SAT_PER_VBYTE, NATIVE_ASSET_ID,
+        NATIVE_ASSET_TICKER,
     },
 };
 use anyhow::{bail, Context, Result};
-use elements_fun::{
+use elements::{
     hashes::{hash160, Hash},
     opcodes,
     script::Builder,
     secp256k1::{rand, Message, SECP256K1},
     sighash::SigHashCache,
-    transaction, Address, OutPoint, SigHashType, Transaction, TxIn, TxOut, Txid,
+    Address, OutPoint, SigHashType, Transaction, TxIn, TxOut, Txid,
 };
 use futures::lock::Mutex;
 use itertools::Itertools;
@@ -35,17 +36,16 @@ pub async fn withdraw_everything_to(
     let blinding_key = wallet.blinding_key();
 
     let txouts = get_txouts(&wallet, |utxo, txout| {
-        Ok(match txout {
-            TxOut::Confidential(confidential) => {
+        Ok(match txout.into_confidential() {
+            Some(confidential) => {
                 let unblinded_txout = confidential.unblind(SECP256K1, blinding_key)?;
 
                 Some((utxo, confidential, unblinded_txout))
             }
-            TxOut::Explicit(_) => {
+            None => {
                 log::warn!("spending explicit txouts is unsupported");
                 None
             }
-            TxOut::Null(_) => None,
         })
     })
     .await?;
@@ -66,7 +66,7 @@ pub async fn withdraw_everything_to(
     let fee_estimates = esplora::get_fee_estimates().await?;
 
     let estimated_virtual_size =
-        transaction::estimate_virtual_size(prevout_values.len() as u64, txouts.len() as u64);
+        estimate_virtual_size(prevout_values.len() as u64, txouts.len() as u64);
 
     let fee = (estimated_virtual_size as f32
         * fee_estimates.b_6.unwrap_or_else(|| {
@@ -101,7 +101,7 @@ pub async fn withdraw_everything_to(
             // calculate the total amount we want to spend for this asset
             // if this is the native asset, subtract the fee
             let total_input = txouts.iter().map(|(_, txout)| txout.value).sum::<u64>();
-            let to_spend = if asset == NATIVE_ASSET_ID {
+            let to_spend = if asset == *NATIVE_ASSET_ID {
                 log::debug!(
                     "{} is the native asset, subtracting a fee of {} from it",
                     asset,
@@ -127,7 +127,7 @@ pub async fn withdraw_everything_to(
     // build transaction from grouped txouts
     let mut transaction = match txouts_grouped_by_asset.as_slice() {
         [] => bail!("no balances in wallet"),
-        [(asset, _)] if asset != &NATIVE_ASSET_ID => bail!(
+        [(asset, _)] if *asset != *NATIVE_ASSET_ID => bail!(
             "cannot spend from wallet without native asset {} because we cannot pay a fee",
             NATIVE_ASSET_TICKER
         ),
@@ -202,7 +202,7 @@ pub async fn withdraw_everything_to(
                 .iter()
                 .map(|(txout, _, _, _)| txout)
                 .chain(iter::once(&last_txout))
-                .chain(iter::once(&TxOut::new_fee(NATIVE_ASSET_ID, fee)))
+                .chain(iter::once(&TxOut::new_fee(fee, *NATIVE_ASSET_ID)))
                 .cloned()
                 .collect::<Vec<_>>();
 
@@ -232,7 +232,7 @@ pub async fn withdraw_everything_to(
             let sighash = cache.segwitv0_sighash(
                 index,
                 &script,
-                prevout_values[&input.previous_output],
+                prevout_values[&input.previous_output].into(),
                 SigHashType::All,
             );
 

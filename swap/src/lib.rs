@@ -1,20 +1,43 @@
 use anyhow::{bail, Context, Result};
-use elements_fun::{
+use elements::{
     bitcoin::Amount,
-    confidential::ValueCommitment,
+    confidential,
     hashes::{hash160, Hash},
     opcodes,
     script::Builder,
     secp256k1::{Message, PublicKey},
     sighash::SigHashCache,
-    transaction, Address, AssetId, ConfidentialTxOut, SigHashType, Transaction, TxIn, TxOut,
-    UnblindedTxOut,
+    Address, AssetId, ConfidentialTxOut, SigHashType, Transaction, TxIn, TxOut, UnblindedTxOut,
 };
 use secp256k1::{
     rand::{CryptoRng, RngCore},
     Secp256k1, SecretKey, Signing, Verification,
 };
 use std::future::Future;
+
+/// These constants have been reverse engineered through the following transactions:
+///
+/// https://blockstream.info/liquid/tx/a17f4063b3a5fdf46a7012c82390a337e9a0f921933dccfb8a40241b828702f2
+/// https://blockstream.info/liquid/tx/d12ff4e851816908810c7abc839dd5da2c54ad24b4b52800187bee47df96dd5c
+/// https://blockstream.info/liquid/tx/47e60a3bc5beed45a2cf9fb7a8d8969bab4121df98b0034fb0d44f6ed2d60c7d
+///
+/// This gives us the following set of linear equations:
+///
+/// - 1 in, 1 out, 1 fee = 1332
+/// - 1 in, 2 out, 1 fee = 2516
+/// - 2 in, 2 out, 1 fee = 2623
+///
+/// Which we can solve using wolfram alpha: https://www.wolframalpha.com/input/?i=1x+%2B+1y+%2B+1z+%3D+1332%2C+1x+%2B+2y+%2B+1z+%3D+2516%2C+2x+%2B+2y+%2B+1z+%3D+2623
+pub mod avg_vbytes {
+    pub const INPUT: u64 = 107;
+    pub const OUTPUT: u64 = 1184;
+    pub const FEE: u64 = 41;
+}
+
+/// Estimate the virtual size of a transaction based on the number of inputs and outputs.
+pub fn estimate_virtual_size(number_of_inputs: u64, number_of_outputs: u64) -> u64 {
+    number_of_inputs * avg_vbytes::INPUT + number_of_outputs * avg_vbytes::OUTPUT + avg_vbytes::FEE
+}
 
 // TODO: Replace this with a PSET
 pub async fn bob_create_transaction<R, C, S, F>(
@@ -54,7 +77,7 @@ where
     let inputs = alice_inputs.chain(bob_inputs).collect::<Vec<_>>();
 
     let fee_amount = Amount::from_sat(
-        transaction::estimate_virtual_size(inputs.len() as u64, 4) * fee_sats_per_vbyte.as_sat(),
+        estimate_virtual_size(inputs.len() as u64, 4) * fee_sats_per_vbyte.as_sat(),
     );
 
     let change_amount_alice = alice
@@ -128,7 +151,7 @@ where
     let bob_inputs_iter = bob.inputs.iter().map(|input| input.txin.clone());
     let inputs = alice_inputs_iter.chain(bob_inputs_iter).collect::<Vec<_>>();
 
-    let fee = TxOut::new_fee(fee_asset, fee_amount.as_sat());
+    let fee = TxOut::new_fee(fee_amount.as_sat(), fee_asset);
 
     let transaction = Transaction {
         version: 2,
@@ -164,7 +187,7 @@ pub fn sign_with_key<C>(
     cache: &mut SigHashCache<&Transaction>,
     index: usize,
     input_sk: &SecretKey,
-    value: ValueCommitment,
+    value: confidential::Value,
 ) -> Vec<Vec<u8>>
 where
     C: Signing,

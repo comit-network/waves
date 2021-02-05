@@ -1,5 +1,5 @@
 use anyhow::{Context, Result};
-use elements_fun::{
+use elements::{
     bitcoin::{
         secp256k1::{All, Secp256k1},
         Amount,
@@ -79,7 +79,7 @@ impl<R, RS> Bobtimus<R, RS> {
 
                 let mut mac = Hmac::<Sha256>::new_varkey(&master_blinding_key)
                     .expect("HMAC can take key of any size");
-                mac.update(txout.script_pubkey().as_bytes());
+                mac.update(txout.script_pubkey.as_bytes());
 
                 let result = mac.finalize();
                 let input_blinding_sk = SecretKey::from_slice(&result.into_bytes())?;
@@ -228,7 +228,7 @@ mod tests {
     use super::*;
     use crate::fixed_rate;
     use anyhow::{Context, Result};
-    use elements_fun::{
+    use elements::{
         bitcoin::{secp256k1::Secp256k1, Amount, Network, PrivateKey, PublicKey},
         secp256k1::{rand::thread_rng, SecretKey, SECP256K1},
         sighash::SigHashCache,
@@ -340,7 +340,7 @@ mod tests {
                     &mut cache,
                     input_index,
                     &fund_sk_alice,
-                    commitment,
+                    commitment.into(),
                 );
 
                 Ok(tx)
@@ -377,7 +377,7 @@ mod tests {
         let vout = tx
             .output
             .iter()
-            .position(|output| output.script_pubkey() == &address.script_pubkey())
+            .position(|output| output.script_pubkey == address.script_pubkey())
             .context("Tx doesn't pay to address")?;
 
         let outpoint = OutPoint {

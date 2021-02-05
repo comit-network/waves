@@ -1,5 +1,5 @@
 use crate::USDT_ASSET_ID;
-use elements_fun::AssetId;
+use elements::AssetId;
 use reqwest::Url;
 
 #[derive(structopt::StructOpt, Debug)]

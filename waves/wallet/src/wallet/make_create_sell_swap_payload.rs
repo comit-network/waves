@@ -1,13 +1,10 @@
 use crate::wallet::{
-    coin_selection, coin_selection::coin_select, current, get_txouts, CreateSwapPayload, SwapUtxo,
-    Wallet, NATIVE_ASSET_ID,
+    avg_vbytes, coin_selection, coin_selection::coin_select, current, get_txouts,
+    CreateSwapPayload, SwapUtxo, Wallet, NATIVE_ASSET_ID,
 };
 use anyhow::{Context, Result};
-use elements_fun::{
-    bitcoin::{Amount, Denomination},
-    secp256k1::SECP256K1,
-    transaction, OutPoint, TxOut,
-};
+use bdk::bitcoin::{Amount, Denomination};
+use elements::{secp256k1::SECP256K1, OutPoint};
 use futures::lock::Mutex;
 
 pub async fn make_create_sell_swap_payload(
@@ -22,8 +19,8 @@ pub async fn make_create_sell_swap_payload(
     let blinding_key = wallet.blinding_key();
 
     let utxos = get_txouts(&wallet, |utxo, txout| {
-        Ok(match txout {
-            TxOut::Confidential(confidential) => {
+        Ok(match txout.into_confidential() {
+            Some(confidential) => {
                 let unblinded_txout = confidential.unblind(SECP256K1, blinding_key)?;
                 let outpoint = OutPoint {
                     txid: utxo.txid,
@@ -31,7 +28,7 @@ pub async fn make_create_sell_swap_payload(
                 };
                 let candidate_asset = unblinded_txout.asset;
 
-                if candidate_asset == NATIVE_ASSET_ID {
+                if candidate_asset == *NATIVE_ASSET_ID {
                     Some(coin_selection::Utxo {
                         outpoint,
                         value: unblinded_txout.value,
@@ -47,11 +44,10 @@ pub async fn make_create_sell_swap_payload(
                     None
                 }
             }
-            TxOut::Explicit(_) => {
+            None => {
                 log::warn!("swapping explicit txouts is unsupported");
                 None
             }
-            TxOut::Null(_) => None,
         })
     })
     .await?;
@@ -85,8 +81,8 @@ fn calculate_fee_offset(fee_sats_per_vbyte: Amount) -> Amount {
     let bobs_outputs = 2; // bob will create two outputs for himself (receive + change)
     let our_output = 1; // we have one additional output (the change output is priced in by the coin-selection algorithm)
 
-    let fee_offset = ((bobs_outputs + our_output) * transaction::avg_vbytes::OUTPUT)
-        * fee_sats_per_vbyte.as_sat();
+    let fee_offset =
+        ((bobs_outputs + our_output) * avg_vbytes::OUTPUT) * fee_sats_per_vbyte.as_sat();
 
     Amount::from_sat(fee_offset)
 }

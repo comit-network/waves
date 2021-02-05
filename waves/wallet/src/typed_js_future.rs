@@ -1,10 +1,9 @@
-use elements_fun::bitcoin_hashes::core::pin::Pin;
 use futures::{
     task::{Context, Poll},
     FutureExt,
 };
 use js_sys::Promise;
-use std::{future::Future, marker::PhantomData};
+use std::{future::Future, marker::PhantomData, pin::Pin};
 use wasm_bindgen::{JsCast, JsValue};
 use wasm_bindgen_futures::JsFuture;
 
