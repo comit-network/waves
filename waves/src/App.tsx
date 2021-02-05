@@ -326,7 +326,7 @@ function App() {
 
                     <Route exact path="/swapped/:txId">
                         <VStack>
-                            <Text textStyle="info">
+                            <Text textStyle="smGray">
                                 Check in{" "}
                                 <BlockExplorerLink />
                             </Text>
@@ -401,11 +401,11 @@ function RateInfo({ rate, direction }: RateInfoProps) {
     switch (direction) {
         case "ask":
             return <Box>
-                <Text textStyle="info">{rate.ask} USDT ~ 1 BTC</Text>
+                <Text textStyle="smGray">{rate.ask} USDT ~ 1 BTC</Text>
             </Box>;
         case "bid":
             return <Box>
-                <Text textStyle="info">1 BTC ~ {rate.bid} USDT</Text>
+                <Text textStyle="smGray">1 BTC ~ {rate.bid} USDT</Text>
             </Box>;
     }
 }

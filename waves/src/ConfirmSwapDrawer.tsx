@@ -139,12 +139,12 @@ function YouSwapItem({
                             templateColumns="repeat(2, 1fr)"
                         >
                             <GridItem colSpan={1}>
-                                <Text align="left" textStyle="info">
+                                <Text align="left" textStyle="smGray">
                                     Old balance
                                 </Text>
                             </GridItem>
                             <GridItem colSpan={1}>
-                                <Text align="right" textStyle="info">
+                                <Text align="right" textStyle="smGray">
                                     {balanceBefore}
                                 </Text>
                             </GridItem>
@@ -154,12 +154,12 @@ function YouSwapItem({
                                 </Text>
                             </GridItem>
                             <GridItem colSpan={1}>
-                                <Text align="left" textStyle="info">
+                                <Text align="left" textStyle="smGray">
                                     New balance
                                 </Text>
                             </GridItem>
                             <GridItem colSpan={1}>
-                                <Text align="right" textStyle="info">
+                                <Text align="right" textStyle="smGray">
                                     {balanceAfter}
                                 </Text>
                             </GridItem>

@@ -102,7 +102,7 @@ interface CustomInputProps {
 
 const ASSET_INPUT_LEFT_ADDON_PROPS = {
     size: "lg",
-    textStyle: "actionable",
+    textStyle: "lgGray",
     w: "15%",
     h: "3rem",
     bg: "grey.50",
@@ -114,7 +114,7 @@ const ASSET_INPUT_PROPS = {
     w: "100%",
     size: "lg",
     bg: "#FFFFFF",
-    textStyle: "actionable",
+    textStyle: "lgGray",
     borderRadius: "md",
     shadow: "md",
 };

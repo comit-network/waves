@@ -162,9 +162,9 @@ const AddressQr = () => (
             if (data) {
                 return (
                     <VStack>
-                        <Text textStyle="actionable">Address</Text>
+                        <Text textStyle="lgGray">Address</Text>
                         <QRCode value={data} size={100} />
-                        <Text textStyle="addressInfo" maxWidth={"15em"} isTruncated data-cy="wallet-address-textfield">
+                        <Text textStyle="mdGray" maxWidth={"15em"} isTruncated data-cy="wallet-address-textfield">
                             {data}
                         </Text>
                     </VStack>
