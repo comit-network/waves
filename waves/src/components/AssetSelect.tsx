@@ -164,7 +164,7 @@ function XmrBox() {
                     </ModalBody>
 
                     <ModalFooter>
-                        <Button leftIcon={<GrGithub />} size="md" variant="wallet_button" onClick={openXmrProject}>
+                        <Button leftIcon={<GrGithub />} variant="primary" onClick={openXmrProject}>
                             Checkout on Github
                         </Button>
                     </ModalFooter>

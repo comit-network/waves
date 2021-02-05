@@ -69,7 +69,7 @@ export default function CreateWalletDrawer({ onCancel, onCreate }: CreateWalletD
 
                     <DrawerFooter>
                         <Button
-                            size="md"
+                            variant="secondary"
                             mr={3}
                             onClick={onCancel}
                         >
@@ -77,8 +77,7 @@ export default function CreateWalletDrawer({ onCancel, onCreate }: CreateWalletD
                         </Button>
                         <Button
                             type="submit"
-                            size="md"
-                            variant="wallet_button"
+                            variant="primary"
                             isLoading={isPending}
                         >
                             Create

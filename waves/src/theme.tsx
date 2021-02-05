@@ -17,44 +17,21 @@ const theme = extendTheme({
     },
     components: {
         Button: {
-            baseStyle: {
-                bg: "#304FFE",
-                fontWeight: "bold",
-            },
-
-            sizes: {
-                lg: {
-                    fontSize: "lg",
-                },
-            },
-            // Custom variant
             variants: {
-                "tx_button": {
-                    bg: "blue.100",
+                "primary": {
                     color: "white",
-                },
-                "main_button": {
-                    w: "15rem",
-                    color: "white",
+                    bg: "blue.500",
                     _hover: {
                         bg: "blue.300",
                         _disabled: {
-                            bg: "",
+                            bg: "blue.300",
                         },
                     },
+                    size: "md",
                 },
-                "connect_wallet_button": {
-                    color: "white",
-                    bg: "red.500",
-                    _hover: {
-                        bg: "red.300",
-                    },
-                },
-                "wallet_button": {
-                    color: "white",
-                    _hover: {
-                        bg: "blue.300",
-                    },
+                "secondary": {
+                    bg: "gray.200",
+                    size: "md",
                 },
             },
         },

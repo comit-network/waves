@@ -70,7 +70,7 @@ export default function UnlockWalletDrawer({ onCancel, onUnlock }: UnlockWalletD
 
                     <DrawerFooter>
                         <Button
-                            size="md"
+                            variant="secondary"
                             mr={3}
                             onClick={onCancel}
                         >
@@ -78,8 +78,7 @@ export default function UnlockWalletDrawer({ onCancel, onUnlock }: UnlockWalletD
                         </Button>
                         <Button
                             type="submit"
-                            size="md"
-                            variant="wallet_button"
+                            variant="primary"
                             isLoading={isPending}
                         >
                             Unlock

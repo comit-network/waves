@@ -77,7 +77,7 @@ export default function ConfirmSwapDrawer(
 
                     <DrawerFooter>
                         <Button
-                            size="md"
+                            variant="secondary"
                             mr={3}
                             onClick={onCancel}
                             ref={cancelButton}
@@ -86,8 +86,7 @@ export default function ConfirmSwapDrawer(
                         </Button>
                         <Button
                             type="submit"
-                            size="md"
-                            variant="wallet_button"
+                            variant="primary"
                             isLoading={isPending}
                             data-cy="sign-and-send-button"
                         >

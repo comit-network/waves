@@ -240,7 +240,7 @@ function App() {
         walletBalances = <Button
             onClick={onCreateWalletOpen}
             size="sm"
-            variant="connect_wallet_button"
+            variant="primary"
             isLoading={isLoading}
             data-cy="create-wallet-button"
         >
@@ -250,7 +250,7 @@ function App() {
         walletBalances = <Button
             onClick={onUnlockWalletOpen}
             size="sm"
-            variant="connect_wallet_button"
+            variant="primary"
             isLoading={isLoading}
             data-cy="unlock-wallet-button"
         >
@@ -312,8 +312,8 @@ function App() {
                             <Box>
                                 <Button
                                     onClick={makeNewSwap}
-                                    size="lg"
-                                    variant="main_button"
+                                    variant="primary"
+                                    w="15rem"
                                     isLoading={isCreatingNewSwap}
                                     disabled={isSwapButtonDisabled}
                                     data-cy="swap-button"
