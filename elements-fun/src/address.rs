@@ -167,7 +167,8 @@ impl Address {
         params: &'static AddressParams,
     ) -> Address {
         let mut hash_engine = PubkeyHash::engine();
-        pk.write_into(&mut hash_engine);
+        pk.write_into(&mut hash_engine)
+            .expect("engines don't error");
 
         Address {
             params,
@@ -199,7 +200,8 @@ impl Address {
         params: &'static AddressParams,
     ) -> Address {
         let mut hash_engine = WPubkeyHash::engine();
-        pk.write_into(&mut hash_engine);
+        pk.write_into(&mut hash_engine)
+            .expect("engines don't error");
 
         Address {
             params,
@@ -219,7 +221,8 @@ impl Address {
         params: &'static AddressParams,
     ) -> Address {
         let mut hash_engine = ScriptHash::engine();
-        pk.write_into(&mut hash_engine);
+        pk.write_into(&mut hash_engine)
+            .expect("engines don't error");
 
         let builder = script::Builder::new()
             .push_int(0)

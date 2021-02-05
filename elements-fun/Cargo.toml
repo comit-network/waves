@@ -16,7 +16,7 @@ serde = [
 "fuzztarget" = [ ]
 
 [dependencies]
-bitcoin = { version = "0.25", features = [ "rand" ] }
+bitcoin = { version = "0.26", features = [ "rand" ] }
 bitcoin_hashes = "0.9.0" # While this dependency is included in bitcoin, we need this to use the macros.
 hex = "0.4.2"
 libc = "0.2.69"
