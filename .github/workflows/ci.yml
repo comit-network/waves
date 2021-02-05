@@ -245,31 +245,29 @@ jobs:
         uses: actions/checkout@v2
 
       - name: Install Rust toolchain
+        id: toolchain
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
           override: true
           target: wasm32-unknown-unknown
 
-      - name: Cache target directory
+      - name: Cache target, cargo and wasm-pack directories
         uses: actions/cache@v2
         with:
-          path: target
-          key: wasm-wallet-target-directory-${{ hashFiles('Cargo.lock') }}-v1
+          path: |
+            target
+            ~/.cargo/bin
+            ~/.cache/.wasm-pack
+          key: ubuntu-rust-${{ steps.toolchain.outputs.rustc_hash }}-wasm-wallet-cargo-and-target-directory-${{ hashFiles('Cargo.lock') }}-v1
 
-      - name: Cache wasm-bindgen-test-runner
-        uses: actions/cache@v2
-        with:
-          path: ~/.cargo/bin/wasm-bindgen-test-runner
-          key: ubuntu-rust-${{ env.RUST_TOOLCHAIN }}-wasm-bindgen-test-runner
-
-      - name: Install wasm-bindgen-test-runner
-        run: which wasm-bindgen-test-runner || cargo install wasm-bindgen-cli
+      - name: Install wasm-pack
+        run: which wasm-pack || curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
 
       - name: Waves wallet tests
         run: |
           cd waves/wallet
-          cargo test --target wasm32-unknown-unknown
+          wasm-pack test --firefox --headless
 
       - name: Upload artifact on test failure
         if: ${{ failure() }}
