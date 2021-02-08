@@ -240,7 +240,7 @@ function App() {
         walletBalances = <Button
             onClick={onCreateWalletOpen}
             size="sm"
-            variant="connect_wallet_button"
+            variant="primary"
             isLoading={isLoading}
             data-cy="create-wallet-button"
         >
@@ -250,7 +250,7 @@ function App() {
         walletBalances = <Button
             onClick={onUnlockWalletOpen}
             size="sm"
-            variant="connect_wallet_button"
+            variant="primary"
             isLoading={isLoading}
             data-cy="unlock-wallet-button"
         >
@@ -312,8 +312,8 @@ function App() {
                             <Box>
                                 <Button
                                     onClick={makeNewSwap}
-                                    size="lg"
-                                    variant="main_button"
+                                    variant="primary"
+                                    w="15rem"
                                     isLoading={isCreatingNewSwap}
                                     disabled={isSwapButtonDisabled}
                                     data-cy="swap-button"
@@ -326,7 +326,7 @@ function App() {
 
                     <Route exact path="/swapped/:txId">
                         <VStack>
-                            <Text textStyle="info">
+                            <Text textStyle="smGray">
                                 Check in{" "}
                                 <BlockExplorerLink />
                             </Text>
@@ -401,11 +401,11 @@ function RateInfo({ rate, direction }: RateInfoProps) {
     switch (direction) {
         case "ask":
             return <Box>
-                <Text textStyle="info">{rate.ask} USDT ~ 1 BTC</Text>
+                <Text textStyle="smGray">{rate.ask} USDT ~ 1 BTC</Text>
             </Box>;
         case "bid":
             return <Box>
-                <Text textStyle="info">1 BTC ~ {rate.bid} USDT</Text>
+                <Text textStyle="smGray">1 BTC ~ {rate.bid} USDT</Text>
             </Box>;
     }
 }

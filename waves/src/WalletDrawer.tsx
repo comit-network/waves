@@ -115,8 +115,7 @@ export default function WalletDrawer({ onClose, balances, reloadBalances }: Wall
                                     </FormControl>
                                     <Button
                                         type="submit"
-                                        size="md"
-                                        variant="wallet_button"
+                                        variant="primary"
                                         isLoading={isWithdrawing}
                                     >
                                         Send
@@ -132,8 +131,7 @@ export default function WalletDrawer({ onClose, balances, reloadBalances }: Wall
                                 p={1}
                             >
                                 <Button
-                                    size="md"
-                                    variant="wallet_button"
+                                    variant="primary"
                                     onClick={fund}
                                     isLoading={isFunding}
                                 >
@@ -145,7 +143,7 @@ export default function WalletDrawer({ onClose, balances, reloadBalances }: Wall
                 </DrawerBody>
 
                 <DrawerFooter>
-                    <Button size="md" variant="wallet_button" onClick={onClose}>
+                    <Button variant="primary" onClick={onClose}>
                         Close
                     </Button>
                 </DrawerFooter>
@@ -162,9 +160,9 @@ const AddressQr = () => (
             if (data) {
                 return (
                     <VStack>
-                        <Text textStyle="actionable">Address</Text>
+                        <Text textStyle="lgGray">Address</Text>
                         <QRCode value={data} size={100} />
-                        <Text textStyle="addressInfo" maxWidth={"15em"} isTruncated data-cy="wallet-address-textfield">
+                        <Text textStyle="mdGray" maxWidth={"15em"} isTruncated data-cy="wallet-address-textfield">
                             {data}
                         </Text>
                     </VStack>
