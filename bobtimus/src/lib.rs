@@ -54,7 +54,30 @@ where
     R: RngCore + CryptoRng,
     RS: LatestRate,
 {
-    /// Handle Alice's request to create a swap transaction in which she sells L-BTC and we give her L-USDt.
+    /// Handle Alice's request to create a swap transaction in which
+    /// she buys L-BTC from us and in return we get L-USDt from her.
+    pub async fn handle_create_buy_swap(
+        &mut self,
+        payload: CreateSwapPayload,
+    ) -> Result<Transaction> {
+        let latest_rate = self.rate_service.latest_rate();
+        let usdt_amount = latest_rate.sell_quote(payload.btc_amount)?;
+
+        let transaction = self
+            .swap_transaction(
+                (self.usdt_asset_id, usdt_amount.into()),
+                (self.btc_asset_id, payload.btc_amount.into()),
+                payload.alice_inputs,
+                payload.address,
+                self.btc_asset_id,
+            )
+            .await?;
+
+        Ok(transaction)
+    }
+
+    /// Handle Alice's request to create a swap transaction in which
+    /// she sells L-BTC and we give her L-USDt.
     pub async fn handle_create_sell_swap(
         &mut self,
         payload: CreateSwapPayload,
@@ -68,6 +91,7 @@ where
                 (self.usdt_asset_id, usdt_amount.into()),
                 payload.alice_inputs,
                 payload.address,
+                self.btc_asset_id,
             )
             .await?;
 
@@ -80,6 +104,7 @@ where
         (bob_input_asset_id, bob_input_amount): (AssetId, Amount),
         alice_inputs: Vec<AliceInput>,
         alice_address: Address,
+        btc_asset_id: AssetId,
     ) -> Result<Transaction> {
         let bob_inputs = self
             .elementsd
@@ -198,7 +223,7 @@ where
             &self.secp,
             alice,
             bob,
-            alice_input_asset_id,
+            btc_asset_id,
             Amount::from_sat(1), // TODO: Make this dynamic once there is something going on on Liquid
             {
                 let elementsd = self.elementsd.clone();
@@ -264,7 +289,7 @@ mod tests {
     use testcontainers::clients::Cli;
 
     #[tokio::test]
-    async fn test_handle_swap_request() {
+    async fn test_handle_btc_sell_swap_request() {
         let tc_client = Cli::default();
         let (client, _container) = {
             let blockchain = Elementsd::new(&tc_client, "0.18.1.9").unwrap();
@@ -343,6 +368,130 @@ mod tests {
                 }],
                 address: final_address_alice,
                 btc_amount: redeem_amount_bob,
+            })
+            .await
+            .unwrap();
+
+        let transaction = swap::alice_finalize_transaction(transaction, {
+            let commitment = input_alice.1.into_confidential().unwrap().value;
+            move |mut tx| async move {
+                let input_index = tx
+                    .input
+                    .iter()
+                    .position(|txin| fund_alice_txid == txin.previous_output.txid)
+                    .context("transaction does not contain input")?;
+                let mut cache = SigHashCache::new(&tx);
+
+                tx.input[input_index].witness.script_witness = sign_with_key(
+                    &SECP256K1,
+                    &mut cache,
+                    input_index,
+                    &fund_sk_alice,
+                    commitment.into(),
+                );
+
+                Ok(tx)
+            }
+        })
+        .await
+        .unwrap();
+
+        let _txid = client.send_raw_transaction(&transaction).await.unwrap();
+        let _txid = client.generatetoaddress(1, &mining_address).await.unwrap();
+
+        let utxos = client
+            .listunspent(
+                None,
+                None,
+                None,
+                None,
+                Some(ListUnspentOptions {
+                    asset: Some(have_asset_id_alice),
+                    ..Default::default()
+                }),
+            )
+            .await
+            .unwrap();
+
+        let error = 0.0001;
+        assert!(utxos.iter().any(
+            |utxo| (utxo.amount - Amount::from(redeem_amount_bob).as_btc()).abs() < error
+                && utxo.spendable
+        ));
+    }
+
+    #[tokio::test]
+    async fn test_handle_btc_buy_swap_request() {
+        let tc_client = Cli::default();
+        let (client, _container) = {
+            let blockchain = Elementsd::new(&tc_client, "0.18.1.9").unwrap();
+
+            (
+                Client::new(blockchain.node_url.clone().into_string()).unwrap(),
+                blockchain,
+            )
+        };
+        let mining_address = client.getnewaddress().await.unwrap();
+
+        let have_asset_id_alice = client.issueasset(100_000.0, 0.0, true).await.unwrap().asset;
+        let have_asset_id_bob = client.get_bitcoin_asset_id().await.unwrap();
+
+        let mut rate_service = fixed_rate::Service::new();
+        let sell_amount_bob = LiquidBtc::from(Amount::ONE_BTC);
+        let redeem_amount_bob = rate_service
+            .latest_rate()
+            .sell_quote(sell_amount_bob)
+            .unwrap();
+
+        let (
+            fund_address_alice,
+            fund_sk_alice,
+            _fund_pk_alice,
+            fund_blinding_sk_alice,
+            _fund_blinding_pk_alice,
+        ) = make_confidential_address();
+
+        let fund_alice_txid = client
+            .send_asset_to_address(
+                &fund_address_alice,
+                Amount::from(redeem_amount_bob) + Amount::from_btc(10_000.0).unwrap(),
+                Some(have_asset_id_alice),
+            )
+            .await
+            .unwrap();
+        client.generatetoaddress(1, &mining_address).await.unwrap();
+
+        let input_alice = extract_input(
+            &client.get_raw_transaction(fund_alice_txid).await.unwrap(),
+            fund_address_alice,
+        )
+        .unwrap();
+
+        let (
+            final_address_alice,
+            _final_sk_alice,
+            _final_pk_alice,
+            _final_blinding_sk_alice,
+            _final_blinding_pk_alice,
+        ) = make_confidential_address();
+
+        let mut bob = Bobtimus {
+            rng: &mut thread_rng(),
+            rate_service,
+            secp: Secp256k1::new(),
+            elementsd: client.clone(),
+            btc_asset_id: have_asset_id_bob,
+            usdt_asset_id: have_asset_id_alice,
+        };
+
+        let transaction = bob
+            .handle_create_buy_swap(CreateSwapPayload {
+                alice_inputs: vec![AliceInput {
+                    outpoint: input_alice.0,
+                    blinding_key: fund_blinding_sk_alice,
+                }],
+                address: final_address_alice,
+                btc_amount: sell_amount_bob,
             })
             .await
             .unwrap();
