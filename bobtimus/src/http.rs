@@ -35,26 +35,64 @@ where
         .and(warp::path!("api" / "rate" / "lbtc-lusdt"))
         .map(move || latest_rate(latest_rate_subscription.clone()));
 
-    let create_swap = warp::post()
+    let create_buy_swap = warp::post()
+        .and(warp::path!("api" / "swap" / "lbtc-lusdt" / "buy"))
+        .and(warp::body::json())
+        .and_then({
+            let bobtimus = bobtimus.clone();
+            move |payload| {
+                let bobtimus = bobtimus.clone();
+                async move {
+                    let mut bobtimus = bobtimus.lock().await;
+                    create_buy_swap(&mut bobtimus, payload).await
+                }
+            }
+        });
+
+    let create_sell_swap = warp::post()
         .and(warp::path!("api" / "swap" / "lbtc-lusdt" / "sell"))
         .and(warp::body::json())
         .and_then(move |payload| {
             let bobtimus = bobtimus.clone();
             async move {
                 let mut bobtimus = bobtimus.lock().await;
-                create_swap(&mut bobtimus, payload).await
+                create_sell_swap(&mut bobtimus, payload).await
             }
         });
 
     index_html
         .or(latest_rate)
-        .or(create_swap)
+        .or(create_sell_swap)
+        .or(create_buy_swap)
         .or(waves_resources)
         .recover(problem::unpack_problem)
         .boxed()
 }
 
-async fn create_swap<R, RS>(
+async fn create_buy_swap<R, RS>(
+    bobtimus: &mut Bobtimus<R, RS>,
+    payload: serde_json::Value,
+) -> Result<impl Reply, Rejection>
+where
+    R: RngCore + CryptoRng,
+    RS: LatestRate,
+{
+    let payload = payload.to_string();
+    let payload: CreateSwapPayload = serde_json::from_str(&payload)
+        .map_err(anyhow::Error::from)
+        .map_err(problem::from_anyhow)
+        .map_err(warp::reject::custom)?;
+
+    bobtimus
+        .handle_create_buy_swap(payload)
+        .await
+        .map(|transaction| serialize_hex(&transaction))
+        .map_err(anyhow::Error::from)
+        .map_err(problem::from_anyhow)
+        .map_err(warp::reject::custom)
+}
+
+async fn create_sell_swap<R, RS>(
     bobtimus: &mut Bobtimus<R, RS>,
     payload: serde_json::Value,
 ) -> Result<impl Reply, Rejection>
