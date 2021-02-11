@@ -49,18 +49,41 @@ pub struct AliceInput {
     pub blinding_key: SecretKey,
 }
 
-impl<R, RS> Bobtimus<R, RS> {
-    pub async fn handle_create_swap(&mut self, payload: CreateSwapPayload) -> Result<Transaction>
-    where
-        R: RngCore + CryptoRng,
-        RS: LatestRate,
-    {
+impl<R, RS> Bobtimus<R, RS>
+where
+    R: RngCore + CryptoRng,
+    RS: LatestRate,
+{
+    /// Handle Alice's request to create a swap transaction in which she sells L-BTC and we give her L-USDt.
+    pub async fn handle_create_sell_swap(
+        &mut self,
+        payload: CreateSwapPayload,
+    ) -> Result<Transaction> {
         let latest_rate = self.rate_service.latest_rate();
         let usdt_amount = latest_rate.buy_quote(payload.btc_amount)?;
 
+        let transaction = self
+            .swap_transaction(
+                (self.btc_asset_id, payload.btc_amount.into()),
+                (self.usdt_asset_id, usdt_amount.into()),
+                payload.alice_inputs,
+                payload.address,
+            )
+            .await?;
+
+        Ok(transaction)
+    }
+
+    async fn swap_transaction(
+        &mut self,
+        (alice_input_asset_id, alice_input_amount): (AssetId, Amount),
+        (bob_input_asset_id, bob_input_amount): (AssetId, Amount),
+        alice_inputs: Vec<AliceInput>,
+        alice_address: Address,
+    ) -> Result<Transaction> {
         let bob_inputs = self
             .elementsd
-            .select_inputs_for(self.usdt_asset_id, usdt_amount.into(), false)
+            .select_inputs_for(bob_input_asset_id, bob_input_amount, false)
             .await
             .context("failed to select inputs for swap")?;
 
@@ -106,8 +129,7 @@ impl<R, RS> Bobtimus<R, RS> {
             .await
             .context("failed to get redeem address")?;
 
-        let alice_inputs = payload
-            .alice_inputs
+        let alice_inputs = alice_inputs
             .iter()
             .copied()
             .map(
@@ -159,16 +181,16 @@ impl<R, RS> Bobtimus<R, RS> {
         let alice = swap::Actor::new(
             &self.secp,
             alice_inputs,
-            payload.address,
-            self.usdt_asset_id,
-            usdt_amount.into(),
+            alice_address,
+            bob_input_asset_id,
+            bob_input_amount,
         )?;
         let bob = swap::Actor::new(
             &self.secp,
             bob_inputs,
             bob_address,
-            self.btc_asset_id,
-            payload.btc_amount.into(),
+            alice_input_asset_id,
+            alice_input_amount,
         )?;
 
         let transaction = swap::bob_create_transaction(
@@ -176,7 +198,7 @@ impl<R, RS> Bobtimus<R, RS> {
             &self.secp,
             alice,
             bob,
-            self.btc_asset_id,
+            alice_input_asset_id,
             Amount::from_sat(1), // TODO: Make this dynamic once there is something going on on Liquid
             {
                 let elementsd = self.elementsd.clone();
@@ -314,7 +336,7 @@ mod tests {
         };
 
         let transaction = bob
-            .handle_create_swap(CreateSwapPayload {
+            .handle_create_sell_swap(CreateSwapPayload {
                 alice_inputs: vec![AliceInput {
                     outpoint: input_alice.0,
                     blinding_key: fund_blinding_sk_alice,

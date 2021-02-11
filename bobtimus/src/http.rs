@@ -69,7 +69,7 @@ where
         .map_err(warp::reject::custom)?;
 
     bobtimus
-        .handle_create_swap(payload)
+        .handle_create_sell_swap(payload)
         .await
         .map(|transaction| serialize_hex(&transaction))
         .map_err(anyhow::Error::from)
