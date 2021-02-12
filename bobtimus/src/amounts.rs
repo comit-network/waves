@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Result};
+use anyhow::{anyhow, Context, Result};
 use elements::bitcoin::{Amount, Denomination};
 use rust_decimal::{prelude::ToPrimitive, Decimal};
 use serde::{Deserialize, Serialize};
@@ -23,26 +23,35 @@ impl Rate {
     };
 
     pub fn buy_quote(&self, base: LiquidBtc) -> Result<LiquidUsdt> {
-        Self::quote(self.bid, base)
-    }
-
-    pub fn sell_quote(&self, base: LiquidBtc) -> Result<LiquidUsdt> {
-        Self::quote(self.ask, base)
-    }
-
-    fn quote(rate: LiquidUsdt, base: LiquidBtc) -> Result<LiquidUsdt> {
         let sats = base.0.as_sat();
         let btc = Decimal::from(sats)
             .checked_div(Decimal::from(Amount::ONE_BTC.as_sat()))
             .ok_or_else(|| anyhow!("division overflow"))?;
 
-        let satodollars_per_btc = Decimal::from(rate.as_satodollar());
+        let satodollars_per_btc = Decimal::from(self.bid.as_satodollar());
         let satodollars = satodollars_per_btc * btc;
         let satodollars = satodollars
             .to_u64()
             .ok_or_else(|| anyhow!("decimal cannot be represented as u64"))?;
 
         Ok(LiquidUsdt::from_satodollar(satodollars))
+    }
+
+    pub fn sell_base(&self, quote: LiquidUsdt) -> Result<LiquidBtc> {
+        let satodollars = quote.as_satodollar();
+
+        let btc = Decimal::from(satodollars)
+            .checked_div(Decimal::from(self.ask.as_satodollar()))
+            .ok_or_else(|| anyhow!("division overflow"))?;
+        let btc = btc
+            .to_f64()
+            .ok_or_else(|| anyhow!("decimal cannot be represented as f64"))?;
+        let btc = LiquidBtc::from(
+            Amount::from_btc(btc)
+                .with_context(|| format!("bitcoin amount cannot be parsed from float {}", btc))?,
+        );
+
+        Ok(btc)
     }
 }
 
@@ -104,7 +113,7 @@ impl TryFrom<f64> for LiquidUsdt {
     }
 }
 
-#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct LiquidBtc(#[serde(with = "::elements::bitcoin::util::amount::serde::as_sat")] Amount);
 
 impl From<Amount> for LiquidBtc {
@@ -124,20 +133,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn sell_quote() {
-        let rate = Rate {
-            ask: LiquidUsdt::try_from(19_313.52).unwrap(),
-            bid: LiquidUsdt::try_from(19_213.52).unwrap(),
-        };
-
-        let btc_amount = LiquidBtc(Amount::from_btc(2.5).unwrap());
-
-        let usdt_amount = rate.sell_quote(btc_amount).unwrap();
-
-        assert_eq!(usdt_amount, LiquidUsdt::try_from(48_283.80).unwrap())
-    }
-
-    #[test]
     fn buy_quote() {
         let rate = Rate {
             ask: LiquidUsdt::try_from(19_313.52).unwrap(),
@@ -149,6 +144,19 @@ mod tests {
         let usdt_amount = rate.buy_quote(btc_amount).unwrap();
 
         assert_eq!(usdt_amount, LiquidUsdt::try_from(48_033.80).unwrap())
+    }
+
+    #[test]
+    fn sell_base() {
+        let rate = Rate {
+            ask: LiquidUsdt::try_from(19_313.52).unwrap(),
+            bid: LiquidUsdt::try_from(19_213.52).unwrap(),
+        };
+
+        let usdt_amount = LiquidUsdt::from_str_in_dollar("9656.76").unwrap();
+        let btc_amount = rate.sell_base(usdt_amount).unwrap();
+
+        assert_eq!(btc_amount, LiquidBtc(Amount::from_btc(0.5).unwrap()))
     }
 
     #[test]

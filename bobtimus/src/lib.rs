@@ -40,7 +40,7 @@ pub struct Bobtimus<R, RS> {
 pub struct CreateSwapPayload {
     pub alice_inputs: Vec<AliceInput>,
     pub address: Address,
-    pub btc_amount: LiquidBtc,
+    pub amount: u64,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Copy)]
@@ -60,13 +60,14 @@ where
         &mut self,
         payload: CreateSwapPayload,
     ) -> Result<Transaction> {
+        let usdt_amount = LiquidUsdt::from_satodollar(payload.amount);
         let latest_rate = self.rate_service.latest_rate();
-        let usdt_amount = latest_rate.sell_quote(payload.btc_amount)?;
+        let btc_amount = latest_rate.sell_base(usdt_amount)?;
 
         let transaction = self
             .swap_transaction(
                 (self.usdt_asset_id, usdt_amount.into()),
-                (self.btc_asset_id, payload.btc_amount.into()),
+                (self.btc_asset_id, btc_amount.into()),
                 payload.alice_inputs,
                 payload.address,
                 self.btc_asset_id,
@@ -82,12 +83,13 @@ where
         &mut self,
         payload: CreateSwapPayload,
     ) -> Result<Transaction> {
+        let btc_amount = Amount::from_sat(payload.amount);
         let latest_rate = self.rate_service.latest_rate();
-        let usdt_amount = latest_rate.buy_quote(payload.btc_amount)?;
+        let usdt_amount = latest_rate.buy_quote(btc_amount.into())?;
 
         let transaction = self
             .swap_transaction(
-                (self.btc_asset_id, payload.btc_amount.into()),
+                (self.btc_asset_id, btc_amount),
                 (self.usdt_asset_id, usdt_amount.into()),
                 payload.alice_inputs,
                 payload.address,
@@ -305,7 +307,7 @@ mod tests {
         let have_asset_id_bob = client.issueasset(100_000.0, 0.0, true).await.unwrap().asset;
 
         let rate_service = fixed_rate::Service::new();
-        let redeem_amount_bob = LiquidBtc::from(Amount::ONE_BTC);
+        let redeem_amount_bob = Amount::ONE_BTC;
 
         let (
             fund_address_alice,
@@ -318,7 +320,7 @@ mod tests {
         let fund_alice_txid = client
             .send_asset_to_address(
                 &fund_address_alice,
-                Amount::from(redeem_amount_bob) + Amount::ONE_BTC,
+                redeem_amount_bob + Amount::ONE_BTC,
                 Some(have_asset_id_alice),
             )
             .await
@@ -367,7 +369,7 @@ mod tests {
                     blinding_key: fund_blinding_sk_alice,
                 }],
                 address: final_address_alice,
-                btc_amount: redeem_amount_bob,
+                amount: redeem_amount_bob.as_sat(),
             })
             .await
             .unwrap();
@@ -415,8 +417,7 @@ mod tests {
 
         let error = 0.0001;
         assert!(utxos.iter().any(
-            |utxo| (utxo.amount - Amount::from(redeem_amount_bob).as_btc()).abs() < error
-                && utxo.spendable
+            |utxo| (utxo.amount - redeem_amount_bob.as_btc()).abs() < error && utxo.spendable
         ));
     }
 
@@ -436,12 +437,8 @@ mod tests {
         let have_asset_id_alice = client.issueasset(100_000.0, 0.0, true).await.unwrap().asset;
         let have_asset_id_bob = client.get_bitcoin_asset_id().await.unwrap();
 
-        let mut rate_service = fixed_rate::Service::new();
-        let sell_amount_bob = LiquidBtc::from(Amount::ONE_BTC);
-        let redeem_amount_bob = rate_service
-            .latest_rate()
-            .sell_quote(sell_amount_bob)
-            .unwrap();
+        let rate_service = fixed_rate::Service::new();
+        let redeem_amount_bob = LiquidUsdt::from_str_in_dollar("20000.0").unwrap();
 
         let (
             fund_address_alice,
@@ -454,7 +451,7 @@ mod tests {
         let fund_alice_txid = client
             .send_asset_to_address(
                 &fund_address_alice,
-                Amount::from(redeem_amount_bob) + Amount::from_btc(10_000.0).unwrap(),
+                Amount::from_btc(10_000.0).unwrap() + redeem_amount_bob.into(),
                 Some(have_asset_id_alice),
             )
             .await
@@ -491,7 +488,7 @@ mod tests {
                     blinding_key: fund_blinding_sk_alice,
                 }],
                 address: final_address_alice,
-                btc_amount: sell_amount_bob,
+                amount: redeem_amount_bob.as_satodollar(),
             })
             .await
             .unwrap();
