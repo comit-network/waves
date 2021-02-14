@@ -12,7 +12,15 @@ export async function fundAddress(address: string): Promise<any> {
 }
 
 export async function postSellPayload(payload: CreateSwapPayload) {
-    let res = await fetch("/api/swap/lbtc-lusdt/sell", {
+    return await postPayload(payload, "sell");
+}
+
+export async function postBuyPayload(payload: CreateSwapPayload) {
+    return await postPayload(payload, "buy");
+}
+
+async function postPayload(payload: CreateSwapPayload, path: string) {
+    let res = await fetch(`/api/swap/lbtc-lusdt/${path}`, {
         method: "POST",
         headers: {
             "Content-Type": "application/json",

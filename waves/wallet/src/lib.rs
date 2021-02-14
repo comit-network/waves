@@ -110,6 +110,21 @@ pub async fn withdraw_everything_to(name: String, address: String) -> Result<Str
     Ok(txid.to_string())
 }
 
+/// Constructs a new [`CreateSwapPayload`] with the given USDt amount.
+///
+/// This will select UTXOs from the wallet to cover the given amount.
+#[wasm_bindgen]
+pub async fn make_create_buy_swap_payload(
+    wallet_name: String,
+    usdt: String,
+) -> Result<JsValue, JsValue> {
+    let payload = map_err_from_anyhow!(
+        wallet::make_create_buy_swap_payload(wallet_name, &LOADED_WALLET, usdt).await
+    )?;
+
+    Ok(JsValue::from_serde(&payload).unwrap_throw())
+}
+
 /// Constructs a new [`CreateSwapPayload`] with the given Bitcoin amount.
 ///
 /// This will select UTXOs from the wallet to cover the given amount.

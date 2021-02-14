@@ -6,7 +6,7 @@ import { useSSE } from "react-hooks-sse";
 import { Route, Switch, useHistory, useParams } from "react-router-dom";
 import useSWR from "swr";
 import "./App.css";
-import { postSellPayload } from "./Bobtimus";
+import { postBuyPayload, postSellPayload } from "./Bobtimus";
 import calculateBetaAmount, { getDirection } from "./calculateBetaAmount";
 import AssetSelector from "./components/AssetSelector";
 import COMIT from "./components/comit_logo_spellout_opacity_50.svg";
@@ -16,7 +16,14 @@ import CreateWalletDrawer from "./CreateWalletDrawer";
 import UnlockWalletDrawer from "./UnlockWalletDrawer";
 import WalletBalances from "./WalletBalances";
 import WalletDrawer from "./WalletDrawer";
-import { extractTrade, getBalances, getWalletStatus, makeCreateSellSwapPayload, Trade } from "./wasmProxy";
+import {
+    extractTrade,
+    getBalances,
+    getWalletStatus,
+    makeCreateBuySwapPayload,
+    makeCreateSellSwapPayload,
+    Trade,
+} from "./wasmProxy";
 
 export enum Asset {
     LBTC = "L-BTC",
@@ -216,8 +223,15 @@ function App() {
 
     let { run: makeNewSwap, isLoading: isCreatingNewSwap } = useAsync({
         deferFn: async () => {
-            let payload = await makeCreateSellSwapPayload(state.alpha.amount.toString());
-            let tx = await postSellPayload(payload);
+            let payload;
+            let tx;
+            if (state.alpha.type === Asset.LBTC) {
+                payload = await makeCreateSellSwapPayload(state.alpha.amount.toString());
+                tx = await postSellPayload(payload);
+            } else {
+                payload = await makeCreateBuySwapPayload(state.alpha.amount.toString());
+                tx = await postBuyPayload(payload);
+            }
 
             let trade = await extractTrade(tx);
 
@@ -297,6 +311,7 @@ function App() {
                                                         betaAmount,
                                                     },
                                                 })}
+                                            dataCy="exchange-asset-types-button"
                                         />
                                     </Box>
                                 </Center>

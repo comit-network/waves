@@ -1,18 +1,23 @@
-use crate::wallet::{
-    avg_vbytes, coin_selection, coin_selection::coin_select, current, get_txouts,
-    CreateSwapPayload, SwapUtxo, Wallet, NATIVE_ASSET_ID,
+use crate::{
+    constants::USDT_ASSET_ID,
+    wallet::{
+        coin_selection, coin_selection::coin_select, current, get_txouts, CreateSwapPayload,
+        SwapUtxo, Wallet,
+    },
 };
 use anyhow::{Context, Result};
 use bdk::bitcoin::{Amount, Denomination};
 use elements::{secp256k1::SECP256K1, OutPoint};
 use futures::lock::Mutex;
 
-pub async fn make_create_sell_swap_payload(
+pub async fn make_create_buy_swap_payload(
     name: String,
     current_wallet: &Mutex<Option<Wallet>>,
-    btc: String,
+    usdt: String,
 ) -> Result<CreateSwapPayload> {
-    let btc = Amount::from_str_in(&btc, Denomination::Bitcoin)
+    // TODO: Extract module `bobtimus::amounts` into a shared library
+    // so that we can model L-USDt properly here
+    let usdt = Amount::from_str_in(&usdt, Denomination::Bitcoin)
         .context("failed to parse amount from string")?;
 
     let wallet = current(&name, current_wallet).await?;
@@ -28,7 +33,7 @@ pub async fn make_create_sell_swap_payload(
                 };
                 let candidate_asset = unblinded_txout.asset;
 
-                if candidate_asset == *NATIVE_ASSET_ID {
+                if candidate_asset == *USDT_ASSET_ID {
                     Some(coin_selection::Utxo {
                         outpoint,
                         value: unblinded_txout.value,
@@ -52,13 +57,11 @@ pub async fn make_create_sell_swap_payload(
     })
     .await?;
 
-    // Bob currently hardcodes a fee-rate of 1 sat / vbyte, hence there is no need for us to perform fee estimation.
-    // Later on, both parties should probably agree on a block-target and use the same estimation service.
-    let bobs_fee_rate = Amount::from_sat(1);
-    let fee_offset = calculate_fee_offset(bobs_fee_rate);
+    log::debug!("{:?}", utxos);
 
-    let output = coin_select(utxos, btc, bobs_fee_rate.as_sat() as f32, fee_offset)
-        .context("failed to select coins")?;
+    let output = coin_select(utxos, usdt, 0.0, Amount::ZERO).context("failed to select coins")?;
+
+    log::debug!("coin select output: {:?}", output);
 
     Ok(CreateSwapPayload {
         address: wallet.get_address(),
@@ -72,17 +75,4 @@ pub async fn make_create_sell_swap_payload(
             .collect(),
         amount: output.target_amount,
     })
-}
-
-/// Calculate the fee offset required for the coin selection algorithm.
-///
-/// We are calculating this fee offset here so that we select enough coins to pay for the asset + the fee.
-fn calculate_fee_offset(fee_sats_per_vbyte: Amount) -> Amount {
-    let bobs_outputs = 2; // bob will create two outputs for himself (receive + change)
-    let our_output = 1; // we have one additional output (the change output is priced in by the coin-selection algorithm)
-
-    let fee_offset =
-        ((bobs_outputs + our_output) * avg_vbytes::OUTPUT) * fee_sats_per_vbyte.as_sat();
-
-    Amount::from_sat(fee_offset)
 }
