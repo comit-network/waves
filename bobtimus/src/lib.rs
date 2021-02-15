@@ -415,10 +415,12 @@ mod tests {
             .await
             .unwrap();
 
-        let error = 0.0001;
-        assert!(utxos.iter().any(
-            |utxo| (utxo.amount - redeem_amount_bob.as_btc()).abs() < error && utxo.spendable
-        ));
+        let fee = transaction.fee_in(have_asset_id_bob);
+        assert!(utxos.iter().any(|utxo| (utxo.amount
+            - (redeem_amount_bob.as_btc() - Amount::from_sat(fee).as_btc()))
+        .abs()
+            < f64::EPSILON
+            && utxo.spendable));
     }
 
     #[tokio::test]
@@ -534,9 +536,8 @@ mod tests {
             .await
             .unwrap();
 
-        let error = 0.0001;
         assert!(utxos.iter().any(
-            |utxo| (utxo.amount - Amount::from(redeem_amount_bob).as_btc()).abs() < error
+            |utxo| (utxo.amount - Amount::from(redeem_amount_bob).as_btc()).abs() < f64::EPSILON
                 && utxo.spendable
         ));
     }
