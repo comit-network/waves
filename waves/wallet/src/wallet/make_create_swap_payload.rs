@@ -1,18 +1,54 @@
-use crate::wallet::{
-    avg_vbytes, coin_selection, coin_selection::coin_select, current, get_txouts,
-    CreateSwapPayload, SwapUtxo, Wallet, NATIVE_ASSET_ID,
+use crate::{
+    constants::{NATIVE_ASSET_ID, USDT_ASSET_ID},
+    wallet::{
+        coin_selection, coin_selection::coin_select, current, get_txouts, CreateSwapPayload,
+        SwapUtxo, Wallet,
+    },
 };
 use anyhow::{Context, Result};
 use bdk::bitcoin::{Amount, Denomination};
-use elements::{secp256k1::SECP256K1, OutPoint};
+use elements::{secp256k1::SECP256K1, AssetId, OutPoint};
 use futures::lock::Mutex;
+use swap::avg_vbytes;
 
-pub async fn make_create_sell_swap_payload(
+pub async fn make_buy_create_swap_payload(
     name: String,
     current_wallet: &Mutex<Option<Wallet>>,
-    btc: String,
+    sell_amount: String,
 ) -> Result<CreateSwapPayload> {
-    let btc = Amount::from_str_in(&btc, Denomination::Bitcoin)
+    make_create_swap_payload(
+        name,
+        current_wallet,
+        sell_amount,
+        *USDT_ASSET_ID,
+        *NATIVE_ASSET_ID,
+    )
+    .await
+}
+
+pub async fn make_sell_create_swap_payload(
+    name: String,
+    current_wallet: &Mutex<Option<Wallet>>,
+    sell_amount: String,
+) -> Result<CreateSwapPayload> {
+    make_create_swap_payload(
+        name,
+        current_wallet,
+        sell_amount,
+        *NATIVE_ASSET_ID,
+        *NATIVE_ASSET_ID,
+    )
+    .await
+}
+
+async fn make_create_swap_payload(
+    name: String,
+    current_wallet: &Mutex<Option<Wallet>>,
+    sell_amount: String,
+    sell_asset: AssetId,
+    fee_asset: AssetId,
+) -> Result<CreateSwapPayload> {
+    let sell_amount = Amount::from_str_in(&sell_amount, Denomination::Bitcoin)
         .context("failed to parse amount from string")?;
 
     let wallet = current(&name, current_wallet).await?;
@@ -28,7 +64,7 @@ pub async fn make_create_sell_swap_payload(
                 };
                 let candidate_asset = unblinded_txout.asset;
 
-                if candidate_asset == *NATIVE_ASSET_ID {
+                if candidate_asset == sell_asset {
                     Some(coin_selection::Utxo {
                         outpoint,
                         value: unblinded_txout.value,
@@ -52,13 +88,26 @@ pub async fn make_create_sell_swap_payload(
     })
     .await?;
 
-    // Bob currently hardcodes a fee-rate of 1 sat / vbyte, hence there is no need for us to perform fee estimation.
-    // Later on, both parties should probably agree on a block-target and use the same estimation service.
-    let bobs_fee_rate = Amount::from_sat(1);
-    let fee_offset = calculate_fee_offset(bobs_fee_rate);
+    let (bobs_fee_rate, fee_offset) = if fee_asset == sell_asset {
+        // Bob currently hardcodes a fee-rate of 1 sat / vbyte, hence
+        // there is no need for us to perform fee estimation. Later
+        // on, both parties should probably agree on a block-target
+        // and use the same estimation service.
+        let bobs_fee_rate = Amount::from_sat(1);
+        let fee_offset = calculate_fee_offset(bobs_fee_rate);
 
-    let output = coin_select(utxos, btc, bobs_fee_rate.as_sat() as f32, fee_offset)
-        .context("failed to select coins")?;
+        (bobs_fee_rate, fee_offset)
+    } else {
+        (Amount::ZERO, Amount::ZERO)
+    };
+
+    let output = coin_select(
+        utxos,
+        sell_amount,
+        bobs_fee_rate.as_sat() as f32,
+        fee_offset,
+    )
+    .context("failed to select coins")?;
 
     Ok(CreateSwapPayload {
         address: wallet.get_address(),

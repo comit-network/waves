@@ -20,8 +20,8 @@ import {
     extractTrade,
     getBalances,
     getWalletStatus,
-    makeCreateBuySwapPayload,
-    makeCreateSellSwapPayload,
+    makeBuyCreateSwapPayload,
+    makeSellCreateSwapPayload,
     Trade,
 } from "./wasmProxy";
 
@@ -226,10 +226,10 @@ function App() {
             let payload;
             let tx;
             if (state.alpha.type === Asset.LBTC) {
-                payload = await makeCreateSellSwapPayload(state.alpha.amount.toString());
+                payload = await makeSellCreateSwapPayload(state.alpha.amount.toString());
                 tx = await postSellPayload(payload);
             } else {
-                payload = await makeCreateBuySwapPayload(state.alpha.amount.toString());
+                payload = await makeBuyCreateSwapPayload(state.alpha.amount.toString());
                 tx = await postBuyPayload(payload);
             }
 
