@@ -157,7 +157,7 @@ impl Client {
     ///
     /// If `should_lock` is set to true, all selected UTXOs will be
     /// exempt from being chosen again unless explicitly unlocked or
-    /// after the elementsd node has been restarded.
+    /// after the elementsd node has been restarted.
     pub async fn select_inputs_for(
         &self,
         asset: AssetId,
