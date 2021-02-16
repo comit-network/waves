@@ -1,5 +1,5 @@
 use anyhow::{anyhow, Result};
-use elements_fun::bitcoin::{Amount, Denomination};
+use elements::bitcoin::{Amount, Denomination};
 use rust_decimal::{prelude::ToPrimitive, Decimal};
 use serde::{Deserialize, Serialize};
 use std::{convert::TryFrom, fmt::Debug};
@@ -47,9 +47,7 @@ impl Rate {
 }
 
 #[derive(Clone, Copy, PartialEq, Serialize, Default)]
-pub struct LiquidUsdt(
-    #[serde(with = "::elements_fun::bitcoin::util::amount::serde::as_sat")] Amount,
-);
+pub struct LiquidUsdt(#[serde(with = "::elements::bitcoin::util::amount::serde::as_sat")] Amount);
 
 impl LiquidUsdt {
     /// Create an amount with satodollar precision and the given number of satodollars.
@@ -69,7 +67,7 @@ impl LiquidUsdt {
     }
 
     pub fn from_str_in_dollar(s: &str) -> Result<Self> {
-        let amount = Amount::from_str_in(s, elements_fun::bitcoin::Denomination::Bitcoin)?;
+        let amount = Amount::from_str_in(s, elements::bitcoin::Denomination::Bitcoin)?;
 
         Ok(Self(amount))
     }
@@ -107,9 +105,7 @@ impl TryFrom<f64> for LiquidUsdt {
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize)]
-pub struct LiquidBtc(
-    #[serde(with = "::elements_fun::bitcoin::util::amount::serde::as_sat")] Amount,
-);
+pub struct LiquidBtc(#[serde(with = "::elements::bitcoin::util::amount::serde::as_sat")] Amount);
 
 impl From<Amount> for LiquidBtc {
     fn from(amount: Amount) -> Self {

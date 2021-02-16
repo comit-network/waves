@@ -1,14 +1,15 @@
 #![allow(dead_code)]
 
+use crate::wallet::avg_vbytes;
 use anyhow::{bail, Result};
 use bdk::{
-    bitcoin::Amount,
+    bitcoin::{Amount, Denomination},
     database::{BatchOperations, Database},
     wallet::coin_selection::{
         BranchAndBoundCoinSelection, CoinSelectionAlgorithm, CoinSelectionResult,
     },
 };
-use elements_fun::{bitcoin::Denomination, transaction, AssetId, OutPoint, Script};
+use elements::{AssetId, OutPoint, Script};
 
 /// Select a subset of `utxos` to cover the `target` amount.
 ///
@@ -37,7 +38,7 @@ pub fn coin_select(
         .collect();
 
     // a change is a regular output
-    let size_of_change = transaction::avg_vbytes::OUTPUT;
+    let size_of_change = avg_vbytes::OUTPUT;
 
     let CoinSelectionResult {
         selected: selected_utxos,
@@ -139,11 +140,9 @@ fn max_satisfaction_weight(script_pubkey: &Script) -> Option<usize> {
 
 #[cfg(test)]
 mod tests {
-    use std::str::FromStr;
-
-    use elements_fun::{Address, Txid};
-
     use super::*;
+    use elements::{Address, Txid};
+    use std::str::FromStr;
 
     #[test]
     fn trivial_coin_selection() {

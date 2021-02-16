@@ -1,2 +1,6 @@
 [workspace]
-members = [ "elements-harness", "swap", "elements-fun", "elements-fun/fuzz", "waves/wallet", "bobtimus" ]
+members = [ "elements-harness", "swap", "waves/wallet", "bobtimus" ]
+
+[patch.crates-io]
+# Until https://github.com/ElementsProject/rust-elements/pull/70/ is merged
+elements = { git = "https://github.com/luckysori/rust-elements", branch = "upstreaming-fun" }

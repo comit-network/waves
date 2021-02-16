@@ -1,6 +1,6 @@
 use crate::wallet::{current, Wallet};
 use anyhow::Result;
-use elements_fun::Address;
+use elements::Address;
 use futures::lock::Mutex;
 
 pub async fn get_address(name: String, current_wallet: &Mutex<Option<Wallet>>) -> Result<Address> {

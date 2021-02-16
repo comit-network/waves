@@ -1,6 +1,6 @@
 use crate::{cache_storage::CacheStorage, constants::ESPLORA_API_URL};
 use anyhow::{anyhow, bail, Context, Result};
-use elements_fun::{
+use elements::{
     encode::{deserialize, serialize_hex},
     Address, BlockHash, Transaction, Txid,
 };

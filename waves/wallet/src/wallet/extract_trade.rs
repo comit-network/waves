@@ -3,7 +3,9 @@ use crate::{
     wallet::{compute_balances, current, get_txouts, Wallet},
 };
 use anyhow::{bail, Context, Result};
-use elements_fun::{encode::deserialize, secp256k1::SECP256K1, AssetId, Transaction, TxOut};
+use elements::{
+    confidential, encode::deserialize, secp256k1::SECP256K1, AssetId, Transaction, TxOut,
+};
 use futures::lock::Mutex;
 use itertools::Itertools;
 use rust_decimal::Decimal;
@@ -47,13 +49,20 @@ pub async fn extract_trade(
                     }
 
                     Ok(match txout {
-                        TxOut::Explicit(txout) => Some((txout.asset.0, txout.value.0)),
-                        TxOut::Confidential(confidential) => {
+                        TxOut {
+                            asset: confidential::Asset::Explicit(asset),
+                            value: confidential::Value::Explicit(value),
+                            ..
+                        } => Some((*asset, *value)),
+                        txout => {
+                            let confidential = match txout.to_confidential() {
+                                Some(confidential) => confidential,
+                                None => return Ok(None),
+                            };
                             let unblinded = confidential.unblind(SECP256K1, blinding_key)?;
 
                             Some((unblinded.asset, unblinded.value))
                         }
-                        TxOut::Null(_) => None,
                     })
                 })
                 .find_map(|res| res.transpose())
@@ -74,22 +83,33 @@ pub async fn extract_trade(
         .output
         .iter()
         .filter_map(|txout| match txout {
-            TxOut::Explicit(txout) if txout.script_pubkey == our_address.script_pubkey() => {
-                Some((txout.asset.0, txout.value.0))
-            }
-            TxOut::Confidential(confidential) => {
-                match confidential.unblind(SECP256K1, blinding_key) {
-                    Ok(unblinded) => Some((unblinded.asset, unblinded.value)),
-                    _ => None,
-                }
-            }
-            TxOut::Explicit(_) => {
+            TxOut {
+                asset: confidential::Asset::Explicit(asset),
+                value: confidential::Value::Explicit(value),
+                script_pubkey,
+                ..
+            } if script_pubkey == &our_address.script_pubkey() => Some((*asset, *value)),
+            TxOut {
+                asset: confidential::Asset::Explicit(_),
+                value: confidential::Value::Explicit(_),
+                ..
+            } => {
                 log::debug!(
                     "ignoring explicit outputs that do not pay to our address, including fees"
                 );
                 None
             }
-            TxOut::Null(_) => None,
+            txout => {
+                let confidential = match txout.to_confidential() {
+                    Some(confidential) => confidential,
+                    None => return None,
+                };
+
+                match confidential.unblind(SECP256K1, blinding_key) {
+                    Ok(unblinded) => Some((unblinded.asset, unblinded.value)),
+                    _ => None,
+                }
+            }
         })
         .into_grouping_map()
         .fold(0, |sum, _asset, value| sum + value)

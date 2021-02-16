@@ -1,6 +1,6 @@
 use crate::{problem, Bobtimus, CreateSwapPayload, LatestRate, RateSubscription};
 use anyhow::Context;
-use elements_fun::{
+use elements::{
     encode::serialize_hex,
     secp256k1::rand::{CryptoRng, RngCore},
 };

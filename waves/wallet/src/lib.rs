@@ -157,7 +157,7 @@ pub async fn extract_trade(wallet_name: String, transaction: String) -> Result<J
 
 #[cfg(test)]
 mod constants_tests {
-    use elements_fun::{AddressParams, AssetId};
+    use elements::{AddressParams, AssetId};
     use std::str::FromStr;
 
     #[test]
@@ -174,11 +174,11 @@ mod constants_tests {
     fn assert_native_asset_id_constant() {
         match option_env!("NATIVE_ASSET_ID") {
             Some(native_asset_id) => assert_eq!(
-                crate::constants::NATIVE_ASSET_ID,
+                *crate::constants::NATIVE_ASSET_ID,
                 AssetId::from_str(native_asset_id).unwrap()
             ),
             None => assert_eq!(
-                crate::constants::NATIVE_ASSET_ID,
+                *crate::constants::NATIVE_ASSET_ID,
                 AssetId::from_str(
                     "6f0279e9ed041c3d710a9f57d0c02928416460c4b722ae3457a11eec381c526d"
                 )
@@ -191,11 +191,11 @@ mod constants_tests {
     fn assert_usdt_asset_id_constant() {
         match option_env!("USDT_ASSET_ID") {
             Some(usdt_asset_id) => assert_eq!(
-                crate::constants::USDT_ASSET_ID,
+                *crate::constants::USDT_ASSET_ID,
                 AssetId::from_str(usdt_asset_id).unwrap()
             ),
             None => assert_eq!(
-                crate::constants::USDT_ASSET_ID,
+                *crate::constants::USDT_ASSET_ID,
                 AssetId::from_str(
                     "ce091c998b83c78bb71a632313ba3760f1763d9cfcffae02258ffa9865a37bd2"
                 )

@@ -1,8 +1,11 @@
 use anyhow::{bail, Context, Result};
-use elements_fun::{
-    bitcoin::Amount, bitcoin_hashes::hex::FromHex, encode::serialize_hex, secp256k1::SecretKey,
-    Address, AssetId, ExplicitAsset, ExplicitTxOut, ExplicitValue, OutPoint, Transaction, TxOut,
-    Txid,
+use bitcoin_hashes::hex::FromHex;
+use elements::{
+    bitcoin::Amount,
+    confidential::{Asset, Nonce, Value},
+    encode::serialize_hex,
+    secp256k1::SecretKey,
+    Address, AssetId, OutPoint, Transaction, TxOut, TxOutWitness, Txid,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -129,7 +132,7 @@ impl Client {
 
     pub async fn get_raw_transaction(&self, txid: Txid) -> Result<Transaction> {
         let tx_hex = self.getrawtransaction(txid).await?;
-        let tx = elements_fun::encode::deserialize(&Vec::<u8>::from_hex(&tx_hex).unwrap())?;
+        let tx = elements::encode::deserialize(&Vec::<u8>::from_hex(&tx_hex).unwrap())?;
 
         Ok(tx)
     }
@@ -143,7 +146,7 @@ impl Client {
     pub async fn unblind_raw_transaction(&self, tx: &Transaction) -> Result<Transaction> {
         let tx_hex = serialize_hex(tx);
         let res = self.unblindrawtransaction(tx_hex).await?;
-        let tx = elements_fun::encode::deserialize(&Vec::<u8>::from_hex(&res.hex).unwrap())?;
+        let tx = elements::encode::deserialize(&Vec::<u8>::from_hex(&res.hex).unwrap())?;
 
         Ok(tx)
     }
@@ -163,12 +166,13 @@ impl Client {
     ) -> Result<Vec<(OutPoint, TxOut)>> {
         let placeholder_address = self.getnewaddress().await.unwrap();
         let tx = Transaction {
-            output: vec![TxOut::Explicit(ExplicitTxOut {
-                asset: ExplicitAsset(asset),
-                value: ExplicitValue(amount.as_sat()),
+            output: vec![TxOut {
+                asset: Asset::Explicit(asset),
+                value: Value::Explicit(amount.as_sat()),
+                nonce: Nonce::Null,
                 script_pubkey: placeholder_address.script_pubkey(),
-                nonce: None,
-            })],
+                witness: TxOutWitness::default(),
+            }],
             ..Default::default()
         };
 
@@ -179,7 +183,7 @@ impl Client {
             .context("cannot fund raw transaction")?;
 
         let tx: Transaction =
-            elements_fun::encode::deserialize(&Vec::<u8>::from_hex(&res.hex).unwrap())
+            elements::encode::deserialize(&Vec::<u8>::from_hex(&res.hex).unwrap())
                 .context("cannot deserialize funded transaction")?;
 
         let mut utxos = Vec::new();
@@ -196,10 +200,9 @@ impl Client {
                 .await
                 .context("cannot unblind raw source transaction")?;
             if unblinded_raw_tx.output[source_vout as usize]
-                .as_explicit()
+                .to_explicit()
                 .expect("explicit output")
                 .asset
-                .0
                 == asset
             {
                 let source_txout = source_tx.output[input.previous_output.vout as usize].clone();
@@ -225,7 +228,7 @@ impl Client {
     pub async fn sign_raw_transaction(&self, tx: &Transaction) -> Result<Transaction> {
         let tx_hex = serialize_hex(tx);
         let res = self.signrawtransactionwithwallet(tx_hex).await?;
-        let tx = elements_fun::encode::deserialize(&Vec::<u8>::from_hex(&res.hex).unwrap())?;
+        let tx = elements::encode::deserialize(&Vec::<u8>::from_hex(&res.hex).unwrap())?;
 
         Ok(tx)
     }

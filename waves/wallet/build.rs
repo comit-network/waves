@@ -1,5 +1,5 @@
 use anyhow::{bail, Context, Result};
-use elements_fun::AssetId;
+use elements::AssetId;
 use std::{env, fs, path::Path};
 
 fn main() -> Result<()> {
@@ -25,8 +25,8 @@ fn main() -> Result<()> {
         .unwrap_or("https://blockstream.info/liquid/api");
 
     let address_params = match option_env!("CHAIN") {
-        None | Some("LIQUID") => "&elements_fun::AddressParams::LIQUID",
-        Some("ELEMENTS") => "&elements_fun::AddressParams::ELEMENTS",
+        None | Some("LIQUID") => "&elements::AddressParams::LIQUID",
+        Some("ELEMENTS") => "&elements::AddressParams::ELEMENTS",
         Some(chain) => bail!("unsupported elements chain {}", chain),
     };
 
@@ -41,16 +41,18 @@ fn main() -> Result<()> {
         &constants_rs,
         &format!(
             r#"
+use conquer_once::Lazy;
+
 pub const NATIVE_ASSET_TICKER: &str = "{}";
-pub const NATIVE_ASSET_ID: elements_fun::AssetId = elements_fun::AssetId::from_bytes({:?});
-pub const USDT_ASSET_ID: elements_fun::AssetId = elements_fun::AssetId::from_bytes({:?});
+pub static NATIVE_ASSET_ID: Lazy<elements::AssetId> = Lazy::new(|| elements::AssetId::from_slice(&{:?}).unwrap());
+pub static USDT_ASSET_ID: Lazy<elements::AssetId> = Lazy::new(|| elements::AssetId::from_slice(&{:?}).unwrap());
 pub const ESPLORA_API_URL: &str = "{}";
-pub const ADDRESS_PARAMS: &elements_fun::AddressParams = {};
+pub const ADDRESS_PARAMS: &elements::AddressParams = {};
 pub const DEFAULT_SAT_PER_VBYTE: f32 = {:.4};
 "#,
             native_asset_ticker,
-            native_asset_id.into_bytes(),
-            usdt_asset_id.into_bytes(),
+            native_asset_id.into_inner().0,
+            usdt_asset_id.into_inner().0,
             esplora_api_url,
             address_params,
             rate

@@ -9,12 +9,10 @@ use aes_gcm_siv::{
     Aes256GcmSiv,
 };
 use anyhow::{bail, Context, Result};
-use elements_fun::{
+use elements::{
     bitcoin,
-    bitcoin::{
-        secp256k1::{SecretKey, SECP256K1},
-        Amount,
-    },
+    bitcoin::secp256k1::{SecretKey, SECP256K1},
+    confidential,
     secp256k1::{rand, PublicKey},
     Address, AssetId, OutPoint, TxOut,
 };
@@ -32,7 +30,6 @@ use std::{fmt, str};
 use wasm_bindgen::UnwrapThrowExt;
 
 pub use create_new::create_new;
-use elements_fun::bitcoin_hashes::core::convert::Infallible;
 pub use extract_trade::extract_trade;
 pub use get_address::get_address;
 pub use get_balances::get_balances;
@@ -40,6 +37,7 @@ pub use get_status::get_status;
 pub use load_existing::load_existing;
 pub use make_create_sell_swap_payload::make_create_sell_swap_payload;
 pub use sign_and_send_swap_transaction::sign_and_send_swap_transaction;
+use std::convert::Infallible;
 pub use unload_current::unload_current;
 pub use withdraw_everything_to::withdraw_everything_to;
 
@@ -270,8 +268,8 @@ impl fmt::Display for ListOfWallets {
 pub struct CreateSwapPayload {
     pub alice_inputs: Vec<SwapUtxo>,
     pub address: Address,
-    #[serde(with = "elements_fun::bitcoin::util::amount::serde::as_sat")]
-    pub btc_amount: Amount,
+    #[serde(with = "bdk::bitcoin::util::amount::serde::as_sat")]
+    pub btc_amount: bdk::bitcoin::Amount,
 }
 
 #[derive(Debug, serde::Serialize)]
@@ -308,8 +306,17 @@ fn compute_balances(wallet: &Wallet, txouts: &[TxOut]) -> Vec<BalanceEntry> {
     let grouped_txouts = txouts
         .iter()
         .filter_map(|utxo| match utxo {
-            TxOut::Explicit(explicit) => Some((explicit.asset.0, explicit.value.0)),
-            TxOut::Confidential(confidential) => {
+            TxOut {
+                asset: confidential::Asset::Explicit(asset),
+                value: confidential::Value::Explicit(value),
+                ..
+            } => Some((*asset, *value)),
+            txout => {
+                let confidential = match txout.to_confidential() {
+                    Some(confidential) => confidential,
+                    None => return None,
+                };
+
                 match confidential.unblind(SECP256K1, wallet.blinding_key()) {
                     Ok(unblinded_txout) => Some((unblinded_txout.asset, unblinded_txout.value)),
                     Err(e) => {
@@ -318,7 +325,6 @@ fn compute_balances(wallet: &Wallet, txouts: &[TxOut]) -> Vec<BalanceEntry> {
                     }
                 }
             }
-            TxOut::Null(_) => None,
         })
         .into_group_map();
 
@@ -336,6 +342,30 @@ fn compute_balances(wallet: &Wallet, txouts: &[TxOut]) -> Vec<BalanceEntry> {
             ))
         })
         .collect()
+}
+
+/// These constants have been reverse engineered through the following transactions:
+///
+/// https://blockstream.info/liquid/tx/a17f4063b3a5fdf46a7012c82390a337e9a0f921933dccfb8a40241b828702f2
+/// https://blockstream.info/liquid/tx/d12ff4e851816908810c7abc839dd5da2c54ad24b4b52800187bee47df96dd5c
+/// https://blockstream.info/liquid/tx/47e60a3bc5beed45a2cf9fb7a8d8969bab4121df98b0034fb0d44f6ed2d60c7d
+///
+/// This gives us the following set of linear equations:
+///
+/// - 1 in, 1 out, 1 fee = 1332
+/// - 1 in, 2 out, 1 fee = 2516
+/// - 2 in, 2 out, 1 fee = 2623
+///
+/// Which we can solve using wolfram alpha: https://www.wolframalpha.com/input/?i=1x+%2B+1y+%2B+1z+%3D+1332%2C+1x+%2B+2y+%2B+1z+%3D+2516%2C+2x+%2B+2y+%2B+1z+%3D+2623
+pub mod avg_vbytes {
+    pub const INPUT: u64 = 107;
+    pub const OUTPUT: u64 = 1184;
+    pub const FEE: u64 = 41;
+}
+
+/// Estimate the virtual size of a transaction based on the number of inputs and outputs.
+pub fn estimate_virtual_size(number_of_inputs: u64, number_of_outputs: u64) -> u64 {
+    number_of_inputs * avg_vbytes::INPUT + number_of_outputs * avg_vbytes::OUTPUT + avg_vbytes::FEE
 }
 
 #[cfg(all(test, target_arch = "wasm32"))]

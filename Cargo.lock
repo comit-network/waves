@@ -56,18 +56,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "afl"
-version = "0.3.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b1cb95efcc9c56c128693f3c2fd2c7cef51237b2aa3e65f4ac6a391b8ac2cec8"
-dependencies = [
- "cc",
- "clap",
- "rustc_version",
- "xdg",
-]
-
-[[package]]
 name = "aho-corasick"
 version = "0.7.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -90,12 +78,6 @@ name = "anyhow"
 version = "1.0.35"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2c0df63cb2955042487fad3aefd2c6e3ae7389ac5dc1beb28921de0b69f779d4"
-
-[[package]]
-name = "arbitrary"
-version = "0.4.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "db55d72333851e17d572bec876e390cd3b11eb1ef53ae821dd9f3b653d2b4569"
 
 [[package]]
 name = "async-trait"
@@ -155,8 +137,8 @@ dependencies = [
  "log",
  "miniscript",
  "rand 0.7.3",
- "serde",
- "serde_json",
+ "serde 1.0.118",
+ "serde_json 1.0.60",
  "tokio",
 ]
 
@@ -185,7 +167,7 @@ dependencies = [
  "bech32",
  "bitcoin_hashes 0.9.4",
  "secp256k1",
- "serde",
+ "serde 1.0.118",
 ]
 
 [[package]]
@@ -200,7 +182,7 @@ version = "0.9.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0aaf87b776808e26ae93289bc7d025092b6d909c193f0cdee0b3a86e7bd3c776"
 dependencies = [
- "serde",
+ "serde 1.0.118",
 ]
 
 [[package]]
@@ -245,7 +227,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-trait",
- "elements-fun",
+ "elements",
  "elements-harness",
  "env_logger",
  "futures",
@@ -257,8 +239,8 @@ dependencies = [
  "reqwest",
  "rust-embed",
  "rust_decimal",
- "serde",
- "serde_json",
+ "serde 1.0.118",
+ "serde_json 1.0.60",
  "sha2",
  "structopt",
  "swap",
@@ -461,35 +443,28 @@ dependencies = [
 ]
 
 [[package]]
+name = "dtoa"
+version = "0.4.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "88d7ed2934d741c6b37e33e3832298e8850b53fd2d2bea03873375596c7cea4e"
+
+[[package]]
 name = "either"
 version = "1.6.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e78d4f1cc4ae33bbfc157ed5d5a5ef3bc29227303d595861deb238fcec4e9457"
 
 [[package]]
-name = "elements-fun"
-version = "0.1.0"
+name = "elements"
+version = "0.15.0"
+source = "git+https://github.com/luckysori/rust-elements?branch=upstreaming-fun#ef19ce26a07ddd13b4fe128d934586ec54d1dfa7"
 dependencies = [
  "bitcoin",
  "bitcoin_hashes 0.9.4",
- "hex",
- "libc",
- "rand 0.6.5",
- "ryu 0.2.8",
- "secp256k1",
  "secp256k1-zkp",
- "serde",
- "serde_json",
+ "serde 1.0.118",
+ "serde_json 0.9.10",
  "slip21",
-]
-
-[[package]]
-name = "elements-fuzz"
-version = "0.0.1"
-dependencies = [
- "afl",
- "elements-fun",
- "honggfuzz",
 ]
 
 [[package]]
@@ -498,7 +473,8 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-trait",
- "elements-fun",
+ "bitcoin_hashes 0.9.4",
+ "elements",
  "futures",
  "hex",
  "hmac 0.10.1",
@@ -506,8 +482,8 @@ dependencies = [
  "log",
  "rand 0.7.3",
  "reqwest",
- "serde",
- "serde_json",
+ "serde 1.0.118",
+ "serde_json 1.0.60",
  "sha2",
  "testcontainers",
  "thiserror",
@@ -824,17 +800,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "honggfuzz"
-version = "0.5.51"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6f085725a5828d7e959f014f624773094dfe20acc91be310ef106923c30594bc"
-dependencies = [
- "arbitrary",
- "lazy_static",
- "memmap",
-]
-
-[[package]]
 name = "http"
 version = "0.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -842,7 +807,7 @@ checksum = "84129d298a6d57d246960ff8eb831ca4af3f96d29e2e28848dae275408658e26"
 dependencies = [
  "bytes 0.5.6",
  "fnv",
- "itoa",
+ "itoa 0.4.6",
 ]
 
 [[package]]
@@ -852,8 +817,8 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5d8a118014b18349bb3a25d7a45bd7449bbdc74dfd5ee6cc63ff85fffd608e88"
 dependencies = [
  "http",
- "serde",
- "serde_json",
+ "serde 1.0.118",
+ "serde_json 1.0.60",
  "warp",
 ]
 
@@ -900,7 +865,7 @@ dependencies = [
  "http-body",
  "httparse",
  "httpdate",
- "itoa",
+ "itoa 0.4.6",
  "pin-project 1.0.2",
  "socket2",
  "tokio",
@@ -969,6 +934,12 @@ dependencies = [
 
 [[package]]
 name = "itoa"
+version = "0.3.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8324a32baf01e2ae060e9de58ed0bc2320c9a2833491ee36cd3b4c414de4db8c"
+
+[[package]]
+name = "itoa"
 version = "0.4.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "dc6f3ad7b9d11a0c00842ff8de1b60ee58661048eb8049ed33c73594f359d7e6"
@@ -991,8 +962,8 @@ dependencies = [
  "async-trait",
  "jsonrpc_client_macro",
  "reqwest",
- "serde",
- "serde_json",
+ "serde 1.0.118",
+ "serde_json 1.0.60",
  "url",
 ]
 
@@ -1038,16 +1009,6 @@ name = "memchr"
 version = "2.3.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0ee1c47aaa256ecabcaea351eae4a9b01ef39ed810004e298d2511ed284b1525"
-
-[[package]]
-name = "memmap"
-version = "0.7.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6585fd95e7bb50d6cc31e20d4cf9afb4e2ba16c5846fc76793f11218da9c475b"
-dependencies = [
- "libc",
- "winapi",
-]
 
 [[package]]
 name = "memory_units"
@@ -1128,6 +1089,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3f6bb902e437b6d86e03cce10a7e2af662292c5dfef23b65899ea3ac9354ad44"
 dependencies = [
  "winapi",
+]
+
+[[package]]
+name = "num-traits"
+version = "0.1.43"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "92e5113e9fd4cc14ded8e499429f396a20f98c772a47cc8622a736e1ec843c31"
+dependencies = [
+ "num-traits 0.2.14",
 ]
 
 [[package]]
@@ -1597,8 +1567,8 @@ dependencies = [
  "percent-encoding",
  "pin-project-lite",
  "rustls",
- "serde",
- "serde_json",
+ "serde 1.0.118",
+ "serde_json 1.0.60",
  "serde_urlencoded",
  "tokio",
  "tokio-native-tls",
@@ -1662,17 +1632,8 @@ version = "1.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c9e81662973c7a8d9663e64a0de4cd642b89a21d64966e3d99606efdc5fb0cc6"
 dependencies = [
- "num-traits",
- "serde",
-]
-
-[[package]]
-name = "rustc_version"
-version = "0.2.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "138e3e0acb6c9fb258b19b67cb8abd63c00679d2851805ea151465464fe9030a"
-dependencies = [
- "semver",
+ "num-traits 0.2.14",
+ "serde 1.0.118",
 ]
 
 [[package]]
@@ -1687,12 +1648,6 @@ dependencies = [
  "sct",
  "webpki",
 ]
-
-[[package]]
-name = "ryu"
-version = "0.2.8"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b96a9549dc8d48f2c283938303c4b5a77aa29bfbc5b54b084fb1630408899a8f"
 
 [[package]]
 name = "ryu"
@@ -1769,7 +1724,7 @@ dependencies = [
  "bitcoin_hashes 0.9.4",
  "rand 0.6.5",
  "secp256k1-sys",
- "serde",
+ "serde 1.0.118",
 ]
 
 [[package]]
@@ -1791,7 +1746,7 @@ dependencies = [
  "rand 0.6.5",
  "secp256k1",
  "secp256k1-zkp-sys",
- "serde",
+ "serde 1.0.118",
 ]
 
 [[package]]
@@ -1828,19 +1783,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "semver"
-version = "0.9.0"
+name = "serde"
+version = "0.9.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1d7eb9ef2c18661902cc47e535f9bc51b78acd254da71d375c2f6720d9a40403"
-dependencies = [
- "semver-parser",
-]
-
-[[package]]
-name = "semver-parser"
-version = "0.7.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "388a1df253eca08550bef6c72392cfe7c30914bf41df5269b68cbd6ff8f570a3"
+checksum = "34b623917345a631dc9608d5194cc206b3fe6c3554cd1c75b937e55e285254af"
 
 [[package]]
 name = "serde"
@@ -1864,13 +1810,25 @@ dependencies = [
 
 [[package]]
 name = "serde_json"
+version = "0.9.10"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ad8bcf487be7d2e15d3d543f04312de991d631cfe1b43ea0ade69e6a8a5b16a1"
+dependencies = [
+ "dtoa",
+ "itoa 0.3.4",
+ "num-traits 0.1.43",
+ "serde 0.9.15",
+]
+
+[[package]]
+name = "serde_json"
 version = "1.0.60"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1500e84d27fe482ed1dc791a56eddc2f230046a040fa908c08bda1d9fb615779"
 dependencies = [
- "itoa",
- "ryu 1.0.5",
- "serde",
+ "itoa 0.4.6",
+ "ryu",
+ "serde 1.0.118",
 ]
 
 [[package]]
@@ -1880,9 +1838,9 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "edfa57a7f8d9c1d260a549e7224100f6c43d43f9103e06dd8b4095a9b2b43ce9"
 dependencies = [
  "form_urlencoded",
- "itoa",
- "ryu 1.0.5",
- "serde",
+ "itoa 0.4.6",
+ "ryu",
+ "serde 1.0.118",
 ]
 
 [[package]]
@@ -1997,10 +1955,10 @@ name = "swap"
 version = "0.1.0"
 dependencies = [
  "anyhow",
- "elements-fun",
+ "elements",
  "elements-harness",
  "secp256k1",
- "serde",
+ "serde 1.0.118",
  "sha2",
  "testcontainers",
  "thiserror",
@@ -2052,8 +2010,8 @@ dependencies = [
  "hmac 0.8.1",
  "log",
  "rand 0.7.3",
- "serde",
- "serde_json",
+ "serde 1.0.118",
+ "serde_json 1.0.60",
  "sha2",
 ]
 
@@ -2397,7 +2355,7 @@ dependencies = [
  "bdk",
  "conquer-once",
  "console_error_panic_hook",
- "elements-fun",
+ "elements",
  "futures",
  "getrandom 0.1.15",
  "hex",
@@ -2410,8 +2368,8 @@ dependencies = [
  "reqwest",
  "rust_decimal",
  "scrypt",
- "serde",
- "serde_json",
+ "serde 1.0.118",
+ "serde_json 1.0.60",
  "sha2",
  "swap",
  "wasm-bindgen",
@@ -2449,8 +2407,8 @@ dependencies = [
  "percent-encoding",
  "pin-project 1.0.2",
  "scoped-tls",
- "serde",
- "serde_json",
+ "serde 1.0.118",
+ "serde_json 1.0.60",
  "serde_urlencoded",
  "tokio",
  "tokio-stream",
@@ -2479,8 +2437,8 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3cd364751395ca0f68cafb17666eee36b63077fb5ecd972bbcd74c90c4bf736e"
 dependencies = [
  "cfg-if 1.0.0",
- "serde",
- "serde_json",
+ "serde 1.0.118",
+ "serde_json 1.0.60",
  "wasm-bindgen-macro",
 ]
 
@@ -2646,12 +2604,6 @@ checksum = "0120db82e8a1e0b9fb3345a539c478767c0048d842860994d96113d5b667bd69"
 dependencies = [
  "winapi",
 ]
-
-[[package]]
-name = "xdg"
-version = "2.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d089681aa106a86fade1b0128fb5daf07d5867a509ab036d99988dec80429a57"
 
 [[package]]
 name = "zeroize"

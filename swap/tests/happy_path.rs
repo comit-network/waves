@@ -1,5 +1,5 @@
 use anyhow::{Context, Result};
-use elements_fun::{
+use elements::{
     bitcoin,
     bitcoin::{Amount, Network, PrivateKey, PublicKey},
     encode::serialize_hex,
@@ -148,7 +148,7 @@ async fn collaborative_create_and_sign() {
                     &mut SigHashCache::new(&tx),
                     input_index_1,
                     &fund_sk_bob,
-                    commitment_1,
+                    commitment_1.into(),
                 );
 
                 Ok(tx)
@@ -172,7 +172,7 @@ async fn collaborative_create_and_sign() {
                 &mut SigHashCache::new(&tx),
                 input_index,
                 &fund_sk_alice,
-                commitment,
+                commitment.into(),
             );
 
             Ok(tx)
@@ -216,9 +216,8 @@ async fn move_output_to_wallet(
     let previous_output = previous_output_tx.output[previous_output.vout as usize].clone();
 
     let txout = previous_output
-        .as_confidential()
-        .context("not a confidential txout")?
-        .clone();
+        .to_confidential()
+        .context("not a confidential txout")?;
 
     let UnblindedTxOut {
         asset: asset_id,
@@ -244,7 +243,7 @@ async fn move_output_to_wallet(
         &[],
     )?;
 
-    let fee = TxOut::new_fee(asset_id, fee);
+    let fee = TxOut::new_fee(fee, asset_id);
 
     let mut tx = Transaction {
         version: 2,
@@ -272,8 +271,12 @@ async fn move_output_to_wallet(
             .push_opcode(opcodes::all::OP_CHECKSIG)
             .into_script();
 
-        let sighash =
-            SigHashCache::new(&tx).segwitv0_sighash(0, &script, txout.value, SigHashType::All);
+        let sighash = SigHashCache::new(&tx).segwitv0_sighash(
+            0,
+            &script,
+            txout.value.into(),
+            SigHashType::All,
+        );
 
         let sig = SECP256K1.sign(&Message::from(sighash), &previous_output_sk);
 
@@ -293,7 +296,7 @@ fn extract_input(tx: &Transaction, address: Address) -> Result<(OutPoint, TxOut)
     let vout = tx
         .output
         .iter()
-        .position(|output| output.script_pubkey() == &address.script_pubkey())
+        .position(|output| output.script_pubkey == address.script_pubkey())
         .context("Tx doesn't pay to address")?;
 
     let outpoint = OutPoint {

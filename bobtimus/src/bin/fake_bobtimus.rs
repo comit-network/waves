@@ -1,6 +1,6 @@
 use anyhow::Result;
 use bobtimus::{cli::StartCommand, fixed_rate, http, Bobtimus, LiquidUsdt};
-use elements_fun::{
+use elements::{
     bitcoin::{secp256k1::Secp256k1, Amount},
     secp256k1::rand::{rngs::StdRng, thread_rng, SeedableRng},
     Address,
