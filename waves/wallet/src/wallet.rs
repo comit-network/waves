@@ -35,7 +35,7 @@ pub use get_address::get_address;
 pub use get_balances::get_balances;
 pub use get_status::get_status;
 pub use load_existing::load_existing;
-pub use make_create_sell_swap_payload::make_create_sell_swap_payload;
+pub use make_create_swap_payload::{make_buy_create_swap_payload, make_sell_create_swap_payload};
 pub use sign_and_send_swap_transaction::sign_and_send_swap_transaction;
 use std::convert::Infallible;
 pub use unload_current::unload_current;
@@ -48,7 +48,7 @@ mod get_address;
 mod get_balances;
 mod get_status;
 mod load_existing;
-mod make_create_sell_swap_payload;
+mod make_create_swap_payload;
 mod sign_and_send_swap_transaction;
 mod unload_current;
 mod withdraw_everything_to;
@@ -269,7 +269,7 @@ pub struct CreateSwapPayload {
     pub alice_inputs: Vec<SwapUtxo>,
     pub address: Address,
     #[serde(with = "bdk::bitcoin::util::amount::serde::as_sat")]
-    pub btc_amount: bdk::bitcoin::Amount,
+    pub amount: bdk::bitcoin::Amount,
 }
 
 #[derive(Debug, serde::Serialize)]

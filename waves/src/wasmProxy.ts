@@ -12,11 +12,14 @@ export interface WalletStatus {
 }
 
 export interface CreateSwapPayload {
-    alice_inputs: { txid: string; vout: number }[];
-    address_redeem: string;
-    address_change: string;
-    fee: number;
-    btc_amount: number;
+    alice_inputs: { outpoint: OutPoint; blinding_key: string }[];
+    address: string;
+    amount: number;
+}
+
+export interface OutPoint {
+    txid: string;
+    vout: number;
 }
 
 export interface Trade {
@@ -68,11 +71,18 @@ export async function withdrawAll(address: string): Promise<String> {
     return withdraw_everything_to(WALLET_NAME, address);
 }
 
-export async function makeCreateSellSwapPayload(
+export async function makeSellCreateSwapPayload(
     btc: string,
 ): Promise<CreateSwapPayload> {
-    const { make_create_sell_swap_payload } = await import("./wallet");
-    return make_create_sell_swap_payload(WALLET_NAME, btc);
+    const { make_sell_create_swap_payload } = await import("./wallet");
+    return make_sell_create_swap_payload(WALLET_NAME, btc);
+}
+
+export async function makeBuyCreateSwapPayload(
+    usdt: string,
+): Promise<CreateSwapPayload> {
+    const { make_buy_create_swap_payload } = await import("./wallet");
+    return make_buy_create_swap_payload(WALLET_NAME, usdt);
 }
 
 export async function extractTrade(

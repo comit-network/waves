@@ -40,7 +40,7 @@ pub struct Bobtimus<R, RS> {
 pub struct CreateSwapPayload {
     pub alice_inputs: Vec<AliceInput>,
     pub address: Address,
-    pub btc_amount: LiquidBtc,
+    pub amount: u64,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone, Copy)]
@@ -49,18 +49,68 @@ pub struct AliceInput {
     pub blinding_key: SecretKey,
 }
 
-impl<R, RS> Bobtimus<R, RS> {
-    pub async fn handle_create_swap(&mut self, payload: CreateSwapPayload) -> Result<Transaction>
-    where
-        R: RngCore + CryptoRng,
-        RS: LatestRate,
-    {
+impl<R, RS> Bobtimus<R, RS>
+where
+    R: RngCore + CryptoRng,
+    RS: LatestRate,
+{
+    /// Handle Alice's request to create a swap transaction in which
+    /// she buys L-BTC from us and in return we get L-USDt from her.
+    pub async fn handle_create_buy_swap(
+        &mut self,
+        payload: CreateSwapPayload,
+    ) -> Result<Transaction> {
+        let usdt_amount = LiquidUsdt::from_satodollar(payload.amount);
         let latest_rate = self.rate_service.latest_rate();
-        let usdt_amount = latest_rate.buy_quote(payload.btc_amount)?;
+        let btc_amount = latest_rate.sell_base(usdt_amount)?;
 
+        let transaction = self
+            .swap_transaction(
+                (self.usdt_asset_id, usdt_amount.into()),
+                (self.btc_asset_id, btc_amount.into()),
+                payload.alice_inputs,
+                payload.address,
+                self.btc_asset_id,
+            )
+            .await?;
+
+        Ok(transaction)
+    }
+
+    /// Handle Alice's request to create a swap transaction in which
+    /// she sells L-BTC and we give her L-USDt.
+    pub async fn handle_create_sell_swap(
+        &mut self,
+        payload: CreateSwapPayload,
+    ) -> Result<Transaction> {
+        let btc_amount = Amount::from_sat(payload.amount);
+        let latest_rate = self.rate_service.latest_rate();
+        let usdt_amount = latest_rate.buy_quote(btc_amount.into())?;
+
+        let transaction = self
+            .swap_transaction(
+                (self.btc_asset_id, btc_amount),
+                (self.usdt_asset_id, usdt_amount.into()),
+                payload.alice_inputs,
+                payload.address,
+                self.btc_asset_id,
+            )
+            .await?;
+
+        Ok(transaction)
+    }
+
+    async fn swap_transaction(
+        &mut self,
+        (alice_input_asset_id, alice_input_amount): (AssetId, Amount),
+        (bob_input_asset_id, bob_input_amount): (AssetId, Amount),
+        alice_inputs: Vec<AliceInput>,
+        alice_address: Address,
+        btc_asset_id: AssetId,
+    ) -> Result<Transaction> {
         let bob_inputs = self
             .elementsd
-            .select_inputs_for(self.usdt_asset_id, usdt_amount.into(), false)
+            .select_inputs_for(bob_input_asset_id, bob_input_amount, false)
             .await
             .context("failed to select inputs for swap")?;
 
@@ -106,8 +156,7 @@ impl<R, RS> Bobtimus<R, RS> {
             .await
             .context("failed to get redeem address")?;
 
-        let alice_inputs = payload
-            .alice_inputs
+        let alice_inputs = alice_inputs
             .iter()
             .copied()
             .map(
@@ -159,16 +208,16 @@ impl<R, RS> Bobtimus<R, RS> {
         let alice = swap::Actor::new(
             &self.secp,
             alice_inputs,
-            payload.address,
-            self.usdt_asset_id,
-            usdt_amount.into(),
+            alice_address,
+            bob_input_asset_id,
+            bob_input_amount,
         )?;
         let bob = swap::Actor::new(
             &self.secp,
             bob_inputs,
             bob_address,
-            self.btc_asset_id,
-            payload.btc_amount.into(),
+            alice_input_asset_id,
+            alice_input_amount,
         )?;
 
         let transaction = swap::bob_create_transaction(
@@ -176,7 +225,7 @@ impl<R, RS> Bobtimus<R, RS> {
             &self.secp,
             alice,
             bob,
-            self.btc_asset_id,
+            btc_asset_id,
             Amount::from_sat(1), // TODO: Make this dynamic once there is something going on on Liquid
             {
                 let elementsd = self.elementsd.clone();
@@ -242,7 +291,7 @@ mod tests {
     use testcontainers::clients::Cli;
 
     #[tokio::test]
-    async fn test_handle_swap_request() {
+    async fn test_handle_btc_sell_swap_request() {
         let tc_client = Cli::default();
         let (client, _container) = {
             let blockchain = Elementsd::new(&tc_client, "0.18.1.9").unwrap();
@@ -258,7 +307,7 @@ mod tests {
         let have_asset_id_bob = client.issueasset(100_000.0, 0.0, true).await.unwrap().asset;
 
         let rate_service = fixed_rate::Service::new();
-        let redeem_amount_bob = LiquidBtc::from(Amount::ONE_BTC);
+        let redeem_amount_bob = Amount::ONE_BTC;
 
         let (
             fund_address_alice,
@@ -271,7 +320,7 @@ mod tests {
         let fund_alice_txid = client
             .send_asset_to_address(
                 &fund_address_alice,
-                Amount::from(redeem_amount_bob) + Amount::ONE_BTC,
+                redeem_amount_bob + Amount::ONE_BTC,
                 Some(have_asset_id_alice),
             )
             .await
@@ -314,13 +363,13 @@ mod tests {
         };
 
         let transaction = bob
-            .handle_create_swap(CreateSwapPayload {
+            .handle_create_sell_swap(CreateSwapPayload {
                 alice_inputs: vec![AliceInput {
                     outpoint: input_alice.0,
                     blinding_key: fund_blinding_sk_alice,
                 }],
                 address: final_address_alice,
-                btc_amount: redeem_amount_bob,
+                amount: redeem_amount_bob.as_sat(),
             })
             .await
             .unwrap();
@@ -366,9 +415,129 @@ mod tests {
             .await
             .unwrap();
 
-        let error = 0.0001;
+        let fee = transaction.fee_in(have_asset_id_bob);
+        assert!(utxos.iter().any(|utxo| (utxo.amount
+            - (redeem_amount_bob.as_btc() - Amount::from_sat(fee).as_btc()))
+        .abs()
+            < f64::EPSILON
+            && utxo.spendable));
+    }
+
+    #[tokio::test]
+    async fn test_handle_btc_buy_swap_request() {
+        let tc_client = Cli::default();
+        let (client, _container) = {
+            let blockchain = Elementsd::new(&tc_client, "0.18.1.9").unwrap();
+
+            (
+                Client::new(blockchain.node_url.clone().into_string()).unwrap(),
+                blockchain,
+            )
+        };
+        let mining_address = client.getnewaddress().await.unwrap();
+
+        let have_asset_id_alice = client.issueasset(100_000.0, 0.0, true).await.unwrap().asset;
+        let have_asset_id_bob = client.get_bitcoin_asset_id().await.unwrap();
+
+        let rate_service = fixed_rate::Service::new();
+        let redeem_amount_bob = LiquidUsdt::from_str_in_dollar("20000.0").unwrap();
+
+        let (
+            fund_address_alice,
+            fund_sk_alice,
+            _fund_pk_alice,
+            fund_blinding_sk_alice,
+            _fund_blinding_pk_alice,
+        ) = make_confidential_address();
+
+        let fund_alice_txid = client
+            .send_asset_to_address(
+                &fund_address_alice,
+                Amount::from_btc(10_000.0).unwrap() + redeem_amount_bob.into(),
+                Some(have_asset_id_alice),
+            )
+            .await
+            .unwrap();
+        client.generatetoaddress(1, &mining_address).await.unwrap();
+
+        let input_alice = extract_input(
+            &client.get_raw_transaction(fund_alice_txid).await.unwrap(),
+            fund_address_alice,
+        )
+        .unwrap();
+
+        let (
+            final_address_alice,
+            _final_sk_alice,
+            _final_pk_alice,
+            _final_blinding_sk_alice,
+            _final_blinding_pk_alice,
+        ) = make_confidential_address();
+
+        let mut bob = Bobtimus {
+            rng: &mut thread_rng(),
+            rate_service,
+            secp: Secp256k1::new(),
+            elementsd: client.clone(),
+            btc_asset_id: have_asset_id_bob,
+            usdt_asset_id: have_asset_id_alice,
+        };
+
+        let transaction = bob
+            .handle_create_buy_swap(CreateSwapPayload {
+                alice_inputs: vec![AliceInput {
+                    outpoint: input_alice.0,
+                    blinding_key: fund_blinding_sk_alice,
+                }],
+                address: final_address_alice,
+                amount: redeem_amount_bob.as_satodollar(),
+            })
+            .await
+            .unwrap();
+
+        let transaction = swap::alice_finalize_transaction(transaction, {
+            let commitment = input_alice.1.into_confidential().unwrap().value;
+            move |mut tx| async move {
+                let input_index = tx
+                    .input
+                    .iter()
+                    .position(|txin| fund_alice_txid == txin.previous_output.txid)
+                    .context("transaction does not contain input")?;
+                let mut cache = SigHashCache::new(&tx);
+
+                tx.input[input_index].witness.script_witness = sign_with_key(
+                    &SECP256K1,
+                    &mut cache,
+                    input_index,
+                    &fund_sk_alice,
+                    commitment.into(),
+                );
+
+                Ok(tx)
+            }
+        })
+        .await
+        .unwrap();
+
+        let _txid = client.send_raw_transaction(&transaction).await.unwrap();
+        let _txid = client.generatetoaddress(1, &mining_address).await.unwrap();
+
+        let utxos = client
+            .listunspent(
+                None,
+                None,
+                None,
+                None,
+                Some(ListUnspentOptions {
+                    asset: Some(have_asset_id_alice),
+                    ..Default::default()
+                }),
+            )
+            .await
+            .unwrap();
+
         assert!(utxos.iter().any(
-            |utxo| (utxo.amount - Amount::from(redeem_amount_bob).as_btc()).abs() < error
+            |utxo| (utxo.amount - Amount::from(redeem_amount_bob).as_btc()).abs() < f64::EPSILON
                 && utxo.spendable
         ));
     }

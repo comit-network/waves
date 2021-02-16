@@ -24,3 +24,7 @@ yarn-error.log*
 src/wallet
 
 build/*
+
+*.log
+
+cypress/screenshots
