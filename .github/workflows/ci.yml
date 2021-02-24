@@ -40,7 +40,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: ./waves
+        working-directory: ./e2e_tests
     steps:
       - name: Checkout sources
         uses: actions/checkout@v2
@@ -51,12 +51,13 @@ jobs:
 
       - name: Run test
         run: |
-          yarn run cypress run
+          yarn install
+          yarn run test
 
       - name: Extract docker logs
         if: failure()
         run: |
-          - docker logs liquid-e2e-test > liquid.log
+          - docker logs liquid > liquid.log
           - docker logs electrs-liquid > electrs.log
           - docker logs esplora-liquid > esplora.log
 
@@ -66,17 +67,10 @@ jobs:
         with:
           name: Logfiles
           path: |
-            ./waves/bobtimus.log
-            ./waves/liquid.log
-            ./waves/electrs.log
-            ./waves/esplora.log
-
-      - name: Archive cypress video
-        uses: actions/upload-artifact@v2
-        with:
-          name: cypress-video
-          path: |
-            ./waves/cypress/videos/e2e.spec.ts.mp4
+            ./bobtimus.log
+            ./e2e_tests/liquid.log
+            ./e2e_tests/electrs.log
+            ./e2e_tests/esplora.log
 
   build_test_workspace:
     strategy:
@@ -100,9 +94,10 @@ jobs:
 
       - name: Cache target directory
         uses: actions/cache@v2
+        if: matrix.os != 'macos-latest'
         with:
           path: target
-          key: ${{ matrix.os }}-target-directory-${{ hashFiles('Cargo.lock') }}-v1
+          key: ${{ matrix.os }}-target-directory-${{ hashFiles('Cargo.lock') }}-v2
 
       - name: Cargo test (all workspace)
         if: matrix.os == 'ubuntu-latest'
@@ -134,31 +129,17 @@ jobs:
       - name: Cargo build
         run: cargo build -p swap --target wasm32-unknown-unknown
 
-  waves_test:
+  webapp_test:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout sources
         uses: actions/checkout@v2
-
-      - name: Install Rust toolchain
-        uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          override: true
-          target: wasm32-unknown-unknown
-
-      - name: Cache target directory
-        uses: actions/cache@v2
-        with:
-          path: target
-          key: wasm-wallet-target-directory-${{ hashFiles('Cargo.lock') }}-v1
 
       - name: Cache node_modules directory
         uses: actions/cache@v2
         with:
           path: |
             waves/node_modules
-            ~/.config/wasm-pack-nodejs
           key: node-modules-directory-${{ hashFiles('waves/yarn.lock') }}-v2
 
       - name: React tests
@@ -224,10 +205,10 @@ jobs:
       - name: Install wasm-pack
         run: which wasm-pack || curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
 
-      - name: Waves wallet tests
+      - name: Extension wallet tests
         run: |
-          cd waves/wallet
-          wasm-pack test --firefox --headless
+          cd extension/wallet_lib
+          cargo test
 
       - name: Upload artifact on test failure
         if: ${{ failure() }}

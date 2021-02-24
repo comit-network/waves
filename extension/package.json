@@ -1,0 +1,22 @@
+{
+  "private": true,
+  "name": "waves_wallet",
+  "version": "0.0.1",
+  "scripts": {
+    "build:background": "rollup --config ./rollup_config/rollup_background.config.js",
+    "build:content": "rollup --config ./rollup_config/rollup_content.config.js",
+    "build:in_page": "rollup --config ./rollup_config/rollup_in_page.config.js",
+    "build:popup": "rollup --config ./rollup_config/rollup_popup.config.js",
+    "build": "rimraf dist && rollup --config",
+    "watch": "rollup --config --watch",
+    "start-dev": "web-ext run -s dist/",
+    "package:extension": "web-ext build -s dist/ --overwrite-dest "
+  },
+  "devDependencies": {
+    "@wasm-tool/rollup-plugin-rust": "^1.0.0",
+    "rimraf": "^2.6.3",
+    "rollup": "^1.27.14",
+    "rollup-plugin-copy": "^3.3.0",
+    "web-ext": "5.4.0"
+  }
+}

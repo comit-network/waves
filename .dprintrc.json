@@ -13,9 +13,8 @@
     "waves/src/wallet",
     "waves/build",
     "waves/dist",
-    "waves/node_modules",
-    "elements-fun/fuzz/hfuzz_target",
-    "elements-fun/fuzz/hfuzz_workspace"
+    "**/node_modules",
+    "extension/dist"
   ],
   "plugins": [
     "https://plugins.dprint.dev/markdown-0.4.1.wasm",
