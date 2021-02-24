@@ -136,6 +136,7 @@ dependencies = [
  "log",
  "message_types",
  "serde 1.0.123",
+ "wallet",
  "wasm-bindgen",
  "wasm-bindgen-extension",
  "wasm-bindgen-futures",

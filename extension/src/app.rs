@@ -38,8 +38,8 @@ impl Component for App {
             Msg::Sign => {
                 let msg = bs_ps::Message {
                     data: "World".to_string(),
-                    target: "background".to_string(),
-                    source: "popup".to_string(),
+                    target: message_types::Component::Background,
+                    source: message_types::Component::PopUp,
                     content_tab_id: self.content_tab_id,
                 };
                 let js_value = JsValue::from_serde(&msg).unwrap();

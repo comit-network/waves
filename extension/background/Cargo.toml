@@ -15,6 +15,7 @@ js-sys = "0.3"
 log = "0.4"
 message_types = { path = "../message_types" }
 serde = { version = "1.0", features = [ "derive" ] }
+wallet = { path = "../wallet_lib" }
 wasm-bindgen = { version = "0.2", features = [ "serde-serialize" ] }
 wasm-bindgen-extension = { path = "../wasm_bindgen_extension" }
 wasm-bindgen-futures = "0.4"

@@ -1,7 +1,7 @@
 extern crate console_error_panic_hook;
 use futures::{channel::mpsc, StreamExt};
 use js_sys::{global, Object, Promise};
-use message_types::ips_cs;
+use message_types::{ips_cs, Component};
 use std::future::Future;
 use wasm_bindgen::{prelude::*, JsCast};
 use wasm_bindgen_futures::{future_to_promise, spawn_local};
@@ -34,9 +34,18 @@ pub fn call_backend(txt: String) -> Promise {
         let js_value: JsValue = msg.data();
 
         let message: Result<ips_cs::Message, _> = js_value.into_serde();
-        if let Ok(ips_cs::Message { target, data }) = message {
-            if target != "in-page" {
-                return;
+        if let Ok(ips_cs::Message {
+            target,
+            data,
+            source,
+        }) = &message
+        {
+            match (target, source) {
+                (Component::InPage, Component::Content) => {}
+                (_, _) => {
+                    log::debug!("IPS: Unexpected message from: {:?}", message);
+                    return;
+                }
             }
 
             log::info!("IPS: Received response from CS: {:?}", data);

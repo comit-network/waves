@@ -1,7 +1,7 @@
 use conquer_once::Lazy;
 use futures::lock::Mutex;
 use js_sys::Object;
-use message_types::{bs_ps, cs_bs};
+use message_types::{bs_ps, cs_bs, Component};
 use serde::{Deserialize, Serialize};
 use wasm_bindgen::{prelude::*, JsCast};
 use wasm_bindgen_extension::browser;
@@ -60,9 +60,13 @@ fn handle_msg_from_ps(js_value: JsValue) {
             return;
         }
     };
-    if msg.target != "background" || msg.source != "popup" {
-        log::debug!("BS: Unexpected message: {:?}", msg);
-        return;
+
+    match (&msg.target, &msg.source) {
+        (Component::Background, Component::PopUp) => {}
+        (_, source) => {
+            log::debug!("BS: Unexpected message from {:?}", source);
+            return;
+        }
     }
 
     log::info!("BS: Received message from Popup: {:?}", msg);
@@ -76,8 +80,8 @@ fn handle_msg_from_ps(js_value: JsValue) {
             msg.content_tab_id,
             JsValue::from_serde(&cs_bs::Message {
                 data: msg.data,
-                target: "content".to_string(),
-                source: "background".to_string(),
+                target: Component::Content,
+                source: Component::Background,
             })
             .unwrap(),
             JsValue::null(),
@@ -96,9 +100,12 @@ fn handle_msg_from_cs(msg: JsValue, message_sender: JsValue) {
     }
 
     let msg: cs_bs::Message = msg.into_serde().unwrap();
-    if msg.target != "background" || msg.source != "content" {
-        log::debug!("BS: Unexpected message: {:?}", msg);
-        return;
+    match (&msg.target, &msg.source) {
+        (Component::Background, Component::Content) => {}
+        (_, _) => {
+            log::debug!("BS: Unexpected message: {:?}", msg);
+            return;
+        }
     }
 
     let message_sender: MessageSender = message_sender.into_serde().unwrap();

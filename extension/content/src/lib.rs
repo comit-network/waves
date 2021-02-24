@@ -1,4 +1,4 @@
-use message_types::cs_bs;
+use message_types::{cs_bs, ips_cs, Component};
 use std::future::Future;
 use wasm_bindgen::{prelude::*, JsCast};
 use wasm_bindgen_extension::browser;
@@ -58,10 +58,10 @@ fn handle_msg_from_bs(msg: JsValue) {
 
     window
         .post_message(
-            &JsValue::from_serde(&cs_bs::Message {
+            &JsValue::from_serde(&ips_cs::Message {
                 data: msg.data,
-                target: "in-page".to_string(),
-                source: "content".to_string(),
+                target: Component::InPage,
+                source: Component::Content,
             })
             .unwrap(),
             "*",
@@ -77,8 +77,8 @@ fn handle_msg_from_ips(msg: JsValue) {
         log::info!("CS: Received from IPS: {:?}", string);
         let msg = cs_bs::Message {
             data: string,
-            target: "background".to_string(),
-            source: "content".to_string(),
+            target: Component::Background,
+            source: Component::Content,
         };
         // sending message to Background script
         let js_value = JsValue::from_serde(&msg).unwrap();
