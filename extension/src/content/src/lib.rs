@@ -28,26 +28,7 @@ pub async fn main() -> Result<(), JsValue> {
     head.insert_before(&script_tag, first_child.as_ref())
         .unwrap();
 
-    // create listener
-    let handle_msg_from_ips = |msg: JsValue| {
-        let msg: MessageEvent = msg.into();
-        let js_value: JsValue = msg.data();
-        // TODO: Actually only accept messages from IPS
-        if let Some(string) = js_value.as_string() {
-            log::info!("CS: Received from IPS: {:?}", string);
-            let msg = Message {
-                data: string,
-                target: "background".to_string(),
-                source: Some("content".to_string()),
-            };
-            // sending message to Background script
-            let js_value = JsValue::from_serde(&msg).unwrap();
-
-            // TODO: Handle error response?
-            let _resp = browser.runtime().send_message(js_value);
-        }
-    };
-
+    // create listener to receive messages from in-page script
     let cb_handle_msg_from_ips = Closure::wrap(Box::new(handle_msg_from_ips) as Box<dyn Fn(_)>);
     window
         .add_event_listener_with_callback(
@@ -57,26 +38,8 @@ pub async fn main() -> Result<(), JsValue> {
         .unwrap();
     cb_handle_msg_from_ips.forget();
 
-    let handle_msg_from_bs = Closure::wrap(Box::new(|msg: JsValue| {
-        // TODO: Filter different messages
-
-        let window = web_sys::window().expect("no global `window` exists");
-        log::info!("CS: Received response from BS: {:?}", msg);
-        let msg: Message = msg.into_serde().unwrap();
-
-        window
-            .post_message(
-                &JsValue::from_serde(&Message {
-                    data: msg.data,
-                    target: "in-page".to_string(),
-                    source: Some("content".to_string()),
-                })
-                .unwrap(),
-                "*",
-            )
-            .unwrap();
-    }) as Box<dyn Fn(_)>);
-
+    // create listener to receive messages from background script
+    let handle_msg_from_bs = Closure::wrap(Box::new(handle_msg_from_bs) as Box<dyn Fn(_)>);
     browser
         .runtime()
         .on_message()
@@ -84,6 +47,45 @@ pub async fn main() -> Result<(), JsValue> {
     handle_msg_from_bs.forget();
 
     Ok(())
+}
+
+fn handle_msg_from_bs(msg: JsValue) {
+    // TODO: Filter different messages
+
+    let window = web_sys::window().expect("no global `window` exists");
+    log::info!("CS: Received response from BS: {:?}", msg);
+    let msg: Message = msg.into_serde().unwrap();
+
+    window
+        .post_message(
+            &JsValue::from_serde(&Message {
+                data: msg.data,
+                target: "in-page".to_string(),
+                source: Some("content".to_string()),
+            })
+            .unwrap(),
+            "*",
+        )
+        .unwrap();
+}
+
+fn handle_msg_from_ips(msg: JsValue) {
+    let msg: MessageEvent = msg.into();
+    let js_value: JsValue = msg.data();
+    // TODO: Actually only accept messages from IPS
+    if let Some(string) = js_value.as_string() {
+        log::info!("CS: Received from IPS: {:?}", string);
+        let msg = Message {
+            data: string,
+            target: "background".to_string(),
+            source: Some("content".to_string()),
+        };
+        // sending message to Background script
+        let js_value = JsValue::from_serde(&msg).unwrap();
+
+        // TODO: Handle error response?
+        let _resp = browser.runtime().send_message(js_value);
+    }
 }
 
 #[derive(Deserialize, Serialize)]
