@@ -1,7 +1,7 @@
 extern crate console_error_panic_hook;
 use futures::{channel::mpsc, StreamExt};
 use js_sys::{global, Object, Promise};
-use serde::Deserialize;
+use message_types::ips_cs;
 use std::future::Future;
 use wasm_bindgen::{prelude::*, JsCast};
 use wasm_bindgen_futures::{future_to_promise, spawn_local};
@@ -33,8 +33,8 @@ pub fn call_backend(txt: String) -> Promise {
     let func = move |msg: MessageEvent| {
         let js_value: JsValue = msg.data();
 
-        let message: Result<Message, _> = js_value.into_serde();
-        if let Ok(Message { target, data }) = message {
+        let message: Result<ips_cs::Message, _> = js_value.into_serde();
+        if let Ok(ips_cs::Message { target, data }) = message {
             if target != "in-page" {
                 return;
             }
@@ -96,12 +96,6 @@ where
             .remove_event_listener_with_callback(&self.name, self.cb.as_ref().unchecked_ref())
             .unwrap();
     }
-}
-
-#[derive(Deserialize)]
-struct Message {
-    data: String,
-    target: String,
 }
 
 async fn unwrap_future<F>(future: F)

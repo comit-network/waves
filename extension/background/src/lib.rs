@@ -1,6 +1,7 @@
 use conquer_once::Lazy;
 use futures::lock::Mutex;
 use js_sys::Object;
+use message_types::{bs_ps, cs_bs};
 use serde::{Deserialize, Serialize};
 use wasm_bindgen::{prelude::*, JsCast};
 use wasm_bindgen_extension::browser;
@@ -52,7 +53,7 @@ fn handle_msg_from_ps(js_value: JsValue) {
         return;
     }
 
-    let msg: PopupMessage = match js_value.into_serde() {
+    let msg: bs_ps::Message = match js_value.into_serde() {
         Ok(msg) => msg,
         Err(_) => {
             log::debug!("BS: Unexpected message: {:?}", js_value);
@@ -73,7 +74,7 @@ fn handle_msg_from_ps(js_value: JsValue) {
 
         let _resp = browser.tabs().send_message(
             msg.content_tab_id,
-            JsValue::from_serde(&Message {
+            JsValue::from_serde(&cs_bs::Message {
                 data: msg.data,
                 target: "content".to_string(),
                 source: "background".to_string(),
@@ -94,7 +95,7 @@ fn handle_msg_from_cs(msg: JsValue, message_sender: JsValue) {
         return;
     }
 
-    let msg: Message = msg.into_serde().unwrap();
+    let msg: cs_bs::Message = msg.into_serde().unwrap();
     if msg.target != "background" || msg.source != "content" {
         log::debug!("BS: Unexpected message: {:?}", msg);
         return;
@@ -127,21 +128,6 @@ struct Popup {
     pub type_: String,
     pub height: u8,
     pub width: u8,
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-struct Message {
-    data: String,
-    target: String,
-    source: String,
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-struct PopupMessage {
-    data: String,
-    target: String,
-    source: String,
-    content_tab_id: u32,
 }
 
 #[derive(Debug, Deserialize)]

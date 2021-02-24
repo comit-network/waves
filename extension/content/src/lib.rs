@@ -1,4 +1,4 @@
-use serde::{Deserialize, Serialize};
+use message_types::cs_bs;
 use std::future::Future;
 use wasm_bindgen::{prelude::*, JsCast};
 use wasm_bindgen_extension::browser;
@@ -54,14 +54,14 @@ fn handle_msg_from_bs(msg: JsValue) {
 
     let window = web_sys::window().expect("no global `window` exists");
     log::info!("CS: Received response from BS: {:?}", msg);
-    let msg: Message = msg.into_serde().unwrap();
+    let msg: cs_bs::Message = msg.into_serde().unwrap();
 
     window
         .post_message(
-            &JsValue::from_serde(&Message {
+            &JsValue::from_serde(&cs_bs::Message {
                 data: msg.data,
                 target: "in-page".to_string(),
-                source: Some("content".to_string()),
+                source: "content".to_string(),
             })
             .unwrap(),
             "*",
@@ -75,10 +75,10 @@ fn handle_msg_from_ips(msg: JsValue) {
     // TODO: Actually only accept messages from IPS
     if let Some(string) = js_value.as_string() {
         log::info!("CS: Received from IPS: {:?}", string);
-        let msg = Message {
+        let msg = cs_bs::Message {
             data: string,
             target: "background".to_string(),
-            source: Some("content".to_string()),
+            source: "content".to_string(),
         };
         // sending message to Background script
         let js_value = JsValue::from_serde(&msg).unwrap();
@@ -86,13 +86,6 @@ fn handle_msg_from_ips(msg: JsValue) {
         // TODO: Handle error response?
         let _resp = browser.runtime().send_message(js_value);
     }
-}
-
-#[derive(Deserialize, Serialize)]
-struct Message {
-    data: String,
-    target: String,
-    source: Option<String>,
 }
 
 pub async fn unwrap_future<F>(future: F)

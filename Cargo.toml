@@ -4,6 +4,7 @@ members = [
     "swap",
     "bobtimus",
     "extension",
+    "extension/message_types",
     "extension/wallet_lib",
     "extension/background",
     "extension/content",

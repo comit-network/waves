@@ -1,8 +1,8 @@
-use js_sys::Promise;
-use serde::{Deserialize, Serialize};
+use message_types::bs_ps;
 use std::collections::HashMap;
 use url::Url;
 use wasm_bindgen::prelude::*;
+use wasm_bindgen_extension::browser;
 use yew::prelude::*;
 
 pub struct App {
@@ -12,14 +12,6 @@ pub struct App {
 
 pub enum Msg {
     Sign,
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-struct Message {
-    data: String,
-    target: String,
-    source: String,
-    content_tab_id: u32,
 }
 
 impl Component for App {
@@ -44,7 +36,7 @@ impl Component for App {
     fn update(&mut self, msg: Self::Message) -> ShouldRender {
         match msg {
             Msg::Sign => {
-                let msg = Message {
+                let msg = bs_ps::Message {
                     data: "World".to_string(),
                     target: "background".to_string(),
                     source: "popup".to_string(),
@@ -74,33 +66,4 @@ impl Component for App {
     fn rendered(&mut self, _first_render: bool) {}
 
     fn destroy(&mut self) {}
-}
-
-#[wasm_bindgen]
-extern "C" {
-    pub type Browser;
-    pub static browser: Browser;
-
-    #[wasm_bindgen(method, getter)]
-    pub fn runtime(this: &Browser) -> Runtime;
-
-}
-
-#[wasm_bindgen]
-extern "C" {
-    pub type Runtime;
-
-    #[wasm_bindgen(method, js_name = getBackgroundPage)]
-    pub fn get_background_page(this: &Runtime) -> Background;
-
-    #[wasm_bindgen(method, js_name = sendMessage)]
-    pub fn send_message(this: &Runtime, value: JsValue) -> Promise;
-}
-
-#[wasm_bindgen]
-extern "C" {
-    pub type Background;
-
-    #[wasm_bindgen(method)]
-    pub fn is_locked(this: &Background) -> bool;
 }
