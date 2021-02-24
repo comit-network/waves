@@ -1,0 +1,17 @@
+{
+  "private": true,
+  "name": "waves_wallet",
+  "version": "0.0.1",
+  "scripts": {
+    "build": "rimraf dist && rollup --config",
+    "watch": "rollup --config --watch",
+    "start-dev": "web-ext run -s dist/"
+  },
+  "devDependencies": {
+    "@wasm-tool/rollup-plugin-rust": "^1.0.0",
+    "rimraf": "^2.6.3",
+    "rollup": "^1.27.14",
+    "rollup-plugin-copy": "^3.3.0",
+    "web-ext": "5.4.0"
+  }
+}

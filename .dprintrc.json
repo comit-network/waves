@@ -13,7 +13,7 @@
     "waves/src/wallet",
     "waves/build",
     "waves/dist",
-    "waves/node_modules",
+    "**/node_modules",
     "elements-fun/fuzz/hfuzz_target",
     "elements-fun/fuzz/hfuzz_workspace"
   ],

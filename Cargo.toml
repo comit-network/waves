@@ -1,5 +1,15 @@
 [workspace]
-members = [ "elements-harness", "swap", "waves/wallet", "bobtimus" ]
+members = [
+    "elements-harness",
+    "swap",
+    "waves/wallet",
+    "bobtimus",
+    "extension",
+    "extension/src/background",
+    "extension/src/content",
+    "extension/src/in_page",
+    "extension/src/wasm_bindgen_extension"
+]
 
 [patch.crates-io]
 # Until https://github.com/ElementsProject/rust-elements/pull/70/ is merged

@@ -1,0 +1,81 @@
+{
+  "manifest_version": 2,
+  "name": "waves_wallet",
+  "version": "0.0.1",
+  "description": "A Liquid Wallet",
+
+  "background": {
+    "page": "background.html"
+  },
+
+  "icons": {
+    "48": "icons/favicon.svg",
+    "96": "icons/favicon.svg"
+  },
+
+  "browser_action": {
+    "default_title": "waves_wallet",
+    "browser_style": true,
+    "default_popup": "popup.html"
+  },
+  "permissions": [
+    "activeTab",
+    "alarms",
+    "background",
+    "bookmarks",
+    "browserSettings",
+    "browsingData",
+    "captivePortal",
+    "clipboardRead",
+    "clipboardWrite",
+    "contentSettings",
+    "contextMenus",
+    "contextualIdentities",
+    "cookies",
+    "debugger",
+    "dns",
+    "downloads",
+    "downloads.open",
+    "find",
+    "geolocation",
+    "history",
+    "identity",
+    "idle",
+    "management",
+    "menus",
+    "menus.overrideContext",
+    "nativeMessaging",
+    "notifications",
+    "pageCapture",
+    "pkcs11",
+    "privacy",
+    "proxy",
+    "search",
+    "sessions",
+    "storage",
+    "tabHide",
+    "tabs",
+    "theme",
+    "topSites",
+    "unlimitedStorage",
+    "webNavigation",
+    "webRequest",
+    "webRequestBlocking"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "*://*/*"
+      ],
+      "css": [],
+      "js": [
+        "js/content.js"
+      ]
+    }
+  ],
+  "content_security_policy": "script-src 'self' 'unsafe-eval'; object-src 'self'",
+  "web_accessible_resources": [
+    "js/in_page.wasm",
+    "js/in_page.js"
+  ]
+}
