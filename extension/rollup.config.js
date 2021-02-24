@@ -4,7 +4,7 @@ import copy from "rollup-plugin-copy";
 export default [
     {
         input: {
-            background: "src/background/Cargo.toml",
+            background: "background/Cargo.toml",
         },
         output: {
             dir: "dist",
@@ -21,7 +21,7 @@ export default [
     },
     {
         input: {
-            content: "src/content/Cargo.toml",
+            content: "content/Cargo.toml",
         },
         output: {
             dir: "dist",
@@ -38,7 +38,7 @@ export default [
     },
     {
         input: {
-            in_page: "src/in_page/Cargo.toml",
+            in_page: "in_page/Cargo.toml",
         },
         output: {
             dir: "dist",

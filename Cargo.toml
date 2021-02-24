@@ -4,11 +4,11 @@ members = [
     "swap",
     "bobtimus",
     "extension",
-    "extension/src/wallet",
-    "extension/src/background",
-    "extension/src/content",
-    "extension/src/in_page",
-    "extension/src/wasm_bindgen_extension"
+    "extension/wallet_lib",
+    "extension/background",
+    "extension/content",
+    "extension/in_page",
+    "extension/wasm_bindgen_extension"
 ]
 
 [patch.crates-io]
