@@ -1,8 +1,13 @@
 [package]
 name = "waves_wallet"
 version = "0.2.0"
-authors = [ "Philipp Hoenisch <philipp@hoenisch.at" ]
+authors = [ "CoBloX Team <team@coblox.tech>" ]
 edition = "2018"
+
+
+#[workspace]
+#members = [ "src/background", "src/content", "src/in_page", "src/wasm_bindgen_extension" ]
+
 
 [lib]
 crate-type = [ "cdylib", "rlib" ]

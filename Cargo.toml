@@ -2,9 +2,9 @@
 members = [
     "elements-harness",
     "swap",
-    "waves/wallet",
     "bobtimus",
     "extension",
+    "extension/src/wallet",
     "extension/src/background",
     "extension/src/content",
     "extension/src/in_page",

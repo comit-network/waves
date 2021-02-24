@@ -1,5 +1,6 @@
 import { ExternalLinkIcon } from "@chakra-ui/icons";
 import { Box, Button, Center, Flex, Image, Link, Text, useDisclosure, VStack } from "@chakra-ui/react";
+import Debug from "debug";
 import React, { useEffect, useReducer, useState } from "react";
 import { useAsync } from "react-async";
 import { useSSE } from "react-hooks-sse";
@@ -24,6 +25,8 @@ import {
     makeSellCreateSwapPayload,
     Trade,
 } from "./wasmProxy";
+
+const debug = Debug("App");
 
 export enum Asset {
     LBTC = "L-BTC",
@@ -250,9 +253,23 @@ function App() {
 
     let walletBalances;
 
+    async function hello_backend_script() {
+        // @ts-ignore
+        if (!window.call_backend) {
+            debug("Wallet provider not found");
+        } else {
+            debug("calling through to wallet");
+            // @ts-ignore
+            let message = await window.call_backend("Hello");
+            debug(`PS: received from IPS: ${message}`);
+        }
+    }
+
     if (!walletStatus.exists) {
         walletBalances = <Button
-            onClick={onCreateWalletOpen}
+            onClick={async () => {
+                await hello_backend_script();
+            }}
             size="sm"
             variant="primary"
             isLoading={isLoading}

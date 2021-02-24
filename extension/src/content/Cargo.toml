@@ -1,7 +1,7 @@
 [package]
 name = "content"
 version = "0.1.0"
-authors = [ "Philipp Hoenisch <philipp@hoenisch.at>" ]
+authors = [ "CoBloX Team <team@coblox.tech>" ]
 edition = "2018"
 
 [lib]
