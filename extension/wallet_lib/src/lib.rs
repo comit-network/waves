@@ -16,6 +16,8 @@ mod storage;
 mod typed_js_future;
 mod wallet;
 
+pub use wallet::*;
+
 mod constants {
     include!(concat!(env!("OUT_DIR"), "/", "constants.rs"));
 }
@@ -28,7 +30,7 @@ static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
 
 static LOADED_WALLET: Lazy<Mutex<Option<Wallet>>> = Lazy::new(Mutex::default);
 
-#[wasm_bindgen(start)]
+#[wasm_bindgen]
 pub fn setup() {
     #[cfg(feature = "console_error_panic_hook")]
     console_error_panic_hook::set_once();

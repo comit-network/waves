@@ -129,6 +129,7 @@ checksum = "cdb031dd78e28731d87d56cc8ffef4a8f36ca26c38fe2de700543e627f8a464a"
 name = "background"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "conquer-once",
  "console_error_panic_hook",
  "futures",
@@ -1149,6 +1150,7 @@ name = "message_types"
 version = "0.1.0"
 dependencies = [
  "serde 1.0.123",
+ "serde_json 1.0.62",
 ]
 
 [[package]]
@@ -2665,6 +2667,7 @@ dependencies = [
 name = "waves_wallet"
 version = "0.2.0"
 dependencies = [
+ "anyhow",
  "console_error_panic_hook",
  "futures",
  "js-sys",

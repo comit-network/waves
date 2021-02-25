@@ -8,6 +8,7 @@ edition = "2018"
 crate-type = [ "cdylib" ]
 
 [dependencies]
+anyhow = "1.0"
 conquer-once = "0.3"
 console_error_panic_hook = "0.1.6"
 futures = "0.3"
