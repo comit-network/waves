@@ -20,25 +20,7 @@ pub struct Data {
 #[derive(Debug, Deserialize, Serialize)]
 pub enum RpcData {
     WalletStatus(String),
-    UnlockWallet(Data),
+    UnlockWallet(String, String),
     CreateWallet(String, String),
     Hello(String),
-}
-
-#[test]
-fn test_serde() {
-    let mut map = HashMap::with_capacity(2);
-    map.insert("key1".to_string(), "value1".to_string());
-    let msg = Message {
-        rpc_data: RpcData::UnlockWallet(Data { value_map: map }),
-        target: Component::Background,
-        source: Component::PopUp,
-        content_tab_id: 1,
-    };
-
-    let serialized = serde_json::to_string(&msg).unwrap();
-    println!("serialized = {}", serialized);
-
-    let msg_des: Message = serde_json::from_str(&serialized).unwrap();
-    println!("deserialized = {:?}", msg_des);
 }

@@ -20,6 +20,7 @@ pub enum Msg {
     Sign,
     UpdatePassword(String),
     CreateWallet,
+    UnlockWallet,
     WalletStatus(WalletStatus),
 }
 
@@ -101,8 +102,32 @@ impl Component for App {
             }
 
             Msg::UpdatePassword(value) => {
-                log::debug!("wallet password updated: {}", value);
                 self.state.wallet_password = value;
+            }
+            Msg::UnlockWallet => {
+                let inner_link = self.link.clone();
+                let password = self.state.wallet_password.clone();
+                let name = self.state.wallet_name.clone();
+                spawn_local(async move {
+                    let msg = bs_ps::Message {
+                        rpc_data: bs_ps::RpcData::UnlockWallet(name, password),
+                        target: message_types::Component::Background,
+                        source: message_types::Component::PopUp,
+                        content_tab_id: 0,
+                    };
+                    let js_value = JsValue::from_serde(&msg).unwrap();
+                    let promise: Promise = browser.runtime().send_message(js_value);
+                    if let Ok(_) = JsFuture::from(promise).await {
+                        log::debug!("PS: wallet created");
+                        inner_link.send_message(Msg::WalletStatus(WalletStatus {
+                            loaded: true,
+                            exists: true,
+                        }));
+                    } else {
+                        //TODO deal with error case
+                    };
+                });
+                return false;
             }
             Msg::CreateWallet => {
                 let inner_link = self.link.clone();
@@ -156,7 +181,22 @@ impl Component for App {
                 loaded: false,
             } => {
                 html! {
+                <>
                     <p>{"Wallet exists but not loaded"}</p>
+                    <form>
+                        <input
+                           placeholder="Name"
+                           value=&self.state.wallet_name
+                           disabled=true
+                           />
+                        <input
+                           placeholder="Password"
+                           value=&self.state.wallet_password
+                           oninput=self.link.callback(|e: InputData| Msg::UpdatePassword(e.value))
+                           />
+                        <button onclick=self.link.callback(|_| Msg::UnlockWallet)>{ "Unlock" }</button>
+                    </form>
+                </>
                 }
             }
             _ => {
@@ -174,7 +214,7 @@ impl Component for App {
                            value=&self.state.wallet_password
                            oninput=self.link.callback(|e: InputData| Msg::UpdatePassword(e.value))
                            />
-                        <button onclick=self.link.callback(|_| Msg::CreateWallet)>{ "Create Wallet" }</button>
+                        <button onclick=self.link.callback(|_| Msg::CreateWallet)>{ "Create" }</button>
                     </form>
                 </>
                 }

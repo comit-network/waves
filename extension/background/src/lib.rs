@@ -80,19 +80,22 @@ fn handle_msg_from_ps(js_value: JsValue) -> Promise {
     match msg.rpc_data {
         RpcData::WalletStatus(name) => {
             log::debug!("Received status request from PS: {}", name);
-            return future_to_promise(wallet::wallet_status(name));
+            future_to_promise(wallet::wallet_status(name))
         }
         RpcData::CreateWallet(name, password) => {
             log::debug!("Creating wallet: {} ", name);
-            return future_to_promise(
+            future_to_promise(
                 wallet::create_new_wallet(name.clone(), password.clone())
                     .then(move |_| wallet::wallet_status(name.clone())),
-            );
+            )
         }
-        RpcData::UnlockWallet(_data) => {
+        RpcData::UnlockWallet(name, password) => {
             // TODO unlock wallet
             log::debug!("Received unlock request from PS");
-            Promise::resolve(&JsValue::from_str("UNKNOWN"))
+            future_to_promise(
+                wallet::load_existing_wallet(name.clone(), password.clone())
+                    .then(move |_| wallet::wallet_status(name.clone())),
+            )
         }
         RpcData::Hello(data) => {
             // TODO this was just demo and should go away, for now, we keep it here
