@@ -1,5 +1,6 @@
 use conquer_once::Lazy;
 use futures::{lock::Mutex, Future, FutureExt};
+use js_sys::Object;
 use js_sys::Promise;
 use message_types::{bs_ps, bs_ps::RpcData, cs_bs, Component};
 use serde::{Deserialize, Serialize};
@@ -31,25 +32,16 @@ pub fn main() {
         LOADED_WALLET.lock().await.replace("wallet".to_string());
     });
 
-    // instantiate listener to receive messages from content script
-    let handle_msg_from_cs = Closure::wrap(Box::new(handle_msg_from_cs) as Box<dyn Fn(_, _)>);
+    // instantiate listener to receive messages from content script or popup script
+    let handle_msg = Closure::wrap(Box::new(handle_msg) as Box<dyn Fn(_, _) -> Promise>);
     browser
         .runtime()
         .on_message()
-        .add_listener(handle_msg_from_cs.as_ref().unchecked_ref());
-    handle_msg_from_cs.forget();
-
-    // instantiate listener to receive messages from popup script
-    let handle_msg_from_ps =
-        Closure::wrap(Box::new(handle_msg_from_ps) as Box<dyn FnMut(JsValue) -> Promise>);
-    browser
-        .runtime()
-        .on_message()
-        .add_listener(handle_msg_from_ps.as_ref().unchecked_ref());
-    handle_msg_from_ps.forget();
+        .add_listener(handle_msg.as_ref().unchecked_ref());
+    handle_msg.forget();
 }
 
-fn handle_msg_from_ps(js_value: JsValue) -> Promise {
+fn handle_msg(js_value: JsValue, message_sender: JsValue) -> Promise {
     if !js_value.is_object() {
         let log = format!("BS: Invalid request: {:?}", js_value);
         log::error!("{}", log);
@@ -57,7 +49,7 @@ fn handle_msg_from_ps(js_value: JsValue) -> Promise {
         return Promise::resolve(&JsValue::from_str("Unknown request"));
     }
 
-    let msg: bs_ps::Message = match js_value.into_serde() {
+    let msg: message_types::Message = match js_value.clone().into_serde() {
         Ok(msg) => msg,
         Err(_) => {
             log::debug!("BS: Unexpected message: {:?}", js_value);
@@ -67,14 +59,35 @@ fn handle_msg_from_ps(js_value: JsValue) -> Promise {
     };
 
     match (&msg.target, &msg.source) {
-        (Component::Background, Component::PopUp) => {}
+        (Component::Background, Component::PopUp) => {
+            match js_value.into_serde() {
+                Ok(msg) => return handle_msg_from_ps(msg),
+                Err(_) => {
+                    log::debug!("BS: Unexpected message: {:?}", js_value);
+                    // TODO introduce error message
+                    return Promise::resolve(&JsValue::from_str("Unknown request"));
+                }
+            }
+        }
+        (Component::Background, Component::Content) => {
+            match (js_value.into_serde(), message_sender.into_serde()) {
+                (Ok(msg), Ok(sender)) => return handle_msg_from_cs(msg, sender),
+                (_, _) => {
+                    log::debug!("BS: Unexpected message: {:?}", js_value);
+                    // TODO introduce error message
+                    return Promise::resolve(&JsValue::from_str("Unknown request"));
+                }
+            }
+        }
         (_, source) => {
             log::debug!("BS: Unexpected message from {:?}", source);
             // TODO introduce error message
             return Promise::resolve(&JsValue::from_str("Unknown request"));
         }
     }
+}
 
+fn handle_msg_from_ps(msg: bs_ps::Message) -> Promise {
     log::info!("BS: Received message from Popup: {:?}", msg);
     let tab_id = msg.content_tab_id.clone();
     match msg.rpc_data {
@@ -122,41 +135,25 @@ fn handle_msg_from_ps(js_value: JsValue) -> Promise {
     }
 }
 
-// TODO combine both message handlers: there should only be one listener on window
-fn handle_msg_from_cs(msg: JsValue, message_sender: JsValue) {
-    if !msg.is_object() {
-        let log = format!("Invalid request: {:?}", msg);
-        log::error!("{}", log);
-        return;
-    }
+fn handle_msg_from_cs(msg: cs_bs::Message, message_sender: MessageSender) -> Promise {
+    log::info!("BS: Received from CS: {:?}", &msg);
 
-    // let msg: cs_bs::Message = msg.into_serde().unwrap();
-    // match (&msg.target, &msg.source) {
-    //     (Component::Background, Component::Content) => {}
-    //     (_, _) => {
-    //         log::debug!("BS: Unexpected message: {:?}", msg);
-    //         return;
-    //     }
-    // }
-    //
-    // let message_sender: MessageSender = message_sender.into_serde().unwrap();
-    //
-    // log::info!("BS: Received from CS: {:?}", &msg);
-    //
-    // let popup = Popup {
-    //     url: format!(
-    //         "popup.html?content_tab_id={}",
-    //         message_sender.tab.expect("tab id to exist").id
-    //     ),
-    //     type_: "popup".to_string(),
-    //     height: 200,
-    //     width: 200,
-    // };
-    // let js_value = JsValue::from_serde(&popup).unwrap();
-    // let object = Object::try_from(&js_value).unwrap();
-    // let popup_window = browser.windows().create(&object);
-    //
-    // log::info!("Popup created {:?}", popup_window);
+    let popup = Popup {
+        url: format!(
+            "popup.html?content_tab_id={}",
+            message_sender.tab.expect("tab id to exist").id
+        ),
+        type_: "popup".to_string(),
+        height: 200,
+        width: 200,
+    };
+    let js_value = JsValue::from_serde(&popup).unwrap();
+    let object = Object::try_from(&js_value).unwrap();
+    let popup_window = browser.windows().create(&object);
+
+    log::info!("Popup created {:?}", popup_window);
+    // TODO proper response
+    return Promise::resolve(&JsValue::from("OK"));
 }
 
 #[derive(Serialize, Deserialize)]

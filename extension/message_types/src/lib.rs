@@ -11,3 +11,9 @@ pub enum Component {
     InPage,
     PopUp,
 }
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct Message {
+    pub target: Component,
+    pub source: Component,
+}
