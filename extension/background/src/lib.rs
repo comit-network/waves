@@ -1,7 +1,6 @@
 use futures::{Future, FutureExt};
-use js_sys::Object;
 use js_sys::Promise;
-use message_types::{bs_ps, bs_ps::RpcData, cs_bs, Component};
+use message_types::{bs_ps, cs_bs, Component};
 use serde::{Deserialize, Serialize};
 use wasm_bindgen::{prelude::*, JsCast};
 use wasm_bindgen_extension::browser;
@@ -48,7 +47,7 @@ fn handle_msg(js_value: JsValue, message_sender: JsValue) -> Promise {
     let msg: message_types::Message = match js_value.clone().into_serde() {
         Ok(msg) => msg,
         Err(_) => {
-            log::debug!("BS: Unexpected message: {:?}", js_value);
+            log::warn!("BS: Unexpected message: {:?}", js_value);
             // TODO introduce error message
             return Promise::resolve(&JsValue::from_str("Unknown request"));
         }
@@ -59,7 +58,7 @@ fn handle_msg(js_value: JsValue, message_sender: JsValue) -> Promise {
             match js_value.into_serde() {
                 Ok(msg) => return handle_msg_from_ps(msg),
                 Err(_) => {
-                    log::debug!("BS: Unexpected message: {:?}", js_value);
+                    log::warn!("BS: Unexpected message: {:?}", js_value);
                     // TODO introduce error message
                     return Promise::resolve(&JsValue::from_str("Unknown request"));
                 }
@@ -69,14 +68,14 @@ fn handle_msg(js_value: JsValue, message_sender: JsValue) -> Promise {
             match (js_value.into_serde(), message_sender.into_serde()) {
                 (Ok(msg), Ok(sender)) => return handle_msg_from_cs(msg, sender),
                 (_, _) => {
-                    log::debug!("BS: Unexpected message: {:?}", js_value);
+                    log::warn!("BS: Unexpected message: {:?}", js_value);
                     // TODO introduce error message
                     return Promise::resolve(&JsValue::from_str("Unknown request"));
                 }
             }
         }
         (_, source) => {
-            log::debug!("BS: Unexpected message from {:?}", source);
+            log::warn!("BS: Unexpected message from {:?}", source);
             // TODO introduce error message
             return Promise::resolve(&JsValue::from_str("Unknown request"));
         }
@@ -85,20 +84,21 @@ fn handle_msg(js_value: JsValue, message_sender: JsValue) -> Promise {
 
 fn handle_msg_from_ps(msg: bs_ps::Message) -> Promise {
     log::info!("BS: Received message from Popup: {:?}", msg);
-    let tab_id = msg.content_tab_id.clone();
+    // TODO only needed to send something all the way back to PS, e.g. signed data
+    let _tab_id = msg.content_tab_id.clone();
     match msg.rpc_data {
-        RpcData::WalletStatus => {
+        bs_ps::RpcData::WalletStatus => {
             log::debug!("Received status request from PS.");
             future_to_promise(wallet::wallet_status(WALLET_NAME.to_string()))
         }
-        RpcData::CreateWallet(name, password) => {
+        bs_ps::RpcData::CreateWallet(name, password) => {
             log::debug!("Creating wallet: {} ", name);
             future_to_promise(
                 wallet::create_new_wallet(name.clone(), password.clone())
                     .then(move |_| wallet::wallet_status(name.clone())),
             )
         }
-        RpcData::UnlockWallet(name, password) => {
+        bs_ps::RpcData::UnlockWallet(name, password) => {
             // TODO unlock wallet
             log::debug!("Received unlock request from PS");
             future_to_promise(
@@ -106,22 +106,10 @@ fn handle_msg_from_ps(msg: bs_ps::Message) -> Promise {
                     .then(move |_| wallet::wallet_status(name.clone())),
             )
         }
-        RpcData::Hello(data) => {
+        bs_ps::RpcData::Hello(data) => {
             // TODO this was just demo and should go away, for now, we keep it here
             // for testing if the whole communication chain still works
-            spawn_local(async move {
-                let _resp = browser.tabs().send_message(
-                    tab_id,
-                    JsValue::from_serde(&cs_bs::Message {
-                        data: data.clone(),
-                        target: Component::Content,
-                        source: Component::Background,
-                    })
-                    .unwrap(),
-                    JsValue::null(),
-                );
-            });
-            // TODO: how should we deal with this? This is a response to PS
+            log::error!("Currently not supported {:?}", data);
             Promise::resolve(&JsValue::from_str("UNKNOWN"))
         }
     }
@@ -130,21 +118,52 @@ fn handle_msg_from_ps(msg: bs_ps::Message) -> Promise {
 fn handle_msg_from_cs(msg: cs_bs::Message, message_sender: MessageSender) -> Promise {
     log::info!("BS: Received from CS: {:?}", &msg);
 
-    let popup = Popup {
-        url: format!(
-            "popup.html?content_tab_id={}",
-            message_sender.tab.expect("tab id to exist").id
-        ),
-        type_: "popup".to_string(),
-        height: 200,
-        width: 200,
-    };
-    let js_value = JsValue::from_serde(&popup).unwrap();
-    let object = Object::try_from(&js_value).unwrap();
-    let popup_window = browser.windows().create(&object);
+    // let popup = Popup {
+    //     url: format!(
+    //         "popup.html?content_tab_id={}",
+    //         message_sender.tab.expect("tab id to exist").id
+    //     ),
+    //     type_: "popup".to_string(),
+    //     height: 200,
+    //     width: 200,
+    // };
+    // let js_value = JsValue::from_serde(&popup).unwrap();
+    // let object = Object::try_from(&js_value).unwrap();
+    // let popup_window = browser.windows().create(&object);
+    //
+    // log::info!("Popup created {:?}", popup_window);
+    // // TODO proper response
+    match msg.rpc_data {
+        cs_bs::RpcData::GetBalance => {
+            spawn_local(async move {
+                let result = wallet::get_balances(WALLET_NAME.to_string()).await;
+                let tab_id = message_sender.tab.expect("tab id to exist").id;
 
-    log::info!("Popup created {:?}", popup_window);
-    // TODO proper response
+                match result {
+                    Ok(_array) => {
+                        //TODO deserialize array and serialize again ? dafuq
+                        log::debug!("Received balance info {:?}", _array);
+                        let _resp = browser.tabs().send_message(
+                            tab_id,
+                            JsValue::from_serde(&cs_bs::Message {
+                                rpc_data: cs_bs::RpcData::Balance,
+                                target: Component::Content,
+                                source: Component::Background,
+                            })
+                            .unwrap(),
+                            JsValue::null(),
+                        );
+                    }
+                    Err(err) => {
+                        log::error!("Could not get balance {:?}", err);
+                    }
+                }
+            });
+            // TODO: how should we deal with this? This is a response to PS
+        }
+        _ => {}
+    }
+
     return Promise::resolve(&JsValue::from("OK"));
 }
 

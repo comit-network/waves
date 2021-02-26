@@ -1149,6 +1149,7 @@ checksum = "8452105ba047068f40ff7093dd1d9da90898e63dd61736462e9cdda6a90ad3c3"
 name = "message_types"
 version = "0.1.0"
 dependencies = [
+ "js-sys",
  "serde 1.0.123",
  "serde_json 1.0.62",
 ]

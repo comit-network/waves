@@ -54,37 +54,49 @@ fn handle_msg_from_bs(msg: JsValue) {
 
     let window = web_sys::window().expect("no global `window` exists");
     log::info!("CS: Received response from BS: {:?}", msg);
-    let msg: cs_bs::Message = msg.into_serde().unwrap();
 
-    window
-        .post_message(
-            &JsValue::from_serde(&ips_cs::Message {
-                data: msg.data,
-                target: Component::InPage,
-                source: Component::Content,
-            })
-            .unwrap(),
-            "*",
-        )
-        .unwrap();
+    if let Ok(cs_bs::Message { rpc_data, .. }) = msg.into_serde() {
+        match rpc_data {
+            cs_bs::RpcData::Balance => {
+                let msg = ips_cs::Message {
+                    rpc_data: ips_cs::RpcData::Balance,
+                    target: Component::InPage,
+                    source: Component::Content,
+                };
+                log::info!("CS: Sending response to IPS: {:?}", msg);
+                window
+                    .post_message(&JsValue::from_serde(&msg).unwrap(), "*")
+                    .unwrap();
+            }
+            _ => {}
+        }
+    }
 }
 
 fn handle_msg_from_ips(msg: JsValue) {
     let msg: MessageEvent = msg.into();
     let js_value: JsValue = msg.data();
     // TODO: Actually only accept messages from IPS
-    if let Some(string) = js_value.as_string() {
-        log::info!("CS: Received from IPS: {:?}", string);
-        let msg = cs_bs::Message {
-            data: string,
-            target: Component::Background,
-            source: Component::Content,
-        };
-        // sending message to Background script
-        let js_value = JsValue::from_serde(&msg).unwrap();
 
-        // TODO: Handle error response?
-        let _resp = browser.runtime().send_message(js_value);
+    log::info!("CS: Received from IPS: {:?}", js_value);
+    if let Ok(ips_cs::Message { rpc_data, .. }) = js_value.into_serde() {
+        match rpc_data {
+            ips_cs::RpcData::GetBalance => {
+                let msg = cs_bs::Message {
+                    rpc_data: cs_bs::RpcData::GetBalance,
+                    target: Component::Background,
+                    source: Component::Content,
+                };
+                log::info!("CS: Sending message get balance to BS: {:?}", msg);
+                // sending message to Background script
+                let js_value = JsValue::from_serde(&msg).unwrap();
+
+                // TODO: Handle error response?
+                let _resp = browser.runtime().send_message(js_value);
+            }
+            ips_cs::RpcData::Balance => {}
+            ips_cs::RpcData::Hello(_) => {}
+        }
     }
 }
 

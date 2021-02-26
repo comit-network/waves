@@ -1,7 +1,7 @@
 extern crate console_error_panic_hook;
 use futures::{channel::mpsc, StreamExt};
 use js_sys::{global, Object, Promise};
-use message_types::{ips_cs, Component};
+use message_types::{ips_cs, ips_cs::RpcData, Component};
 use std::future::Future;
 use wasm_bindgen::{prelude::*, JsCast};
 use wasm_bindgen_futures::{future_to_promise, spawn_local};
@@ -25,9 +25,7 @@ pub fn main() {
 }
 
 #[wasm_bindgen]
-pub fn call_backend(txt: String) -> Promise {
-    let js_value = JsValue::from(txt);
-
+pub fn call_backend(_msg: String) -> Promise {
     let (mut sender, mut receiver) = mpsc::channel::<JsValue>(10);
     // create listener
     let func = move |msg: MessageEvent| {
@@ -36,20 +34,26 @@ pub fn call_backend(txt: String) -> Promise {
         let message: Result<ips_cs::Message, _> = js_value.into_serde();
         if let Ok(ips_cs::Message {
             target,
-            data,
+            rpc_data,
             source,
         }) = &message
         {
             match (target, source) {
                 (Component::InPage, Component::Content) => {}
                 (_, _) => {
-                    log::debug!("IPS: Unexpected message from: {:?}", message);
+                    log::warn!("IPS: Unexpected message from: {:?}", message);
                     return;
                 }
             }
 
-            log::info!("IPS: Received response from CS: {:?}", data);
-            sender.try_send(JsValue::from_str(&data)).unwrap();
+            log::info!("IPS: Received response from CS: {:?}", rpc_data);
+            match rpc_data {
+                RpcData::Balance => {
+                    // TODO add balances
+                    sender.try_send(JsValue::from(0u8)).unwrap();
+                }
+                _ => {}
+            }
         }
     };
 
@@ -57,6 +61,12 @@ pub fn call_backend(txt: String) -> Promise {
     let listener = Listener::new("message".to_string(), cb);
 
     let window = web_sys::window().expect("no global `window` exists");
+    let js_value = JsValue::from_serde(&ips_cs::Message {
+        rpc_data: ips_cs::RpcData::GetBalance,
+        target: Component::Content,
+        source: Component::InPage,
+    })
+    .unwrap();
     window.post_message(&js_value, "*").unwrap();
 
     let fut = async move {
