@@ -19,7 +19,7 @@ pub struct Data {
 
 #[derive(Debug, Deserialize, Serialize)]
 pub enum RpcData {
-    WalletStatus(String),
+    WalletStatus,
     UnlockWallet(String, String),
     CreateWallet(String, String),
     Hello(String),

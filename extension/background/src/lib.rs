@@ -1,5 +1,4 @@
-use conquer_once::Lazy;
-use futures::{lock::Mutex, Future, FutureExt};
+use futures::{Future, FutureExt};
 use js_sys::Object;
 use js_sys::Promise;
 use message_types::{bs_ps, bs_ps::RpcData, cs_bs, Component};
@@ -8,7 +7,8 @@ use wasm_bindgen::{prelude::*, JsCast};
 use wasm_bindgen_extension::browser;
 use wasm_bindgen_futures::{future_to_promise, spawn_local};
 
-static LOADED_WALLET: Lazy<Mutex<Option<String>>> = Lazy::new(Mutex::default);
+// We do not support renaming the wallet for now
+pub const WALLET_NAME: &str = "demo-wallet";
 
 #[derive(Debug, Deserialize)]
 struct MessageSender {
@@ -27,10 +27,6 @@ pub fn main() {
     wallet::setup();
 
     log::info!("BS: Hello World");
-
-    spawn_local(async {
-        LOADED_WALLET.lock().await.replace("wallet".to_string());
-    });
 
     // instantiate listener to receive messages from content script or popup script
     let handle_msg = Closure::wrap(Box::new(handle_msg) as Box<dyn Fn(_, _) -> Promise>);
@@ -91,9 +87,9 @@ fn handle_msg_from_ps(msg: bs_ps::Message) -> Promise {
     log::info!("BS: Received message from Popup: {:?}", msg);
     let tab_id = msg.content_tab_id.clone();
     match msg.rpc_data {
-        RpcData::WalletStatus(name) => {
-            log::debug!("Received status request from PS: {}", name);
-            future_to_promise(wallet::wallet_status(name))
+        RpcData::WalletStatus => {
+            log::debug!("Received status request from PS.");
+            future_to_promise(wallet::wallet_status(WALLET_NAME.to_string()))
         }
         RpcData::CreateWallet(name, password) => {
             log::debug!("Creating wallet: {} ", name);
@@ -114,10 +110,6 @@ fn handle_msg_from_ps(msg: bs_ps::Message) -> Promise {
             // TODO this was just demo and should go away, for now, we keep it here
             // for testing if the whole communication chain still works
             spawn_local(async move {
-                let guard = LOADED_WALLET.lock().await;
-                let wallet = guard.as_ref().unwrap();
-                log::debug!("BS: Loaded wallet: {}", wallet);
-
                 let _resp = browser.tabs().send_message(
                     tab_id,
                     JsValue::from_serde(&cs_bs::Message {

@@ -8,6 +8,7 @@ use wasm_bindgen_extension::browser;
 use wasm_bindgen_futures::{spawn_local, JsFuture};
 use yew::prelude::*;
 
+// We do not support renaming the wallet for now
 pub const WALLET_NAME: &str = "demo-wallet";
 
 pub struct App {
@@ -46,22 +47,22 @@ impl Component for App {
         let window = web_sys::window().expect("no global `window` exists");
 
         let inner_link = link.clone();
-        spawn_local(async move {
-            let msg = bs_ps::Message {
-                rpc_data: bs_ps::RpcData::WalletStatus(WALLET_NAME.to_string()),
-                target: message_types::Component::Background,
-                source: message_types::Component::PopUp,
-                content_tab_id: 0,
-            };
-            let js_value = JsValue::from_serde(&msg).unwrap();
-            let promise: Promise = browser.runtime().send_message(js_value);
-            if let Ok(js_value) = JsFuture::from(promise).await {
-                if let Ok(wallet_status) = js_value.into_serde() {
-                    log::debug!("PS: wallet status: {:?}", wallet_status);
-                    inner_link.send_message(Msg::WalletStatus(wallet_status));
+        let msg = bs_ps::Message {
+            rpc_data: bs_ps::RpcData::WalletStatus,
+            target: message_types::Component::Background,
+            source: message_types::Component::PopUp,
+            content_tab_id: 0,
+        };
+        send_to_backend(
+            msg,
+            Box::new(move |response| {
+                if let Ok(response) = response {
+                    if let Ok(wallet_status) = response.into_serde() {
+                        inner_link.send_message(Msg::WalletStatus(wallet_status));
+                    }
                 }
-            };
-        });
+            }),
+        );
 
         // TODO this will go away in one way or the other but for now is needed for the demo message
         let url = Url::parse(&window.location().href().unwrap()).unwrap();
@@ -77,7 +78,7 @@ impl Component for App {
             link,
             content_tab_id,
             state: State {
-                wallet_name: "demo-wallet".to_string(),
+                wallet_name: WALLET_NAME.to_string(),
                 wallet_password: "".to_string(),
                 wallet_status: WalletStatus {
                     loaded: false,
@@ -106,52 +107,50 @@ impl Component for App {
             }
             Msg::UnlockWallet => {
                 let inner_link = self.link.clone();
-                let password = self.state.wallet_password.clone();
-                let name = self.state.wallet_name.clone();
-                spawn_local(async move {
-                    let msg = bs_ps::Message {
-                        rpc_data: bs_ps::RpcData::UnlockWallet(name, password),
-                        target: message_types::Component::Background,
-                        source: message_types::Component::PopUp,
-                        content_tab_id: 0,
-                    };
-                    let js_value = JsValue::from_serde(&msg).unwrap();
-                    let promise: Promise = browser.runtime().send_message(js_value);
-                    if let Ok(_) = JsFuture::from(promise).await {
-                        log::debug!("PS: wallet created");
-                        inner_link.send_message(Msg::WalletStatus(WalletStatus {
-                            loaded: true,
-                            exists: true,
-                        }));
-                    } else {
-                        //TODO deal with error case
-                    };
-                });
+                let msg = bs_ps::Message {
+                    rpc_data: bs_ps::RpcData::UnlockWallet(
+                        self.state.wallet_name.clone(),
+                        self.state.wallet_password.clone(),
+                    ),
+                    target: message_types::Component::Background,
+                    source: message_types::Component::PopUp,
+                    content_tab_id: 0,
+                };
+                send_to_backend(
+                    msg,
+                    Box::new(move |response| {
+                        if let Ok(_) = response {
+                            inner_link.send_message(Msg::WalletStatus(WalletStatus {
+                                loaded: true,
+                                exists: true,
+                            }));
+                        }
+                    }),
+                );
                 return false;
             }
             Msg::CreateWallet => {
                 let inner_link = self.link.clone();
-                let password = self.state.wallet_password.clone();
-                let name = self.state.wallet_name.clone();
-                spawn_local(async move {
-                    let msg = bs_ps::Message {
-                        rpc_data: bs_ps::RpcData::CreateWallet(name, password),
-                        target: message_types::Component::Background,
-                        source: message_types::Component::PopUp,
-                        content_tab_id: 0,
-                    };
-                    let js_value = JsValue::from_serde(&msg).unwrap();
-                    let promise: Promise = browser.runtime().send_message(js_value);
-                    if let Ok(_) = JsFuture::from(promise).await {
-                        log::debug!("PS: wallet created");
-                        inner_link.send_message(Msg::WalletStatus(WalletStatus {
-                            loaded: true,
-                            exists: true,
-                        }));
-                    } else {
-                        //TODO deal with error case
-                    };
-                });
+                let msg = bs_ps::Message {
+                    rpc_data: bs_ps::RpcData::CreateWallet(
+                        self.state.wallet_name.clone(),
+                        self.state.wallet_password.clone(),
+                    ),
+                    target: message_types::Component::Background,
+                    source: message_types::Component::PopUp,
+                    content_tab_id: 0,
+                };
+                send_to_backend(
+                    msg,
+                    Box::new(move |response| {
+                        if let Ok(_) = response {
+                            inner_link.send_message(Msg::WalletStatus(WalletStatus {
+                                loaded: true,
+                                exists: true,
+                            }));
+                        }
+                    }),
+                );
                 return false;
             }
             Msg::WalletStatus(wallet_status) => {
@@ -234,4 +233,13 @@ impl Component for App {
     fn rendered(&mut self, _first_render: bool) {}
 
     fn destroy(&mut self) {}
+}
+
+fn send_to_backend(message: bs_ps::Message, callback: Box<dyn Fn(Result<JsValue, JsValue>)>) {
+    spawn_local(async move {
+        let js_value = JsValue::from_serde(&message).unwrap();
+        let promise: Promise = browser.runtime().send_message(js_value);
+        let result = JsFuture::from(promise).await;
+        callback(result)
+    });
 }
