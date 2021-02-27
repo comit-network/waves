@@ -3,6 +3,11 @@
   "name": "waves_wallet",
   "version": "0.0.1",
   "description": "A Liquid Wallet",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "waves-wallet@comit.network"
+    }
+  },
 
   "background": {
     "page": "background.html"

@@ -70,11 +70,23 @@ extern "C" {
     #[wasm_bindgen(method, js_name = getURL)]
     pub fn get_url(this: &Runtime, path: String) -> String;
 
-    #[wasm_bindgen(method, js_name = sendMessage)]
-    pub fn send_message(this: &Runtime, value: JsValue) -> Promise;
-
     #[wasm_bindgen(method, js_name = getBackgroundPage)]
     pub fn get_background_page(this: &Runtime) -> Background;
+
+    #[wasm_bindgen(method, js_name = sendMessage)]
+    pub fn send_message(
+        this: &Runtime,
+        extension_id: Option<&str>,
+        message: &JsValue,
+        options: Option<&Object>,
+    ) -> Promise;
+
+    #[wasm_bindgen(method)]
+    pub fn connect(this: &Runtime, extension_id: Option<&str>, connect_info: &Object) -> Port;
+
+    #[wasm_bindgen(method, getter, js_name = onConnect)]
+    pub fn on_connect(this: &Runtime) -> Event;
+
 }
 
 #[wasm_bindgen]
@@ -102,4 +114,68 @@ extern "C" {
 extern "C" {
     #[derive(Debug)]
     pub type Background;
+}
+
+#[wasm_bindgen]
+extern "C" {
+    #[derive(Debug, Clone, PartialEq)]
+    pub type Port;
+
+    #[wasm_bindgen(method, getter)]
+    pub fn name(this: &Port) -> String;
+
+    // TODO is this correct ?
+    #[wasm_bindgen(method, getter)]
+    pub fn error(this: &Port) -> js_sys::Error;
+
+    #[wasm_bindgen(method)]
+    pub fn disconnect(this: &Port);
+
+    #[wasm_bindgen(method, getter, js_name = onDisconnect)]
+    pub fn on_disconnect(this: &Port) -> Event;
+
+    #[wasm_bindgen(method, getter, js_name = onMessage)]
+    pub fn on_message(this: &Port) -> Event;
+
+    #[wasm_bindgen(method, js_name = postMessage)]
+    pub fn post_message(this: &Port, value: &JsValue);
+
+    #[wasm_bindgen(method, getter)]
+    pub fn sender(this: &Port) -> Option<MessageSender>;
+}
+
+#[wasm_bindgen]
+extern "C" {
+    #[derive(Debug, Clone)]
+    pub type MessageSender;
+
+    #[wasm_bindgen(method, getter)]
+    pub fn tab(this: &MessageSender) -> Option<Tab>;
+
+    // TODO is this correct ?
+    #[wasm_bindgen(method, getter, js_name = frameId)]
+    pub fn frame_id(this: &MessageSender) -> Option<u32>;
+
+    #[wasm_bindgen(method, getter)]
+    pub fn id(this: &MessageSender) -> Option<String>;
+
+    #[wasm_bindgen(method, getter)]
+    pub fn url(this: &MessageSender) -> Option<String>;
+
+    #[wasm_bindgen(method, getter, js_name = tlsChannelId)]
+    pub fn tls_channel_id(this: &MessageSender) -> Option<String>;
+}
+
+#[macro_export]
+macro_rules! object {
+    ($($key:literal: $value:expr,)*) => {{
+        let obj: js_sys::Object = js_sys::Object::new();
+        // TODO make this more efficient
+        $(wasm_bindgen::UnwrapThrowExt::unwrap_throw(js_sys::Reflect::set(
+            &obj,
+            &wasm_bindgen::JsValue::from(wasm_bindgen::intern($key)),
+            &wasm_bindgen::JsValue::from($value),
+        ));)*
+        obj
+    }};
 }

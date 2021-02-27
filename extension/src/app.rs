@@ -98,7 +98,7 @@ impl Component for App {
                     content_tab_id: self.content_tab_id,
                 };
                 let js_value = JsValue::from_serde(&msg).unwrap();
-                let _resp = browser.runtime().send_message(js_value);
+                let _resp = browser.runtime().send_message(None, &js_value, None);
                 // TODO: handle response
             }
 
@@ -238,7 +238,7 @@ impl Component for App {
 fn send_to_backend(message: bs_ps::Message, callback: Box<dyn Fn(Result<JsValue, JsValue>)>) {
     spawn_local(async move {
         let js_value = JsValue::from_serde(&message).unwrap();
-        let promise: Promise = browser.runtime().send_message(js_value);
+        let promise: Promise = browser.runtime().send_message(None, &js_value, None);
         let result = JsFuture::from(promise).await;
         callback(result)
     });

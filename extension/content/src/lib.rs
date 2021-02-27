@@ -92,7 +92,7 @@ fn handle_msg_from_ips(msg: JsValue) {
                 let js_value = JsValue::from_serde(&msg).unwrap();
 
                 // TODO: Handle error response?
-                let _resp = browser.runtime().send_message(js_value);
+                let _resp = browser.runtime().send_message(None, &js_value, None);
             }
             ips_cs::RpcData::Balance => {}
             ips_cs::RpcData::Hello(_) => {}
