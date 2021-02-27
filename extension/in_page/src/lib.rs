@@ -17,15 +17,21 @@ pub fn main() {
 
     let global: Object = global();
 
-    let boxed = Box::new(call_backend) as Box<dyn Fn(String) -> Promise>;
-    let add_closure = Closure::wrap(boxed);
-    let add_closure = add_closure.into_js_value();
+    let boxed = Box::new(balances) as Box<dyn Fn() -> Promise>;
+    let closure = Closure::wrap(boxed).into_js_value();
+    js_sys::Reflect::set(&global, &JsValue::from("balances"), &closure).unwrap();
 
-    js_sys::Reflect::set(&global, &JsValue::from("call_backend"), &add_closure).unwrap();
+    let boxed = Box::new(wallet_status) as Box<dyn Fn() -> Promise>;
+    let closure = Closure::wrap(boxed).into_js_value();
+    js_sys::Reflect::set(&global, &JsValue::from("wallet_status"), &closure).unwrap();
+
+    let window = web_sys::window().expect("no global `window` exists");
+    let js_value = JsValue::from("IPS_injected");
+    window.post_message(&js_value, "*").unwrap();
 }
 
 #[wasm_bindgen]
-pub fn call_backend(_msg: String) -> Promise {
+pub fn balances() -> Promise {
     let (mut sender, mut receiver) = mpsc::channel::<JsValue>(10);
     // create listener
     let func = move |msg: MessageEvent| {
@@ -48,9 +54,11 @@ pub fn call_backend(_msg: String) -> Promise {
 
             log::info!("IPS: Received response from CS: {:?}", rpc_data);
             match rpc_data {
-                RpcData::Balance => {
+                RpcData::Balance(balance_entry) => {
                     // TODO add balances
-                    sender.try_send(JsValue::from(0u8)).unwrap();
+                    sender
+                        .try_send(JsValue::from_serde(balance_entry).unwrap())
+                        .unwrap();
                 }
                 _ => {}
             }
@@ -63,6 +71,72 @@ pub fn call_backend(_msg: String) -> Promise {
     let window = web_sys::window().expect("no global `window` exists");
     let js_value = JsValue::from_serde(&ips_cs::Message {
         rpc_data: ips_cs::RpcData::GetBalance,
+        target: Component::Content,
+        source: Component::InPage,
+    })
+    .unwrap();
+    window.post_message(&js_value, "*").unwrap();
+
+    let fut = async move {
+        let response = receiver.next().await;
+        let response = response.ok_or_else(|| JsValue::from_str("IPS: No response from CS"))?;
+
+        drop(listener);
+        Ok(response)
+    };
+
+    future_to_promise(fut)
+}
+
+#[wasm_bindgen]
+pub fn wallet_status() -> Promise {
+    let (mut sender, mut receiver) = mpsc::channel::<JsValue>(10);
+    // create listener
+    let func = move |msg: MessageEvent| {
+        let js_value: JsValue = msg.data();
+
+        let message: Result<ips_cs::Message, _> = js_value.into_serde();
+        if let Ok(ips_cs::Message {
+            target,
+            rpc_data,
+            source,
+        }) = &message
+        {
+            match (target, source) {
+                (Component::InPage, Component::Content) => {}
+                (_, _) => {
+                    log::warn!("IPS: Unexpected message from: {:?}", message);
+                    return;
+                }
+            }
+
+            log::info!("IPS: Received response from CS: {:?}", rpc_data);
+            match rpc_data {
+                RpcData::Balance(balance_entry) => {
+                    // TODO add balances
+                    sender
+                        .try_send(JsValue::from_serde(balance_entry).unwrap())
+                        .unwrap();
+                }
+
+                RpcData::GetWalletStatus => {}
+                RpcData::GetBalance => {}
+                RpcData::WalletStatus(wallet_status) => {
+                    sender
+                        .try_send(JsValue::from_serde(wallet_status).unwrap())
+                        .unwrap();
+                }
+                RpcData::Hello(_) => {}
+            }
+        }
+    };
+
+    let cb = Closure::wrap(Box::new(func) as Box<dyn FnMut(MessageEvent)>);
+    let listener = Listener::new("message".to_string(), cb);
+
+    let window = web_sys::window().expect("no global `window` exists");
+    let js_value = JsValue::from_serde(&ips_cs::Message {
+        rpc_data: ips_cs::RpcData::GetWalletStatus,
         target: Component::Content,
         source: Component::InPage,
     })

@@ -140,13 +140,18 @@ fn handle_msg_from_cs(msg: cs_bs::Message, message_sender: MessageSender) -> Pro
                 let tab_id = message_sender.tab.expect("tab id to exist").id;
 
                 match result {
-                    Ok(_array) => {
+                    Ok(array) => {
                         //TODO deserialize array and serialize again ? dafuq
-                        log::debug!("Received balance info {:?}", _array);
+                        let vec_balances = array
+                            .iter()
+                            .map(|balance: JsValue| balance.into_serde().unwrap())
+                            .collect();
+
+                        log::debug!("Received balance info {:?}", array);
                         let _resp = browser.tabs().send_message(
                             tab_id,
                             JsValue::from_serde(&cs_bs::Message {
-                                rpc_data: cs_bs::RpcData::Balance,
+                                rpc_data: cs_bs::RpcData::Balance(vec_balances),
                                 target: Component::Content,
                                 source: Component::Background,
                             })
@@ -155,11 +160,39 @@ fn handle_msg_from_cs(msg: cs_bs::Message, message_sender: MessageSender) -> Pro
                         );
                     }
                     Err(err) => {
+                        // TODO deal with error
                         log::error!("Could not get balance {:?}", err);
                     }
                 }
             });
-            // TODO: how should we deal with this? This is a response to PS
+        }
+        cs_bs::RpcData::GetWalletStatus => {
+            spawn_local(async move {
+                let result = wallet::wallet_status(WALLET_NAME.to_string()).await;
+                let tab_id = message_sender.tab.expect("tab id to exist").id;
+
+                match result {
+                    Ok(wallet_status) => {
+                        if let Ok(wallet_status) = wallet_status.into_serde() {
+                            log::debug!("Received wallet status info {:?}", wallet_status);
+                            let _resp = browser.tabs().send_message(
+                                tab_id,
+                                JsValue::from_serde(&cs_bs::Message {
+                                    rpc_data: cs_bs::RpcData::WalletStatus(wallet_status),
+                                    target: Component::Content,
+                                    source: Component::Background,
+                                })
+                                .unwrap(),
+                                JsValue::null(),
+                            );
+                        }
+                    }
+                    Err(err) => {
+                        // TODO deal with error
+                        log::error!("Could not get balance {:?}", err);
+                    }
+                }
+            });
         }
         _ => {}
     }

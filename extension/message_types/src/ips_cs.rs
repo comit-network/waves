@@ -1,4 +1,7 @@
-use crate::Component;
+use crate::{
+    cs_bs::{BalanceEntry, WalletStatus},
+    Component,
+};
 use serde::{Deserialize, Serialize};
 
 /// Message to be send between in-page script and content script
@@ -11,7 +14,9 @@ pub struct Message {
 
 #[derive(Debug, Deserialize, Serialize)]
 pub enum RpcData {
+    GetWalletStatus,
     GetBalance,
-    Balance,
+    Balance(Vec<BalanceEntry>),
+    WalletStatus(WalletStatus),
     Hello(String),
 }

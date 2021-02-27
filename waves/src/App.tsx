@@ -1,5 +1,5 @@
 import { ExternalLinkIcon } from "@chakra-ui/icons";
-import { Box, Button, Center, Flex, Image, Link, Text, useDisclosure, VStack } from "@chakra-ui/react";
+import { Box, Button, Center, Flex, Image, Link, Text, VStack } from "@chakra-ui/react";
 import Debug from "debug";
 import React, { useEffect, useReducer, useState } from "react";
 import { useAsync } from "react-async";
@@ -12,11 +12,7 @@ import calculateBetaAmount, { getDirection } from "./calculateBetaAmount";
 import AssetSelector from "./components/AssetSelector";
 import COMIT from "./components/comit_logo_spellout_opacity_50.svg";
 import ExchangeIcon from "./components/ExchangeIcon";
-import ConfirmSwapDrawer from "./ConfirmSwapDrawer";
-import CreateWalletDrawer from "./CreateWalletDrawer";
-import UnlockWalletDrawer from "./UnlockWalletDrawer";
 import WalletBalances from "./WalletBalances";
-import WalletDrawer from "./WalletDrawer";
 import {
     extractTrade,
     getBalances,
@@ -195,21 +191,33 @@ function App() {
         bid: 33670.10,
     });
 
-    let { isOpen: isUnlockWalletOpen, onClose: onUnlockWalletClose, onOpen: onUnlockWalletOpen } = useDisclosure();
-    let { isOpen: isCreateWalletOpen, onClose: onCreateWalletClose, onOpen: onCreateWalletOpen } = useDisclosure();
-    let { isOpen: isConfirmSwapOpen, onClose: onConfirmSwapClose, onOpen: onConfirmSwapOpen } = useDisclosure();
-    let { isOpen: isWalletOpen, onClose: onWalletClose, onOpen: onWalletOpen } = useDisclosure();
-
+    // TODO window.wallet_status does not yet exist... need to get event listener
     let { data: getWalletStatusResponse, isLoading, reload: reloadWalletStatus } = useAsync({
         promiseFn: getWalletStatus,
     });
+
+    useEffect(() => {
+        let callback = (_message: MessageEvent) => {};
+        // @ts-ignore
+        if (!window.wallet_status) {
+            callback = (message: MessageEvent) => {
+                debug("Received message: %s", message.data);
+                reloadWalletStatus();
+            };
+        }
+        window.addEventListener("message", callback);
+
+        return () => window.removeEventListener("message", callback);
+    });
+
     let walletStatus = getWalletStatusResponse || { exists: false, loaded: false };
 
     let { data: getBalancesResponse, mutate: reloadWalletBalances } = useSWR(
         () => walletStatus.loaded ? "wallet-balances" : null,
         () => getBalances(),
         {
-            refreshInterval: 5000,
+            // TODO uncomment this, it just produces annoying log messages during development
+            // refreshInterval: 5000,
         },
     );
     let balances = getBalancesResponse || [];
@@ -240,7 +248,8 @@ function App() {
 
             setTransaction([tx, trade]);
 
-            onConfirmSwapOpen();
+            // TODO: call confirm swap through to BS
+            // await confirmSwap();
         },
     });
 
@@ -253,22 +262,21 @@ function App() {
 
     let walletBalances;
 
-    async function hello_backend_script() {
+    async function unlock_wallet() {
+        // TODO send request to open popup to unlock wallet
         // @ts-ignore
-        if (!window.call_backend) {
-            debug("Wallet provider not found");
-        } else {
-            debug("calling through to wallet");
-            // @ts-ignore
-            let message = await window.call_backend("Hello");
-            debug(`PS: received from IPS: ${message}`);
-        }
+        debug("For now open popup manually...");
+    }
+    async function open_wallet_popup() {
+        // TODO send request to open popup to show balances
+        // @ts-ignore
+        debug("For now open popup manually...");
     }
 
     if (!walletStatus.exists) {
         walletBalances = <Button
             onClick={async () => {
-                await hello_backend_script();
+                await unlock_wallet();
             }}
             size="sm"
             variant="primary"
@@ -279,7 +287,7 @@ function App() {
         </Button>;
     } else if (walletStatus.exists && !walletStatus.loaded) {
         walletBalances = <Button
-            onClick={onUnlockWalletOpen}
+            onClick={unlock_wallet}
             size="sm"
             variant="primary"
             isLoading={isLoading}
@@ -293,7 +301,7 @@ function App() {
                 usdt: usdtBalance,
                 btc: btcBalance,
             }}
-            onClick={onWalletOpen}
+            onClick={open_wallet_popup}
         />;
     }
 
@@ -366,40 +374,6 @@ function App() {
                     </Route>
                 </Switch>
             </Center>
-            {isWalletOpen && <WalletDrawer
-                balances={{
-                    usdt: usdtBalance,
-                    btc: btcBalance,
-                }}
-                onClose={onWalletClose}
-                reloadBalances={async () => {
-                    await reloadWalletBalances();
-                }}
-            />}
-            {isUnlockWalletOpen && <UnlockWalletDrawer
-                onCancel={onUnlockWalletClose}
-                onUnlock={async () => {
-                    await reloadWalletBalances();
-                    await reloadWalletStatus();
-                    onUnlockWalletClose();
-                }}
-            />}
-            {isCreateWalletOpen && <CreateWalletDrawer
-                onCancel={onCreateWalletClose}
-                onCreate={async () => {
-                    await reloadWalletStatus();
-                    onCreateWalletClose();
-                }}
-            />}
-            {isConfirmSwapOpen && <ConfirmSwapDrawer
-                onCancel={onConfirmSwapClose}
-                onSwapped={(txId) => {
-                    history.push(`/swapped/${txId}`);
-                    onConfirmSwapClose();
-                }}
-                transaction={transaction}
-                trade={trade}
-            />}
 
             <footer className="App-footer">
                 <Center>

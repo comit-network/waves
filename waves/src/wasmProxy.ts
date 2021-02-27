@@ -1,4 +1,6 @@
+import Debug from "debug";
 import { Asset } from "./App";
+const debug = Debug("wasm-proxy");
 
 export interface BalanceEntry {
     asset: string;
@@ -62,18 +64,29 @@ export async function lockWallet() {
 }
 
 export async function getWalletStatus(): Promise<WalletStatus> {
-    // const { wallet_status } = await import("./wallet");
-    // return wallet_status(WALLET_NAME);
-    return Promise.resolve({
-        loaded: false,
-        exists: false,
-    });
+    // @ts-ignore
+    if (!window.wallet_status) {
+        debug("wallet_status not found. CS not yet defined? ");
+        return {
+            loaded: false,
+            exists: false,
+        };
+    }
+    // @ts-ignore
+    debug("Retrieving wallet status");
+    // @ts-ignore
+    return await window.wallet_status();
 }
 
 export async function getBalances(): Promise<BalanceEntry[]> {
-    // const { get_balances } = await import("./wallet");
-    // return get_balances(WALLET_NAME);
-    return Promise.resolve([]);
+    // TODO create bindings for library
+    // @ts-ignore
+    if (!window.balances) {
+        return [];
+    }
+    debug("Retrieving balances");
+    // @ts-ignore
+    return await window.balances();
 }
 
 export async function withdrawAll(address: string): Promise<String> {

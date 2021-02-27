@@ -1,4 +1,4 @@
-use message_types::{cs_bs, ips_cs, Component};
+use message_types::{cs_bs, ips_cs, ips_cs::RpcData, Component};
 use std::future::Future;
 use wasm_bindgen::{prelude::*, JsCast};
 use wasm_bindgen_extension::browser;
@@ -57,9 +57,9 @@ fn handle_msg_from_bs(msg: JsValue) {
 
     if let Ok(cs_bs::Message { rpc_data, .. }) = msg.into_serde() {
         match rpc_data {
-            cs_bs::RpcData::Balance => {
+            cs_bs::RpcData::Balance(data) => {
                 let msg = ips_cs::Message {
-                    rpc_data: ips_cs::RpcData::Balance,
+                    rpc_data: ips_cs::RpcData::Balance(data),
                     target: Component::InPage,
                     source: Component::Content,
                 };
@@ -68,7 +68,21 @@ fn handle_msg_from_bs(msg: JsValue) {
                     .post_message(&JsValue::from_serde(&msg).unwrap(), "*")
                     .unwrap();
             }
-            _ => {}
+
+            cs_bs::RpcData::GetBalance => {}
+            cs_bs::RpcData::WalletStatus(wallet_status) => {
+                let msg = ips_cs::Message {
+                    rpc_data: ips_cs::RpcData::WalletStatus(wallet_status),
+                    target: Component::InPage,
+                    source: Component::Content,
+                };
+                log::info!("CS: Sending response to IPS: {:?}", msg);
+                window
+                    .post_message(&JsValue::from_serde(&msg).unwrap(), "*")
+                    .unwrap();
+            }
+            cs_bs::RpcData::Hello(_) => {}
+            cs_bs::RpcData::GetWalletStatus => {}
         }
     }
 }
@@ -94,8 +108,22 @@ fn handle_msg_from_ips(msg: JsValue) {
                 // TODO: Handle error response?
                 let _resp = browser.runtime().send_message(None, &js_value, None);
             }
-            ips_cs::RpcData::Balance => {}
+            ips_cs::RpcData::Balance(_) => {}
             ips_cs::RpcData::Hello(_) => {}
+            RpcData::GetWalletStatus => {
+                let msg = cs_bs::Message {
+                    rpc_data: cs_bs::RpcData::GetWalletStatus,
+                    target: Component::Background,
+                    source: Component::Content,
+                };
+                log::info!("CS: Sending message get wallet status to BS: {:?}", msg);
+                // sending message to Background script
+                let js_value = JsValue::from_serde(&msg).unwrap();
+
+                // TODO: Handle error response?
+                let _resp = browser.runtime().send_message(None, &js_value, None);
+            }
+            RpcData::WalletStatus(_) => {}
         }
     }
 }
