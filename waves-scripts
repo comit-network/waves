@@ -102,7 +102,7 @@ start_bobtimus () {
     echo "Started bobtimus with pid $bobtimus_pid"
 }
 
-start_frontend () {
+start_react_app () {
     set -e
 
     if [ ! -f ".native_asset_id" ]; then
@@ -114,13 +114,30 @@ start_frontend () {
 
     cd waves
     yarn install
+    export REACT_APP_BLOCKEXPLORER_URL="http://localhost:$LIQUID_ESPLORA_PORT"
+
+    yarn start
+}
+
+start_extension () {
+    set -e
+
+    if [ ! -f ".native_asset_id" ]; then
+        echo "Native asset id not configured."
+        exit 1
+    fi
+
+    __read_env_file
+
+    cd extension
+    yarn install
     export NATIVE_ASSET_ID=$(cat ../.native_asset_id)
     export USDT_ASSET_ID=$(cat ../.usdt_asset_id)
     export CHAIN=ELEMENTS
     export ESPLORA_API_URL=$LIQUID_ESPLORA_URL
-    export REACT_APP_BLOCKEXPLORER_URL="http://localhost:$LIQUID_ESPLORA_PORT"
 
-    yarn start
+    yarn run build
+    yarn run start-dev
 }
 
 stop_nodes () {
