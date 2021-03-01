@@ -1,5 +1,5 @@
 use js_sys::Promise;
-use message_types::bs_ps;
+use message_types::{bs_ps, Component as MessageComponent};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use url::Url;
@@ -23,6 +23,7 @@ pub enum Msg {
     CreateWallet,
     UnlockWallet,
     WalletStatus(WalletStatus),
+    BalanceUpdate(Vec<bs_ps::BalanceEntry>),
 }
 
 #[derive(Serialize, Deserialize)]
@@ -30,6 +31,7 @@ pub struct State {
     wallet_name: String,
     wallet_password: String,
     wallet_status: WalletStatus,
+    wallet_balances: Vec<bs_ps::BalanceEntry>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -48,17 +50,44 @@ impl Component for App {
 
         let inner_link = link.clone();
         let msg = bs_ps::Message {
-            rpc_data: bs_ps::RpcData::WalletStatus,
-            target: message_types::Component::Background,
-            source: message_types::Component::PopUp,
+            rpc_data: bs_ps::RpcData::GetWalletStatus,
+            target: MessageComponent::Background,
+            source: MessageComponent::PopUp,
             content_tab_id: 0,
         };
         send_to_backend(
             msg,
             Box::new(move |response| {
+                let inner_link = inner_link.clone();
                 if let Ok(response) = response {
-                    if let Ok(wallet_status) = response.into_serde() {
-                        inner_link.send_message(Msg::WalletStatus(wallet_status));
+                    match response.into_serde() {
+                        Ok(WalletStatus {
+                            loaded: true,
+                            exists: true,
+                        }) => {
+                            let message = bs_ps::Message {
+                                rpc_data: bs_ps::RpcData::GetBalance,
+                                target: MessageComponent::Background,
+                                source: MessageComponent::PopUp,
+                                content_tab_id: 0,
+                            };
+                            send_to_backend(
+                                message,
+                                Box::new(move |js_value| {
+                                    if let Ok(response) = js_value {
+                                        if let Ok(bs_ps::RpcData::Balance(balances)) =
+                                            response.into_serde()
+                                        {
+                                            inner_link.send_message(Msg::BalanceUpdate(balances))
+                                        }
+                                    }
+                                }),
+                            );
+                        }
+                        Ok(wallet_status) => {
+                            inner_link.send_message(Msg::WalletStatus(wallet_status));
+                        }
+                        _ => {}
                     }
                 }
             }),
@@ -84,6 +113,7 @@ impl Component for App {
                     loaded: false,
                     exists: false,
                 },
+                wallet_balances: vec![],
             },
         }
     }
@@ -157,6 +187,14 @@ impl Component for App {
                 self.state.wallet_status = wallet_status;
                 return true;
             }
+            Msg::BalanceUpdate(balances) => {
+                self.state.wallet_balances = balances;
+                self.state.wallet_status = WalletStatus {
+                    loaded: true,
+                    exists: true,
+                };
+                return true;
+            }
         }
         false
     }
@@ -166,13 +204,23 @@ impl Component for App {
     }
 
     fn view(&self) -> Html {
+        let render_item = |balance: &bs_ps::BalanceEntry| -> Html {
+            html! {
+            <li> {balance.asset.clone()} </li>
+            }
+        };
         let wallet_form = match self.state.wallet_status {
             WalletStatus {
                 exists: true,
                 loaded: true,
             } => {
                 html! {
+                    <>
                     <p>{"Wallet exists"}</p>
+                    <ul class="item-list">
+                        { self.state.wallet_balances.iter().map(render_item).collect::<Html>() }
+                    </ul>
+                    </>
                 }
             }
             WalletStatus {

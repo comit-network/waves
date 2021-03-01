@@ -1,6 +1,6 @@
 use futures::{Future, FutureExt};
 use js_sys::Promise;
-use message_types::{bs_ps, cs_bs, Component};
+use message_types::{bs_ps, bs_ps::RpcData, cs_bs, Component};
 use serde::{Deserialize, Serialize};
 use wasm_bindgen::{prelude::*, JsCast};
 use wasm_bindgen_extension::browser;
@@ -87,7 +87,7 @@ fn handle_msg_from_ps(msg: bs_ps::Message) -> Promise {
     // TODO only needed to send something all the way back to PS, e.g. signed data
     let _tab_id = msg.content_tab_id.clone();
     match msg.rpc_data {
-        bs_ps::RpcData::WalletStatus => {
+        bs_ps::RpcData::GetWalletStatus => {
             log::debug!("Received status request from PS.");
             future_to_promise(wallet::wallet_status(WALLET_NAME.to_string()))
         }
@@ -112,27 +112,37 @@ fn handle_msg_from_ps(msg: bs_ps::Message) -> Promise {
             log::error!("Currently not supported {:?}", data);
             Promise::resolve(&JsValue::from_str("UNKNOWN"))
         }
+        bs_ps::RpcData::GetBalance => {
+            log::debug!("Received get balance request from PS.");
+
+            let future = async move {
+                let balances = wallet::get_balances(WALLET_NAME.to_string())
+                    .await?
+                    .into_iter()
+                    .map(|balance| bs_ps::BalanceEntry {
+                        asset: balance.asset.to_string(),
+                        ticker: balance.ticker,
+                        value: balance.value,
+                    })
+                    .collect();
+
+                let rpc_response = bs_ps::RpcData::Balance(balances);
+                let js_value = JsValue::from_serde(&rpc_response).unwrap();
+
+                Ok(js_value)
+            };
+            future_to_promise(future)
+        }
+        RpcData::Balance(_) => {
+            log::error!("Currently not supported");
+            Promise::resolve(&JsValue::from_str("UNKNOWN"))
+        }
     }
 }
 
 fn handle_msg_from_cs(msg: cs_bs::Message, message_sender: MessageSender) -> Promise {
     log::info!("BS: Received from CS: {:?}", &msg);
 
-    // let popup = Popup {
-    //     url: format!(
-    //         "popup.html?content_tab_id={}",
-    //         message_sender.tab.expect("tab id to exist").id
-    //     ),
-    //     type_: "popup".to_string(),
-    //     height: 200,
-    //     width: 200,
-    // };
-    // let js_value = JsValue::from_serde(&popup).unwrap();
-    // let object = Object::try_from(&js_value).unwrap();
-    // let popup_window = browser.windows().create(&object);
-    //
-    // log::info!("Popup created {:?}", popup_window);
-    // // TODO proper response
     match msg.rpc_data {
         cs_bs::RpcData::GetBalance => {
             spawn_local(async move {
@@ -140,14 +150,18 @@ fn handle_msg_from_cs(msg: cs_bs::Message, message_sender: MessageSender) -> Pro
                 let tab_id = message_sender.tab.expect("tab id to exist").id;
 
                 match result {
-                    Ok(array) => {
-                        //TODO deserialize array and serialize again ? dafuq
-                        let vec_balances = array
+                    Ok(vec_balances) => {
+                        //TODO export type or implement into
+                        let vec_balances = vec_balances
                             .iter()
-                            .map(|balance: JsValue| balance.into_serde().unwrap())
+                            .map(|balance: &wallet::BalanceEntry| cs_bs::BalanceEntry {
+                                asset: balance.asset.clone().to_string(),
+                                ticker: balance.ticker.clone(),
+                                value: balance.value,
+                            })
                             .collect();
 
-                        log::debug!("Received balance info {:?}", array);
+                        log::debug!("Received balance info {:?}", vec_balances);
                         let _resp = browser.tabs().send_message(
                             tab_id,
                             JsValue::from_serde(&cs_bs::Message {

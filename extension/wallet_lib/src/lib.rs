@@ -2,7 +2,6 @@ use crate::wallet::Wallet;
 use anyhow::Result;
 use conquer_once::Lazy;
 use futures::lock::Mutex;
-use js_sys::Array;
 use wasm_bindgen::prelude::*;
 
 #[macro_use]
@@ -29,6 +28,8 @@ mod constants {
 static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
 
 static LOADED_WALLET: Lazy<Mutex<Option<Wallet>>> = Lazy::new(Mutex::default);
+
+// TODO get rid of wasm in here, this lib does not need to be aware of wasm
 
 #[wasm_bindgen]
 pub fn setup() {
@@ -91,15 +92,11 @@ pub async fn get_address(name: String) -> Result<String, JsValue> {
 /// Returns an array of [`BalanceEntry`]s.
 ///
 /// Fails if the wallet is currently not loaded or we cannot reach the block explorer for some reason.
-#[wasm_bindgen]
-pub async fn get_balances(name: String) -> Result<Array, JsValue> {
-    // TODO: since we do not make use of the array, maybe don't even convert to js array ;)
-    let balances = map_err_from_anyhow!(wallet::get_balances(&name, &LOADED_WALLET).await)?
-        .into_iter()
-        .map(|e| JsValue::from_serde(&e).unwrap_throw())
-        .collect::<Array>();
-
-    Ok(balances)
+pub async fn get_balances(name: String) -> Result<Vec<BalanceEntry>, JsValue> {
+    let balance_entries = wallet::get_balances(&name, &LOADED_WALLET)
+        .await
+        .map_err(|e| JsValue::from_str(&format!("{:#}", e)))?;
+    Ok(balance_entries)
 }
 
 /// Withdraw all funds to the given address.

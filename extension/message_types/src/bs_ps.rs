@@ -1,4 +1,5 @@
 use crate::Component;
+use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
@@ -19,8 +20,23 @@ pub struct Data {
 
 #[derive(Debug, Deserialize, Serialize)]
 pub enum RpcData {
-    WalletStatus,
     UnlockWallet(String, String),
     CreateWallet(String, String),
+    GetWalletStatus,
+    GetBalance,
+    Balance(Vec<BalanceEntry>),
     Hello(String),
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct BalanceEntry {
+    pub asset: String,
+    pub ticker: String,
+    pub value: Decimal,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct WalletStatus {
+    pub loaded: bool,
+    pub exists: bool,
 }
