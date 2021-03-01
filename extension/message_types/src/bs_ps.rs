@@ -36,7 +36,11 @@ pub struct BalanceEntry {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
-pub struct WalletStatus {
-    pub loaded: bool,
-    pub exists: bool,
+pub enum WalletStatus {
+    None,
+    NotLoaded,
+    Loaded {
+        balances: Vec<BalanceEntry>,
+        address: String,
+    },
 }

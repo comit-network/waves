@@ -31,13 +31,16 @@ pub struct State {
     wallet_name: String,
     wallet_password: String,
     wallet_status: WalletStatus,
-    wallet_balances: Vec<bs_ps::BalanceEntry>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct WalletStatus {
-    loaded: bool,
-    exists: bool,
+#[derive(Serialize, Deserialize)]
+pub enum WalletStatus {
+    None,
+    NotLoaded,
+    Loaded {
+        balances: Vec<bs_ps::BalanceEntry>,
+        address: String,
+    },
 }
 
 impl Component for App {
@@ -58,36 +61,11 @@ impl Component for App {
         send_to_backend(
             msg,
             Box::new(move |response| {
-                let inner_link = inner_link.clone();
+                log::debug!("Wallet status after creating: {:?}", response);
+
                 if let Ok(response) = response {
-                    match response.into_serde() {
-                        Ok(WalletStatus {
-                            loaded: true,
-                            exists: true,
-                        }) => {
-                            let message = bs_ps::Message {
-                                rpc_data: bs_ps::RpcData::GetBalance,
-                                target: MessageComponent::Background,
-                                source: MessageComponent::PopUp,
-                                content_tab_id: 0,
-                            };
-                            send_to_backend(
-                                message,
-                                Box::new(move |js_value| {
-                                    if let Ok(response) = js_value {
-                                        if let Ok(bs_ps::RpcData::Balance(balances)) =
-                                            response.into_serde()
-                                        {
-                                            inner_link.send_message(Msg::BalanceUpdate(balances))
-                                        }
-                                    }
-                                }),
-                            );
-                        }
-                        Ok(wallet_status) => {
-                            inner_link.send_message(Msg::WalletStatus(wallet_status));
-                        }
-                        _ => {}
+                    if let Ok(msg) = response.into_serde() {
+                        inner_link.send_message(Msg::WalletStatus(msg));
                     }
                 }
             }),
@@ -109,11 +87,7 @@ impl Component for App {
             state: State {
                 wallet_name: WALLET_NAME.to_string(),
                 wallet_password: "".to_string(),
-                wallet_status: WalletStatus {
-                    loaded: false,
-                    exists: false,
-                },
-                wallet_balances: vec![],
+                wallet_status: WalletStatus::None,
             },
         }
     }
@@ -149,11 +123,10 @@ impl Component for App {
                 send_to_backend(
                     msg,
                     Box::new(move |response| {
-                        if let Ok(_) = response {
-                            inner_link.send_message(Msg::WalletStatus(WalletStatus {
-                                loaded: true,
-                                exists: true,
-                            }));
+                        if let Ok(response) = response {
+                            if let Ok(wallet_status) = response.into_serde() {
+                                inner_link.send_message(Msg::WalletStatus(wallet_status));
+                            }
                         }
                     }),
                 );
@@ -173,11 +146,8 @@ impl Component for App {
                 send_to_backend(
                     msg,
                     Box::new(move |response| {
-                        if let Ok(_) = response {
-                            inner_link.send_message(Msg::WalletStatus(WalletStatus {
-                                loaded: true,
-                                exists: true,
-                            }));
+                        if response.is_ok() {
+                            inner_link.send_message(Msg::WalletStatus(WalletStatus::NotLoaded));
                         }
                     }),
                 );
@@ -187,14 +157,17 @@ impl Component for App {
                 self.state.wallet_status = wallet_status;
                 return true;
             }
-            Msg::BalanceUpdate(balances) => {
-                self.state.wallet_balances = balances;
-                self.state.wallet_status = WalletStatus {
-                    loaded: true,
-                    exists: true,
-                };
-                return true;
-            }
+            Msg::BalanceUpdate(wallet_balances) => match &self.state.wallet_status {
+                WalletStatus::None => return false,
+                WalletStatus::NotLoaded => return true,
+                WalletStatus::Loaded { address, .. } => {
+                    self.state.wallet_status = WalletStatus::Loaded {
+                        address: address.clone(),
+                        balances: wallet_balances,
+                    };
+                    return true;
+                }
+            },
         }
         false
     }
@@ -209,61 +182,57 @@ impl Component for App {
             <li> {balance.asset.clone()} </li>
             }
         };
-        let wallet_form = match self.state.wallet_status {
-            WalletStatus {
-                exists: true,
-                loaded: true,
-            } => {
+        let wallet_form = match &self.state.wallet_status {
+            WalletStatus::Loaded { address, balances } => {
                 html! {
                     <>
-                    <p>{"Wallet exists"}</p>
-                    <ul class="item-list">
-                        { self.state.wallet_balances.iter().map(render_item).collect::<Html>() }
+                        <p>{"Wallet exists"}</p>
+                        <p>{format!("Address: {}", address)}</p>
+                        <p>{"Balances:"}</p>
+                        <ul class="item-list">
+                    { balances.iter().map(render_item).collect::<Html>() }
                     </ul>
                     </>
                 }
             }
-            WalletStatus {
-                exists: true,
-                loaded: false,
-            } => {
+            WalletStatus::NotLoaded => {
                 html! {
-                <>
-                    <p>{"Wallet exists but not loaded"}</p>
-                    <form>
-                        <input
-                           placeholder="Name"
-                           value=&self.state.wallet_name
-                           disabled=true
-                           />
-                        <input
-                           placeholder="Password"
-                           value=&self.state.wallet_password
-                           oninput=self.link.callback(|e: InputData| Msg::UpdatePassword(e.value))
-                           />
-                        <button onclick=self.link.callback(|_| Msg::UnlockWallet)>{ "Unlock" }</button>
-                    </form>
-                </>
+                    <>
+                        <p>{"Wallet exists but not loaded"}</p>
+                        <form>
+                            <input
+                                placeholder="Name"
+                                value=&self.state.wallet_name
+                                disabled=true
+                            />
+                            <input
+                                placeholder="Password"
+                                value=&self.state.wallet_password
+                                oninput=self.link.callback(|e: InputData| Msg::UpdatePassword(e.value))
+                            />
+                            <button onclick=self.link.callback(|_| Msg::UnlockWallet)>{ "Unlock" }</button>
+                        </form>
+                    </>
                 }
             }
-            _ => {
+            WalletStatus::None => {
                 html! {
-                <>
-                    <p>{"Wallet does not exist"}</p>
-                    <form>
-                        <input
-                           placeholder="Name"
-                           value=&self.state.wallet_name
-                           disabled=true
-                           />
-                        <input
-                           placeholder="Password"
-                           value=&self.state.wallet_password
-                           oninput=self.link.callback(|e: InputData| Msg::UpdatePassword(e.value))
-                           />
-                        <button onclick=self.link.callback(|_| Msg::CreateWallet)>{ "Create" }</button>
-                    </form>
-                </>
+                    <>
+                        <p>{"Wallet does not exist"}</p>
+                        <form>
+                            <input
+                               placeholder="Name"
+                               value=&self.state.wallet_name
+                               disabled=true
+                               />
+                            <input
+                               placeholder="Password"
+                               value=&self.state.wallet_password
+                               oninput=self.link.callback(|e: InputData| Msg::UpdatePassword(e.value))
+                               />
+                            <button onclick=self.link.callback(|_| Msg::CreateWallet)>{ "Create" }</button>
+                        </form>
+                    </>
                 }
             }
         };

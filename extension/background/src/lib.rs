@@ -1,4 +1,4 @@
-use futures::{Future, FutureExt};
+use futures::Future;
 use js_sys::Promise;
 use message_types::{bs_ps, bs_ps::RpcData, cs_bs, Component};
 use serde::{Deserialize, Serialize};
@@ -44,7 +44,7 @@ fn handle_msg(js_value: JsValue, message_sender: JsValue) -> Promise {
         return Promise::resolve(&JsValue::from_str("Unknown request"));
     }
 
-    let msg: message_types::Message = match js_value.clone().into_serde() {
+    let msg: message_types::Message = match js_value.into_serde() {
         Ok(msg) => msg,
         Err(_) => {
             log::warn!("BS: Unexpected message: {:?}", js_value);
@@ -56,55 +56,109 @@ fn handle_msg(js_value: JsValue, message_sender: JsValue) -> Promise {
     match (&msg.target, &msg.source) {
         (Component::Background, Component::PopUp) => {
             match js_value.into_serde() {
-                Ok(msg) => return handle_msg_from_ps(msg),
+                Ok(msg) => handle_msg_from_ps(msg),
                 Err(_) => {
                     log::warn!("BS: Unexpected message: {:?}", js_value);
                     // TODO introduce error message
-                    return Promise::resolve(&JsValue::from_str("Unknown request"));
+                    Promise::resolve(&JsValue::from_str("Unknown request"))
                 }
             }
         }
         (Component::Background, Component::Content) => {
             match (js_value.into_serde(), message_sender.into_serde()) {
-                (Ok(msg), Ok(sender)) => return handle_msg_from_cs(msg, sender),
+                (Ok(msg), Ok(sender)) => handle_msg_from_cs(msg, sender),
                 (_, _) => {
                     log::warn!("BS: Unexpected message: {:?}", js_value);
                     // TODO introduce error message
-                    return Promise::resolve(&JsValue::from_str("Unknown request"));
+                    Promise::resolve(&JsValue::from_str("Unknown request"))
                 }
             }
         }
         (_, source) => {
             log::warn!("BS: Unexpected message from {:?}", source);
             // TODO introduce error message
-            return Promise::resolve(&JsValue::from_str("Unknown request"));
+            Promise::resolve(&JsValue::from_str("Unknown request"))
         }
     }
+}
+
+#[derive(Debug, Deserialize)]
+pub struct WalletStatus {
+    pub exists: bool,
+    pub loaded: bool,
+}
+
+async fn wallet_status(name: String) -> Result<JsValue, JsValue> {
+    let status = wallet::wallet_status(name).await?;
+    let status: Result<WalletStatus, _> = status.into_serde();
+
+    if let Ok(WalletStatus {
+        exists: false,
+        loaded: false,
+    }) = status
+    {
+        return Ok(JsValue::from_serde(&bs_ps::WalletStatus::None).unwrap());
+    }
+
+    if let Ok(WalletStatus {
+        exists: true,
+        loaded: false,
+    }) = status
+    {
+        return Ok(JsValue::from_serde(&bs_ps::WalletStatus::NotLoaded).unwrap());
+    }
+
+    if let Ok(WalletStatus {
+        exists: false,
+        loaded: true,
+    }) = status
+    {
+        unreachable!("wallet cannot be loaded if it doesn't exist")
+    }
+
+    if status.is_err() {
+        log::warn!("Could not deserialize wallet status response: {:?}", status);
+        return Err(JsValue::from_str("Bad wallet status response"));
+    }
+
+    let balances = wallet::get_balances(WALLET_NAME.to_string())
+        .await?
+        .into_iter()
+        .map(|balance| bs_ps::BalanceEntry {
+            asset: balance.asset.to_string(),
+            ticker: balance.ticker,
+            value: balance.value,
+        })
+        .collect();
+
+    let address = wallet::get_address(WALLET_NAME.to_string()).await?;
+
+    Ok(JsValue::from_serde(&bs_ps::WalletStatus::Loaded { balances, address }).unwrap())
 }
 
 fn handle_msg_from_ps(msg: bs_ps::Message) -> Promise {
     log::info!("BS: Received message from Popup: {:?}", msg);
     // TODO only needed to send something all the way back to PS, e.g. signed data
-    let _tab_id = msg.content_tab_id.clone();
+    let _tab_id = msg.content_tab_id;
     match msg.rpc_data {
         bs_ps::RpcData::GetWalletStatus => {
             log::debug!("Received status request from PS.");
-            future_to_promise(wallet::wallet_status(WALLET_NAME.to_string()))
+            future_to_promise(wallet_status(WALLET_NAME.to_string()))
         }
         bs_ps::RpcData::CreateWallet(name, password) => {
             log::debug!("Creating wallet: {} ", name);
-            future_to_promise(
-                wallet::create_new_wallet(name.clone(), password.clone())
-                    .then(move |_| wallet::wallet_status(name.clone())),
-            )
+            future_to_promise(async move {
+                wallet::create_new_wallet(name.clone(), password).await?;
+                wallet_status(name.to_string()).await
+            })
         }
         bs_ps::RpcData::UnlockWallet(name, password) => {
-            // TODO unlock wallet
             log::debug!("Received unlock request from PS");
-            future_to_promise(
-                wallet::load_existing_wallet(name.clone(), password.clone())
-                    .then(move |_| wallet::wallet_status(name.clone())),
-            )
+
+            future_to_promise(async move {
+                wallet::load_existing_wallet(name.clone(), password.clone()).await?;
+                wallet_status(name.to_string()).await
+            })
         }
         bs_ps::RpcData::Hello(data) => {
             // TODO this was just demo and should go away, for now, we keep it here
@@ -211,7 +265,7 @@ fn handle_msg_from_cs(msg: cs_bs::Message, message_sender: MessageSender) -> Pro
         _ => {}
     }
 
-    return Promise::resolve(&JsValue::from("OK"));
+    Promise::resolve(&JsValue::from("OK"))
 }
 
 #[derive(Serialize, Deserialize)]
