@@ -8,7 +8,6 @@ use wasm_bindgen::prelude::*;
 mod macros;
 
 mod assets;
-mod cache_storage;
 mod esplora;
 mod logger;
 mod storage;

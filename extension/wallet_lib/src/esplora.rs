@@ -1,4 +1,4 @@
-use crate::{cache_storage::CacheStorage, constants::ESPLORA_API_URL};
+use crate::constants::ESPLORA_API_URL;
 use anyhow::{anyhow, bail, Context, Result};
 use elements::{
     encode::{deserialize, serialize_hex},
@@ -34,14 +34,15 @@ pub async fn fetch_utxos(address: &Address) -> Result<Vec<Utxo>> {
 }
 
 /// Fetches a transaction.
-///
+/// TODO : update doc
 /// This function makes use of the browsers cache to avoid spamming the underlying source.
 /// Transaction never change after they've been mined, hence we can cache those indefinitely.
 pub async fn fetch_transaction(txid: Txid) -> Result<Transaction> {
-    let cache = CacheStorage::from_window()?.open("transactions").await?;
+    let client = reqwest::Client::new();
 
-    let body = cache
-        .match_or_add(&format!("{}/tx/{}/hex", ESPLORA_API_URL, txid))
+    let body = client
+        .get(&format!("{}/tx/{}/hex", ESPLORA_API_URL, txid))
+        .send()
         .await?
         .text()
         .await?;

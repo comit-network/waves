@@ -22,7 +22,6 @@ pub enum Msg {
     CreateWallet,
     UnlockWallet,
     WalletStatus(WalletStatus),
-    BalanceUpdate(Vec<bs_ps::BalanceEntry>),
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -144,17 +143,6 @@ impl Component for App {
                 self.state.wallet_status = wallet_status;
                 return true;
             }
-            Msg::BalanceUpdate(wallet_balances) => match &self.state.wallet_status {
-                WalletStatus::None => return false,
-                WalletStatus::NotLoaded => return true,
-                WalletStatus::Loaded { address, .. } => {
-                    self.state.wallet_status = WalletStatus::Loaded {
-                        address: address.clone(),
-                        balances: wallet_balances,
-                    };
-                    return true;
-                }
-            },
         }
         false
     }
@@ -166,7 +154,7 @@ impl Component for App {
     fn view(&self) -> Html {
         let render_item = |balance: &bs_ps::BalanceEntry| -> Html {
             html! {
-            <li> {balance.asset.clone()} </li>
+            <li> {balance.ticker.clone()}  {balance.value.clone()}  </li>
             }
         };
         let wallet_form = match &self.state.wallet_status {
