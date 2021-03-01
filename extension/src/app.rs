@@ -18,7 +18,6 @@ pub struct App {
 }
 
 pub enum Msg {
-    Sign,
     UpdatePassword(String),
     CreateWallet,
     UnlockWallet,
@@ -26,14 +25,14 @@ pub enum Msg {
     BalanceUpdate(Vec<bs_ps::BalanceEntry>),
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct State {
     wallet_name: String,
     wallet_password: String,
     wallet_status: WalletStatus,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub enum WalletStatus {
     None,
     NotLoaded,
@@ -94,18 +93,6 @@ impl Component for App {
 
     fn update(&mut self, msg: Self::Message) -> ShouldRender {
         match msg {
-            Msg::Sign => {
-                let msg = bs_ps::Message {
-                    rpc_data: bs_ps::RpcData::Hello("World".to_string()),
-                    target: message_types::Component::Background,
-                    source: message_types::Component::PopUp,
-                    content_tab_id: self.content_tab_id,
-                };
-                let js_value = JsValue::from_serde(&msg).unwrap();
-                let _resp = browser.runtime().send_message(None, &js_value, None);
-                // TODO: handle response
-            }
-
             Msg::UpdatePassword(value) => {
                 self.state.wallet_password = value;
             }
@@ -237,12 +224,28 @@ impl Component for App {
             }
         };
 
+        let faucet_button = match &self.state.wallet_status {
+            WalletStatus::Loaded { address, .. } => {
+                let address = address.clone();
+                html! {
+                    <>
+                        <button onclick=self.link.batch_callback(
+                            move |_| {
+                                faucet(address.to_string());
+                                vec![]
+                            })>{ "Faucet" }</button>
+                    </>
+                }
+            }
+            _ => html! {},
+        };
+
         html! {
             <div>
                 <p>{ "Waves Wallet" }</p>
                 { wallet_form }
-                // TODO this will be removed eventually
-                <button onclick=self.link.callback(|_| Msg::Sign)>{ "Send message back to IPS" }</button>
+                // TODO: Feature flag this
+                {faucet_button}
             </div>
         }
     }
@@ -250,6 +253,20 @@ impl Component for App {
     fn rendered(&mut self, _first_render: bool) {}
 
     fn destroy(&mut self) {}
+}
+
+fn faucet(address: String) {
+    spawn_local(async move {
+        let client = reqwest::Client::new();
+        match client
+            .post(format!("http://127.0.0.1:3030/api/faucet/{}", address).as_str())
+            .send()
+            .await
+        {
+            Ok(_) => {}
+            Err(e) => log::error!("Call to faucet failed: {:?}", e),
+        };
+    })
 }
 
 fn send_to_backend(message: bs_ps::Message, callback: Box<dyn Fn(Result<JsValue, JsValue>)>) {

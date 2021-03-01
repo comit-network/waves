@@ -90,6 +90,7 @@ pub struct WalletStatus {
 
 async fn wallet_status(name: String) -> Result<JsValue, JsValue> {
     let status = wallet::wallet_status(name).await?;
+    log::debug!("Did not fail at line 92");
     let status: Result<WalletStatus, _> = status.into_serde();
 
     if let Ok(WalletStatus {
@@ -113,6 +114,7 @@ async fn wallet_status(name: String) -> Result<JsValue, JsValue> {
         loaded: true,
     }) = status
     {
+        log::error!("unreachable: wallet cannot be loaded if it doesn't exist");
         unreachable!("wallet cannot be loaded if it doesn't exist")
     }
 
@@ -121,8 +123,11 @@ async fn wallet_status(name: String) -> Result<JsValue, JsValue> {
         return Err(JsValue::from_str("Bad wallet status response"));
     }
 
-    let balances = wallet::get_balances(WALLET_NAME.to_string())
-        .await?
+    let balances = wallet::get_balances(WALLET_NAME.to_string()).await;
+
+    log::debug!("Balances: {:?}", &balances);
+
+    let balances = balances?
         .into_iter()
         .map(|balance| bs_ps::BalanceEntry {
             asset: balance.asset.to_string(),

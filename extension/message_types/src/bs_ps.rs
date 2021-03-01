@@ -28,7 +28,7 @@ pub enum RpcData {
     Hello(String),
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct BalanceEntry {
     pub asset: String,
     pub ticker: String,
