@@ -10,7 +10,7 @@ start_dev_env () {
 
     start_bobtimus
 
-    start_frontend
+    start_react_app
 }
 
 stop_dev_env () {
