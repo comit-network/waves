@@ -1,4 +1,4 @@
-use message_types::{cs_bs, ips_cs, ips_cs::RpcData, Component};
+use message_types::{cs_bs, ips_cs, Component};
 use std::future::Future;
 use wasm_bindgen::{prelude::*, JsCast};
 use wasm_bindgen_extension::browser;
@@ -68,8 +68,6 @@ fn handle_msg_from_bs(msg: JsValue) {
                     .post_message(&JsValue::from_serde(&msg).unwrap(), "*")
                     .unwrap();
             }
-
-            cs_bs::RpcData::GetBalance => {}
             cs_bs::RpcData::WalletStatus(wallet_status) => {
                 let msg = ips_cs::Message {
                     rpc_data: ips_cs::RpcData::WalletStatus(wallet_status),
@@ -81,8 +79,7 @@ fn handle_msg_from_bs(msg: JsValue) {
                     .post_message(&JsValue::from_serde(&msg).unwrap(), "*")
                     .unwrap();
             }
-            cs_bs::RpcData::Hello(_) => {}
-            cs_bs::RpcData::GetWalletStatus => {}
+            _ => {}
         }
     }
 }
@@ -108,9 +105,7 @@ fn handle_msg_from_ips(msg: JsValue) {
                 // TODO: Handle error response?
                 let _resp = browser.runtime().send_message(None, &js_value, None);
             }
-            ips_cs::RpcData::Balance(_) => {}
-            ips_cs::RpcData::Hello(_) => {}
-            RpcData::GetWalletStatus => {
+            ips_cs::RpcData::GetWalletStatus => {
                 let msg = cs_bs::Message {
                     rpc_data: cs_bs::RpcData::GetWalletStatus,
                     target: Component::Background,
@@ -123,7 +118,7 @@ fn handle_msg_from_ips(msg: JsValue) {
                 // TODO: Handle error response?
                 let _resp = browser.runtime().send_message(None, &js_value, None);
             }
-            RpcData::WalletStatus(_) => {}
+            _ => {}
         }
     }
 }

@@ -53,14 +53,10 @@ pub fn balances() -> Promise {
             }
 
             log::info!("IPS: Received response from CS: {:?}", rpc_data);
-            match rpc_data {
-                RpcData::Balance(balance_entry) => {
-                    // TODO add balances
-                    sender
-                        .try_send(JsValue::from_serde(balance_entry).unwrap())
-                        .unwrap();
-                }
-                _ => {}
+            if let RpcData::Balance(balance_entry) = rpc_data {
+                sender
+                    .try_send(JsValue::from_serde(balance_entry).unwrap())
+                    .unwrap();
             }
         }
     };

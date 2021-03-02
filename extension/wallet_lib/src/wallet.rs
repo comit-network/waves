@@ -263,7 +263,7 @@ impl fmt::Display for ListOfWallets {
 }
 
 /// Represents the payload for creating a swap.
-#[derive(Debug, serde::Serialize)]
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
 pub struct CreateSwapPayload {
     pub alice_inputs: Vec<SwapUtxo>,
     pub address: Address,
@@ -271,7 +271,7 @@ pub struct CreateSwapPayload {
     pub amount: bdk::bitcoin::Amount,
 }
 
-#[derive(Debug, serde::Serialize)]
+#[derive(Debug, serde::Serialize, serde::Deserialize)]
 pub struct SwapUtxo {
     pub outpoint: OutPoint,
     pub blinding_key: SecretKey,

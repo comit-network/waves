@@ -98,14 +98,13 @@ export async function withdrawAll(address: string): Promise<String> {
 export async function makeSellCreateSwapPayload(
     btc: string,
 ): Promise<CreateSwapPayload> {
-    // const { make_sell_create_swap_payload } = await import("./wallet");
-    // return make_sell_create_swap_payload(WALLET_NAME, btc);
-
-    return Promise.resolve({
-        alice_inputs: [],
-        address: "dummyAddress",
-        amount: 1,
-    });
+    // @ts-ignore
+    if (!window.sellCreateSwapPayload) {
+      return Promise.reject();
+    }
+    debug("making sell create swap payload");
+    // @ts-ignore
+    return await window.sellCreateSwapPayload(btc);
 }
 
 export async function makeBuyCreateSwapPayload(
@@ -124,7 +123,9 @@ export async function extractTrade(
     transaction: string,
 ): Promise<Trade> {
     // const { extract_trade } = await import("./wallet");
-    // return extract_trade(WALLET_NAME, transaction);
+  // return extract_trade(WALLET_NAME, transaction);
+  debug("Transaction from bobtimus: " + transaction)
+
     return Promise.resolve({
         sell: {
             ticker: Asset.LBTC,
