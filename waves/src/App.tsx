@@ -216,8 +216,9 @@ function App() {
         () => walletStatus.loaded ? "wallet-balances" : null,
         () => getBalances(),
         {
-            // TODO uncomment this, it just produces annoying log messages during development
+            // TODO uncomment this and remove revalidateOnFocus, it just produces annoying log messages during development
             // refreshInterval: 5000,
+            revalidateOnFocus: false,
         },
     );
     let balances = getBalancesResponse || [];
