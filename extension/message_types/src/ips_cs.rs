@@ -10,13 +10,15 @@ pub struct Message {
     pub source: Component,
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub enum RpcData {
     GetWalletStatus,
     GetBalance,
     GetSellCreateSwapPayload(String),
+    GetBuyCreateSwapPayload(String),
     WalletStatus(WalletStatus),
     Balance(Vec<BalanceEntry>),
     SellCreateSwapPayload(CreateSwapPayload),
+    BuyCreateSwapPayload(CreateSwapPayload),
     Hello(String),
 }

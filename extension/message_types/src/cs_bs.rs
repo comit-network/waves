@@ -16,13 +16,15 @@ pub enum RpcData {
     GetWalletStatus,
     GetBalance,
     GetSellCreateSwapPayload(String),
+    GetBuyCreateSwapPayload(String),
     WalletStatus(WalletStatus),
     Balance(Vec<BalanceEntry>),
     SellCreateSwapPayload(CreateSwapPayload),
+    BuyCreateSwapPayload(CreateSwapPayload),
     Hello(String),
 }
 
-#[derive(Debug, Deserialize, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 pub struct BalanceEntry {
     pub asset: String,
     pub ticker: String,

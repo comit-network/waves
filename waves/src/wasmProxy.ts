@@ -110,13 +110,13 @@ export async function makeSellCreateSwapPayload(
 export async function makeBuyCreateSwapPayload(
     usdt: string,
 ): Promise<CreateSwapPayload> {
-    // const { make_buy_create_swap_payload } = await import("./wallet");
-    // return make_buy_create_swap_payload(WALLET_NAME, usdt);
-    return Promise.resolve({
-        alice_inputs: [],
-        address: "dummyAddress",
-        amount: 1,
-    });
+    // @ts-ignore
+    if (!window.get_buy_create_swap_payload) {
+      return Promise.reject();
+    }
+    debug("making buy create swap payload");
+    // @ts-ignore
+    return await window.get_buy_create_swap_payload(usdt);
 }
 
 export async function extractTrade(
