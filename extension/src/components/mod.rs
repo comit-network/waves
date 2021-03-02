@@ -1,1 +1,2 @@
-pub mod create_wallet;
+pub mod create_wallet_form;
+pub mod unlock_wallet_form;

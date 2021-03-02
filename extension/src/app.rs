@@ -1,4 +1,4 @@
-use crate::components::create_wallet::CreateWallet;
+use crate::components::{create_wallet_form::CreateWallet, unlock_wallet_form::UnlockWallet};
 use js_sys::Promise;
 use message_types::{bs_ps, Component as MessageComponent};
 use serde::{Deserialize, Serialize};
@@ -19,7 +19,6 @@ pub struct App {
 }
 
 pub enum Msg {
-    UpdatePassword(String),
     CreateWallet,
     UnlockWallet,
     WalletStatus(WalletStatus),
@@ -92,10 +91,7 @@ impl Component for App {
     }
 
     fn update(&mut self, msg: Self::Message) -> ShouldRender {
-        match msg {
-            Msg::UpdatePassword(value) => {
-                self.state.wallet_password = value;
-            }
+        return match msg {
             Msg::UnlockWallet => {
                 let inner_link = self.link.clone();
                 let msg = bs_ps::Message {
@@ -117,7 +113,7 @@ impl Component for App {
                         }
                     }),
                 );
-                return false;
+                false
             }
             Msg::CreateWallet => {
                 let inner_link = self.link.clone();
@@ -138,14 +134,13 @@ impl Component for App {
                         }
                     }),
                 );
-                return false;
+                false
             }
             Msg::WalletStatus(wallet_status) => {
                 self.state.wallet_status = wallet_status;
-                return true;
+                true
             }
-        }
-        false
+        };
     }
 
     fn change(&mut self, _props: Self::Properties) -> bool {
@@ -174,20 +169,7 @@ impl Component for App {
             WalletStatus::NotLoaded => {
                 html! {
                     <>
-                        <p>{"Wallet exists but not loaded"}</p>
-                        <form>
-                            <input
-                                placeholder="Name"
-                                value=&self.state.wallet_name
-                                disabled=true
-                            />
-                            <input
-                                placeholder="Password"
-                                value=&self.state.wallet_password
-                                oninput=self.link.callback(|e: InputData| Msg::UpdatePassword(e.value))
-                            />
-                            <button onclick=self.link.callback(|_| Msg::UnlockWallet)>{ "Unlock" }</button>
-                        </form>
+                        <UnlockWallet on_form_submit=self.link.callback(|_| Msg::UnlockWallet)></UnlockWallet>
                     </>
                 }
             }

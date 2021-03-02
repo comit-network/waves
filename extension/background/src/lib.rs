@@ -102,6 +102,7 @@ async fn wallet_status(name: String) -> Result<JsValue, JsValue> {
         loaded: false,
     } = status
     {
+        log::debug!("Wallet does not exist");
         return Ok(JsValue::from_serde(&bs_ps::WalletStatus::None).unwrap());
     }
 
@@ -110,6 +111,7 @@ async fn wallet_status(name: String) -> Result<JsValue, JsValue> {
         loaded: false,
     } = status
     {
+        log::debug!("Wallet exists but not loaded");
         return Ok(JsValue::from_serde(&bs_ps::WalletStatus::NotLoaded).unwrap());
     }
 
