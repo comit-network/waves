@@ -1,3 +1,4 @@
+use crate::components::create_wallet::CreateWallet;
 use js_sys::Promise;
 use message_types::{bs_ps, Component as MessageComponent};
 use serde::{Deserialize, Serialize};
@@ -193,20 +194,7 @@ impl Component for App {
             WalletStatus::None => {
                 html! {
                     <>
-                        <p>{"Wallet does not exist"}</p>
-                        <form>
-                            <input
-                               placeholder="Name"
-                               value=&self.state.wallet_name
-                               disabled=true
-                               />
-                            <input
-                               placeholder="Password"
-                               value=&self.state.wallet_password
-                               oninput=self.link.callback(|e: InputData| Msg::UpdatePassword(e.value))
-                               />
-                            <button onclick=self.link.callback(|_| Msg::CreateWallet)>{ "Create" }</button>
-                        </form>
+                        <CreateWallet on_form_submit=self.link.callback(|_| Msg::CreateWallet)></CreateWallet>
                     </>
                 }
             }
