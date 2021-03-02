@@ -1,4 +1,7 @@
-use crate::components::{create_wallet_form::CreateWallet, unlock_wallet_form::UnlockWallet};
+use crate::components::{
+    create_wallet_form::CreateWallet, unlock_wallet_form::UnlockWallet,
+    wallet_details::WalletDetails,
+};
 use js_sys::Promise;
 use message_types::{bs_ps, Component as MessageComponent};
 use serde::{Deserialize, Serialize};
@@ -148,21 +151,11 @@ impl Component for App {
     }
 
     fn view(&self) -> Html {
-        let render_item = |balance: &bs_ps::BalanceEntry| -> Html {
-            html! {
-            <li> {balance.ticker.clone()}  {balance.value.clone()}  </li>
-            }
-        };
         let wallet_form = match &self.state.wallet_status {
             WalletStatus::Loaded { address, balances } => {
                 html! {
                     <>
-                        <p>{"Wallet exists"}</p>
-                        <p>{format!("Address: {}", address)}</p>
-                        <p>{"Balances:"}</p>
-                        <ul class="item-list">
-                    { balances.iter().map(render_item).collect::<Html>() }
-                    </ul>
+                        <WalletDetails address=address balances=balances></WalletDetails>
                     </>
                 }
             }

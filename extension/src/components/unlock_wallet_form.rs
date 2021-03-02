@@ -69,7 +69,7 @@ impl Component for UnlockWallet {
                        value=&self.state.wallet_password
                        oninput=self.link.callback(|e: InputData| Msg::UpdatePassword(e.value))
                        />
-                    <button onclick=onclick>{ "Create" }</button>
+                    <button onclick=onclick>{ "Unlock" }</button>
                 </form>
             </>
         }

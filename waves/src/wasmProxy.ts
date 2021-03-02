@@ -100,7 +100,7 @@ export async function makeSellCreateSwapPayload(
 ): Promise<CreateSwapPayload> {
     // @ts-ignore
     if (!window.get_sell_create_swap_payload) {
-      return Promise.reject();
+        return Promise.reject();
     }
     debug("making sell create swap payload");
     // @ts-ignore
@@ -123,8 +123,8 @@ export async function extractTrade(
     transaction: string,
 ): Promise<Trade> {
     // const { extract_trade } = await import("./wallet");
-  // return extract_trade(WALLET_NAME, transaction);
-  debug("Transaction from bobtimus: " + transaction)
+    // return extract_trade(WALLET_NAME, transaction);
+    debug("Transaction from bobtimus: " + transaction);
 
     return Promise.resolve({
         sell: {
