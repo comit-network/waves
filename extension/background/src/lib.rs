@@ -266,6 +266,33 @@ fn handle_msg_from_cs(msg: cs_bs::Message, message_sender: MessageSender) -> Pro
                 }
             });
         }
+        cs_bs::RpcData::GetSellCreateSwapPayload(btc) => {
+            spawn_local(async move {
+                let result =
+                    wallet::make_sell_create_swap_payload(WALLET_NAME.to_string(), btc).await;
+                let tab_id = message_sender.tab.expect("tab id to exist").id;
+
+                match result {
+                    Ok(payload) => {
+                        log::debug!("Received sell payload info {:?}", payload);
+                        let _resp = browser.tabs().send_message(
+                            tab_id,
+                            JsValue::from_serde(&cs_bs::Message {
+                                rpc_data: cs_bs::RpcData::SellCreateSwapPayload(payload),
+                                target: Component::Content,
+                                source: Component::Background,
+                            })
+                            .unwrap(),
+                            JsValue::null(),
+                        );
+                    }
+                    Err(err) => {
+                        // TODO deal with error
+                        log::error!("Could not get balance {:?}", err);
+                    }
+                }
+            });
+        }
         _ => {}
     }
 

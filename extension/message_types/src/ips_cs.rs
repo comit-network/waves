@@ -1,5 +1,6 @@
 use crate::{cs_bs::BalanceEntry, Component};
 use serde::{Deserialize, Serialize};
+use wallet::CreateSwapPayload;
 use wallet::WalletStatus;
 
 /// Message to be send between in-page script and content script
@@ -14,7 +15,9 @@ pub struct Message {
 pub enum RpcData {
     GetWalletStatus,
     GetBalance,
-    Balance(Vec<BalanceEntry>),
+    GetSellCreateSwapPayload(String),
     WalletStatus(WalletStatus),
+    Balance(Vec<BalanceEntry>),
+    SellCreateSwapPayload(CreateSwapPayload),
     Hello(String),
 }

@@ -1,7 +1,7 @@
 use crate::Component;
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
-use wallet::WalletStatus;
+use wallet::{CreateSwapPayload, WalletStatus};
 
 /// Message to be send between content script and background script
 #[derive(Debug, Deserialize, Serialize)]
@@ -15,8 +15,10 @@ pub struct Message {
 pub enum RpcData {
     GetWalletStatus,
     GetBalance,
-    Balance(Vec<BalanceEntry>),
+    GetSellCreateSwapPayload(String),
     WalletStatus(WalletStatus),
+    Balance(Vec<BalanceEntry>),
+    SellCreateSwapPayload(CreateSwapPayload),
     Hello(String),
 }
 

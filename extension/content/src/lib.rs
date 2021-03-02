@@ -79,6 +79,17 @@ fn handle_msg_from_bs(msg: JsValue) {
                     .post_message(&JsValue::from_serde(&msg).unwrap(), "*")
                     .unwrap();
             }
+            cs_bs::RpcData::SellCreateSwapPayload(payload) => {
+                let msg = ips_cs::Message {
+                    rpc_data: ips_cs::RpcData::SellCreateSwapPayload(payload),
+                    target: Component::InPage,
+                    source: Component::Content,
+                };
+                log::info!("CS: Sending response to IPS: {:?}", msg);
+                window
+                    .post_message(&JsValue::from_serde(&msg).unwrap(), "*")
+                    .unwrap();
+            }
             _ => {}
         }
     }
@@ -116,6 +127,20 @@ fn handle_msg_from_ips(msg: JsValue) {
                 let js_value = JsValue::from_serde(&msg).unwrap();
 
                 // TODO: Handle error response?
+                let _resp = browser.runtime().send_message(None, &js_value, None);
+            }
+            ips_cs::RpcData::GetSellCreateSwapPayload(btc) => {
+                let msg = cs_bs::Message {
+                    rpc_data: cs_bs::RpcData::GetSellCreateSwapPayload(btc),
+                    target: Component::Background,
+                    source: Component::Content,
+                };
+                log::info!(
+                    "CS: Sending message get sell create swap payload to BS: {:?}",
+                    msg
+                );
+
+                let js_value = JsValue::from_serde(&msg).unwrap();
                 let _resp = browser.runtime().send_message(None, &js_value, None);
             }
             _ => {}

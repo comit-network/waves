@@ -99,12 +99,12 @@ export async function makeSellCreateSwapPayload(
     btc: string,
 ): Promise<CreateSwapPayload> {
     // @ts-ignore
-    if (!window.sellCreateSwapPayload) {
+    if (!window.get_sell_create_swap_payload) {
       return Promise.reject();
     }
     debug("making sell create swap payload");
     // @ts-ignore
-    return await window.sellCreateSwapPayload(btc);
+    return await window.get_sell_create_swap_payload(btc);
 }
 
 export async function makeBuyCreateSwapPayload(

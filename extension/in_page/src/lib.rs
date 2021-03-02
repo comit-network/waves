@@ -25,6 +25,15 @@ pub fn main() {
     let closure = Closure::wrap(boxed).into_js_value();
     js_sys::Reflect::set(&global, &JsValue::from("wallet_status"), &closure).unwrap();
 
+    let boxed = Box::new(get_sell_create_swap_payload) as Box<dyn Fn(String) -> Promise>;
+    let closure = Closure::wrap(boxed).into_js_value();
+    js_sys::Reflect::set(
+        &global,
+        &JsValue::from("get_sell_create_swap_payload"),
+        &closure,
+    )
+    .unwrap();
+
     let window = web_sys::window().expect("no global `window` exists");
     let js_value = JsValue::from("IPS_injected");
     window.post_message(&js_value, "*").unwrap();
@@ -107,22 +116,10 @@ pub fn wallet_status() -> Promise {
             }
 
             log::info!("IPS: Received response from CS: {:?}", rpc_data);
-            match rpc_data {
-                RpcData::Balance(balance_entry) => {
-                    // TODO add balances
-                    sender
-                        .try_send(JsValue::from_serde(balance_entry).unwrap())
-                        .unwrap();
-                }
-
-                RpcData::GetWalletStatus => {}
-                RpcData::GetBalance => {}
-                RpcData::WalletStatus(wallet_status) => {
-                    sender
-                        .try_send(JsValue::from_serde(wallet_status).unwrap())
-                        .unwrap();
-                }
-                RpcData::Hello(_) => {}
+            if let RpcData::WalletStatus(wallet_status) = rpc_data {
+                sender
+                    .try_send(JsValue::from_serde(wallet_status).unwrap())
+                    .unwrap();
             }
         }
     };
@@ -133,6 +130,60 @@ pub fn wallet_status() -> Promise {
     let window = web_sys::window().expect("no global `window` exists");
     let js_value = JsValue::from_serde(&ips_cs::Message {
         rpc_data: ips_cs::RpcData::GetWalletStatus,
+        target: Component::Content,
+        source: Component::InPage,
+    })
+    .unwrap();
+    window.post_message(&js_value, "*").unwrap();
+
+    let fut = async move {
+        let response = receiver.next().await;
+        let response = response.ok_or_else(|| JsValue::from_str("IPS: No response from CS"))?;
+
+        drop(listener);
+        Ok(response)
+    };
+
+    future_to_promise(fut)
+}
+
+#[wasm_bindgen]
+pub fn get_sell_create_swap_payload(btc: String) -> Promise {
+    let (mut sender, mut receiver) = mpsc::channel::<JsValue>(10);
+    // create listener
+    let func = move |msg: MessageEvent| {
+        let js_value: JsValue = msg.data();
+
+        let message: Result<ips_cs::Message, _> = js_value.into_serde();
+        if let Ok(ips_cs::Message {
+            target,
+            rpc_data,
+            source,
+        }) = &message
+        {
+            match (target, source) {
+                (Component::InPage, Component::Content) => {}
+                (_, _) => {
+                    log::warn!("IPS: Unexpected message from: {:?}", message);
+                    return;
+                }
+            }
+
+            log::info!("IPS: Received response from CS: {:?}", rpc_data);
+            if let RpcData::SellCreateSwapPayload(payload) = rpc_data {
+                sender
+                    .try_send(JsValue::from_serde(payload).unwrap())
+                    .unwrap();
+            }
+        }
+    };
+
+    let cb = Closure::wrap(Box::new(func) as Box<dyn FnMut(MessageEvent)>);
+    let listener = Listener::new("message".to_string(), cb);
+
+    let window = web_sys::window().expect("no global `window` exists");
+    let js_value = JsValue::from_serde(&ips_cs::Message {
+        rpc_data: ips_cs::RpcData::GetSellCreateSwapPayload(btc),
         target: Component::Content,
         source: Component::InPage,
     })
