@@ -124,12 +124,8 @@ pub async fn make_sell_create_swap_payload(
 /// Sign the given swap transaction and broadcast it to the network.
 ///
 /// Returns the transaction ID.
-pub async fn sign_and_send_swap_transaction(
-    wallet_name: String,
-    transaction: Transaction,
-) -> Result<Txid> {
-    let txid =
-        wallet::sign_and_send_swap_transaction(wallet_name, &LOADED_WALLET, transaction).await?;
+pub async fn sign_and_send_swap_transaction(wallet_name: String, tx_hex: String) -> Result<Txid> {
+    let txid = wallet::sign_and_send_swap_transaction(wallet_name, &LOADED_WALLET, tx_hex).await?;
 
     Ok(txid)
 }

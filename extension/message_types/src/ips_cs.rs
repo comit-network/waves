@@ -1,4 +1,5 @@
 use crate::{cs_bs::BalanceEntry, Component};
+use elements::{Transaction, Txid};
 use serde::{Deserialize, Serialize};
 use wallet::{CreateSwapPayload, WalletStatus};
 
@@ -17,8 +18,10 @@ pub enum RpcData {
     GetSellCreateSwapPayload(String),
     GetBuyCreateSwapPayload(String),
     WalletStatus(WalletStatus),
+    SignAndSend(String),
     Balance(Vec<BalanceEntry>),
     SellCreateSwapPayload(CreateSwapPayload),
     BuyCreateSwapPayload(CreateSwapPayload),
+    SwapTxid(Txid),
     Hello(String),
 }

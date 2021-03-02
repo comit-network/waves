@@ -82,7 +82,7 @@ export async function getBalances(): Promise<BalanceEntry[]> {
     // TODO create bindings for library
     // @ts-ignore
     if (!window.balances) {
-        return [];
+        return Promise.reject("balances undefined");
     }
     debug("Retrieving balances");
     // @ts-ignore
@@ -100,7 +100,7 @@ export async function makeSellCreateSwapPayload(
 ): Promise<CreateSwapPayload> {
     // @ts-ignore
     if (!window.get_sell_create_swap_payload) {
-        return Promise.reject();
+        return Promise.reject("get_sell_create_swap_payload undefined");
     }
     debug("making sell create swap payload");
     // @ts-ignore
@@ -112,40 +112,21 @@ export async function makeBuyCreateSwapPayload(
 ): Promise<CreateSwapPayload> {
     // @ts-ignore
     if (!window.get_buy_create_swap_payload) {
-      return Promise.reject();
+        return Promise.reject("get_buy_create_swap_payload undefined");
     }
     debug("making buy create swap payload");
     // @ts-ignore
     return await window.get_buy_create_swap_payload(usdt);
 }
 
-export async function extractTrade(
-    transaction: string,
-): Promise<Trade> {
-    // const { extract_trade } = await import("./wallet");
-    // return extract_trade(WALLET_NAME, transaction);
-    debug("Transaction from bobtimus: " + transaction);
-
-    return Promise.resolve({
-        sell: {
-            ticker: Asset.LBTC,
-            amount: 0,
-            balanceBefore: 0,
-            balanceAfter: 0,
-        },
-        buy: {
-            ticker: Asset.USDT,
-            amount: 0,
-            balanceBefore: 0,
-            balanceAfter: 0,
-        },
-    });
-}
-
 export async function signAndSend(
     transaction: string,
-): Promise<string> {
-    // const {sign_and_send_swap_transaction} = await import("./wallet");
-    // return sign_and_send_swap_transaction(WALLET_NAME, transaction);
-    return Promise.resolve("tx");
+): Promise<String> {
+    // @ts-ignore
+    if (!window.sign_and_send) {
+        return Promise.reject("sign_and_send undefined");
+    }
+    debug("signing and sending");
+    // @ts-ignore
+    return await window.sign_and_send(transaction);
 }

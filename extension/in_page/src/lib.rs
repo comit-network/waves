@@ -1,4 +1,6 @@
-use anyhow::Result;
+use anyhow::{Context, Result};
+use elements::encode::deserialize;
+use elements::Txid;
 extern crate console_error_panic_hook;
 use futures::{channel::mpsc, StreamExt};
 use js_sys::{global, Object, Promise};
@@ -44,6 +46,10 @@ pub fn main() {
         &closure,
     )
     .unwrap();
+
+    let boxed = Box::new(sign_and_send) as Box<dyn Fn(String) -> Promise>;
+    let closure = Closure::wrap(boxed).into_js_value();
+    js_sys::Reflect::set(&global, &JsValue::from("sign_and_send"), &closure).unwrap();
 
     let window = web_sys::window().expect("no global `window` exists");
     let js_value = JsValue::from("IPS_injected");
@@ -248,6 +254,59 @@ pub fn get_buy_create_swap_payload(usdt: String) -> Promise {
     let window = web_sys::window().expect("no global `window` exists");
     let js_value = JsValue::from_serde(&ips_cs::Message {
         rpc_data: ips_cs::RpcData::GetBuyCreateSwapPayload(usdt),
+        target: Component::Content,
+        source: Component::InPage,
+    })
+    .unwrap();
+    window.post_message(&js_value, "*").unwrap();
+
+    let fut = async move {
+        let response = receiver.next().await;
+        let response = response.ok_or_else(|| JsValue::from_str("IPS: No response from CS"))?;
+        let response = JsValue::from_serde(&response).unwrap();
+
+        drop(listener);
+        Ok(response)
+    };
+
+    future_to_promise(fut)
+}
+
+#[wasm_bindgen]
+pub fn sign_and_send(tx_hex: String) -> Promise {
+    let (mut sender, mut receiver) = mpsc::channel::<Txid>(10);
+    // create listener
+    let func = move |msg: MessageEvent| {
+        let js_value: JsValue = msg.data();
+
+        let message: Result<ips_cs::Message, _> = js_value.into_serde();
+        if let Ok(ips_cs::Message {
+            target,
+            rpc_data,
+            source,
+        }) = &message
+        {
+            match (target, source) {
+                (Component::InPage, Component::Content) => {}
+                (_, _) => {
+                    log::warn!("IPS: Unexpected message from: {:?}", message);
+                    return;
+                }
+            }
+
+            log::info!("IPS: Received response from CS: {:?}", rpc_data);
+            if let RpcData::SwapTxid(txid) = rpc_data {
+                sender.try_send(*txid).unwrap();
+            }
+        }
+    };
+
+    let cb = Closure::wrap(Box::new(func) as Box<dyn FnMut(MessageEvent)>);
+    let listener = Listener::new("message".to_string(), cb);
+
+    let window = web_sys::window().expect("no global `window` exists");
+    let js_value = JsValue::from_serde(&ips_cs::Message {
+        rpc_data: ips_cs::RpcData::SignAndSend(tx_hex),
         target: Component::Content,
         source: Component::InPage,
     })

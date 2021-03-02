@@ -95,7 +95,7 @@ macro_rules! map_err_from_anyhow {
 
 async fn wallet_status(name: String) -> Result<JsValue, JsValue> {
     let status = map_err_from_anyhow!(wallet::wallet_status(name).await)?;
-    log::debug!("Did not fail at line 92");
+    log::debug!("Did not fail at line 98");
 
     if let WalletStatus {
         exists: false,
@@ -308,6 +308,33 @@ fn handle_msg_from_cs(msg: cs_bs::Message, message_sender: MessageSender) -> Pro
                             tab_id,
                             JsValue::from_serde(&cs_bs::Message {
                                 rpc_data: cs_bs::RpcData::BuyCreateSwapPayload(payload),
+                                target: Component::Content,
+                                source: Component::Background,
+                            })
+                            .unwrap(),
+                            JsValue::null(),
+                        );
+                    }
+                    Err(err) => {
+                        // TODO deal with error
+                        log::error!("Could not get balance {:?}", err);
+                    }
+                }
+            });
+        }
+        cs_bs::RpcData::SignAndSend(tx_hex) => {
+            spawn_local(async move {
+                let result =
+                    wallet::sign_and_send_swap_transaction(WALLET_NAME.to_string(), tx_hex).await;
+                let tab_id = message_sender.tab.expect("tab id to exist").id;
+
+                match result {
+                    Ok(txid) => {
+                        log::debug!("Received swap txid info {:?}", txid);
+                        let _resp = browser.tabs().send_message(
+                            tab_id,
+                            JsValue::from_serde(&cs_bs::Message {
+                                rpc_data: cs_bs::RpcData::SwapTxid(txid),
                                 target: Component::Content,
                                 source: Component::Background,
                             })

@@ -101,6 +101,17 @@ fn handle_msg_from_bs(msg: JsValue) {
                     .post_message(&JsValue::from_serde(&msg).unwrap(), "*")
                     .unwrap();
             }
+            cs_bs::RpcData::SwapTxid(txid) => {
+                let msg = ips_cs::Message {
+                    rpc_data: ips_cs::RpcData::SwapTxid(txid),
+                    target: Component::InPage,
+                    source: Component::Content,
+                };
+                log::info!("CS: Sending response to IPS: {:?}", msg);
+                window
+                    .post_message(&JsValue::from_serde(&msg).unwrap(), "*")
+                    .unwrap();
+            }
             _ => {}
         }
     }
@@ -108,68 +119,85 @@ fn handle_msg_from_bs(msg: JsValue) {
 
 fn handle_msg_from_ips(msg: JsValue) {
     let msg: MessageEvent = msg.into();
-    let js_value: JsValue = msg.data();
+    let msg: JsValue = msg.data();
     // TODO: Actually only accept messages from IPS
 
-    log::info!("CS: Received from IPS: {:?}", js_value);
-    if let Ok(ips_cs::Message { rpc_data, .. }) = js_value.into_serde() {
-        match rpc_data {
-            ips_cs::RpcData::GetBalance => {
-                let msg = cs_bs::Message {
-                    rpc_data: cs_bs::RpcData::GetBalance,
-                    target: Component::Background,
-                    source: Component::Content,
-                };
-                log::info!("CS: Sending message get balance to BS: {:?}", msg);
-                // sending message to Background script
-                let js_value = JsValue::from_serde(&msg).unwrap();
-
-                // TODO: Handle error response?
-                let _resp = browser.runtime().send_message(None, &js_value, None);
-            }
-            ips_cs::RpcData::GetWalletStatus => {
-                let msg = cs_bs::Message {
-                    rpc_data: cs_bs::RpcData::GetWalletStatus,
-                    target: Component::Background,
-                    source: Component::Content,
-                };
-                log::info!("CS: Sending message get wallet status to BS: {:?}", msg);
-                // sending message to Background script
-                let js_value = JsValue::from_serde(&msg).unwrap();
-
-                // TODO: Handle error response?
-                let _resp = browser.runtime().send_message(None, &js_value, None);
-            }
-            ips_cs::RpcData::GetSellCreateSwapPayload(btc) => {
-                let msg = cs_bs::Message {
-                    rpc_data: cs_bs::RpcData::GetSellCreateSwapPayload(btc),
-                    target: Component::Background,
-                    source: Component::Content,
-                };
-                log::info!(
-                    "CS: Sending message get sell create swap payload to BS: {:?}",
-                    msg
-                );
-
-                let js_value = JsValue::from_serde(&msg).unwrap();
-                let _resp = browser.runtime().send_message(None, &js_value, None);
-            }
-            ips_cs::RpcData::GetBuyCreateSwapPayload(usdt) => {
-                let msg = cs_bs::Message {
-                    rpc_data: cs_bs::RpcData::GetBuyCreateSwapPayload(usdt),
-                    target: Component::Background,
-                    source: Component::Content,
-                };
-                log::info!(
-                    "CS: Sending message get buy create swap payload to BS: {:?}",
-                    msg
-                );
-
-                let js_value = JsValue::from_serde(&msg).unwrap();
-                let _resp = browser.runtime().send_message(None, &js_value, None);
-            }
-            _ => {}
+    log::info!("CS: Received from IPS: {:?}", msg);
+    let data = match msg.into_serde() {
+        Ok(ips_cs::Message { rpc_data, .. }) => rpc_data,
+        Err(e) => {
+            log::error!("Failed to deserialize msg from IPS. Reason: {:?}", e);
+            return;
         }
+    };
+
+    match data {
+        ips_cs::RpcData::GetBalance => {
+            let msg = cs_bs::Message {
+                rpc_data: cs_bs::RpcData::GetBalance,
+                target: Component::Background,
+                source: Component::Content,
+            };
+            log::info!("CS: Sending message get balance to BS: {:?}", msg);
+            // sending message to Background script
+            let js_value = JsValue::from_serde(&msg).unwrap();
+
+            // TODO: Handle error response?
+            let _resp = browser.runtime().send_message(None, &js_value, None);
+        }
+        ips_cs::RpcData::GetWalletStatus => {
+            let msg = cs_bs::Message {
+                rpc_data: cs_bs::RpcData::GetWalletStatus,
+                target: Component::Background,
+                source: Component::Content,
+            };
+            log::info!("CS: Sending message get wallet status to BS: {:?}", msg);
+            // sending message to Background script
+            let js_value = JsValue::from_serde(&msg).unwrap();
+
+            // TODO: Handle error response?
+            let _resp = browser.runtime().send_message(None, &js_value, None);
+        }
+        ips_cs::RpcData::GetSellCreateSwapPayload(btc) => {
+            let msg = cs_bs::Message {
+                rpc_data: cs_bs::RpcData::GetSellCreateSwapPayload(btc),
+                target: Component::Background,
+                source: Component::Content,
+            };
+            log::info!(
+                "CS: Sending message get sell create swap payload to BS: {:?}",
+                msg
+            );
+
+            let js_value = JsValue::from_serde(&msg).unwrap();
+            let _resp = browser.runtime().send_message(None, &js_value, None);
+        }
+        ips_cs::RpcData::GetBuyCreateSwapPayload(usdt) => {
+            let msg = cs_bs::Message {
+                rpc_data: cs_bs::RpcData::GetBuyCreateSwapPayload(usdt),
+                target: Component::Background,
+                source: Component::Content,
+            };
+            log::info!(
+                "CS: Sending message get buy create swap payload to BS: {:?}",
+                msg
+            );
+
+            let js_value = JsValue::from_serde(&msg).unwrap();
+            let _resp = browser.runtime().send_message(None, &js_value, None);
+        }
+        ips_cs::RpcData::SignAndSend(tx_hex) => {
+            let msg = cs_bs::Message {
+                rpc_data: cs_bs::RpcData::SignAndSend(tx_hex),
+                target: Component::Background,
+                source: Component::Content,
+            };
+            log::info!("CS: Sending message sign and send to BS: {:?}", msg);
+
+            let js_value = JsValue::from_serde(&msg).unwrap();
+            let _resp = browser.runtime().send_message(None, &js_value, None);
+        }
+        _ => {}
     }
 }
 

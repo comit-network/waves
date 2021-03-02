@@ -14,11 +14,11 @@ import COMIT from "./components/comit_logo_spellout_opacity_50.svg";
 import ExchangeIcon from "./components/ExchangeIcon";
 import WalletBalances from "./WalletBalances";
 import {
-    extractTrade,
     getBalances,
     getWalletStatus,
     makeBuyCreateSwapPayload,
     makeSellCreateSwapPayload,
+    signAndSend,
     Trade,
 } from "./wasmProxy";
 
@@ -245,12 +245,9 @@ function App() {
                 tx = await postBuyPayload(payload);
             }
 
-            let trade = await extractTrade(tx);
+          let txid = await signAndSend(tx);
 
-            setTransaction([tx, trade]);
-
-            // TODO: call confirm swap through to BS
-            // await confirmSwap();
+          history.push(`/swapped/${txid}`)
         },
     });
 

@@ -3,18 +3,17 @@ use crate::{
     wallet::{current, get_txouts, Wallet},
 };
 use anyhow::{Context, Result};
-use elements::{secp256k1::SECP256K1, sighash::SigHashCache, Transaction, Txid};
+use elements::{encode::deserialize, secp256k1::SECP256K1, sighash::SigHashCache, Txid};
 use futures::lock::Mutex;
 use swap::{alice_finalize_transaction, sign_with_key};
 
 pub async fn sign_and_send_swap_transaction(
     name: String,
     current_wallet: &Mutex<Option<Wallet>>,
-    transaction: Transaction,
+    tx_hex: String,
 ) -> Result<Txid> {
-    // let transaction =
-    //     deserialize(&hex::decode(&transaction).context("failed to decode string as hex")?)
-    //         .context("failed to deserialize bytes as elements transaction")?;
+    let transaction = deserialize(&hex::decode(&tx_hex).context("failed to decode string as hex")?)
+        .context("failed to deserialize bytes as elements transaction")?;
 
     let wallet = current(&name, current_wallet).await?;
 
