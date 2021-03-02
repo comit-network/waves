@@ -2,6 +2,7 @@ use futures::Future;
 use js_sys::Promise;
 use message_types::{bs_ps, bs_ps::RpcData, cs_bs, Component};
 use serde::{Deserialize, Serialize};
+use wallet::WalletStatus;
 use wasm_bindgen::{prelude::*, JsCast};
 use wasm_bindgen_extension::browser;
 use wasm_bindgen_futures::{future_to_promise, spawn_local};
@@ -82,52 +83,50 @@ fn handle_msg(js_value: JsValue, message_sender: JsValue) -> Promise {
     }
 }
 
-#[derive(Debug, Deserialize)]
-pub struct WalletStatus {
-    pub exists: bool,
-    pub loaded: bool,
+#[macro_export]
+macro_rules! map_err_from_anyhow {
+    ($e:expr) => {
+        match $e {
+            Ok(i) => Ok(i),
+            Err(e) => Err(JsValue::from_str(&format!("{:#}", e))),
+        }
+    };
 }
 
 async fn wallet_status(name: String) -> Result<JsValue, JsValue> {
-    let status = wallet::wallet_status(name).await?;
+    let status = map_err_from_anyhow!(wallet::wallet_status(name).await)?;
     log::debug!("Did not fail at line 92");
-    let status: Result<WalletStatus, _> = status.into_serde();
 
-    if let Ok(WalletStatus {
+    if let WalletStatus {
         exists: false,
         loaded: false,
-    }) = status
+    } = status
     {
         return Ok(JsValue::from_serde(&bs_ps::WalletStatus::None).unwrap());
     }
 
-    if let Ok(WalletStatus {
+    if let WalletStatus {
         exists: true,
         loaded: false,
-    }) = status
+    } = status
     {
         return Ok(JsValue::from_serde(&bs_ps::WalletStatus::NotLoaded).unwrap());
     }
 
-    if let Ok(WalletStatus {
+    if let WalletStatus {
         exists: false,
         loaded: true,
-    }) = status
+    } = status
     {
         log::error!("unreachable: wallet cannot be loaded if it doesn't exist");
         unreachable!("wallet cannot be loaded if it doesn't exist")
     }
 
-    if status.is_err() {
-        log::warn!("Could not deserialize wallet status response: {:?}", status);
-        return Err(JsValue::from_str("Bad wallet status response"));
-    }
-
-    let balances = wallet::get_balances(WALLET_NAME.to_string()).await;
+    let balances = map_err_from_anyhow!(wallet::get_balances(WALLET_NAME.to_string()).await)?;
 
     log::debug!("Balances: {:?}", &balances);
 
-    let balances = balances?
+    let balances = balances
         .into_iter()
         .map(|balance| bs_ps::BalanceEntry {
             asset: balance.asset.to_string(),
@@ -136,7 +135,7 @@ async fn wallet_status(name: String) -> Result<JsValue, JsValue> {
         })
         .collect();
 
-    let address = wallet::get_address(WALLET_NAME.to_string()).await?;
+    let address = map_err_from_anyhow!(wallet::get_address(WALLET_NAME.to_string()).await)?;
 
     Ok(JsValue::from_serde(&bs_ps::WalletStatus::Loaded { balances, address }).unwrap())
 }
@@ -153,7 +152,7 @@ fn handle_msg_from_ps(msg: bs_ps::Message) -> Promise {
         bs_ps::RpcData::CreateWallet(name, password) => {
             log::debug!("Creating wallet: {} ", name);
             future_to_promise(async move {
-                wallet::create_new_wallet(name.clone(), password).await?;
+                map_err_from_anyhow!(wallet::create_new_wallet(name.clone(), password).await)?;
                 wallet_status(name.to_string()).await
             })
         }
@@ -161,7 +160,9 @@ fn handle_msg_from_ps(msg: bs_ps::Message) -> Promise {
             log::debug!("Received unlock request from PS");
 
             future_to_promise(async move {
-                wallet::load_existing_wallet(name.clone(), password.clone()).await?;
+                map_err_from_anyhow!(
+                    wallet::load_existing_wallet(name.clone(), password.clone()).await
+                )?;
                 wallet_status(name.to_string()).await
             })
         }
@@ -175,15 +176,15 @@ fn handle_msg_from_ps(msg: bs_ps::Message) -> Promise {
             log::debug!("Received get balance request from PS.");
 
             let future = async move {
-                let balances = wallet::get_balances(WALLET_NAME.to_string())
-                    .await?
-                    .into_iter()
-                    .map(|balance| bs_ps::BalanceEntry {
-                        asset: balance.asset.to_string(),
-                        ticker: balance.ticker,
-                        value: balance.value,
-                    })
-                    .collect();
+                let balances =
+                    map_err_from_anyhow!(wallet::get_balances(WALLET_NAME.to_string()).await)?
+                        .into_iter()
+                        .map(|balance| bs_ps::BalanceEntry {
+                            asset: balance.asset.to_string(),
+                            ticker: balance.ticker,
+                            value: balance.value,
+                        })
+                        .collect();
 
                 let rpc_response = bs_ps::RpcData::Balance(balances);
                 let js_value = JsValue::from_serde(&rpc_response).unwrap();
@@ -246,19 +247,17 @@ fn handle_msg_from_cs(msg: cs_bs::Message, message_sender: MessageSender) -> Pro
 
                 match result {
                     Ok(wallet_status) => {
-                        if let Ok(wallet_status) = wallet_status.into_serde() {
-                            log::debug!("Received wallet status info {:?}", wallet_status);
-                            let _resp = browser.tabs().send_message(
-                                tab_id,
-                                JsValue::from_serde(&cs_bs::Message {
-                                    rpc_data: cs_bs::RpcData::WalletStatus(wallet_status),
-                                    target: Component::Content,
-                                    source: Component::Background,
-                                })
-                                .unwrap(),
-                                JsValue::null(),
-                            );
-                        }
+                        log::debug!("Received wallet status info {:?}", wallet_status);
+                        let _resp = browser.tabs().send_message(
+                            tab_id,
+                            JsValue::from_serde(&cs_bs::Message {
+                                rpc_data: cs_bs::RpcData::WalletStatus(wallet_status),
+                                target: Component::Content,
+                                source: Component::Background,
+                            })
+                            .unwrap(),
+                            JsValue::null(),
+                        );
                     }
                     Err(err) => {
                         // TODO deal with error

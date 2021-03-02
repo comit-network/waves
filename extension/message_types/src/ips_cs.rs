@@ -1,8 +1,6 @@
-use crate::{
-    cs_bs::{BalanceEntry, WalletStatus},
-    Component,
-};
+use crate::{cs_bs::BalanceEntry, Component};
 use serde::{Deserialize, Serialize};
+use wallet::WalletStatus;
 
 /// Message to be send between in-page script and content script
 #[derive(Debug, Serialize, Deserialize)]

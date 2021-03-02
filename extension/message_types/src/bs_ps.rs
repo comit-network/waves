@@ -1,4 +1,5 @@
 use crate::Component;
+use elements::Address;
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -41,6 +42,6 @@ pub enum WalletStatus {
     NotLoaded,
     Loaded {
         balances: Vec<BalanceEntry>,
-        address: String,
+        address: Address,
     },
 }

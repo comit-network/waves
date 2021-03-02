@@ -22,7 +22,7 @@ pub async fn get_status(
     Ok(WalletStatus { loaded, exists })
 }
 
-#[derive(Debug, serde::Serialize)]
+#[derive(Debug, serde::Deserialize, serde::Serialize)]
 pub struct WalletStatus {
     pub loaded: bool,
     pub exists: bool,

@@ -27,13 +27,12 @@ use rand::{thread_rng, Rng};
 use rust_decimal::Decimal;
 use sha2::{digest::generic_array::GenericArray, Sha256};
 use std::{fmt, str};
-use wasm_bindgen::UnwrapThrowExt;
 
 pub use create_new::create_new;
-pub use extract_trade::extract_trade;
+pub use extract_trade::{extract_trade, Trade};
 pub use get_address::get_address;
 pub use get_balances::get_balances;
-pub use get_status::get_status;
+pub use get_status::{get_status, WalletStatus};
 pub use load_existing::load_existing;
 pub use make_create_swap_payload::{make_buy_create_swap_payload, make_sell_create_swap_payload};
 pub use sign_and_send_swap_transaction::sign_and_send_swap_transaction;
@@ -88,7 +87,7 @@ async fn current<'n, 'w>(
         _ => bail!("wallet with name '{}' is currently not loaded", name),
     };
 
-    Ok(MutexGuard::map(guard, |w| w.as_mut().unwrap_throw()))
+    Ok(MutexGuard::map(guard, |w| w.as_mut().unwrap()))
 }
 
 #[derive(Debug)]
