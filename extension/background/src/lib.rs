@@ -97,10 +97,11 @@ macro_rules! map_err_from_anyhow {
     };
 }
 
-async fn background_status(name: String) -> Result<JsValue, JsValue> {
+async fn background_status(
+    name: String,
+    sign_tx: Option<(String, u32)>,
+) -> Result<JsValue, JsValue> {
     let status = map_err_from_anyhow!(wallet::wallet_status(name).await)?;
-    let sign_tx = SIGN_TX.lock().await.clone();
-
     if let WalletStatus {
         exists: false,
         loaded: false,
@@ -162,13 +163,17 @@ fn handle_msg_from_ps(msg: bs_ps::Message) -> Promise {
     match msg.rpc_data {
         bs_ps::RpcData::GetWalletStatus => {
             log::debug!("Received status request from PS.");
-            future_to_promise(background_status(WALLET_NAME.to_string()))
+            future_to_promise(async {
+                let sign_tx = SIGN_TX.lock().await.clone();
+                background_status(WALLET_NAME.to_string(), sign_tx).await
+            })
         }
         bs_ps::RpcData::CreateWallet(name, password) => {
             log::debug!("Creating wallet: {} ", name);
             future_to_promise(async move {
                 map_err_from_anyhow!(wallet::create_new_wallet(name.clone(), password).await)?;
-                background_status(name.to_string()).await
+                let sign_tx = SIGN_TX.lock().await.clone();
+                background_status(name.to_string(), sign_tx).await
             })
         }
         bs_ps::RpcData::UnlockWallet(name, password) => {
@@ -178,7 +183,8 @@ fn handle_msg_from_ps(msg: bs_ps::Message) -> Promise {
                 map_err_from_anyhow!(
                     wallet::load_existing_wallet(name.clone(), password.clone()).await
                 )?;
-                background_status(name.to_string()).await
+                let sign_tx = SIGN_TX.lock().await.clone();
+                background_status(name.to_string(), sign_tx).await
             })
         }
         bs_ps::RpcData::Hello(data) => {
@@ -214,12 +220,6 @@ fn handle_msg_from_ps(msg: bs_ps::Message) -> Promise {
                     wallet::sign_and_send_swap_transaction(WALLET_NAME.to_string(), tx_hex.clone())
                         .await;
 
-                let mut guard = SIGN_TX.lock().await;
-
-                if Some((tx_hex, tab_id)) == *guard {
-                    let _ = guard.take();
-                }
-
                 match result {
                     Ok(txid) => {
                         log::debug!("Received swap txid info {:?}", txid);
@@ -240,7 +240,13 @@ fn handle_msg_from_ps(msg: bs_ps::Message) -> Promise {
                     }
                 }
 
-                background_status(WALLET_NAME.to_string()).await
+                let mut guard = SIGN_TX.lock().await;
+                if Some((tx_hex, tab_id)) == *guard {
+                    let _ = guard.take();
+                }
+
+                let sign_tx = guard.clone();
+                background_status(WALLET_NAME.to_string(), sign_tx).await
             })
         }
         bs_ps::RpcData::Balance(_) => {
