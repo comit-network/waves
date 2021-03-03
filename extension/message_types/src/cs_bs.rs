@@ -1,5 +1,5 @@
 use crate::Component;
-use elements::{Transaction, Txid};
+use elements::Txid;
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use wallet::{CreateSwapPayload, WalletStatus};

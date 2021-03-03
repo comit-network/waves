@@ -132,6 +132,7 @@ dependencies = [
  "anyhow",
  "conquer-once",
  "console_error_panic_hook",
+ "elements",
  "futures",
  "js-sys",
  "log",

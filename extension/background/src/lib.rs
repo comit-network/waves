@@ -1,6 +1,8 @@
+use conquer_once::Lazy;
+use futures::lock::Mutex;
 use futures::Future;
 use js_sys::Promise;
-use message_types::{bs_ps, bs_ps::RpcData, cs_bs, Component};
+use message_types::{bs_ps, cs_bs, Component};
 use serde::{Deserialize, Serialize};
 use wallet::WalletStatus;
 use wasm_bindgen::{prelude::*, JsCast};
@@ -9,6 +11,8 @@ use wasm_bindgen_futures::{future_to_promise, spawn_local};
 
 // We do not support renaming the wallet for now
 pub const WALLET_NAME: &str = "demo-wallet";
+
+static SIGN_TX: Lazy<Mutex<Option<(String, u32)>>> = Lazy::new(Mutex::default);
 
 #[derive(Debug, Deserialize)]
 struct MessageSender {
@@ -93,9 +97,9 @@ macro_rules! map_err_from_anyhow {
     };
 }
 
-async fn wallet_status(name: String) -> Result<JsValue, JsValue> {
+async fn background_status(name: String) -> Result<JsValue, JsValue> {
     let status = map_err_from_anyhow!(wallet::wallet_status(name).await)?;
-    log::debug!("Did not fail at line 98");
+    let sign_tx = SIGN_TX.lock().await.clone();
 
     if let WalletStatus {
         exists: false,
@@ -103,7 +107,11 @@ async fn wallet_status(name: String) -> Result<JsValue, JsValue> {
     } = status
     {
         log::debug!("Wallet does not exist");
-        return Ok(JsValue::from_serde(&bs_ps::WalletStatus::None).unwrap());
+        return Ok(JsValue::from_serde(&bs_ps::BackgroundStatus::new(
+            bs_ps::WalletStatus::None,
+            sign_tx,
+        ))
+        .unwrap());
     }
 
     if let WalletStatus {
@@ -112,7 +120,11 @@ async fn wallet_status(name: String) -> Result<JsValue, JsValue> {
     } = status
     {
         log::debug!("Wallet exists but not loaded");
-        return Ok(JsValue::from_serde(&bs_ps::WalletStatus::NotLoaded).unwrap());
+        return Ok(JsValue::from_serde(&bs_ps::BackgroundStatus::new(
+            bs_ps::WalletStatus::NotLoaded,
+            sign_tx,
+        ))
+        .unwrap());
     }
 
     if let WalletStatus {
@@ -125,9 +137,6 @@ async fn wallet_status(name: String) -> Result<JsValue, JsValue> {
     }
 
     let balances = map_err_from_anyhow!(wallet::get_balances(WALLET_NAME.to_string()).await)?;
-
-    log::debug!("Balances: {:?}", &balances);
-
     let balances = balances
         .into_iter()
         .map(|balance| bs_ps::BalanceEntry {
@@ -139,7 +148,11 @@ async fn wallet_status(name: String) -> Result<JsValue, JsValue> {
 
     let address = map_err_from_anyhow!(wallet::get_address(WALLET_NAME.to_string()).await)?;
 
-    Ok(JsValue::from_serde(&bs_ps::WalletStatus::Loaded { balances, address }).unwrap())
+    Ok(JsValue::from_serde(&bs_ps::BackgroundStatus::new(
+        bs_ps::WalletStatus::Loaded { balances, address },
+        sign_tx,
+    ))
+    .unwrap())
 }
 
 fn handle_msg_from_ps(msg: bs_ps::Message) -> Promise {
@@ -149,13 +162,13 @@ fn handle_msg_from_ps(msg: bs_ps::Message) -> Promise {
     match msg.rpc_data {
         bs_ps::RpcData::GetWalletStatus => {
             log::debug!("Received status request from PS.");
-            future_to_promise(wallet_status(WALLET_NAME.to_string()))
+            future_to_promise(background_status(WALLET_NAME.to_string()))
         }
         bs_ps::RpcData::CreateWallet(name, password) => {
             log::debug!("Creating wallet: {} ", name);
             future_to_promise(async move {
                 map_err_from_anyhow!(wallet::create_new_wallet(name.clone(), password).await)?;
-                wallet_status(name.to_string()).await
+                background_status(name.to_string()).await
             })
         }
         bs_ps::RpcData::UnlockWallet(name, password) => {
@@ -165,7 +178,7 @@ fn handle_msg_from_ps(msg: bs_ps::Message) -> Promise {
                 map_err_from_anyhow!(
                     wallet::load_existing_wallet(name.clone(), password.clone()).await
                 )?;
-                wallet_status(name.to_string()).await
+                background_status(name.to_string()).await
             })
         }
         bs_ps::RpcData::Hello(data) => {
@@ -195,7 +208,42 @@ fn handle_msg_from_ps(msg: bs_ps::Message) -> Promise {
             };
             future_to_promise(future)
         }
-        RpcData::Balance(_) => {
+        bs_ps::RpcData::SignAndSend { tx_hex, tab_id } => {
+            future_to_promise(async move {
+                let result =
+                    wallet::sign_and_send_swap_transaction(WALLET_NAME.to_string(), tx_hex.clone())
+                        .await;
+
+                let mut guard = SIGN_TX.lock().await;
+
+                if Some((tx_hex, tab_id)) == *guard {
+                    let _ = guard.take();
+                }
+
+                match result {
+                    Ok(txid) => {
+                        log::debug!("Received swap txid info {:?}", txid);
+                        let _resp = browser.tabs().send_message(
+                            tab_id,
+                            JsValue::from_serde(&cs_bs::Message {
+                                rpc_data: cs_bs::RpcData::SwapTxid(txid),
+                                target: Component::Content,
+                                source: Component::Background,
+                            })
+                            .unwrap(),
+                            JsValue::null(),
+                        );
+                    }
+                    Err(err) => {
+                        // TODO deal with error
+                        log::error!("Could not get balance {:?}", err);
+                    }
+                }
+
+                background_status(WALLET_NAME.to_string()).await
+            })
+        }
+        bs_ps::RpcData::Balance(_) => {
             log::error!("Currently not supported");
             Promise::resolve(&JsValue::from_str("UNKNOWN"))
         }
@@ -248,12 +296,12 @@ fn handle_msg_from_cs(msg: cs_bs::Message, message_sender: MessageSender) -> Pro
                 let tab_id = message_sender.tab.expect("tab id to exist").id;
 
                 match result {
-                    Ok(wallet_status) => {
-                        log::debug!("Received wallet status info {:?}", wallet_status);
+                    Ok(background_status) => {
+                        log::debug!("Received wallet status info {:?}", background_status);
                         let _resp = browser.tabs().send_message(
                             tab_id,
                             JsValue::from_serde(&cs_bs::Message {
-                                rpc_data: cs_bs::RpcData::WalletStatus(wallet_status),
+                                rpc_data: cs_bs::RpcData::WalletStatus(background_status),
                                 target: Component::Content,
                                 source: Component::Background,
                             })
@@ -322,33 +370,12 @@ fn handle_msg_from_cs(msg: cs_bs::Message, message_sender: MessageSender) -> Pro
                 }
             });
         }
-        cs_bs::RpcData::SignAndSend(tx_hex) => {
-            spawn_local(async move {
-                let result =
-                    wallet::sign_and_send_swap_transaction(WALLET_NAME.to_string(), tx_hex).await;
-                let tab_id = message_sender.tab.expect("tab id to exist").id;
+        cs_bs::RpcData::SignAndSend(tx_hex) => spawn_local(async move {
+            let tab_id = message_sender.tab.expect("tab id to exist").id;
 
-                match result {
-                    Ok(txid) => {
-                        log::debug!("Received swap txid info {:?}", txid);
-                        let _resp = browser.tabs().send_message(
-                            tab_id,
-                            JsValue::from_serde(&cs_bs::Message {
-                                rpc_data: cs_bs::RpcData::SwapTxid(txid),
-                                target: Component::Content,
-                                source: Component::Background,
-                            })
-                            .unwrap(),
-                            JsValue::null(),
-                        );
-                    }
-                    Err(err) => {
-                        // TODO deal with error
-                        log::error!("Could not get balance {:?}", err);
-                    }
-                }
-            });
-        }
+            let mut guard = SIGN_TX.lock().await;
+            guard.replace((tx_hex, tab_id));
+        }),
         _ => {}
     }
 

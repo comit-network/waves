@@ -22,7 +22,7 @@ impl Component for WalletDetails {
     }
 
     fn update(&mut self, _msg: Self::Message) -> bool {
-        return false;
+        false
     }
 
     fn change(&mut self, _props: Self::Properties) -> bool {

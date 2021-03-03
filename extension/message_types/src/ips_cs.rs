@@ -1,5 +1,5 @@
 use crate::{cs_bs::BalanceEntry, Component};
-use elements::{Transaction, Txid};
+use elements::Txid;
 use serde::{Deserialize, Serialize};
 use wallet::{CreateSwapPayload, WalletStatus};
 

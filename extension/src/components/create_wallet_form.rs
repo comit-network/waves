@@ -43,7 +43,7 @@ impl Component for CreateWallet {
                 self.state.wallet_password = value;
             }
         }
-        return false;
+        false
     }
 
     fn change(&mut self, _props: Self::Properties) -> bool {

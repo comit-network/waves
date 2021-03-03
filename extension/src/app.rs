@@ -5,8 +5,6 @@ use crate::components::{
 use js_sys::Promise;
 use message_types::{bs_ps, Component as MessageComponent};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
-use url::Url;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_extension::browser;
 use wasm_bindgen_futures::{spawn_local, JsFuture};
@@ -17,14 +15,14 @@ pub const WALLET_NAME: &str = "demo-wallet";
 
 pub struct App {
     link: ComponentLink<Self>,
-    content_tab_id: u32,
     state: State,
 }
 
 pub enum Msg {
     CreateWallet,
     UnlockWallet,
-    WalletStatus(WalletStatus),
+    BackgroundStatus(BackgroundStatus),
+    SignAndSend { tx_hex: String, tab_id: u32 },
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -32,9 +30,22 @@ pub struct State {
     wallet_name: String,
     wallet_password: String,
     wallet_status: WalletStatus,
+    sign_tx: Option<(String, u32)>,
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize)]
+pub struct BackgroundStatus {
+    pub wallet: WalletStatus,
+    pub sign_tx: Option<(String, u32)>,
+}
+
+impl BackgroundStatus {
+    pub fn new(wallet: WalletStatus, sign_tx: Option<(String, u32)>) -> Self {
+        Self { wallet, sign_tx }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum WalletStatus {
     None,
     NotLoaded,
@@ -50,8 +61,6 @@ impl Component for App {
 
     fn create(_: Self::Properties, link: ComponentLink<Self>) -> Self {
         log::debug!("PopupApp: creating...");
-        let window = web_sys::window().expect("no global `window` exists");
-
         let inner_link = link.clone();
         let msg = bs_ps::Message {
             rpc_data: bs_ps::RpcData::GetWalletStatus,
@@ -66,35 +75,25 @@ impl Component for App {
 
                 if let Ok(response) = response {
                     if let Ok(msg) = response.into_serde() {
-                        inner_link.send_message(Msg::WalletStatus(msg));
+                        inner_link.send_message(Msg::BackgroundStatus(msg));
                     }
                 }
             }),
         );
 
-        // TODO this will go away in one way or the other but for now is needed for the demo message
-        let url = Url::parse(&window.location().href().unwrap()).unwrap();
-        let queries: HashMap<String, String> = url.query_pairs().into_owned().collect();
-        let content_tab_id = if let Some(tab_id) = queries.get("content_tab_id") {
-            tab_id.parse::<u32>().expect("Tab id should be a number")
-        } else {
-            1
-        };
-        log::debug!("Content tab ID = {}", content_tab_id);
-
         App {
             link,
-            content_tab_id,
             state: State {
                 wallet_name: WALLET_NAME.to_string(),
                 wallet_password: "".to_string(),
                 wallet_status: WalletStatus::None,
+                sign_tx: None,
             },
         }
     }
 
     fn update(&mut self, msg: Self::Message) -> ShouldRender {
-        return match msg {
+        match msg {
             Msg::UnlockWallet => {
                 let inner_link = self.link.clone();
                 let msg = bs_ps::Message {
@@ -110,8 +109,8 @@ impl Component for App {
                     msg,
                     Box::new(move |response| {
                         if let Ok(response) = response {
-                            if let Ok(wallet_status) = response.into_serde() {
-                                inner_link.send_message(Msg::WalletStatus(wallet_status));
+                            if let Ok(status) = response.into_serde() {
+                                inner_link.send_message(Msg::BackgroundStatus(status));
                             }
                         }
                     }),
@@ -133,17 +132,42 @@ impl Component for App {
                     msg,
                     Box::new(move |response| {
                         if response.is_ok() {
-                            inner_link.send_message(Msg::WalletStatus(WalletStatus::NotLoaded));
+                            inner_link.send_message(Msg::BackgroundStatus(BackgroundStatus::new(
+                                WalletStatus::NotLoaded,
+                                None,
+                            )));
                         }
                     }),
                 );
                 false
             }
-            Msg::WalletStatus(wallet_status) => {
-                self.state.wallet_status = wallet_status;
+            Msg::BackgroundStatus(status) => {
+                self.state.wallet_status = status.wallet;
+                self.state.sign_tx = status.sign_tx;
+
                 true
             }
-        };
+            Msg::SignAndSend { tx_hex, tab_id } => {
+                let inner_link = self.link.clone();
+                let msg = bs_ps::Message {
+                    rpc_data: bs_ps::RpcData::SignAndSend { tx_hex, tab_id },
+                    target: message_types::Component::Background,
+                    source: message_types::Component::PopUp,
+                    content_tab_id: 0,
+                };
+                send_to_backend(
+                    msg,
+                    Box::new(move |response| {
+                        if let Ok(response) = response {
+                            if let Ok(status) = response.into_serde() {
+                                inner_link.send_message(Msg::BackgroundStatus(status));
+                            }
+                        }
+                    }),
+                );
+                false
+            }
+        }
     }
 
     fn change(&mut self, _props: Self::Properties) -> bool {
@@ -151,22 +175,44 @@ impl Component for App {
     }
 
     fn view(&self) -> Html {
-        let wallet_form = match &self.state.wallet_status {
-            WalletStatus::Loaded { address, balances } => {
+        let wallet_form = match self.state.clone() {
+            State {
+                wallet_status: WalletStatus::Loaded { address, balances },
+                sign_tx: None,
+                ..
+            } => {
                 html! {
                     <>
                         <WalletDetails address=address balances=balances></WalletDetails>
                     </>
                 }
             }
-            WalletStatus::NotLoaded => {
+            State {
+                wallet_status: WalletStatus::Loaded { .. },
+                sign_tx: Some((tx_hex, tab_id)),
+                ..
+            } => {
+                html! {
+                    <>
+                        <p>{"Sign transaction"}</p>
+                        <button onclick=self.link.callback(move |_| Msg::SignAndSend { tx_hex: tx_hex.clone(), tab_id })>{ "Sign" }</button>
+                    </>
+                }
+            }
+            State {
+                wallet_status: WalletStatus::NotLoaded,
+                ..
+            } => {
                 html! {
                     <>
                         <UnlockWallet on_form_submit=self.link.callback(|_| Msg::UnlockWallet)></UnlockWallet>
                     </>
                 }
             }
-            WalletStatus::None => {
+            State {
+                wallet_status: WalletStatus::None,
+                ..
+            } => {
                 html! {
                     <>
                         <CreateWallet on_form_submit=self.link.callback(|_| Msg::CreateWallet)></CreateWallet>

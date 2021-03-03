@@ -1,7 +1,7 @@
 use crate::wallet::Wallet;
 use anyhow::Result;
 use conquer_once::Lazy;
-use elements::{Address, Transaction, Txid};
+use elements::{Address, Txid};
 use futures::lock::Mutex;
 
 #[macro_use]

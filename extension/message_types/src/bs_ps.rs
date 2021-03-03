@@ -26,6 +26,7 @@ pub enum RpcData {
     GetWalletStatus,
     GetBalance,
     Balance(Vec<BalanceEntry>),
+    SignAndSend { tx_hex: String, tab_id: u32 },
     Hello(String),
 }
 
@@ -36,7 +37,7 @@ pub struct BalanceEntry {
     pub value: Decimal,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum WalletStatus {
     None,
     NotLoaded,
@@ -44,4 +45,16 @@ pub enum WalletStatus {
         balances: Vec<BalanceEntry>,
         address: Address,
     },
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct BackgroundStatus {
+    pub wallet: WalletStatus,
+    pub sign_tx: Option<(String, u32)>,
+}
+
+impl BackgroundStatus {
+    pub fn new(wallet: WalletStatus, sign_tx: Option<(String, u32)>) -> Self {
+        Self { wallet, sign_tx }
+    }
 }
