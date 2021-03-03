@@ -7,3 +7,4 @@ dist/
 wasm-pack.log
 node_modules
 .idea
+web-ext-artifacts

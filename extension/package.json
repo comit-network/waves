@@ -9,7 +9,8 @@
     "build:popup": "rollup --config ./rollup_config/rollup_popup.config.js",
     "build": "rimraf dist && rollup --config",
     "watch": "rollup --config --watch",
-    "start-dev": "web-ext run -s dist/"
+    "start-dev": "web-ext run -s dist/",
+    "build:extension": "web-ext build -s dist/ --overwrite-dest "
   },
   "devDependencies": {
     "@wasm-tool/rollup-plugin-rust": "^1.0.0",
