@@ -1,6 +1,5 @@
 use anyhow::{Context, Result};
-use elements::encode::deserialize;
-use elements::Txid;
+use elements::{encode::deserialize, Txid};
 extern crate console_error_panic_hook;
 use futures::{channel::mpsc, StreamExt};
 use js_sys::{global, Object, Promise};

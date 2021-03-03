@@ -1,6 +1,6 @@
+use bs_ps::TransactionData;
 use conquer_once::Lazy;
-use futures::lock::Mutex;
-use futures::Future;
+use futures::{lock::Mutex, Future};
 use js_sys::Promise;
 use message_types::{bs_ps, cs_bs, Component};
 use serde::{Deserialize, Serialize};
@@ -12,7 +12,7 @@ use wasm_bindgen_futures::{future_to_promise, spawn_local};
 // We do not support renaming the wallet for now
 pub const WALLET_NAME: &str = "demo-wallet";
 
-static SIGN_TX: Lazy<Mutex<Option<(String, u32)>>> = Lazy::new(Mutex::default);
+static SIGN_TX: Lazy<Mutex<Option<TransactionData>>> = Lazy::new(Mutex::default);
 
 #[derive(Debug, Deserialize)]
 struct MessageSender {
@@ -99,7 +99,7 @@ macro_rules! map_err_from_anyhow {
 
 async fn background_status(
     name: String,
-    sign_tx: Option<(String, u32)>,
+    sign_tx: Option<TransactionData>,
 ) -> Result<JsValue, JsValue> {
     let status = map_err_from_anyhow!(wallet::wallet_status(name).await)?;
     if let WalletStatus {
@@ -150,7 +150,10 @@ async fn background_status(
     let address = map_err_from_anyhow!(wallet::get_address(WALLET_NAME.to_string()).await)?;
 
     Ok(JsValue::from_serde(&bs_ps::BackgroundStatus::new(
-        bs_ps::WalletStatus::Loaded { balances, address },
+        bs_ps::WalletStatus::Loaded {
+            balances,
+            address: address.to_string(),
+        },
         sign_tx,
     ))
     .unwrap())
@@ -158,8 +161,6 @@ async fn background_status(
 
 fn handle_msg_from_ps(msg: bs_ps::Message) -> Promise {
     log::info!("BS: Received message from Popup: {:?}", msg);
-    // TODO only needed to send something all the way back to PS, e.g. signed data
-    let _tab_id = msg.content_tab_id;
     match msg.rpc_data {
         bs_ps::RpcData::GetWalletStatus => {
             log::debug!("Received status request from PS.");
@@ -241,8 +242,10 @@ fn handle_msg_from_ps(msg: bs_ps::Message) -> Promise {
                 }
 
                 let mut guard = SIGN_TX.lock().await;
-                if Some((tx_hex, tab_id)) == *guard {
-                    let _ = guard.take();
+                if let Some(TransactionData { hex, .. }) = &*guard {
+                    if hex == &tx_hex {
+                        let _ = guard.take();
+                    }
                 }
 
                 let sign_tx = guard.clone();
@@ -277,7 +280,7 @@ fn handle_msg_from_cs(msg: cs_bs::Message, message_sender: MessageSender) -> Pro
                             })
                             .collect();
 
-                        log::debug!("Received balance info {:?}", vec_balances);
+                        log::debug!("Received balance info: {:?}", vec_balances);
                         let _resp = browser.tabs().send_message(
                             tab_id,
                             JsValue::from_serde(&cs_bs::Message {
@@ -291,7 +294,7 @@ fn handle_msg_from_cs(msg: cs_bs::Message, message_sender: MessageSender) -> Pro
                     }
                     Err(err) => {
                         // TODO deal with error
-                        log::error!("Could not get balance {:?}", err);
+                        log::error!("Could not get balance: {:?}", err);
                     }
                 }
             });
@@ -377,10 +380,27 @@ fn handle_msg_from_cs(msg: cs_bs::Message, message_sender: MessageSender) -> Pro
             });
         }
         cs_bs::RpcData::SignAndSend(tx_hex) => spawn_local(async move {
+            let result = wallet::extract_trade(WALLET_NAME.to_string(), tx_hex.clone()).await;
             let tab_id = message_sender.tab.expect("tab id to exist").id;
 
-            let mut guard = SIGN_TX.lock().await;
-            guard.replace((tx_hex, tab_id));
+            match result {
+                Ok(trade) => {
+                    log::debug!("Received trade info {:?}", trade);
+
+                    let tx_data = TransactionData {
+                        hex: tx_hex,
+                        decoded: trade,
+                        tab_id,
+                    };
+
+                    let mut guard = SIGN_TX.lock().await;
+                    guard.replace(tx_data);
+                }
+                Err(err) => {
+                    // TODO deal with error
+                    log::error!("Could not get trade info {:?}", err);
+                }
+            }
         }),
         _ => {}
     }

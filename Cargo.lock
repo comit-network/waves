@@ -2683,6 +2683,7 @@ dependencies = [
  "reqwest",
  "serde 1.0.123",
  "url",
+ "wallet",
  "wasm-bindgen",
  "wasm-bindgen-extension",
  "wasm-bindgen-futures",

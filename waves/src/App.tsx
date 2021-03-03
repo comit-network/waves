@@ -245,9 +245,9 @@ function App() {
                 tx = await postBuyPayload(payload);
             }
 
-          let txid = await signAndSend(tx);
+            let txid = await signAndSend(tx);
 
-          history.push(`/swapped/${txid}`)
+            history.push(`/swapped/${txid}`);
         },
     });
 

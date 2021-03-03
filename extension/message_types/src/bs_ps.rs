@@ -1,8 +1,8 @@
 use crate::Component;
-use elements::Address;
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use wallet::Trade;
 
 /// Message to be send between background script and popup script
 #[derive(Debug, Deserialize, Serialize)]
@@ -43,18 +43,25 @@ pub enum WalletStatus {
     NotLoaded,
     Loaded {
         balances: Vec<BalanceEntry>,
-        address: Address,
+        address: String,
     },
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct BackgroundStatus {
     pub wallet: WalletStatus,
-    pub sign_tx: Option<(String, u32)>,
+    pub sign_tx: Option<TransactionData>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct TransactionData {
+    pub hex: String,
+    pub decoded: Trade,
+    pub tab_id: u32,
 }
 
 impl BackgroundStatus {
-    pub fn new(wallet: WalletStatus, sign_tx: Option<(String, u32)>) -> Self {
+    pub fn new(wallet: WalletStatus, sign_tx: Option<TransactionData>) -> Self {
         Self { wallet, sign_tx }
     }
 }

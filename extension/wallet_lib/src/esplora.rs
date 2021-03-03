@@ -27,6 +27,8 @@ pub async fn fetch_utxos(address: &Address) -> Result<Vec<Utxo>> {
         ));
     }
 
+    log::debug!("fetch utxos response: {:?}", response);
+
     response
         .json::<Vec<Utxo>>()
         .await

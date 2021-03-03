@@ -1,9 +1,9 @@
-use crate::components::{
-    create_wallet_form::CreateWallet, unlock_wallet_form::UnlockWallet,
-    wallet_details::WalletDetails,
-};
+use crate::components::{CreateWallet, TradeInfo, UnlockWallet, WalletDetails};
 use js_sys::Promise;
-use message_types::{bs_ps, Component as MessageComponent};
+use message_types::{
+    bs_ps::{self, BackgroundStatus, TransactionData, WalletStatus},
+    Component as MessageComponent,
+};
 use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_extension::browser;
@@ -21,7 +21,7 @@ pub struct App {
 pub enum Msg {
     CreateWallet,
     UnlockWallet,
-    BackgroundStatus(BackgroundStatus),
+    BackgroundStatus(Box<BackgroundStatus>),
     SignAndSend { tx_hex: String, tab_id: u32 },
 }
 
@@ -30,29 +30,7 @@ pub struct State {
     wallet_name: String,
     wallet_password: String,
     wallet_status: WalletStatus,
-    sign_tx: Option<(String, u32)>,
-}
-
-#[derive(Debug, Serialize, Deserialize)]
-pub struct BackgroundStatus {
-    pub wallet: WalletStatus,
-    pub sign_tx: Option<(String, u32)>,
-}
-
-impl BackgroundStatus {
-    pub fn new(wallet: WalletStatus, sign_tx: Option<(String, u32)>) -> Self {
-        Self { wallet, sign_tx }
-    }
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub enum WalletStatus {
-    None,
-    NotLoaded,
-    Loaded {
-        balances: Vec<bs_ps::BalanceEntry>,
-        address: String,
-    },
+    sign_tx: Option<TransactionData>,
 }
 
 impl Component for App {
@@ -132,9 +110,8 @@ impl Component for App {
                     msg,
                     Box::new(move |response| {
                         if response.is_ok() {
-                            inner_link.send_message(Msg::BackgroundStatus(BackgroundStatus::new(
-                                WalletStatus::NotLoaded,
-                                None,
+                            inner_link.send_message(Msg::BackgroundStatus(Box::new(
+                                BackgroundStatus::new(WalletStatus::NotLoaded, None),
                             )));
                         }
                     }),
@@ -189,13 +166,19 @@ impl Component for App {
             }
             State {
                 wallet_status: WalletStatus::Loaded { .. },
-                sign_tx: Some((tx_hex, tab_id)),
+                sign_tx:
+                    Some(TransactionData {
+                        hex,
+                        decoded,
+                        tab_id,
+                    }),
                 ..
             } => {
                 html! {
                     <>
                         <p>{"Sign transaction"}</p>
-                        <button onclick=self.link.callback(move |_| Msg::SignAndSend { tx_hex: tx_hex.clone(), tab_id })>{ "Sign" }</button>
+                        <TradeInfo trade=decoded></TradeInfo>
+                        <button onclick=self.link.callback(move |_| Msg::SignAndSend { tx_hex: hex.clone(), tab_id })>{ "Sign" }</button>
                     </>
                 }
             }

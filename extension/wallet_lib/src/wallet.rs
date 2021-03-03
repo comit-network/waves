@@ -29,7 +29,7 @@ use sha2::{digest::generic_array::GenericArray, Sha256};
 use std::{fmt, str};
 
 pub use create_new::create_new;
-pub use extract_trade::{extract_trade, Trade};
+pub use extract_trade::{extract_trade, Trade, TradeSide};
 pub use get_address::get_address;
 pub use get_balances::get_balances;
 pub use get_status::{get_status, WalletStatus};

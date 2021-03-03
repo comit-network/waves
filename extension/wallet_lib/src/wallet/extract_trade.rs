@@ -9,7 +9,7 @@ use elements::{
 use futures::lock::Mutex;
 use itertools::Itertools;
 use rust_decimal::Decimal;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::ops::{Add, Sub};
 
 pub async fn extract_trade(
@@ -156,19 +156,19 @@ pub async fn extract_trade(
     })
 }
 
-#[derive(Serialize)]
+#[derive(Clone, Deserialize, Serialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct TradeSide {
-    ticker: String,
-    amount: Decimal,
-    balance_before: Decimal,
-    balance_after: Decimal,
+    pub ticker: String,
+    pub amount: Decimal,
+    pub balance_before: Decimal,
+    pub balance_after: Decimal,
 }
 
-#[derive(Serialize)]
+#[derive(Clone, Deserialize, Serialize, Debug)]
 pub struct Trade {
-    sell: TradeSide,
-    buy: TradeSide,
+    pub sell: TradeSide,
+    pub buy: TradeSide,
 }
 
 impl TradeSide {
