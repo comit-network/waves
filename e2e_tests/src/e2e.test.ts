@@ -1,6 +1,7 @@
 import * as assert from "assert";
 import { Builder, By, until } from "selenium-webdriver";
 import { main } from "ts-node/dist/bin";
+import fetch from "node-fetch";
 
 const firefox = require("selenium-webdriver/firefox");
 const firefoxPath = require("geckodriver").path;
@@ -68,11 +69,56 @@ describe("webdriver", () => {
         await driver.quit();
     });
 
-    test("click swap", async () => {
-        await driver.switchTo().window(websiteWindow);
-        await driver.get("localhost:3004");
-        await driver.wait(until.titleIs("Waves"), 10000);
+    test("sell swap", async () => {
+      await driver.switchTo().window(websiteWindow);
+      await driver.get("localhost:3004");
+      await driver.wait(until.titleIs("Waves"), 10000);
 
-        await getElementById(driver, "//button[@data-cy=\"swap-button\"]");
+      // Create wallet
+      await driver.switchTo().window(extensionWindow);
+      console.log("can switch once");
+
+      await driver.switchTo().window(websiteWindow);
+      console.log("can switch twice");
+
+      await driver.switchTo().window(extensionWindow);
+      console.log("can switch thrice");
+
+      let password = "foo";
+      let passwordInput = await getElementById(driver, "//input[@data-cy=\"create-wallet-password-input\"]");
+      await passwordInput.sendKeys(password);
+
+      let createWalletButton = await getElementById(driver, "//button[@data-cy=\"create-wallet-button\"]");
+      await createWalletButton.click();
+
+      let addressField = await getElementById(driver, "//p[@data-cy=\"wallet-address-text-field\"]");
+      let address = addressField.text;
+
+      // TODO: Do not hard-code website URL
+      await fetch(`http://localhost:3004/api/faucet/${address}`, {
+        method: "POST",
+      });
+
+      await driver.switchTo().window(websiteWindow);
+      let alphaAmountInput = await getElementById(driver, "//input[@data-cy=\"Alpha-amount-input\"]");
+      await alphaAmountInput.clear();
+      await alphaAmountInput.sendKeys("0.4");
+
+      let swapButton = await getElementById(driver, "//button[@data-cy=\"swap-button\"]");
+      while (!(await swapButton.isEnabled())) {
+        await sleep(2000)
+      }
+
+      await swapButton.click();
+
+      // await driver.switchTo().window(extensionWindow);
+
+      // await getElementById(driver, "//button[@data-cy=\"swap-button\"]");
     });
 });
+
+export async function sleep(time: number) {
+    return new Promise((res) => {
+        setTimeout(res, time);
+    });
+}

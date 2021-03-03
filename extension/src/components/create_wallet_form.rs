@@ -67,8 +67,9 @@ impl Component for CreateWallet {
                        placeholder="Password"
                        value=&self.state.wallet_password
                        oninput=self.link.callback(|e: InputData| Msg::UpdatePassword(e.value))
+                       data-cy="create-wallet-password-input"
                        />
-                    <button onclick=onclick>{ "Create" }</button>
+                    <button onclick=onclick data-cy="create-wallet-button">{ "Create" }</button>
                 </form>
             </>
         }

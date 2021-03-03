@@ -10,7 +10,7 @@
     "build": "rimraf dist && rollup --config",
     "watch": "rollup --config --watch",
     "start-dev": "web-ext run -s dist/",
-    "build:extension": "web-ext build -s dist/ --overwrite-dest "
+    "package:extension": "web-ext build -s dist/ --overwrite-dest "
   },
   "devDependencies": {
     "@wasm-tool/rollup-plugin-rust": "^1.0.0",
@@ -18,5 +18,8 @@
     "rollup": "^1.27.14",
     "rollup-plugin-copy": "^3.3.0",
     "web-ext": "5.4.0"
+  },
+  "dependencies": {
+    "@types/selenium-webdriver": "^4.0.11"
   }
 }

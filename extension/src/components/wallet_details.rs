@@ -34,7 +34,8 @@ impl Component for WalletDetails {
 
         html! {
             <>
-                <p>{format!("Address: {}", address)}</p>
+                <p>{"Address"}</p>
+                <p data-cy="wallet-address-text-field">{address}</p>
                 <p>{"Balances:"}</p>
                 <ul class="item-list">
                     { balances.iter().map(render_balances).collect::<Html>() }
