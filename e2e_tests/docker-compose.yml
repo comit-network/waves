@@ -24,11 +24,11 @@ services:
       - -datadir=/data
     networks:
       local:
-        ipv4_address: 10.10.0.11
+        ipv4_address: 11.10.0.11
     ports:
       - 7041:18884
     volumes:
-      - liquiddata:/data
+      - blockchain_volume:/data
     restart: unless-stopped
   # Block explorer REST servers
   electrs-liquid:
@@ -54,20 +54,20 @@ services:
       - "*"
     networks:
       local:
-        ipv4_address: 10.10.0.13
+        ipv4_address: 11.10.0.13
     depends_on:
       - liquid
     ports:
       - 60401:60401
       - 3012:3002
     volumes:
-      - liquiddata:/config
+      - blockchain_volume:/config
   esplora-liquid:
     image: vulpemventures/esplora:latest
     container_name: esplora-liquid
     networks:
       local:
-        ipv4_address: 10.10.0.15
+        ipv4_address: 11.10.0.15
     depends_on:
       - electrs-liquid
     environment:
@@ -80,7 +80,7 @@ networks:
     driver: bridge
     ipam:
       config:
-        - subnet: 10.10.0.0/24
+        - subnet: 11.10.0.0/24
 
 volumes:
-  liquiddata:
+  blockchain_volume:
