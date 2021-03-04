@@ -217,7 +217,7 @@ function App() {
         () => getBalances(),
         {
             // TODO uncomment this and remove revalidateOnFocus, it just produces annoying log messages during development
-            // refreshInterval: 5000,
+            refreshInterval: 1000,
             revalidateOnFocus: false,
         },
     );

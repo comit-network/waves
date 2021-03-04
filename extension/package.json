@@ -18,8 +18,5 @@
     "rollup": "^1.27.14",
     "rollup-plugin-copy": "^3.3.0",
     "web-ext": "5.4.0"
-  },
-  "dependencies": {
-    "@types/selenium-webdriver": "^4.0.11"
   }
 }

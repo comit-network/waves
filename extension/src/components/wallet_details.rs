@@ -46,7 +46,11 @@ impl Component for WalletDetails {
 }
 
 fn render_balances(balance: &bs_ps::BalanceEntry) -> Html {
+    let balance_id = format!("{}-balance-text-field", balance.ticker.clone());
     html! {
-        <li> {balance.ticker.clone()}  {balance.value.clone()}  </li>
+        <li>
+            <p>{balance.ticker.clone()} </p>
+            <p data-cy={balance_id}>{balance.value.clone()}</p>
+            </li>
     }
 }

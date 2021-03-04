@@ -20,8 +20,8 @@ echo "USDT Asset ID: "$usdt_asset_id
     export ESPLORA_API_URL="http://localhost:3012"
     export REACT_APP_BLOCKEXPLORER_URL="http://localhost:5001"
 
-    yarn build
-    yarn build:extension
+#    yarn build
+    yarn package:extension
 )
 
 (
@@ -30,5 +30,5 @@ echo "USDT Asset ID: "$usdt_asset_id
 
     RUST_LOG=info,bobtimus=debug cargo run --bin fake_bobtimus -- \
         --elementsd http://admin1:123@127.0.0.1:7041 \
-        --usdt $usdt_asset_id > bobtimus.log 2>&1 &
+        --usdt 14cbdea9d7730a5c38d2ff100e45d39c4673d86ae88e1bfde66a5308d207f1cc > bobtimus.log 2>&1 &
 )
