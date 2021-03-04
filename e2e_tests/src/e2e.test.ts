@@ -1,4 +1,5 @@
 import * as assert from "assert";
+import Debug from "debug";
 import fetch from "node-fetch";
 import { Builder, By, until } from "selenium-webdriver";
 
@@ -18,7 +19,8 @@ describe("webdriver", () => {
     const webAppTitle = "Waves";
     const extensionTitle = "Waves Wallet";
 
-    beforeEach(async () => {
+    beforeAll(async () => {
+        const debug = Debug("e2e-before");
         let service = new firefox.ServiceBuilder(firefoxPath);
 
         const options = new firefox.Options().headless();
@@ -60,7 +62,7 @@ describe("webdriver", () => {
         await driver.wait(until.titleIs(extensionTitle), 10000);
     }, 20000);
 
-    afterEach(async () => {
+    afterAll(async () => {
         await driver.quit();
     });
 
@@ -77,29 +79,29 @@ describe("webdriver", () => {
 
     async function switchToWindow(name: string) {
         await driver.switchTo().window(await getWindowHandle(name));
-        console.log(`Switched to ${await driver.getTitle()}`);
     }
 
-    test("sell swap", async () => {
-        console.log("Testing sell swap");
-
+    test("Create wallet", async () => {
+        const debug = Debug("e2e-create");
+        debug("Testing creating a wallet");
         await switchToWindow(extensionTitle);
-        console.log("Switched to extension");
+        debug("Switched to extension");
 
         let password = "foo";
-        console.log("Setting password");
+        debug("Setting password");
         let passwordInput = await getElementById(driver, "//input[@data-cy='create-wallet-password-input']");
         await passwordInput.sendKeys(password);
 
-        console.log("Creating wallet");
+        debug("Creating wallet");
         let createWalletButton = await getElementById(driver, "//button[@data-cy='create-wallet-button']");
         await createWalletButton.click();
 
-        console.log("Getting address");
+        debug("Getting address");
         let addressField = await getElementById(driver, "//p[@data-cy='wallet-address-text-field']");
         let address = await addressField.getText();
-        console.log(`Address found: ${address}`);
+        debug(`Address found: ${address}`);
 
+        debug("Calling faucet");
         await fetch(`${webAppUrl}/api/faucet/${address}`, {
             method: "POST",
         });
@@ -107,28 +109,34 @@ describe("webdriver", () => {
         await driver.wait(
             async () => {
                 while (true) {
+                    debug(".");
                     try {
                         await driver.navigate().refresh();
                         let btcAmount = await getElementById(driver, "//p[@data-cy='L-BTC-balance-text-field']");
-                        console.log("Found btc amount: " + await btcAmount.getText());
+                        debug("Found btc amount: %s", await btcAmount.getText());
                         return true;
                     } catch (_) {
-                        //ignore
+                        // ignore
                     }
                 }
             },
             10000,
         );
+    }, 10000);
+
+    test("sell swap", async () => {
+        const debug = Debug("e2e-sell");
+        debug("Testing sell swap");
 
         await switchToWindow(webAppTitle);
         await driver.navigate().refresh();
         await driver.sleep(2000);
-        console.log("Setting alpha input amount");
+        debug("Setting alpha input amount");
         let alphaAmountInput = await getElementById(driver, "//div[@data-cy='Alpha-amount-input']//input");
         await alphaAmountInput.clear();
         await alphaAmountInput.sendKeys("0.4");
 
-        console.log("Checking if button is available.");
+        debug("Checking if button is available.");
 
         let swapButton = await getElementById(driver, "//button[@data-cy='swap-button']");
         await driver.wait(until.elementIsEnabled(swapButton), 20000);
@@ -139,7 +147,7 @@ describe("webdriver", () => {
         await driver.navigate().refresh();
         await driver.sleep(1000);
 
-        console.log("Signing transaction");
+        debug("Signing transaction");
         let signTransactionButton = await getElementById(driver, "//button[@data-cy='sign-tx-button']");
         await signTransactionButton.click();
 
@@ -151,58 +159,22 @@ describe("webdriver", () => {
     }, 40000);
 
     test("buy swap", async () => {
-        console.log("Testing buy swap");
-
-        await switchToWindow(extensionTitle);
-        console.log("Switched to extension");
-
-        let password = "foo";
-        console.log("Setting password");
-        let passwordInput = await getElementById(driver, "//input[@data-cy='create-wallet-password-input']");
-        await passwordInput.sendKeys(password);
-
-        console.log("Creating wallet");
-        let createWalletButton = await getElementById(driver, "//button[@data-cy='create-wallet-button']");
-        await createWalletButton.click();
-
-        console.log("Getting address");
-        let addressField = await getElementById(driver, "//p[@data-cy='wallet-address-text-field']");
-        let address = await addressField.getText();
-        console.log(`Address found: ${address}`);
-
-        await fetch(`${webAppUrl}/api/faucet/${address}`, {
-            method: "POST",
-        });
-
-        await driver.wait(
-            async () => {
-                while (true) {
-                    try {
-                        await driver.navigate().refresh();
-                        let btcAmount = await getElementById(driver, "//p[@data-cy='L-BTC-balance-text-field']");
-                        console.log("Found btc amount: " + await btcAmount.getText());
-                        return true;
-                    } catch (_) {
-                        //ignore
-                    }
-                }
-            },
-            10000,
-        );
+        const debug = Debug("e2e-buy");
+        debug("Testing buy swap");
 
         await switchToWindow(webAppTitle);
         await driver.navigate().refresh();
         await driver.sleep(2000);
-        console.log("Switching assets");
+        debug("Switching assets");
         let switchAssetTypesButton = await getElementById(driver, "//button[@data-cy='exchange-asset-types-button']");
         await switchAssetTypesButton.click();
 
-        console.log("Setting alpha input amount");
+        debug("Setting alpha input amount");
         let alphaAmountInput = await getElementById(driver, "//div[@data-cy='Alpha-amount-input']//input");
         await alphaAmountInput.clear();
         await alphaAmountInput.sendKeys("10000.0");
 
-        console.log("Checking if button is available.");
+        debug("Checking if button is available.");
 
         let swapButton = await getElementById(driver, "//button[@data-cy='swap-button']");
         await driver.wait(until.elementIsEnabled(swapButton), 20000);
@@ -213,7 +185,7 @@ describe("webdriver", () => {
         await driver.navigate().refresh();
         await driver.sleep(1000);
 
-        console.log("Signing transaction");
+        debug("Signing transaction");
         let signTransactionButton = await getElementById(driver, "//button[@data-cy='sign-tx-button']");
         await signTransactionButton.click();
 
@@ -224,4 +196,3 @@ describe("webdriver", () => {
         assert(url.includes("/swapped/"));
     }, 40000);
 });
-

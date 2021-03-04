@@ -68,8 +68,9 @@ impl Component for UnlockWallet {
                        placeholder="Password"
                        value=&self.state.wallet_password
                        oninput=self.link.callback(|e: InputData| Msg::UpdatePassword(e.value))
+                       data-cy="unlock-wallet-password-input"
                        />
-                    <button onclick=onclick>{ "Unlock" }</button>
+                    <button onclick=onclick data-cy="unlock-wallet-button">{ "Unlock" }</button>
                 </form>
             </>
         }
