@@ -131,6 +131,13 @@ start_extension () {
 
     __read_env_file
 
+    build_extension
+
+    cd extension
+    yarn run start-dev
+}
+
+build_extension () {
     cd extension
     yarn install
     export NATIVE_ASSET_ID=$(cat ../.native_asset_id)
@@ -142,9 +149,18 @@ start_extension () {
     echo "export CHAIN=$CHAIN"
     echo "export ESPLORA_API_URL=$ESPLORA_API_URL"
 
+    yarn run build
+}
 
-#    yarn run build
-#    yarn run start-dev
+start_extension_wo_building () {
+    cd extension
+    yarn run start-dev
+}
+
+build_and_package_extension () {
+    build_extension
+    cd extension
+    yarn run package:extension
 }
 
 stop_nodes () {

@@ -174,8 +174,8 @@ export function reducer(state: State = initialState, action: Action) {
 }
 
 function App() {
-    const history = useHistory();
-    const path = history.location.pathname;
+  const history = useHistory();
+  const path = history.location.pathname;
 
     useEffect(() => {
         if (path === "/app") {
@@ -183,7 +183,6 @@ function App() {
         }
     }, [path, history]);
 
-    const [[transaction, trade], setTransaction] = useState<[string, Trade]>(["", {} as any]);
     const [state, dispatch] = useReducer(reducer, initialState);
 
     const rate = useSSE("rate", {
@@ -191,37 +190,26 @@ function App() {
         bid: 33670.10,
     });
 
-    // TODO window.wallet_status does not yet exist... need to get event listener
-    let { data: getWalletStatusResponse, isLoading, reload: reloadWalletStatus } = useAsync({
-        promiseFn: getWalletStatus,
-    });
+  let { data: walletStatus } = useSWR(
+        "wallet-status",
+        () => getWalletStatus(),
+    {
+      revalidateOnMount: true,
+      refreshInterval: 5000,
+      revalidateOnFocus: false,
+    }
+  );
 
-    useEffect(() => {
-        let callback = (_message: MessageEvent) => {};
-        // @ts-ignore
-        if (!window.wallet_status) {
-            callback = (message: MessageEvent) => {
-                debug("Received message: %s", message.data);
-                reloadWalletStatus();
-            };
-        }
-        window.addEventListener("message", callback);
-
-        return () => window.removeEventListener("message", callback);
-    });
-
-    let walletStatus = getWalletStatusResponse || { exists: false, loaded: false };
-
-    let { data: getBalancesResponse, mutate: reloadWalletBalances } = useSWR(
-        () => walletStatus.loaded ? "wallet-balances" : null,
+    let { data: getBalancesResponse } = useSWR(
+        () => walletStatus ? "wallet-balances" : null,
         () => getBalances(),
         {
-            // TODO uncomment this and remove revalidateOnFocus, it just produces annoying log messages during development
-            refreshInterval: 1000,
-            revalidateOnFocus: false,
+          revalidateOnMount: true,
+          refreshInterval: 5000,
+          revalidateOnFocus: false,
         },
     );
-    let balances = getBalancesResponse || [];
+  let balances = getBalancesResponse || [];
 
     let btcBalanceEntry = balances.find(
         balance => balance.ticker === Asset.LBTC,
@@ -271,24 +259,22 @@ function App() {
         debug("For now open popup manually...");
     }
 
-    if (!walletStatus.exists) {
+    if (walletStatus && !walletStatus.exists) {
         walletBalances = <Button
             onClick={async () => {
                 await unlock_wallet();
             }}
             size="sm"
             variant="primary"
-            isLoading={isLoading}
             data-cy="create-wallet-button"
         >
             Create wallet
         </Button>;
-    } else if (walletStatus.exists && !walletStatus.loaded) {
+    } else if (walletStatus && walletStatus.exists && !walletStatus.loaded) {
         walletBalances = <Button
             onClick={unlock_wallet}
             size="sm"
             variant="primary"
-            isLoading={isLoading}
             data-cy="unlock-wallet-button"
         >
             Unlock wallet

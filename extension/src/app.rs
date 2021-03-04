@@ -178,7 +178,7 @@ impl Component for App {
                     <>
                         <p>{"Sign transaction"}</p>
                         <TradeInfo trade=decoded></TradeInfo>
-                        <button onclick=self.link.callback(move |_| Msg::SignAndSend { tx_hex: hex.clone(), tab_id })>{ "Sign" }</button>
+                        <button data-cy="sign-tx-button" onclick=self.link.callback(move |_| Msg::SignAndSend { tx_hex: hex.clone(), tab_id })>{ "Sign" }</button>
                     </>
                 }
             }
