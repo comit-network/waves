@@ -165,8 +165,8 @@ export function reducer(state: State = initialState, action: Action) {
 }
 
 function App() {
-  const history = useHistory();
-  const path = history.location.pathname;
+    const history = useHistory();
+    const path = history.location.pathname;
 
     useEffect(() => {
         if (path === "/app") {

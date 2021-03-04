@@ -1,12 +1,11 @@
 import * as assert from "assert";
 import fetch from "node-fetch";
-import {Builder, By, until} from "selenium-webdriver";
-import {main} from "ts-node/dist/bin";
+import { Builder, By, until } from "selenium-webdriver";
 
 const firefox = require("selenium-webdriver/firefox");
 const firefoxPath = require("geckodriver").path;
 
-const getElementById = async (driver, xpath, timeout = 2000) => {
+const getElementById = async (driver, xpath, timeout = 4000) => {
     const el = await driver.wait(until.elementLocated(By.xpath(xpath)), timeout);
     return await driver.wait(until.elementIsVisible(el), timeout);
 };
@@ -19,7 +18,7 @@ describe("webdriver", () => {
     const webAppTitle = "Waves";
     const extensionTitle = "Waves Wallet";
 
-    beforeAll(async () => {
+    beforeEach(async () => {
         let service = new firefox.ServiceBuilder(firefoxPath);
 
         const options = new firefox.Options().headless();
@@ -38,7 +37,7 @@ describe("webdriver", () => {
         const extensionElement = await getElementById(
             driver,
             "//span[contains(text(),'waves_wallet')]//"
-            + "parent::li/section/dl/div//dt[contains(text(),'Internal UUID')]/following-sibling::dd",
+                + "parent::li/section/dl/div//dt[contains(text(),'Internal UUID')]/following-sibling::dd",
         );
         extensionId = await extensionElement.getText();
 
@@ -51,7 +50,7 @@ describe("webdriver", () => {
         assert((await driver.getAllWindowHandles()).length === 1);
 
         // Opens a new tab and switches to new tab
-        await driver.switchTo().newWindow('tab');
+        await driver.switchTo().newWindow("tab");
 
         // Open extension
         let extensionUrl = `moz-extension://${extensionId}/popup.html`;
@@ -59,16 +58,16 @@ describe("webdriver", () => {
 
         // Assert that extension window is loaded
         await driver.wait(until.titleIs(extensionTitle), 10000);
-    });
+    }, 20000);
 
-    afterAll(async () => {
+    afterEach(async () => {
         await driver.quit();
     });
 
     async function getWindowHandle(name: string) {
         let allWindowHandles = await driver.getAllWindowHandles();
         for (const windowHandle of allWindowHandles) {
-            await driver.switchTo().window(windowHandle)
+            await driver.switchTo().window(windowHandle);
             const title = await driver.getTitle();
             if (title === name) {
                 return windowHandle;
@@ -87,7 +86,6 @@ describe("webdriver", () => {
         await switchToWindow(extensionTitle);
         console.log("Switched to extension");
 
-
         let password = "foo";
         console.log("Setting password");
         let passwordInput = await getElementById(driver, "//input[@data-cy='create-wallet-password-input']");
@@ -106,7 +104,25 @@ describe("webdriver", () => {
             method: "POST",
         });
 
+        await driver.wait(
+            async () => {
+                while (true) {
+                    try {
+                        await driver.navigate().refresh();
+                        let btcAmount = await getElementById(driver, "//p[@data-cy='L-BTC-balance-text-field']");
+                        console.log("Found btc amount: " + await btcAmount.getText());
+                        return true;
+                    } catch (_) {
+                        //ignore
+                    }
+                }
+            },
+            10000,
+        );
+
         await switchToWindow(webAppTitle);
+        await driver.navigate().refresh();
+        await driver.sleep(2000);
         console.log("Setting alpha input amount");
         let alphaAmountInput = await getElementById(driver, "//div[@data-cy='Alpha-amount-input']//input");
         await alphaAmountInput.clear();
@@ -116,20 +132,22 @@ describe("webdriver", () => {
 
         let swapButton = await getElementById(driver, "//button[@data-cy='swap-button']");
         await driver.wait(until.elementIsEnabled(swapButton), 20000);
-        await swapButton.click()
+        await swapButton.click();
 
         await switchToWindow(extensionTitle);
-        await sleep(5000);
+        await driver.sleep(5000);
         await driver.navigate().refresh();
-        await sleep(1000);
+        await driver.sleep(1000);
 
         console.log("Signing transaction");
         let signTransactionButton = await getElementById(driver, "//button[@data-cy='sign-tx-button']");
         await signTransactionButton.click();
 
         await switchToWindow(webAppTitle);
+
+        await driver.sleep(2000);
         let url = await driver.getCurrentUrl();
-        assert(url.includes("/swapped/"))
+        assert(url.includes("/swapped/"));
     }, 40000);
 
     test("buy swap", async () => {
@@ -137,7 +155,6 @@ describe("webdriver", () => {
 
         await switchToWindow(extensionTitle);
         console.log("Switched to extension");
-
 
         let password = "foo";
         console.log("Setting password");
@@ -157,7 +174,25 @@ describe("webdriver", () => {
             method: "POST",
         });
 
+        await driver.wait(
+            async () => {
+                while (true) {
+                    try {
+                        await driver.navigate().refresh();
+                        let btcAmount = await getElementById(driver, "//p[@data-cy='L-BTC-balance-text-field']");
+                        console.log("Found btc amount: " + await btcAmount.getText());
+                        return true;
+                    } catch (_) {
+                        //ignore
+                    }
+                }
+            },
+            10000,
+        );
+
         await switchToWindow(webAppTitle);
+        await driver.navigate().refresh();
+        await driver.sleep(2000);
         console.log("Switching assets");
         let switchAssetTypesButton = await getElementById(driver, "//button[@data-cy='exchange-asset-types-button']");
         await switchAssetTypesButton.click();
@@ -171,25 +206,22 @@ describe("webdriver", () => {
 
         let swapButton = await getElementById(driver, "//button[@data-cy='swap-button']");
         await driver.wait(until.elementIsEnabled(swapButton), 20000);
-        await swapButton.click()
+        await swapButton.click();
 
         await switchToWindow(extensionTitle);
-        await sleep(5000);
+        await driver.sleep(5000);
         await driver.navigate().refresh();
-        await sleep(1000);
+        await driver.sleep(1000);
 
         console.log("Signing transaction");
         let signTransactionButton = await getElementById(driver, "//button[@data-cy='sign-tx-button']");
         await signTransactionButton.click();
 
         await switchToWindow(webAppTitle);
+
+        await driver.sleep(2000);
         let url = await driver.getCurrentUrl();
-        assert(url.includes("/swapped/"))
+        assert(url.includes("/swapped/"));
     }, 40000);
 });
 
-export async function sleep(time: number) {
-    return new Promise((res) => {
-        setTimeout(res, time);
-    });
-}
