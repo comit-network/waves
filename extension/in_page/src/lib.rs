@@ -1,5 +1,5 @@
-use anyhow::{Context, Result};
-use elements::{encode::deserialize, Txid};
+use anyhow::Result;
+use elements::Txid;
 extern crate console_error_panic_hook;
 use futures::{channel::mpsc, StreamExt};
 use js_sys::{global, Object, Promise};
@@ -19,10 +19,6 @@ pub fn main() {
     log::info!("IPS: Hello World");
 
     let global: Object = global();
-
-    let boxed = Box::new(balances) as Box<dyn Fn() -> Promise>;
-    let closure = Closure::wrap(boxed).into_js_value();
-    js_sys::Reflect::set(&global, &JsValue::from("balances"), &closure).unwrap();
 
     let boxed = Box::new(wallet_status) as Box<dyn Fn() -> Promise>;
     let closure = Closure::wrap(boxed).into_js_value();
@@ -53,60 +49,6 @@ pub fn main() {
     let window = web_sys::window().expect("no global `window` exists");
     let js_value = JsValue::from("IPS_injected");
     window.post_message(&js_value, "*").unwrap();
-}
-
-#[wasm_bindgen]
-pub fn balances() -> Promise {
-    let (mut sender, mut receiver) = mpsc::channel::<JsValue>(10);
-    // create listener
-    let func = move |msg: MessageEvent| {
-        let js_value: JsValue = msg.data();
-
-        let message: Result<ips_cs::Message, _> = js_value.into_serde();
-        if let Ok(ips_cs::Message {
-            target,
-            rpc_data,
-            source,
-        }) = &message
-        {
-            match (target, source) {
-                (Component::InPage, Component::Content) => {}
-                (_, _) => {
-                    log::warn!("IPS: Unexpected message from: {:?}", message);
-                    return;
-                }
-            }
-
-            log::info!("IPS: Received response from CS: {:?}", rpc_data);
-            if let RpcData::Balance(balance_entry) = rpc_data {
-                sender
-                    .try_send(JsValue::from_serde(balance_entry).unwrap())
-                    .unwrap();
-            }
-        }
-    };
-
-    let cb = Closure::wrap(Box::new(func) as Box<dyn FnMut(MessageEvent)>);
-    let listener = Listener::new("message".to_string(), cb);
-
-    let window = web_sys::window().expect("no global `window` exists");
-    let js_value = JsValue::from_serde(&ips_cs::Message {
-        rpc_data: ips_cs::RpcData::GetBalance,
-        target: Component::Content,
-        source: Component::InPage,
-    })
-    .unwrap();
-    window.post_message(&js_value, "*").unwrap();
-
-    let fut = async move {
-        let response = receiver.next().await;
-        let response = response.ok_or_else(|| JsValue::from_str("IPS: No response from CS"))?;
-
-        drop(listener);
-        Ok(response)
-    };
-
-    future_to_promise(fut)
 }
 
 #[wasm_bindgen]

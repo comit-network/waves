@@ -57,17 +57,6 @@ fn handle_msg_from_bs(msg: JsValue) {
 
     if let Ok(cs_bs::Message { rpc_data, .. }) = msg.into_serde() {
         match rpc_data {
-            cs_bs::RpcData::Balance(data) => {
-                let msg = ips_cs::Message {
-                    rpc_data: ips_cs::RpcData::Balance(data),
-                    target: Component::InPage,
-                    source: Component::Content,
-                };
-                log::info!("CS: Sending response to IPS: {:?}", msg);
-                window
-                    .post_message(&JsValue::from_serde(&msg).unwrap(), "*")
-                    .unwrap();
-            }
             cs_bs::RpcData::WalletStatus(wallet_status) => {
                 let msg = ips_cs::Message {
                     rpc_data: ips_cs::RpcData::WalletStatus(wallet_status),
@@ -123,28 +112,14 @@ fn handle_msg_from_ips(msg: JsValue) {
     // TODO: Actually only accept messages from IPS
 
     log::info!("CS: Received from IPS: {:?}", msg);
-    let data = match msg.into_serde() {
-        Ok(ips_cs::Message { rpc_data, .. }) => rpc_data,
-        Err(e) => {
-            log::error!("Failed to deserialize msg from IPS. Reason: {:?}", e);
-            return;
-        }
+    let data = if let Ok(ips_cs::Message { rpc_data, .. }) = msg.into_serde() {
+        rpc_data
+    } else {
+        log::warn!("Received unknown message: {:?}", msg);
+        return;
     };
 
     match data {
-        ips_cs::RpcData::GetBalance => {
-            let msg = cs_bs::Message {
-                rpc_data: cs_bs::RpcData::GetBalance,
-                target: Component::Background,
-                source: Component::Content,
-            };
-            log::info!("CS: Sending message get balance to BS: {:?}", msg);
-            // sending message to Background script
-            let js_value = JsValue::from_serde(&msg).unwrap();
-
-            // TODO: Handle error response?
-            let _resp = browser.runtime().send_message(None, &js_value, None);
-        }
         ips_cs::RpcData::GetWalletStatus => {
             let msg = cs_bs::Message {
                 rpc_data: cs_bs::RpcData::GetWalletStatus,

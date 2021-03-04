@@ -263,42 +263,6 @@ fn handle_msg_from_cs(msg: cs_bs::Message, message_sender: MessageSender) -> Pro
     log::info!("BS: Received from CS: {:?}", &msg);
 
     match msg.rpc_data {
-        cs_bs::RpcData::GetBalance => {
-            spawn_local(async move {
-                let result = wallet::get_balances(WALLET_NAME.to_string()).await;
-                let tab_id = message_sender.tab.expect("tab id to exist").id;
-
-                match result {
-                    Ok(vec_balances) => {
-                        //TODO export type or implement into
-                        let vec_balances = vec_balances
-                            .iter()
-                            .map(|balance: &wallet::BalanceEntry| cs_bs::BalanceEntry {
-                                asset: balance.asset.clone().to_string(),
-                                ticker: balance.ticker.clone(),
-                                value: balance.value,
-                            })
-                            .collect();
-
-                        log::debug!("Received balance info: {:?}", vec_balances);
-                        let _resp = browser.tabs().send_message(
-                            tab_id,
-                            JsValue::from_serde(&cs_bs::Message {
-                                rpc_data: cs_bs::RpcData::Balance(vec_balances),
-                                target: Component::Content,
-                                source: Component::Background,
-                            })
-                            .unwrap(),
-                            JsValue::null(),
-                        );
-                    }
-                    Err(err) => {
-                        // TODO deal with error
-                        log::error!("Could not get balance: {:?}", err);
-                    }
-                }
-            });
-        }
         cs_bs::RpcData::GetWalletStatus => {
             spawn_local(async move {
                 let result = wallet::wallet_status(WALLET_NAME.to_string()).await;

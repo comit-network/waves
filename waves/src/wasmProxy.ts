@@ -65,28 +65,14 @@ export async function lockWallet() {
 
 export async function getWalletStatus(): Promise<WalletStatus> {
     // @ts-ignore
-    if (!window.wallet_status) {
+    if (typeof window.wallet_status === "undefined") {
         debug("wallet_status not found. CS not yet defined? ");
-        return {
-            loaded: false,
-            exists: false,
-        };
+        return Promise.reject("wallet_status undefined");
     }
     // @ts-ignore
-    debug("Retrieving wallet status");
+    debug("Retrieving wallet status " + typeof window.wallet_status);
     // @ts-ignore
     return await window.wallet_status();
-}
-
-export async function getBalances(): Promise<BalanceEntry[]> {
-    // TODO create bindings for library
-    // @ts-ignore
-    if (!window.balances) {
-        return Promise.reject("balances undefined");
-    }
-    debug("Retrieving balances");
-    // @ts-ignore
-    return await window.balances();
 }
 
 export async function withdrawAll(address: string): Promise<String> {

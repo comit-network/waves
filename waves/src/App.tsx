@@ -1,26 +1,17 @@
 import { ExternalLinkIcon } from "@chakra-ui/icons";
 import { Box, Button, Center, Flex, Image, Link, Text, VStack } from "@chakra-ui/react";
 import Debug from "debug";
-import React, { useEffect, useReducer, useState } from "react";
+import React, { useEffect, useReducer } from "react";
 import { useAsync } from "react-async";
 import { useSSE } from "react-hooks-sse";
 import { Route, Switch, useHistory, useParams } from "react-router-dom";
-import useSWR from "swr";
 import "./App.css";
 import { postBuyPayload, postSellPayload } from "./Bobtimus";
 import calculateBetaAmount, { getDirection } from "./calculateBetaAmount";
 import AssetSelector from "./components/AssetSelector";
 import COMIT from "./components/comit_logo_spellout_opacity_50.svg";
 import ExchangeIcon from "./components/ExchangeIcon";
-import WalletBalances from "./WalletBalances";
-import {
-    getBalances,
-    getWalletStatus,
-    makeBuyCreateSwapPayload,
-    makeSellCreateSwapPayload,
-    signAndSend,
-    Trade,
-} from "./wasmProxy";
+import { getWalletStatus, makeBuyCreateSwapPayload, makeSellCreateSwapPayload, signAndSend } from "./wasmProxy";
 
 const debug = Debug("App");
 
@@ -190,36 +181,25 @@ function App() {
         bid: 33670.10,
     });
 
-  let { data: walletStatus } = useSWR(
-        "wallet-status",
-        () => getWalletStatus(),
-    {
-      revalidateOnMount: true,
-      refreshInterval: 5000,
-      revalidateOnFocus: false,
-    }
-  );
+    let { data: getWalletStatusResponse, reload: reloadWalletStatus } = useAsync({
+        promiseFn: getWalletStatus,
+    });
 
-    let { data: getBalancesResponse } = useSWR(
-        () => walletStatus ? "wallet-balances" : null,
-        () => getBalances(),
-        {
-          revalidateOnMount: true,
-          refreshInterval: 5000,
-          revalidateOnFocus: false,
-        },
-    );
-  let balances = getBalancesResponse || [];
+    useEffect(() => {
+        let callback = (_message: MessageEvent) => {};
+        // @ts-ignore
+        if (!window.wallet_status) {
+            callback = async (message: MessageEvent) => {
+                debug("Received message: %s", message.data);
+                await reloadWalletStatus();
+            };
+        }
+        window.addEventListener("message", callback);
 
-    let btcBalanceEntry = balances.find(
-        balance => balance.ticker === Asset.LBTC,
-    );
-    let usdtBalanceEntry = balances.find(
-        balance => balance.ticker === Asset.USDT,
-    );
+        return () => window.removeEventListener("message", callback);
+    });
 
-    const btcBalance = btcBalanceEntry ? btcBalanceEntry.value : 0;
-    const usdtBalance = usdtBalanceEntry ? usdtBalanceEntry.value : 0;
+    let walletStatus = getWalletStatusResponse;
 
     let { run: makeNewSwap, isLoading: isCreatingNewSwap } = useAsync({
         deferFn: async () => {
@@ -250,48 +230,50 @@ function App() {
 
     async function unlock_wallet() {
         // TODO send request to open popup to unlock wallet
-        // @ts-ignore
         debug("For now open popup manually...");
-    }
-    async function open_wallet_popup() {
-        // TODO send request to open popup to show balances
-        // @ts-ignore
-        debug("For now open popup manually...");
+        await reloadWalletStatus;
     }
 
-    if (walletStatus && !walletStatus.exists) {
-        walletBalances = <Button
+    async function get_extension() {
+        // TODO forward to firefox app store
+        debug("Download our awesome extension from...");
+        await reloadWalletStatus;
+    }
+
+    let swapButton;
+    if (typeof walletStatus === "undefined") {
+        swapButton = <Button
+            onClick={async () => {
+                await get_extension();
+            }}
+            variant="primary"
+            w="15rem"
+            data-cy="get-extension-button"
+        >
+            Get Extension
+        </Button>;
+    } else if (!walletStatus.exists || !walletStatus.loaded) {
+        swapButton = <Button
             onClick={async () => {
                 await unlock_wallet();
             }}
-            size="sm"
             variant="primary"
-            data-cy="create-wallet-button"
-        >
-            Create wallet
-        </Button>;
-    } else if (walletStatus && walletStatus.exists && !walletStatus.loaded) {
-        walletBalances = <Button
-            onClick={unlock_wallet}
-            size="sm"
-            variant="primary"
+            w="15rem"
             data-cy="unlock-wallet-button"
         >
-            Unlock wallet
+            Unlock Wallet
         </Button>;
     } else {
-        walletBalances = <WalletBalances
-            balances={{
-                usdt: usdtBalance,
-                btc: btcBalance,
-            }}
-            onClick={open_wallet_popup}
-        />;
+        swapButton = <Button
+            onClick={makeNewSwap}
+            variant="primary"
+            w="15rem"
+            isLoading={isCreatingNewSwap}
+            data-cy="swap-button"
+        >
+            Swap
+        </Button>;
     }
-
-    let isSwapButtonDisabled = state.alpha.type === Asset.LBTC
-        ? btcBalance < alphaAmount
-        : usdtBalance < alphaAmount;
 
     return (
         <Box className="App">
@@ -334,16 +316,7 @@ function App() {
                             </Flex>
                             <RateInfo rate={rate} direction={getDirection(state.alpha.type)} />
                             <Box>
-                                <Button
-                                    onClick={makeNewSwap}
-                                    variant="primary"
-                                    w="15rem"
-                                    isLoading={isCreatingNewSwap}
-                                    disabled={isSwapButtonDisabled}
-                                    data-cy="swap-button"
-                                >
-                                    Swap
-                                </Button>
+                                {swapButton}
                             </Box>
                         </VStack>
                     </Route>

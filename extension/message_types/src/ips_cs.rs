@@ -1,4 +1,4 @@
-use crate::{cs_bs::BalanceEntry, Component};
+use crate::Component;
 use elements::Txid;
 use serde::{Deserialize, Serialize};
 use wallet::{CreateSwapPayload, WalletStatus};
@@ -14,12 +14,10 @@ pub struct Message {
 #[derive(Clone, Debug, Deserialize, Serialize)]
 pub enum RpcData {
     GetWalletStatus,
-    GetBalance,
     GetSellCreateSwapPayload(String),
     GetBuyCreateSwapPayload(String),
     WalletStatus(WalletStatus),
     SignAndSend(String),
-    Balance(Vec<BalanceEntry>),
     SellCreateSwapPayload(CreateSwapPayload),
     BuyCreateSwapPayload(CreateSwapPayload),
     SwapTxid(Txid),
