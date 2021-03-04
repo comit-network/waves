@@ -19,7 +19,6 @@
     "@types/react": "^16.9.53",
     "@types/react-dom": "^16.9.8",
     "@types/react-router-dom": "^5.1.6",
-    "cypress": "^6.2.1",
     "debug": "^4.3.1",
     "filemanager-webpack-plugin": "^3.0.0",
     "framer-motion": "^3.1.4",
