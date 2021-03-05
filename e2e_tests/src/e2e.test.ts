@@ -15,7 +15,7 @@ describe("webdriver", () => {
     let driver;
     let extensionId;
     // TODO: Do not hard-code website URL
-    const webAppUrl = "http://localhost:3004";
+    const webAppUrl = "http://localhost:3030";
     const webAppTitle = "Waves";
     const extensionTitle = "Waves Wallet";
 
@@ -23,8 +23,8 @@ describe("webdriver", () => {
         const debug = Debug("e2e-before");
         let service = new firefox.ServiceBuilder(firefoxPath);
 
-        const options = new firefox.Options().headless();
-        // const options = new firefox.Options();
+        // const options = new firefox.Options().headless();
+        const options = new firefox.Options();
 
         driver = new Builder()
             .setFirefoxService(service)
@@ -63,7 +63,7 @@ describe("webdriver", () => {
     }, 20000);
 
     afterAll(async () => {
-        await driver.quit();
+        // await driver.quit();
     });
 
     async function getWindowHandle(name: string) {
@@ -106,10 +106,13 @@ describe("webdriver", () => {
             method: "POST",
         });
 
+        debug("Waiting for balance update")
         await driver.wait(
             async () => {
-                while (true) {
-                    debug(".");
+                let round = 0;
+                let max = 10;
+                while (round++<max) {
+                    debug("Retry %s/%s", round, max);
                     try {
                         await driver.navigate().refresh();
                         let btcAmount = await getElementById(driver, "//p[@data-cy='L-BTC-balance-text-field']");
@@ -120,9 +123,9 @@ describe("webdriver", () => {
                     }
                 }
             },
-            10000,
+            20000,
         );
-    }, 10000);
+    }, 30000);
 
     test("sell swap", async () => {
         const debug = Debug("e2e-sell");
@@ -163,7 +166,7 @@ describe("webdriver", () => {
         debug("Testing buy swap");
 
         await switchToWindow(webAppTitle);
-        await driver.navigate().refresh();
+        await driver.get(webAppUrl);
         await driver.sleep(2000);
         debug("Switching assets");
         let switchAssetTypesButton = await getElementById(driver, "//button[@data-cy='exchange-asset-types-button']");

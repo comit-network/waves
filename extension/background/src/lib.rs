@@ -1,3 +1,4 @@
+use anyhow::Context;
 use bs_ps::TransactionData;
 use conquer_once::Lazy;
 use futures::{lock::Mutex, Future};
@@ -112,7 +113,7 @@ async fn background_status(
             bs_ps::WalletStatus::None,
             sign_tx,
         ))
-        .unwrap());
+        .unwrap_throw());
     }
 
     if let WalletStatus {
@@ -125,7 +126,7 @@ async fn background_status(
             bs_ps::WalletStatus::NotLoaded,
             sign_tx,
         ))
-        .unwrap());
+        .unwrap_throw());
     }
 
     if let WalletStatus {
@@ -137,7 +138,9 @@ async fn background_status(
         unreachable!("wallet cannot be loaded if it doesn't exist")
     }
 
-    let balances = map_err_from_anyhow!(wallet::get_balances(WALLET_NAME.to_string()).await)?;
+    let balances = map_err_from_anyhow!(wallet::get_balances(WALLET_NAME.to_string())
+        .await
+        .context("could not get wallet balances"))?;
     let balances = balances
         .into_iter()
         .map(|balance| bs_ps::BalanceEntry {
@@ -147,7 +150,9 @@ async fn background_status(
         })
         .collect();
 
-    let address = map_err_from_anyhow!(wallet::get_address(WALLET_NAME.to_string()).await)?;
+    let address = map_err_from_anyhow!(wallet::get_address(WALLET_NAME.to_string())
+        .await
+        .context("could not get address"))?;
 
     Ok(JsValue::from_serde(&bs_ps::BackgroundStatus::new(
         bs_ps::WalletStatus::Loaded {
@@ -156,7 +161,7 @@ async fn background_status(
         },
         sign_tx,
     ))
-    .unwrap())
+    .unwrap_throw())
 }
 
 fn handle_msg_from_ps(msg: bs_ps::Message) -> Promise {
@@ -173,8 +178,14 @@ fn handle_msg_from_ps(msg: bs_ps::Message) -> Promise {
             log::debug!("Creating wallet: {} ", name);
             future_to_promise(async move {
                 map_err_from_anyhow!(wallet::create_new_wallet(name.clone(), password).await)?;
+                log::debug!("wallet created");
                 let sign_tx = SIGN_TX.lock().await.clone();
-                background_status(name.to_string(), sign_tx).await
+                log::debug!("got lock on SIGN_TX");
+                let ret = background_status(name.to_string(), sign_tx).await;
+                log::debug!("background status: {:?}", ret);
+                log::debug!("dropping lock on SIGN_TX");
+
+                ret
             })
         }
         bs_ps::RpcData::UnlockWallet(name, password) => {
