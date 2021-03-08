@@ -36,6 +36,7 @@ sha2 = "0.9"
 swap = { path = "../../swap" }
 wasm-logger = "0.2"
 web-sys = { version = "0.3", features = [ "Window", "Storage", "Cache", "CacheStorage" ] }
+
 [dev-dependencies]
 wasm-bindgen-test = "0.3.13"
 
