@@ -62,7 +62,7 @@ describe("webdriver", () => {
     }, 20000);
 
     afterAll(async () => {
-        // await driver.quit();
+        await driver.quit();
     });
 
     async function getWindowHandle(name: string) {
