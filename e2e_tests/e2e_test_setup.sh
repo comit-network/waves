@@ -29,6 +29,7 @@ echo "USDT Asset ID: "$usdt_asset_id
 (
     cd ../waves/
 
+    yarn install
     export REACT_APP_BLOCKEXPLORER_URL="http://localhost:5001"
     yarn run build
 

@@ -2504,7 +2504,6 @@ dependencies = [
  "wasm-bindgen-test",
  "wasm-logger",
  "web-sys",
- "wee_alloc",
 ]
 
 [[package]]

@@ -127,31 +127,17 @@ jobs:
       - name: Cargo build
         run: cargo build -p swap --target wasm32-unknown-unknown
 
-  waves_test:
+  webapp_test:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout sources
         uses: actions/checkout@v2
-
-      - name: Install Rust toolchain
-        uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          override: true
-          target: wasm32-unknown-unknown
-
-      - name: Cache target directory
-        uses: actions/cache@v2
-        with:
-          path: target
-          key: wasm-wallet-target-directory-${{ hashFiles('Cargo.lock') }}-v1
 
       - name: Cache node_modules directory
         uses: actions/cache@v2
         with:
           path: |
             waves/node_modules
-            ~/.config/wasm-pack-nodejs
           key: node-modules-directory-${{ hashFiles('waves/yarn.lock') }}-v2
 
       - name: React tests

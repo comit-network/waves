@@ -36,33 +36,6 @@ export interface TradeSide {
     balanceAfter: number;
 }
 
-const WALLET_NAME = "wallet-1";
-
-export async function getAddress() {
-    // const { get_address } = await import("./wallet");
-    // return get_address(WALLET_NAME);
-    return "dummyAddress";
-}
-
-export async function newWallet(password: string): Promise<WalletStatus> {
-    // const { create_new_wallet } = await import("./wallet");
-    // return create_new_wallet(WALLET_NAME, password).then(getWalletStatus);
-    return Promise.resolve({
-        loaded: false,
-        exists: false,
-    });
-}
-
-export async function unlockWallet(password: string) {
-    // const { load_existing_wallet } = await import("./wallet");
-    // return load_existing_wallet(WALLET_NAME, password).then(getWalletStatus);
-}
-
-export async function lockWallet() {
-    // const { unload_current_wallet } = await import("./wallet");
-    // return unload_current_wallet().then(getWalletStatus);
-}
-
 export async function getWalletStatus(): Promise<WalletStatus> {
     // @ts-ignore
     if (typeof window.wallet_status === "undefined") {
@@ -73,12 +46,6 @@ export async function getWalletStatus(): Promise<WalletStatus> {
     debug("Retrieving wallet status " + typeof window.wallet_status);
     // @ts-ignore
     return await window.wallet_status();
-}
-
-export async function withdrawAll(address: string): Promise<String> {
-    // const { withdraw_everything_to } = await import("./wallet");
-    // return withdraw_everything_to(WALLET_NAME, address);
-    return Promise.resolve("");
 }
 
 export async function makeSellCreateSwapPayload(

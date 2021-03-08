@@ -1,4 +1,3 @@
-use crate::wallet::Wallet;
 use anyhow::Result;
 use conquer_once::Lazy;
 use elements::{Address, Txid};
@@ -13,17 +12,11 @@ mod logger;
 mod storage;
 mod wallet;
 
-pub use wallet::*;
+pub use crate::wallet::*;
 
 mod constants {
     include!(concat!(env!("OUT_DIR"), "/", "constants.rs"));
 }
-
-// When the `wee_alloc` feature is enabled, use `wee_alloc` as the global
-// allocator.
-#[cfg(feature = "wee_alloc")]
-#[global_allocator]
-static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
 
 static LOADED_WALLET: Lazy<Mutex<Option<Wallet>>> = Lazy::new(Mutex::default);
 
