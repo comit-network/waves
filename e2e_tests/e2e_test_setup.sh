@@ -5,14 +5,15 @@ docker-compose up -d
 sleep 5
 
 native_asset_id=$(docker exec liquid elements-cli -rpcport=18884 -rpcuser=admin1 -rpcpassword=123 dumpassetlabels | jq -r '.bitcoin')
-echo "Native Asset ID: "$native_asset_id
 
 address=$(docker exec liquid elements-cli -rpcport=18884 -rpcuser=admin1 -rpcpassword=123 getnewaddress)
 docker exec liquid elements-cli -rpcport=18884 -rpcuser=admin1 -rpcpassword=123 generatetoaddress 150 $address
 
 response=$(docker exec liquid elements-cli -rpcport=18884 -rpcuser=admin1 -rpcpassword=123 issueasset 10000000 1)
 usdt_asset_id=$(echo $response | jq -r '.asset')
+
 echo "USDT Asset ID: "$usdt_asset_id
+echo "Native Asset ID: "$native_asset_id
 
 (
     cd ../extension
