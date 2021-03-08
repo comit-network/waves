@@ -105,12 +105,12 @@ describe("webdriver", () => {
             method: "POST",
         });
 
-        debug("Waiting for balance update")
+        debug("Waiting for balance update");
         await driver.wait(
             async () => {
                 let round = 0;
                 let max = 10;
-                while (round++<max) {
+                while (round++ < max) {
                     debug("Retry %s/%s", round, max);
                     try {
                         await driver.navigate().refresh();
