@@ -168,9 +168,9 @@ pub struct Utxo {
 #[derive(serde::Deserialize, Debug, PartialEq, Clone, Copy)]
 pub struct UtxoStatus {
     pub confirmed: bool,
-    pub block_height: u64,
-    pub block_hash: BlockHash,
-    pub block_time: u64,
+    pub block_height: Option<u64>,
+    pub block_hash: Option<BlockHash>,
+    pub block_time: Option<u64>,
 }
 
 #[cfg(test)]
