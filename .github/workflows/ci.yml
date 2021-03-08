@@ -217,10 +217,10 @@ jobs:
       - name: Install wasm-pack
         run: which wasm-pack || curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh
 
-      - name: Waves wallet tests
+      - name: Extension wallet tests
         run: |
-          cd waves/wallet
-          wasm-pack test --firefox --headless
+          cd extension/wallet_lib
+          cargo test
 
       - name: Upload artifact on test failure
         if: ${{ failure() }}
