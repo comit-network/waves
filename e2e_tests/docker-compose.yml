@@ -3,7 +3,7 @@ services:
   # RPC daemons
   liquid:
     image: blockstream/elementsd:0.18.1.9
-    container_name: liquid-e2e-test
+    container_name: liquid
     entrypoint:
       - elementsd
     command:
