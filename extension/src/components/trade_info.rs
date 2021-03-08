@@ -8,6 +8,7 @@ pub struct TradeInfo {
 #[derive(Properties, Clone)]
 pub struct Props {
     pub trade: Trade,
+    pub on_form_submit: Callback<()>,
 }
 
 pub enum Msg {}
@@ -31,12 +32,17 @@ impl Component for TradeInfo {
     fn view(&self) -> Html {
         let Props {
             trade: Trade { sell, buy },
+            on_form_submit,
         } = &self.props;
+
+        let onclick = on_form_submit.reform(move |_| ());
 
         html! {
             <>
+                <p>{"Sign transaction"}</p>
                 <p>{render_trade_side(sell, "Selling")}</p>
                 <p>{render_trade_side(buy, "Buying")}</p>
+                <button data-cy="sign-tx-button" onclick={onclick}>{ "Sign" }</button>
             </>
         }
     }
@@ -45,8 +51,9 @@ impl Component for TradeInfo {
 fn render_trade_side(side: &TradeSide, action: &str) -> Html {
     html! {
         <>
-        <p>{format!("{} {}{}", action, side.amount, side.ticker)}</p>
-        <p>{format!("{} balance: {} -> {}", side.ticker, side.balance_before, side.balance_after)}</p>
+
+            <p>{format!("{} {}{}", action, side.amount, side.ticker)}</p>
+            <p>{format!("{} balance: {} -> {}", side.ticker, side.balance_before, side.balance_after)}</p>
         </>
     }
 }

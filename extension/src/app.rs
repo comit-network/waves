@@ -159,9 +159,7 @@ impl Component for App {
                 ..
             } => {
                 html! {
-                    <>
-                        <WalletDetails address=address balances=balances></WalletDetails>
-                    </>
+                    <WalletDetails address=address balances=balances></WalletDetails>
                 }
             }
             State {
@@ -176,9 +174,7 @@ impl Component for App {
             } => {
                 html! {
                     <>
-                        <p>{"Sign transaction"}</p>
-                        <TradeInfo trade=decoded></TradeInfo>
-                        <button data-cy="sign-tx-button" onclick=self.link.callback(move |_| Msg::SignAndSend { tx_hex: hex.clone(), tab_id })>{ "Sign" }</button>
+                        <TradeInfo trade=decoded on_form_submit=self.link.callback(move |_| Msg::SignAndSend { tx_hex: hex.clone(), tab_id })></TradeInfo>
                     </>
                 }
             }
@@ -187,9 +183,7 @@ impl Component for App {
                 ..
             } => {
                 html! {
-                    <>
-                        <UnlockWallet on_form_submit=self.link.callback(|_| Msg::UnlockWallet)></UnlockWallet>
-                    </>
+                    <UnlockWallet on_form_submit=self.link.callback(|_| Msg::UnlockWallet)></UnlockWallet>
                 }
             }
             State {
@@ -197,9 +191,7 @@ impl Component for App {
                 ..
             } => {
                 html! {
-                    <>
-                        <CreateWallet on_form_submit=self.link.callback(|_| Msg::CreateWallet)></CreateWallet>
-                    </>
+                    <CreateWallet on_form_submit=self.link.callback(|_| Msg::CreateWallet)></CreateWallet>
                 }
             }
         };
