@@ -40,7 +40,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: ./waves
+        working-directory: ./e2e_tests
     steps:
       - name: Checkout sources
         uses: actions/checkout@v2
@@ -51,12 +51,12 @@ jobs:
 
       - name: Run test
         run: |
-          yarn run cypress run
+          yarn run test
 
       - name: Extract docker logs
         if: failure()
         run: |
-          - docker logs liquid-e2e-test > liquid.log
+          - docker logs liquid > liquid.log
           - docker logs electrs-liquid > electrs.log
           - docker logs esplora-liquid > esplora.log
 
@@ -66,17 +66,10 @@ jobs:
         with:
           name: Logfiles
           path: |
-            ./waves/bobtimus.log
-            ./waves/liquid.log
-            ./waves/electrs.log
-            ./waves/esplora.log
-
-      - name: Archive cypress video
-        uses: actions/upload-artifact@v2
-        with:
-          name: cypress-video
-          path: |
-            ./waves/cypress/videos/e2e.spec.ts.mp4
+            ./bobtimus.log
+            ./e2e_tests/liquid.log
+            ./e2e_tests/electrs.log
+            ./e2e_tests/esplora.log
 
   build_test_workspace:
     strategy:
