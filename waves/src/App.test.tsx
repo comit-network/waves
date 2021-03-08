@@ -27,7 +27,7 @@ test("if rendering works by asserting `create new wallet` button", () => {
             </SSEProvider>,
         );
     });
-    const linkElement = screen.getByText(/Create wallet/i);
+    const linkElement = screen.getByText(/Get extension/i);
     expect(linkElement).toBeInTheDocument();
 });
 
