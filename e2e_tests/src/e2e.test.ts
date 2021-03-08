@@ -106,7 +106,7 @@ describe("webdriver", () => {
         });
 
         debug("Waiting for balance update");
-        let btcAmount = await getElementById(driver, "//p[@data-cy='L-BTC-balance-text-field']", 50_000);
+        let btcAmount = await getElementById(driver, "//p[@data-cy='L-BTC-balance-text-field']", 20_000);
         debug("Found btc amount: %s", await btcAmount.getText());
     }, 30000);
 
@@ -166,7 +166,7 @@ describe("webdriver", () => {
         await switchToWindow(extensionTitle);
 
         debug("Signing transaction");
-        let signTransactionButton = await getElementById(driver, "//button[@data-cy='sign-tx-button']");
+        let signTransactionButton = await getElementById(driver, "//button[@data-cy='sign-tx-button']", 20_000);
         await signTransactionButton.click();
 
         await switchToWindow(webAppTitle);
