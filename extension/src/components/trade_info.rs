@@ -5,7 +5,7 @@ pub struct TradeInfo {
     props: Props,
 }
 
-#[derive(Properties, Clone)]
+#[derive(Properties, Clone, PartialEq)]
 pub struct Props {
     pub trade: Trade,
     pub on_form_submit: Callback<()>,
@@ -25,8 +25,13 @@ impl Component for TradeInfo {
         false
     }
 
-    fn change(&mut self, _props: Self::Properties) -> bool {
-        true
+    fn change(&mut self, props: Self::Properties) -> bool {
+        if self.props != props {
+            self.props = props;
+            return true;
+        } else {
+            return false;
+        }
     }
 
     fn view(&self) -> Html {

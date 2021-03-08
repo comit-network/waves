@@ -5,7 +5,7 @@ pub struct WalletDetails {
     props: Props,
 }
 
-#[derive(Properties, Clone)]
+#[derive(Debug, PartialEq, Properties, Clone)]
 pub struct Props {
     pub address: String,
     pub balances: Vec<bs_ps::BalanceEntry>,
@@ -25,8 +25,14 @@ impl Component for WalletDetails {
         false
     }
 
-    fn change(&mut self, _props: Self::Properties) -> bool {
-        true
+    fn change(&mut self, props: Self::Properties) -> bool {
+        if self.props.address != props.address || !are_equal(&self.props.balances, &props.balances)
+        {
+            self.props = props;
+            return true;
+        } else {
+            return false;
+        }
     }
 
     fn view(&self) -> Html {
@@ -53,4 +59,16 @@ fn render_balances(balance: &bs_ps::BalanceEntry) -> Html {
             <p data-cy={balance_id}>{balance.value.clone()}</p>
             </li>
     }
+}
+
+fn are_equal(a: &[bs_ps::BalanceEntry], b: &[bs_ps::BalanceEntry]) -> bool {
+    // TODO this is very inefficient, we could change to hashmaps instead
+    for a1 in a.iter() {
+        if !b.contains(a1) {
+            return false;
+        }
+    }
+
+    // if every single element of a was in b, we compare length
+    return a.len() == b.len();
 }

@@ -2,6 +2,8 @@
 
 mod app;
 mod components;
+mod event_bus;
+mod wallet_updater;
 
 use wasm_bindgen::prelude::*;
 

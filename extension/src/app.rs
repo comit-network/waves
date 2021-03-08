@@ -1,9 +1,10 @@
-use crate::components::{CreateWallet, TradeInfo, UnlockWallet, WalletDetails};
-use js_sys::Promise;
-use message_types::{
-    bs_ps::{self, BackgroundStatus, TransactionData, WalletStatus},
-    Component as MessageComponent,
+use crate::{
+    components::{CreateWallet, TradeInfo, UnlockWallet, WalletDetails},
+    event_bus::EventBus,
+    wallet_updater::WalletUpdater,
 };
+use js_sys::Promise;
+use message_types::bs_ps::{self, BackgroundStatus, TransactionData, WalletStatus};
 use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_extension::browser;
@@ -16,6 +17,8 @@ pub const WALLET_NAME: &str = "demo-wallet";
 pub struct App {
     link: ComponentLink<Self>,
     state: State,
+    _event_bus: Box<dyn Bridge<EventBus>>,
+    _wallet_updater: WalletUpdater,
 }
 
 pub enum Msg {
@@ -37,28 +40,12 @@ impl Component for App {
     type Message = Msg;
     type Properties = ();
 
-    fn create(_: Self::Properties, link: ComponentLink<Self>) -> Self {
+    fn create(_props: Self::Properties, link: ComponentLink<Self>) -> Self {
         log::debug!("PopupApp: creating...");
-        let inner_link = link.clone();
-        let msg = bs_ps::Message {
-            rpc_data: bs_ps::RpcData::GetWalletStatus,
-            target: MessageComponent::Background,
-            source: MessageComponent::PopUp,
-            content_tab_id: 0,
-        };
-        send_to_backend(
-            msg,
-            Box::new(move |response| {
-                log::debug!("Wallet status after creating: {:?}", response);
+        let mut wallet_updater = WalletUpdater::new();
+        wallet_updater.spawn();
 
-                if let Ok(response) = response {
-                    if let Ok(msg) = response.into_serde() {
-                        inner_link.send_message(Msg::BackgroundStatus(msg));
-                    }
-                }
-            }),
-        );
-
+        let callback = link.callback(Msg::BackgroundStatus);
         App {
             link,
             state: State {
@@ -67,6 +54,8 @@ impl Component for App {
                 wallet_status: WalletStatus::None,
                 sign_tx: None,
             },
+            _event_bus: EventBus::bridge(callback),
+            _wallet_updater: wallet_updater,
         }
     }
 

@@ -156,7 +156,7 @@ pub async fn extract_trade(
     })
 }
 
-#[derive(Clone, Deserialize, Serialize, Debug)]
+#[derive(Clone, Deserialize, Serialize, Debug, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct TradeSide {
     pub ticker: String,
@@ -165,7 +165,7 @@ pub struct TradeSide {
     pub balance_after: Decimal,
 }
 
-#[derive(Clone, Deserialize, Serialize, Debug)]
+#[derive(Clone, Deserialize, Serialize, Debug, PartialEq)]
 pub struct Trade {
     pub sell: TradeSide,
     pub buy: TradeSide,
