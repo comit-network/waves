@@ -51,6 +51,7 @@ jobs:
 
       - name: Run test
         run: |
+          yarn install
           yarn run test
 
       - name: Extract docker logs
