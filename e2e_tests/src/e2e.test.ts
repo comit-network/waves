@@ -106,24 +106,8 @@ describe("webdriver", () => {
         });
 
         debug("Waiting for balance update");
-        await driver.wait(
-            async () => {
-                let round = 0;
-                let max = 10;
-                while (round++ < max) {
-                    debug("Retry %s/%s", round, max);
-                    try {
-                        await driver.navigate().refresh();
-                        let btcAmount = await getElementById(driver, "//p[@data-cy='L-BTC-balance-text-field']");
-                        debug("Found btc amount: %s", await btcAmount.getText());
-                        return true;
-                    } catch (_) {
-                        // ignore
-                    }
-                }
-            },
-            20000,
-        );
+        let btcAmount = await getElementById(driver, "//p[@data-cy='L-BTC-balance-text-field']", 50_000);
+        debug("Found btc amount: %s", await btcAmount.getText());
     }, 30000);
 
     test("sell swap", async () => {
@@ -145,9 +129,6 @@ describe("webdriver", () => {
         await swapButton.click();
 
         await switchToWindow(extensionTitle);
-        await driver.sleep(5000);
-        await driver.navigate().refresh();
-        await driver.sleep(1000);
 
         debug("Signing transaction");
         let signTransactionButton = await getElementById(driver, "//button[@data-cy='sign-tx-button']");
@@ -183,9 +164,6 @@ describe("webdriver", () => {
         await swapButton.click();
 
         await switchToWindow(extensionTitle);
-        await driver.sleep(5000);
-        await driver.navigate().refresh();
-        await driver.sleep(1000);
 
         debug("Signing transaction");
         let signTransactionButton = await getElementById(driver, "//button[@data-cy='sign-tx-button']");
