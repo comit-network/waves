@@ -28,9 +28,9 @@ impl Component for TradeInfo {
     fn change(&mut self, props: Self::Properties) -> bool {
         if self.props != props {
             self.props = props;
-            return true;
+            true
         } else {
-            return false;
+            false
         }
     }
 

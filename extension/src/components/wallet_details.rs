@@ -29,9 +29,9 @@ impl Component for WalletDetails {
         if self.props.address != props.address || !are_equal(&self.props.balances, &props.balances)
         {
             self.props = props;
-            return true;
+            true
         } else {
-            return false;
+            false
         }
     }
 
@@ -70,5 +70,5 @@ fn are_equal(a: &[bs_ps::BalanceEntry], b: &[bs_ps::BalanceEntry]) -> bool {
     }
 
     // if every single element of a was in b, we compare length
-    return a.len() == b.len();
+    a.len() == b.len()
 }
