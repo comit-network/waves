@@ -1,6 +1,5 @@
 use crate::Component;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use wallet::{BalanceEntry, Trade};
 
 /// Message to be send between background script and popup script
@@ -10,12 +9,6 @@ pub struct Message {
     pub target: Component,
     pub source: Component,
     pub content_tab_id: u32,
-}
-
-// TODO: use proper types, this is just for ease of development
-#[derive(Debug, Deserialize, Serialize)]
-pub struct Data {
-    pub value_map: HashMap<String, String>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
