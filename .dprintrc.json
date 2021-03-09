@@ -14,8 +14,6 @@
     "waves/build",
     "waves/dist",
     "**/node_modules",
-    "elements-fun/fuzz/hfuzz_target",
-    "elements-fun/fuzz/hfuzz_workspace",
     "extension/dist"
   ],
   "plugins": [
