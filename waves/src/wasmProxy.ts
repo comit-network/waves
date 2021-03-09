@@ -43,8 +43,6 @@ export async function getWalletStatus(): Promise<WalletStatus> {
         return Promise.reject("wallet_status undefined");
     }
     // @ts-ignore
-    debug("Retrieving wallet status " + typeof window.wallet_status);
-    // @ts-ignore
     return await window.wallet_status();
 }
 
@@ -55,7 +53,6 @@ export async function makeSellCreateSwapPayload(
     if (!window.get_sell_create_swap_payload) {
         return Promise.reject("get_sell_create_swap_payload undefined");
     }
-    debug("making sell create swap payload");
     // @ts-ignore
     return await window.get_sell_create_swap_payload(btc);
 }
@@ -67,7 +64,6 @@ export async function makeBuyCreateSwapPayload(
     if (!window.get_buy_create_swap_payload) {
         return Promise.reject("get_buy_create_swap_payload undefined");
     }
-    debug("making buy create swap payload");
     // @ts-ignore
     return await window.get_buy_create_swap_payload(usdt);
 }
@@ -79,7 +75,6 @@ export async function signAndSend(
     if (!window.sign_and_send) {
         return Promise.reject("sign_and_send undefined");
     }
-    debug("signing and sending");
     // @ts-ignore
     return await window.sign_and_send(transaction);
 }
