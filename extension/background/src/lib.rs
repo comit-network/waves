@@ -233,9 +233,9 @@ fn handle_msg_from_ps(msg: bs_ps::Message) -> Promise {
                 wallet_status(WALLET_NAME.to_string(), sign_tx).await
             })
         }
-        bs_ps::RpcData::Balance(_) => {
-            log::error!("Currently not supported");
-            Promise::resolve(&JsValue::from_str("UNKNOWN"))
+        data => {
+            log::warn!("BS: Unexpected message from PS: {:?}", data);
+            Promise::resolve(&JsValue::from_str("Unknown request"))
         }
     }
 }
