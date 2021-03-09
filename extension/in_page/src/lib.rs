@@ -86,7 +86,7 @@ pub fn wallet_status() -> Promise {
     };
 
     let cb = Closure::wrap(Box::new(func) as Box<dyn FnMut(MessageEvent)>);
-    let listener = Listener::new("message".to_string(), cb);
+    let mut listener = Listener::new("message".to_string(), cb);
 
     let window = web_sys::window().expect("no global `window` exists");
     let js_value = JsValue::from_serde(&ips_cs::Message {
@@ -101,7 +101,7 @@ pub fn wallet_status() -> Promise {
         let response = receiver.await;
         let response = response.map_err(|_| JsValue::from_str("IPS: No response from CS"))?;
 
-        drop(listener);
+        listener.remove();
         Ok(response)
     };
 
@@ -143,7 +143,7 @@ pub fn get_sell_create_swap_payload(btc: String) -> Promise {
     };
 
     let cb = Closure::wrap(Box::new(func) as Box<dyn FnMut(MessageEvent)>);
-    let listener = Listener::new("message".to_string(), cb);
+    let mut listener = Listener::new("message".to_string(), cb);
 
     let window = web_sys::window().expect("no global `window` exists");
     let js_value = JsValue::from_serde(&ips_cs::Message {
@@ -159,7 +159,7 @@ pub fn get_sell_create_swap_payload(btc: String) -> Promise {
         let response = response.map_err(|_| JsValue::from_str("IPS: No response from CS"))?;
         let response = JsValue::from_serde(&response).unwrap();
 
-        drop(listener);
+        listener.remove();
         Ok(response)
     };
 
@@ -201,7 +201,7 @@ pub fn get_buy_create_swap_payload(usdt: String) -> Promise {
     };
 
     let cb = Closure::wrap(Box::new(func) as Box<dyn FnMut(MessageEvent)>);
-    let listener = Listener::new("message".to_string(), cb);
+    let mut listener = Listener::new("message".to_string(), cb);
 
     let window = web_sys::window().expect("no global `window` exists");
     let js_value = JsValue::from_serde(&ips_cs::Message {
@@ -217,7 +217,7 @@ pub fn get_buy_create_swap_payload(usdt: String) -> Promise {
         let response = response.map_err(|_| JsValue::from_str("IPS: No response from CS"))?;
         let response = JsValue::from_serde(&response).unwrap();
 
-        drop(listener);
+        listener.remove();
         Ok(response)
     };
 
@@ -259,7 +259,7 @@ pub fn sign_and_send(tx_hex: String) -> Promise {
     };
 
     let cb = Closure::wrap(Box::new(func) as Box<dyn FnMut(MessageEvent)>);
-    let listener = Listener::new("message".to_string(), cb);
+    let mut listener = Listener::new("message".to_string(), cb);
 
     let window = web_sys::window().expect("no global `window` exists");
     let js_value = JsValue::from_serde(&ips_cs::Message {
@@ -275,7 +275,7 @@ pub fn sign_and_send(tx_hex: String) -> Promise {
         let response = response.map_err(|_| JsValue::from_str("IPS: No response from CS"))?;
         let response = JsValue::from_serde(&response).unwrap();
 
-        drop(listener);
+        listener.remove();
         Ok(response)
     };
 
@@ -305,13 +305,8 @@ where
 
         Self { name, cb }
     }
-}
 
-impl<F> Drop for Listener<F>
-where
-    F: ?Sized,
-{
-    fn drop(&mut self) {
+    fn remove(&mut self) {
         let window = web_sys::window().expect("no global `window` exists");
         window
             .remove_event_listener_with_callback(&self.name, self.cb.as_ref().unchecked_ref())
