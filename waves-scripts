@@ -10,7 +10,7 @@ start_dev_env () {
 
     start_bobtimus
 
-    start_react_app
+    start_webapp
 }
 
 stop_dev_env () {
@@ -104,7 +104,7 @@ start_bobtimus () {
     echo "Started bobtimus with pid $bobtimus_pid"
 }
 
-start_react_app () {
+start_webapp () {
     set -e
 
     if [ ! -f ".native_asset_id" ]; then
