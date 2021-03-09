@@ -182,12 +182,6 @@ fn handle_msg_from_ps(msg: bs_ps::Message) -> Promise {
                 wallet_status(name.to_string(), sign_tx).await
             })
         }
-        bs_ps::RpcData::Hello(data) => {
-            // TODO this was just demo and should go away, for now, we keep it here
-            // for testing if the whole communication chain still works
-            log::error!("Currently not supported {:?}", data);
-            Promise::resolve(&JsValue::from_str("UNKNOWN"))
-        }
         bs_ps::RpcData::GetBalance => {
             log::debug!("Received get balance request from PS.");
 

@@ -21,5 +21,4 @@ pub enum RpcData {
     SellCreateSwapPayload(CreateSwapPayload),
     BuyCreateSwapPayload(CreateSwapPayload),
     SwapTxid(Txid),
-    Hello(String),
 }

@@ -26,7 +26,6 @@ pub enum RpcData {
     GetBalance,
     Balance(Vec<BalanceEntry>),
     SignAndSend { tx_hex: String, tab_id: u32 },
-    Hello(String),
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
