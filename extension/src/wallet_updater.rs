@@ -24,8 +24,7 @@ impl WalletUpdater {
         let future = async {
             {
                 while RUN.lock().await.unwrap() {
-                    update_wallet_status(EventBus::dispatcher()).await;
-
+                    update_wallet_balance(EventBus::dispatcher()).await;
                     futures_timer::Delay::new(std::time::Duration::from_secs(UPDATE_INTERVAL_SEC))
                         .await;
                 }
@@ -44,9 +43,9 @@ impl Drop for WalletUpdater {
     }
 }
 
-async fn update_wallet_status(mut event_bus: Dispatcher<EventBus>) {
+async fn update_wallet_balance(mut event_bus: Dispatcher<EventBus>) {
     let msg = bs_ps::Message {
-        rpc_data: bs_ps::RpcData::GetWalletStatus,
+        rpc_data: bs_ps::RpcData::GetBalance,
         target: MessageComponent::Background,
         source: MessageComponent::PopUp,
         content_tab_id: 0,
@@ -58,8 +57,8 @@ async fn update_wallet_status(mut event_bus: Dispatcher<EventBus>) {
     log::trace!("Wallet status update received: {:?}", response);
 
     if let Ok(response) = response {
-        if let Ok(msg) = response.into_serde() {
-            event_bus.send(Request::BackgroundStatusUpdate(msg));
+        if let Ok(bs_ps::RpcData::Balance(balances)) = response.into_serde() {
+            event_bus.send(Request::WalletBalanceUpdate(balances));
         }
     }
 }

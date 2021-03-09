@@ -98,10 +98,7 @@ macro_rules! map_err_from_anyhow {
     };
 }
 
-async fn background_status(
-    name: String,
-    sign_tx: Option<TransactionData>,
-) -> Result<JsValue, JsValue> {
+async fn wallet_status(name: String, sign_tx: Option<TransactionData>) -> Result<JsValue, JsValue> {
     let status = map_err_from_anyhow!(wallet::wallet_status(name).await)?;
     if let WalletStatus {
         exists: false,
@@ -138,25 +135,12 @@ async fn background_status(
         unreachable!("wallet cannot be loaded if it doesn't exist")
     }
 
-    let balances = map_err_from_anyhow!(wallet::get_balances(WALLET_NAME.to_string())
-        .await
-        .context("could not get wallet balances"))?;
-    let balances = balances
-        .into_iter()
-        .map(|balance| bs_ps::BalanceEntry {
-            asset: balance.asset.to_string(),
-            ticker: balance.ticker,
-            value: balance.value,
-        })
-        .collect();
-
     let address = map_err_from_anyhow!(wallet::get_address(WALLET_NAME.to_string())
         .await
         .context("could not get address"))?;
 
     Ok(JsValue::from_serde(&bs_ps::BackgroundStatus::new(
         bs_ps::WalletStatus::Loaded {
-            balances,
             address: address.to_string(),
         },
         sign_tx,
@@ -171,7 +155,7 @@ fn handle_msg_from_ps(msg: bs_ps::Message) -> Promise {
             log::debug!("Received status request from PS.");
             future_to_promise(async {
                 let sign_tx = SIGN_TX.lock().await.clone();
-                background_status(WALLET_NAME.to_string(), sign_tx).await
+                wallet_status(WALLET_NAME.to_string(), sign_tx).await
             })
         }
         bs_ps::RpcData::CreateWallet(name, password) => {
@@ -181,7 +165,7 @@ fn handle_msg_from_ps(msg: bs_ps::Message) -> Promise {
                 log::debug!("wallet created");
                 let sign_tx = SIGN_TX.lock().await.clone();
                 log::debug!("got lock on SIGN_TX");
-                let ret = background_status(name.to_string(), sign_tx).await;
+                let ret = wallet_status(name.to_string(), sign_tx).await;
                 log::debug!("background status: {:?}", ret);
                 log::debug!("dropping lock on SIGN_TX");
 
@@ -196,7 +180,7 @@ fn handle_msg_from_ps(msg: bs_ps::Message) -> Promise {
                     wallet::load_existing_wallet(name.clone(), password.clone()).await
                 )?;
                 let sign_tx = SIGN_TX.lock().await.clone();
-                background_status(name.to_string(), sign_tx).await
+                wallet_status(name.to_string(), sign_tx).await
             })
         }
         bs_ps::RpcData::Hello(data) => {
@@ -210,14 +194,7 @@ fn handle_msg_from_ps(msg: bs_ps::Message) -> Promise {
 
             let future = async move {
                 let balances =
-                    map_err_from_anyhow!(wallet::get_balances(WALLET_NAME.to_string()).await)?
-                        .into_iter()
-                        .map(|balance| bs_ps::BalanceEntry {
-                            asset: balance.asset.to_string(),
-                            ticker: balance.ticker,
-                            value: balance.value,
-                        })
-                        .collect();
+                    map_err_from_anyhow!(wallet::get_balances(WALLET_NAME.to_string()).await)?;
 
                 let rpc_response = bs_ps::RpcData::Balance(balances);
                 let js_value = JsValue::from_serde(&rpc_response).unwrap();
@@ -260,7 +237,7 @@ fn handle_msg_from_ps(msg: bs_ps::Message) -> Promise {
                 }
 
                 let sign_tx = guard.clone();
-                background_status(WALLET_NAME.to_string(), sign_tx).await
+                wallet_status(WALLET_NAME.to_string(), sign_tx).await
             })
         }
         bs_ps::RpcData::Balance(_) => {

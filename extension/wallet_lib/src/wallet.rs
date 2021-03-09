@@ -278,7 +278,7 @@ pub struct SwapUtxo {
 }
 
 /// A single balance entry as returned by [`get_balances`].
-#[derive(Debug, serde::Serialize)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize, PartialEq)]
 pub struct BalanceEntry {
     pub asset: AssetId,
     pub ticker: String,

@@ -1,8 +1,7 @@
 use crate::Component;
-use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use wallet::Trade;
+use wallet::{BalanceEntry, Trade};
 
 /// Message to be send between background script and popup script
 #[derive(Debug, Deserialize, Serialize)]
@@ -30,21 +29,11 @@ pub enum RpcData {
     Hello(String),
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone, PartialEq)]
-pub struct BalanceEntry {
-    pub asset: String,
-    pub ticker: String,
-    pub value: Decimal,
-}
-
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum WalletStatus {
     None,
     NotLoaded,
-    Loaded {
-        balances: Vec<BalanceEntry>,
-        address: String,
-    },
+    Loaded { address: String },
 }
 
 #[derive(Debug, Serialize, Deserialize)]

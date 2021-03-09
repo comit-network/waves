@@ -4,8 +4,12 @@ use crate::{
     wallet_updater::WalletUpdater,
 };
 use js_sys::Promise;
-use message_types::bs_ps::{self, BackgroundStatus, TransactionData, WalletStatus};
+use message_types::{
+    bs_ps::{self, BackgroundStatus, TransactionData, WalletStatus},
+    Component as MessageComponent,
+};
 use serde::{Deserialize, Serialize};
+use wallet::BalanceEntry;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_extension::browser;
 use wasm_bindgen_futures::{spawn_local, JsFuture};
@@ -25,6 +29,7 @@ pub enum Msg {
     CreateWallet,
     UnlockWallet,
     BackgroundStatus(Box<BackgroundStatus>),
+    BalanceUpdate(Vec<BalanceEntry>),
     SignAndSend { tx_hex: String, tab_id: u32 },
 }
 
@@ -33,6 +38,7 @@ pub struct State {
     wallet_name: String,
     wallet_password: String,
     wallet_status: WalletStatus,
+    wallet_balances: Vec<BalanceEntry>,
     sign_tx: Option<TransactionData>,
 }
 
@@ -42,10 +48,28 @@ impl Component for App {
 
     fn create(_props: Self::Properties, link: ComponentLink<Self>) -> Self {
         log::debug!("PopupApp: creating...");
+
+        let inner_link = link.clone();
+        let msg = bs_ps::Message {
+            rpc_data: bs_ps::RpcData::GetWalletStatus,
+            target: MessageComponent::Background,
+            source: MessageComponent::PopUp,
+            content_tab_id: 0,
+        };
+        send_to_backend(
+            msg,
+            Box::new(move |response| {
+                if let Ok(response) = response {
+                    if let Ok(msg) = response.into_serde() {
+                        inner_link.send_message(Msg::BackgroundStatus(msg));
+                    }
+                }
+            }),
+        );
+
         let mut wallet_updater = WalletUpdater::new();
         wallet_updater.spawn();
-
-        let callback = link.callback(Msg::BackgroundStatus);
+        let callback = link.callback(Msg::BalanceUpdate);
         App {
             link,
             state: State {
@@ -53,6 +77,7 @@ impl Component for App {
                 wallet_password: "".to_string(),
                 wallet_status: WalletStatus::None,
                 sign_tx: None,
+                wallet_balances: vec![],
             },
             _event_bus: EventBus::bridge(callback),
             _wallet_updater: wallet_updater,
@@ -133,6 +158,10 @@ impl Component for App {
                 );
                 false
             }
+            Msg::BalanceUpdate(balances) => {
+                self.state.wallet_balances = balances;
+                true
+            }
         }
     }
 
@@ -143,12 +172,13 @@ impl Component for App {
     fn view(&self) -> Html {
         let wallet_form = match self.state.clone() {
             State {
-                wallet_status: WalletStatus::Loaded { address, balances },
+                wallet_status: WalletStatus::Loaded { address },
                 sign_tx: None,
+                wallet_balances,
                 ..
             } => {
                 html! {
-                    <WalletDetails address=address balances=balances></WalletDetails>
+                    <WalletDetails address=address balances=wallet_balances></WalletDetails>
                 }
             }
             State {

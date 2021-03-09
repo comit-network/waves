@@ -1,4 +1,4 @@
-use message_types::bs_ps;
+use wallet::BalanceEntry;
 use yew::{prelude::*, Component, ComponentLink, Html, Properties};
 
 pub struct WalletDetails {
@@ -8,7 +8,7 @@ pub struct WalletDetails {
 #[derive(Debug, PartialEq, Properties, Clone)]
 pub struct Props {
     pub address: String,
-    pub balances: Vec<bs_ps::BalanceEntry>,
+    pub balances: Vec<BalanceEntry>,
 }
 
 pub enum Msg {}
@@ -54,7 +54,7 @@ impl Component for WalletDetails {
     }
 }
 
-fn render_balances(balance: &bs_ps::BalanceEntry) -> Html {
+fn render_balances(balance: &BalanceEntry) -> Html {
     let balance_id = format!("data-cy-{}-balance-text-field", balance.ticker.clone());
     let balance_classes = format!("label {}", balance_id);
     html! {
@@ -71,7 +71,7 @@ fn render_balances(balance: &bs_ps::BalanceEntry) -> Html {
     }
 }
 
-fn are_equal(a: &[bs_ps::BalanceEntry], b: &[bs_ps::BalanceEntry]) -> bool {
+fn are_equal(a: &[BalanceEntry], b: &[BalanceEntry]) -> bool {
     // TODO this is very inefficient, we could change to hashmaps instead
     for a1 in a.iter() {
         if !b.contains(a1) {
