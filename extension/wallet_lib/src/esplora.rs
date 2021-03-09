@@ -34,8 +34,10 @@ pub async fn fetch_utxos(address: &Address) -> Result<Vec<Utxo>> {
 }
 
 /// Fetches a transaction.
-/// TODO : update doc
-/// This function makes use of the browsers cache to avoid spamming the underlying source.
+///
+/// This function should make use of the browsers cache or local storage to avoid spamming
+/// the underlying source, but said feature is currently disabled.
+/// See https://github.com/comit-network/waves/issues/143.
 /// Transaction never change after they've been mined, hence we can cache those indefinitely.
 pub async fn fetch_transaction(txid: Txid) -> Result<Transaction> {
     let client = reqwest::Client::new();
