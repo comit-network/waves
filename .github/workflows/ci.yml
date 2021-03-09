@@ -94,6 +94,7 @@ jobs:
 
       - name: Cache target directory
         uses: actions/cache@v2
+        if: matrix.os != 'macos-latest'
         with:
           path: target
           key: ${{ matrix.os }}-target-directory-${{ hashFiles('Cargo.lock') }}-v2
