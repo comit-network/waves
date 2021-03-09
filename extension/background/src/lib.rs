@@ -352,17 +352,3 @@ fn handle_msg_from_cs(msg: cs_bs::Message, message_sender: MessageSender) -> Pro
 
     Promise::resolve(&JsValue::from("OK"))
 }
-
-#[derive(Serialize, Deserialize)]
-struct Popup {
-    pub url: String,
-    #[serde(rename = "type")]
-    pub type_: String,
-    pub height: u8,
-    pub width: u8,
-}
-
-#[derive(Debug, Deserialize)]
-struct PopupWindow {
-    id: u16,
-}
