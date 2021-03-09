@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use wasm_bindgen_futures::spawn_local;
 use yew::{prelude::*, Callback, Component, ComponentLink, Html, Properties};
 
 pub struct CreateWallet {
@@ -9,17 +10,19 @@ pub struct CreateWallet {
 
 #[derive(Properties, Clone)]
 pub struct Props {
-    pub on_form_submit: Callback<()>,
+    pub on_form_submit: Callback<String>,
 }
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct State {
     wallet_name: String,
     wallet_password: String,
+    loading: bool,
 }
 
 pub enum Msg {
     UpdatePassword(String),
+    CreateWallet,
 }
 
 impl Component for CreateWallet {
@@ -33,6 +36,7 @@ impl Component for CreateWallet {
             state: State {
                 wallet_name: "".to_string(),
                 wallet_password: "".to_string(),
+                loading: false,
             },
         }
     }
@@ -41,9 +45,18 @@ impl Component for CreateWallet {
         match msg {
             Msg::UpdatePassword(value) => {
                 self.state.wallet_password = value;
+                false
+            }
+            Msg::CreateWallet => {
+                self.state.loading = true;
+                let submit = self.props.on_form_submit.clone();
+                let password = self.state.wallet_password.clone();
+                spawn_local(async move {
+                    submit.emit(password);
+                });
+                true
             }
         }
-        false
     }
 
     fn change(&mut self, _props: Self::Properties) -> bool {
@@ -51,25 +64,32 @@ impl Component for CreateWallet {
     }
 
     fn view(&self) -> Html {
-        let Props { ref on_form_submit } = self.props;
-        let onclick = on_form_submit.reform(move |_| ());
-
         html! {
             <>
-                <p>{"Wallet does not exist"}</p>
+                <ybc::Subtitle>
+                    { "Enter password to create a wallet"  }
+                </ybc::Subtitle>
                 <form>
-                    <input
-                       placeholder="Name"
-                       value=&self.state.wallet_name
-                       disabled=true
-                       />
-                    <input
-                       placeholder="Password"
-                       value=&self.state.wallet_password
-                       oninput=self.link.callback(|e: InputData| Msg::UpdatePassword(e.value))
-                       data-cy="create-wallet-password-input"
-                       />
-                    <button onclick=onclick data-cy="create-wallet-button">{ "Create" }</button>
+                    <ybc::Field>
+                        <label class="label">{"Password"}</label>
+                        <ybc::Control classes="has-icons-left">
+                            <ybc::Input
+                                name="password"
+                                value=self.state.wallet_password.clone()
+                                update=self.link.callback(|e| Msg::UpdatePassword(e))
+                                classes="data-cy-create-wallet-password-input"
+                                r#type=ybc::InputType::Password placeholder="Password">
+                            </ybc::Input>
+                            <ybc::Icon classes="is-small is-left">
+                                <i class="fas fa-key"></i>
+                            </ybc::Icon>
+                        </ybc::Control>
+                    </ybc::Field>
+                    <ybc::Button
+                        onclick=self.link.callback(|_| Msg::CreateWallet)
+                        loading=self.state.loading
+                        classes="is-primary data-cy-create-wallet-button">{ "Unlock" }
+                    </ybc::Button>
                 </form>
             </>
         }

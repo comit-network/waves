@@ -40,24 +40,33 @@ impl Component for WalletDetails {
 
         html! {
             <>
-                <p>{"Address"}</p>
-                <p data-cy="wallet-address-text-field">{address}</p>
-                <p>{"Balances:"}</p>
-                <ul class="item-list">
-                    { balances.iter().map(render_balances).collect::<Html>() }
-                </ul>
+                <ybc::Field label={"Address"} classes="data-cy-wallet-address-text-field">
+                    {address}
+                </ybc::Field>
+                <ybc::Field>
+                    <ybc::Field label={"Balances"}>
+                        { balances.iter().map(render_balances).collect::<Html>() }
+                    </ybc::Field>
+                </ybc::Field>
             </>
         }
     }
 }
 
 fn render_balances(balance: &bs_ps::BalanceEntry) -> Html {
-    let balance_id = format!("{}-balance-text-field", balance.ticker.clone());
+    let balance_id = format!("data-cy-{}-balance-text-field", balance.ticker.clone());
+    let balance_classes = format!("label {}", balance_id);
     html! {
-        <li>
-            <p>{balance.ticker.clone()} </p>
-            <p data-cy={balance_id}>{balance.value.clone()}</p>
-            </li>
+        <ybc::Level>
+            <ybc::LevelLeft>
+                <ybc::LevelItem>
+                    <label class="label">{balance.ticker.clone()}</label>
+                </ybc::LevelItem>
+                <ybc::LevelItem>
+                    <label class={balance_classes}>{balance.value.clone()}</label>
+                </ybc::LevelItem>
+            </ybc::LevelLeft>
+        </ybc::Level>
     }
 }
 

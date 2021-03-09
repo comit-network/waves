@@ -190,11 +190,14 @@ impl Component for App {
                 let address = address.clone();
                 html! {
                     <>
-                        <button onclick=self.link.batch_callback(
+                        <ybc::Button
+                            onclick=self.link.batch_callback(
                             move |_| {
                                 faucet(address.to_string());
                                 vec![]
-                            })>{ "Faucet" }</button>
+                            })
+                            classes="is-primary is-light">{ "Faucet" }
+                        </ybc::Button>
                     </>
                 }
             }
@@ -202,12 +205,16 @@ impl Component for App {
         };
 
         html! {
-            <div>
-                <p>{ "Waves Wallet" }</p>
-                { wallet_form }
+            <ybc::Section>
+                <ybc::Container fluid=true>
+                    <ybc::Box>
+                        <ybc::Title>{ "Waves Wallet" }</ybc::Title>
+                        { wallet_form }
+                    </ybc::Box>
+                </ybc::Container>
                 // TODO: Feature flag this
                 {faucet_button}
-            </div>
+            </ybc::Section>
         }
     }
 

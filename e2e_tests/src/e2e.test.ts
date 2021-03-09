@@ -11,6 +11,11 @@ const getElementById = async (driver, xpath, timeout = 4000) => {
     return await driver.wait(until.elementIsVisible(el), timeout);
 };
 
+const getElementByClass = async (driver, className, timeout = 4000) => {
+    const el = await driver.wait(until.elementLocated(By.className(className)), timeout);
+    return await driver.wait(until.elementIsVisible(el), timeout);
+};
+
 describe("webdriver", () => {
     let driver;
     let extensionId;
@@ -88,15 +93,15 @@ describe("webdriver", () => {
 
         let password = "foo";
         debug("Setting password");
-        let passwordInput = await getElementById(driver, "//input[@data-cy='create-wallet-password-input']");
+        let passwordInput = await getElementByClass(driver, "data-cy-create-wallet-password-input");
         await passwordInput.sendKeys(password);
 
         debug("Creating wallet");
-        let createWalletButton = await getElementById(driver, "//button[@data-cy='create-wallet-button']");
+        let createWalletButton = await getElementByClass(driver, "data-cy-create-wallet-button");
         await createWalletButton.click();
 
         debug("Getting address");
-        let addressField = await getElementById(driver, "//p[@data-cy='wallet-address-text-field']");
+        let addressField = await getElementByClass(driver, "data-cy-wallet-address-text-field");
         let address = await addressField.getText();
         debug(`Address found: ${address}`);
 
@@ -106,7 +111,7 @@ describe("webdriver", () => {
         });
 
         debug("Waiting for balance update");
-        let btcAmount = await getElementById(driver, "//p[@data-cy='L-BTC-balance-text-field']", 20_000);
+        let btcAmount = await getElementByClass(driver, "data-cy-L-BTC-balance-text-field", 20_000);
         debug("Found btc amount: %s", await btcAmount.getText());
     }, 30000);
 
@@ -131,7 +136,7 @@ describe("webdriver", () => {
         await switchToWindow(extensionTitle);
 
         debug("Signing transaction");
-        let signTransactionButton = await getElementById(driver, "//button[@data-cy='sign-tx-button']");
+        let signTransactionButton = await getElementByClass(driver, "data-cy-sign-tx-button", 20_000);
         await signTransactionButton.click();
 
         await switchToWindow(webAppTitle);
@@ -166,7 +171,7 @@ describe("webdriver", () => {
         await switchToWindow(extensionTitle);
 
         debug("Signing transaction");
-        let signTransactionButton = await getElementById(driver, "//button[@data-cy='sign-tx-button']", 20_000);
+        let signTransactionButton = await getElementByClass(driver, "data-cy-sign-tx-button", 20_000);
         await signTransactionButton.click();
 
         await switchToWindow(webAppTitle);

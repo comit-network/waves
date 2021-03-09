@@ -25,7 +25,8 @@ wasm-bindgen-extension = { path = "./wasm_bindgen_extension" }
 wasm-bindgen-futures = "0.4"
 wasm-logger = "0.2"
 wee_alloc = { version = "0.4.5", optional = true }
-yew = "0.17"
+ybc = "0.1"
+yew = "0.17.3"
 
 [dev-dependencies]
 wasm-bindgen-test = "0.3"
