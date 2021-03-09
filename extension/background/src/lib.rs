@@ -1,7 +1,7 @@
 use anyhow::Context;
 use bs_ps::TransactionData;
 use conquer_once::Lazy;
-use futures::{lock::Mutex, Future};
+use futures::lock::Mutex;
 use js_sys::Promise;
 use message_types::{bs_ps, cs_bs, Component};
 use serde::{Deserialize, Serialize};
@@ -365,20 +365,4 @@ struct Popup {
 #[derive(Debug, Deserialize)]
 struct PopupWindow {
     id: u16,
-}
-
-async fn unwrap_future<F>(future: F)
-where
-    F: Future<Output = Result<(), JsValue>>,
-{
-    if let Err(e) = future.await {
-        log::error!("{:?}", &e);
-    }
-}
-
-pub fn spawn<A>(future: A)
-where
-    A: Future<Output = Result<(), JsValue>> + 'static,
-{
-    spawn_local(unwrap_future(future))
 }
