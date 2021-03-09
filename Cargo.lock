@@ -1194,7 +1194,6 @@ dependencies = [
  "js-sys",
  "rust_decimal",
  "serde 1.0.123",
- "serde_json 1.0.62",
  "wallet",
 ]
 
