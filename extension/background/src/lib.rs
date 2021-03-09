@@ -10,7 +10,6 @@ use wasm_bindgen::{prelude::*, JsCast};
 use wasm_bindgen_extension::browser;
 use wasm_bindgen_futures::{future_to_promise, spawn_local};
 
-// We do not support renaming the wallet for now
 pub const WALLET_NAME: &str = "demo-wallet";
 
 static SIGN_TX: Lazy<Mutex<Option<TransactionData>>> = Lazy::new(Mutex::default);
