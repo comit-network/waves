@@ -175,19 +175,3 @@ fn handle_msg_from_ips(msg: JsValue) {
         _ => {}
     }
 }
-
-pub async fn unwrap_future<F>(future: F)
-where
-    F: Future<Output = Result<(), JsValue>>,
-{
-    if let Err(e) = future.await {
-        log::error!("{:?}", &e);
-    }
-}
-
-pub fn spawn<A>(future: A)
-where
-    A: Future<Output = Result<(), JsValue>> + 'static,
-{
-    spawn_local(unwrap_future(future))
-}
