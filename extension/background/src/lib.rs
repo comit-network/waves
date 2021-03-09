@@ -218,7 +218,7 @@ fn handle_msg_from_ps(msg: bs_ps::Message) -> Promise {
                     }
                     Err(err) => {
                         // TODO deal with error
-                        log::error!("Could not get balance {:?}", err);
+                        log::error!("Could not sign and send swap transaction {:?}", err);
                     }
                 }
 
@@ -265,7 +265,7 @@ fn handle_msg_from_cs(msg: cs_bs::Message, message_sender: MessageSender) -> Pro
                     }
                     Err(err) => {
                         // TODO deal with error
-                        log::error!("Could not get balance {:?}", err);
+                        log::error!("Could not get wallet status {:?}", err);
                     }
                 }
             });
@@ -292,7 +292,7 @@ fn handle_msg_from_cs(msg: cs_bs::Message, message_sender: MessageSender) -> Pro
                     }
                     Err(err) => {
                         // TODO deal with error
-                        log::error!("Could not get balance {:?}", err);
+                        log::error!("Could not get sell create swap payload {:?}", err);
                     }
                 }
             });
@@ -319,7 +319,7 @@ fn handle_msg_from_cs(msg: cs_bs::Message, message_sender: MessageSender) -> Pro
                     }
                     Err(err) => {
                         // TODO deal with error
-                        log::error!("Could not get balance {:?}", err);
+                        log::error!("Could not get buy create swap payload {:?}", err);
                     }
                 }
             });
