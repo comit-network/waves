@@ -1,3 +1,4 @@
+use message_types::bs_ps::BackgroundStatus;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use wallet::BalanceEntry;
@@ -6,6 +7,12 @@ use yew::worker::*;
 #[derive(Serialize, Deserialize, Debug)]
 pub enum Request {
     WalletBalanceUpdate(Vec<BalanceEntry>),
+    BackgroundStatus(BackgroundStatus),
+}
+#[derive(Serialize, Deserialize, Debug)]
+pub enum Response {
+    WalletBalanceUpdate(Vec<BalanceEntry>),
+    BackgroundStatus(BackgroundStatus),
 }
 
 pub struct EventBus {
@@ -17,7 +24,7 @@ impl Agent for EventBus {
     type Reach = Context<Self>;
     type Message = ();
     type Input = Request;
-    type Output = Vec<BalanceEntry>;
+    type Output = Response;
 
     fn create(link: AgentLink<Self>) -> Self {
         Self {
@@ -37,7 +44,15 @@ impl Agent for EventBus {
             Request::WalletBalanceUpdate(balances) => {
                 for sub in self.subscribers.iter() {
                     let balances = balances.clone();
-                    self.link.respond(*sub, balances);
+                    self.link
+                        .respond(*sub, Response::WalletBalanceUpdate(balances));
+                }
+            }
+            Request::BackgroundStatus(background_status) => {
+                for sub in self.subscribers.iter() {
+                    let background_status = background_status.clone();
+                    self.link
+                        .respond(*sub, Response::BackgroundStatus(background_status));
                 }
             }
         }

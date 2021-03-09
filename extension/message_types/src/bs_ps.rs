@@ -28,7 +28,7 @@ pub enum WalletStatus {
     Loaded { address: String },
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct BackgroundStatus {
     pub wallet: WalletStatus,
     pub sign_tx: Option<TransactionData>,

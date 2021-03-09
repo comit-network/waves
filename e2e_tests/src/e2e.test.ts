@@ -148,6 +148,7 @@ describe("webdriver", () => {
         await driver.sleep(2000);
         let url = await driver.getCurrentUrl();
         assert(url.includes("/swapped/"));
+        debug("Swap successful");
     }, 40000);
 
     test("buy swap", async () => {
@@ -183,5 +184,6 @@ describe("webdriver", () => {
         await driver.sleep(2000);
         let url = await driver.getCurrentUrl();
         assert(url.includes("/swapped/"));
+        debug("Swap successful");
     }, 40000);
 });

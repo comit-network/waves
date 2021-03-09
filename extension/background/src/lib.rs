@@ -222,6 +222,7 @@ fn handle_msg_from_ps(msg: bs_ps::Message) -> Promise {
                     }
                 }
 
+                // remove TX from the guard after signing
                 let mut guard = SIGN_TX.lock().await;
                 if let Some(TransactionData { hex, .. }) = &*guard {
                     if hex == &tx_hex {

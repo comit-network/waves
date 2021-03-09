@@ -25,6 +25,7 @@ impl WalletUpdater {
             {
                 while RUN.lock().await.unwrap() {
                     update_wallet_balance(EventBus::dispatcher()).await;
+                    update_wallet_status(EventBus::dispatcher()).await;
                     futures_timer::Delay::new(std::time::Duration::from_secs(UPDATE_INTERVAL_SEC))
                         .await;
                 }
@@ -59,6 +60,26 @@ async fn update_wallet_balance(mut event_bus: Dispatcher<EventBus>) {
     if let Ok(response) = response {
         if let Ok(bs_ps::RpcData::Balance(balances)) = response.into_serde() {
             event_bus.send(Request::WalletBalanceUpdate(balances));
+        }
+    }
+}
+
+async fn update_wallet_status(mut event_bus: Dispatcher<EventBus>) {
+    let msg = bs_ps::Message {
+        rpc_data: bs_ps::RpcData::GetWalletStatus,
+        target: MessageComponent::Background,
+        source: MessageComponent::PopUp,
+        content_tab_id: 0,
+    };
+
+    let js_value = JsValue::from_serde(&msg).unwrap();
+    let promise: Promise = browser.runtime().send_message(None, &js_value, None);
+    let response = JsFuture::from(promise).await;
+    log::trace!("Wallet status update received: {:?}", response);
+
+    if let Ok(response) = response {
+        if let Ok(background_status) = response.into_serde() {
+            event_bus.send(Request::BackgroundStatus(background_status));
         }
     }
 }

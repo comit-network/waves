@@ -1,6 +1,6 @@
 use crate::{
     components::{CreateWallet, TradeInfo, UnlockWallet, WalletDetails},
-    event_bus::EventBus,
+    event_bus::{EventBus, Response},
     wallet_updater::WalletUpdater,
 };
 use js_sys::Promise;
@@ -69,7 +69,12 @@ impl Component for App {
 
         let mut wallet_updater = WalletUpdater::new();
         wallet_updater.spawn();
-        let callback = link.callback(Msg::BalanceUpdate);
+        let callback = link.callback(|response| match response {
+            Response::WalletBalanceUpdate(balances) => Msg::BalanceUpdate(balances),
+            Response::BackgroundStatus(background_status) => {
+                Msg::BackgroundStatus(Box::new(background_status))
+            }
+        });
         App {
             link,
             state: State {
