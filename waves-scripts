@@ -152,17 +152,6 @@ build_extension () {
     yarn run build
 }
 
-start_extension_wo_building () {
-    cd extension
-    yarn run start-dev
-}
-
-build_and_package_extension () {
-    build_extension
-    cd extension
-    yarn run package:extension
-}
-
 stop_nodes () {
     nigiri stop --delete
     rm .native_asset_id
