@@ -105,13 +105,17 @@ describe("webdriver", () => {
         let address = await addressField.getText();
         debug(`Address found: ${address}`);
 
-        debug("Calling faucet");
-        await fetch(`${webAppUrl}/api/faucet/${address}`, {
+        let url = `${webAppUrl}/api/faucet/${address}`;
+        debug("Calling faucet: %s", url);
+        let response = await fetch(url, {
             method: "POST",
         });
+        assert(response.ok);
+        let body = await response.text();
+        debug("Faucet response: %s", body);
 
         debug("Waiting for balance update");
-        let btcAmount = await getElementByClass(driver, "data-cy-L-BTC-balance-text-field", 20_000);
+        let btcAmount = await getElementByClass(driver, "data-cy-L-BTC-balance-text-field", 40_000);
         debug("Found btc amount: %s", await btcAmount.getText());
     }, 30000);
 

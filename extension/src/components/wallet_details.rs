@@ -40,7 +40,8 @@ impl Component for WalletDetails {
 
         html! {
             <>
-                <ybc::Field label={"Address"} classes="data-cy-wallet-address-text-field">
+                <label class="label">{"Address"}</label>
+                <ybc::Field classes="data-cy-wallet-address-text-field">
                     {address}
                 </ybc::Field>
                 <ybc::Field>
