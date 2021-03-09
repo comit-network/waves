@@ -1,7 +1,7 @@
 use anyhow::Result;
 use elements::Txid;
 extern crate console_error_panic_hook;
-use futures::{channel::mpsc, StreamExt};
+use futures::channel::oneshot;
 use js_sys::{global, Object, Promise};
 use message_types::{ips_cs, ips_cs::RpcData, Component};
 use std::future::Future;
@@ -53,7 +53,8 @@ pub fn main() {
 
 #[wasm_bindgen]
 pub fn wallet_status() -> Promise {
-    let (mut sender, mut receiver) = mpsc::channel::<JsValue>(10);
+    let (sender, receiver) = oneshot::channel::<JsValue>();
+    let mut sender = Some(sender);
     // create listener
     let func = move |msg: MessageEvent| {
         let js_value: JsValue = msg.data();
@@ -76,7 +77,9 @@ pub fn wallet_status() -> Promise {
             log::info!("IPS: Received response from CS: {:?}", rpc_data);
             if let RpcData::WalletStatus(wallet_status) = rpc_data {
                 sender
-                    .try_send(JsValue::from_serde(wallet_status).unwrap())
+                    .take()
+                    .expect("only send response once")
+                    .send(JsValue::from_serde(wallet_status).unwrap())
                     .unwrap();
             }
         }
@@ -95,8 +98,8 @@ pub fn wallet_status() -> Promise {
     window.post_message(&js_value, "*").unwrap();
 
     let fut = async move {
-        let response = receiver.next().await;
-        let response = response.ok_or_else(|| JsValue::from_str("IPS: No response from CS"))?;
+        let response = receiver.await;
+        let response = response.map_err(|_| JsValue::from_str("IPS: No response from CS"))?;
 
         drop(listener);
         Ok(response)
@@ -107,7 +110,8 @@ pub fn wallet_status() -> Promise {
 
 #[wasm_bindgen]
 pub fn get_sell_create_swap_payload(btc: String) -> Promise {
-    let (mut sender, mut receiver) = mpsc::channel::<CreateSwapPayload>(10);
+    let (sender, receiver) = oneshot::channel::<CreateSwapPayload>();
+    let mut sender = Some(sender);
     // create listener
     let func = move |msg: MessageEvent| {
         let js_value: JsValue = msg.data();
@@ -129,7 +133,11 @@ pub fn get_sell_create_swap_payload(btc: String) -> Promise {
 
             log::info!("IPS: Received response from CS: {:?}", rpc_data);
             if let RpcData::SellCreateSwapPayload(payload) = rpc_data.clone() {
-                sender.try_send(payload).unwrap();
+                sender
+                    .take()
+                    .expect("only send response once")
+                    .send(payload)
+                    .unwrap();
             }
         }
     };
@@ -147,8 +155,8 @@ pub fn get_sell_create_swap_payload(btc: String) -> Promise {
     window.post_message(&js_value, "*").unwrap();
 
     let fut = async move {
-        let response = receiver.next().await;
-        let response = response.ok_or_else(|| JsValue::from_str("IPS: No response from CS"))?;
+        let response = receiver.await;
+        let response = response.map_err(|_| JsValue::from_str("IPS: No response from CS"))?;
         let response = JsValue::from_serde(&response).unwrap();
 
         drop(listener);
@@ -160,9 +168,8 @@ pub fn get_sell_create_swap_payload(btc: String) -> Promise {
 
 #[wasm_bindgen]
 pub fn get_buy_create_swap_payload(usdt: String) -> Promise {
-    log::debug!("get_buy_create_swap_payload");
-
-    let (mut sender, mut receiver) = mpsc::channel::<CreateSwapPayload>(10);
+    let (sender, receiver) = oneshot::channel::<CreateSwapPayload>();
+    let mut sender = Some(sender);
     // create listener
     let func = move |msg: MessageEvent| {
         let js_value: JsValue = msg.data();
@@ -184,7 +191,11 @@ pub fn get_buy_create_swap_payload(usdt: String) -> Promise {
 
             log::info!("IPS: Received response from CS: {:?}", rpc_data);
             if let RpcData::BuyCreateSwapPayload(payload) = rpc_data.clone() {
-                sender.try_send(payload).unwrap();
+                sender
+                    .take()
+                    .expect("only send response once")
+                    .send(payload)
+                    .unwrap();
             }
         }
     };
@@ -202,8 +213,8 @@ pub fn get_buy_create_swap_payload(usdt: String) -> Promise {
     window.post_message(&js_value, "*").unwrap();
 
     let fut = async move {
-        let response = receiver.next().await;
-        let response = response.ok_or_else(|| JsValue::from_str("IPS: No response from CS"))?;
+        let response = receiver.await;
+        let response = response.map_err(|_| JsValue::from_str("IPS: No response from CS"))?;
         let response = JsValue::from_serde(&response).unwrap();
 
         drop(listener);
@@ -215,7 +226,8 @@ pub fn get_buy_create_swap_payload(usdt: String) -> Promise {
 
 #[wasm_bindgen]
 pub fn sign_and_send(tx_hex: String) -> Promise {
-    let (mut sender, mut receiver) = mpsc::channel::<Txid>(10);
+    let (sender, receiver) = oneshot::channel::<Txid>();
+    let mut sender = Some(sender);
     // create listener
     let func = move |msg: MessageEvent| {
         let js_value: JsValue = msg.data();
@@ -237,7 +249,11 @@ pub fn sign_and_send(tx_hex: String) -> Promise {
 
             log::info!("IPS: Received response from CS: {:?}", rpc_data);
             if let RpcData::SwapTxid(txid) = rpc_data {
-                sender.try_send(*txid).unwrap();
+                sender
+                    .take()
+                    .expect("only send response once")
+                    .send(*txid)
+                    .unwrap();
             }
         }
     };
@@ -255,8 +271,8 @@ pub fn sign_and_send(tx_hex: String) -> Promise {
     window.post_message(&js_value, "*").unwrap();
 
     let fut = async move {
-        let response = receiver.next().await;
-        let response = response.ok_or_else(|| JsValue::from_str("IPS: No response from CS"))?;
+        let response = receiver.await;
+        let response = response.map_err(|_| JsValue::from_str("IPS: No response from CS"))?;
         let response = JsValue::from_serde(&response).unwrap();
 
         drop(listener);
