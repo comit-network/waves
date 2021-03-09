@@ -11,7 +11,6 @@ use reqwest::StatusCode;
 /// UTXOs change over time and as such, this function never uses a cache.
 pub async fn fetch_utxos(address: &Address) -> Result<Vec<Utxo>> {
     let url = format!("{}/address/{}/utxo", ESPLORA_API_URL, address);
-    log::debug!("Fetching UTXOs at {}", url);
     let response = reqwest::get(&url).await.context("failed to fetch UTXOs")?;
 
     if response.status() == StatusCode::NOT_FOUND {
@@ -27,8 +26,6 @@ pub async fn fetch_utxos(address: &Address) -> Result<Vec<Utxo>> {
             error_body
         ));
     }
-
-    log::debug!("fetch utxos response: {:?}", response);
 
     response
         .json::<Vec<Utxo>>()
