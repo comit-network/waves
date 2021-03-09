@@ -4,7 +4,7 @@ use conquer_once::Lazy;
 use futures::lock::Mutex;
 use js_sys::Promise;
 use message_types::{bs_ps, cs_bs, Component};
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 use wallet::WalletStatus;
 use wasm_bindgen::{prelude::*, JsCast};
 use wasm_bindgen_extension::browser;
