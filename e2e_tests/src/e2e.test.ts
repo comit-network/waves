@@ -28,7 +28,7 @@ describe("webdriver", () => {
         const debug = Debug("e2e-before");
         let service = new firefox.ServiceBuilder(firefoxPath);
 
-        const options = new firefox.Options().headless();
+        const options = new firefox.Options();
 
         driver = new Builder()
             .setFirefoxService(service)
