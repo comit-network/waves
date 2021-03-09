@@ -4,10 +4,9 @@ extern crate console_error_panic_hook;
 use futures::channel::oneshot;
 use js_sys::{global, Object, Promise};
 use message_types::{ips_cs, ips_cs::RpcData, Component};
-use std::future::Future;
 use wallet::CreateSwapPayload;
 use wasm_bindgen::{prelude::*, JsCast};
-use wasm_bindgen_futures::{future_to_promise, spawn_local};
+use wasm_bindgen_futures::future_to_promise;
 use web_sys::MessageEvent;
 
 #[wasm_bindgen(start)]
@@ -312,20 +311,4 @@ where
             .remove_event_listener_with_callback(&self.name, self.cb.as_ref().unchecked_ref())
             .unwrap();
     }
-}
-
-async fn unwrap_future<F>(future: F)
-where
-    F: Future<Output = Result<(), JsValue>>,
-{
-    if let Err(e) = future.await {
-        log::error!("{:?}", &e);
-    }
-}
-
-pub fn spawn<A>(future: A)
-where
-    A: Future<Output = Result<(), JsValue>> + 'static,
-{
-    spawn_local(unwrap_future(future))
 }
