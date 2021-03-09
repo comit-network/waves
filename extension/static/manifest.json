@@ -8,16 +8,13 @@
       "id": "waves-wallet@comit.network"
     }
   },
-
   "background": {
     "page": "background.html"
   },
-
   "icons": {
     "48": "icons/favicon.svg",
     "96": "icons/favicon.svg"
   },
-
   "browser_action": {
     "default_title": "waves_wallet",
     "browser_style": true,
