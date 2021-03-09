@@ -8,7 +8,7 @@ native_asset_id=$(docker exec liquid elements-cli -rpcport=18884 -rpcuser=admin1
 
 # We need to mine some blocks so that electrs API calls work
 address=$(docker exec liquid elements-cli -rpcport=18884 -rpcuser=admin1 -rpcpassword=123 getnewaddress)
-docker exec liquid elements-cli -rpcport=18884 -rpcuser=admin1 -rpcpassword=123 generatetoaddress 150 $address
+docker exec liquid elements-cli -rpcport=18884 -rpcuser=admin1 -rpcpassword=123 generatetoaddress 150 $address > /dev/null
 
 response=$(docker exec liquid elements-cli -rpcport=18884 -rpcuser=admin1 -rpcpassword=123 issueasset 10000000 1)
 usdt_asset_id=$(echo $response | jq -r '.asset')
