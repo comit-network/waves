@@ -1,4 +1,4 @@
-use message_types::{cs_bs, ips_cs, Component};
+use message_types::{cs_bs, ips_cs};
 use wasm_bindgen::{prelude::*, JsCast};
 use wasm_bindgen_extension::browser;
 use web_sys::MessageEvent;
@@ -47,129 +47,33 @@ pub async fn main() -> Result<(), JsValue> {
     Ok(())
 }
 
-fn handle_msg_from_bs(msg: JsValue) {
+fn handle_msg_from_bs(msg_in: JsValue) {
     // TODO: Filter different messages
 
     let window = web_sys::window().expect("no global `window` exists");
-    log::info!("CS: Received response from BS: {:?}", msg);
+    log::info!("CS: Received response from BS: {:?}", msg_in);
 
-    if let Ok(cs_bs::Message { rpc_data, .. }) = msg.into_serde() {
-        match rpc_data {
-            cs_bs::RpcData::WalletStatus(wallet_status) => {
-                let msg = ips_cs::Message {
-                    rpc_data: ips_cs::RpcData::WalletStatus(wallet_status),
-                    target: Component::InPage,
-                    source: Component::Content,
-                };
-                log::info!("CS: Sending response to IPS: {:?}", msg);
-                window
-                    .post_message(&JsValue::from_serde(&msg).unwrap(), "*")
-                    .unwrap();
-            }
-            cs_bs::RpcData::SellCreateSwapPayload(payload) => {
-                let msg = ips_cs::Message {
-                    rpc_data: ips_cs::RpcData::SellCreateSwapPayload(payload),
-                    target: Component::InPage,
-                    source: Component::Content,
-                };
-                log::info!("CS: Sending response to IPS: {:?}", msg);
-                window
-                    .post_message(&JsValue::from_serde(&msg).unwrap(), "*")
-                    .unwrap();
-            }
-            cs_bs::RpcData::BuyCreateSwapPayload(payload) => {
-                let msg = ips_cs::Message {
-                    rpc_data: ips_cs::RpcData::BuyCreateSwapPayload(payload),
-                    target: Component::InPage,
-                    source: Component::Content,
-                };
-                log::info!("CS: Sending response to IPS: {:?}", msg);
-                window
-                    .post_message(&JsValue::from_serde(&msg).unwrap(), "*")
-                    .unwrap();
-            }
-            cs_bs::RpcData::SwapTxid(txid) => {
-                let msg = ips_cs::Message {
-                    rpc_data: ips_cs::RpcData::SwapTxid(txid),
-                    target: Component::InPage,
-                    source: Component::Content,
-                };
-                log::info!("CS: Sending response to IPS: {:?}", msg);
-                window
-                    .post_message(&JsValue::from_serde(&msg).unwrap(), "*")
-                    .unwrap();
-            }
-            _ => {}
-        }
+    if let Ok(msg_in) = msg_in.into_serde::<cs_bs::Message>() {
+        let msg_out = ips_cs::Message::from(msg_in);
+        log::info!("CS: Sending response to IPS: {:?}", msg_out);
+        window
+            .post_message(&JsValue::from_serde(&msg_out).unwrap(), "*")
+            .unwrap();
     }
 }
 
-fn handle_msg_from_ips(msg: JsValue) {
-    let msg: MessageEvent = msg.into();
-    let msg: JsValue = msg.data();
-    // TODO: Actually only accept messages from IPS
+fn handle_msg_from_ips(msg_in: JsValue) {
+    let msg_in: MessageEvent = msg_in.into();
+    let msg_in: JsValue = msg_in.data();
 
-    log::info!("CS: Received from IPS: {:?}", msg);
-    let data = if let Ok(ips_cs::Message { rpc_data, .. }) = msg.into_serde() {
-        rpc_data
-    } else {
-        log::warn!("Received unknown message: {:?}", msg);
-        return;
-    };
+    log::info!("CS: received from IPS: {:?}", msg_in);
 
-    match data {
-        ips_cs::RpcData::GetWalletStatus => {
-            let msg = cs_bs::Message {
-                rpc_data: cs_bs::RpcData::GetWalletStatus,
-                target: Component::Background,
-                source: Component::Content,
-            };
-            log::info!("CS: Sending message get wallet status to BS: {:?}", msg);
-            // sending message to Background script
-            let js_value = JsValue::from_serde(&msg).unwrap();
+    if let Ok(msg_in) = msg_in.into_serde::<ips_cs::Message>() {
+        let msg_out = cs_bs::Message::from(msg_in);
+        log::debug!("CS: Sending message BS: {:?}", msg_out);
+        let js_value = JsValue::from_serde(&msg_out).unwrap();
 
-            // TODO: Handle error response?
-            let _resp = browser.runtime().send_message(None, &js_value, None);
-        }
-        ips_cs::RpcData::GetSellCreateSwapPayload(btc) => {
-            let msg = cs_bs::Message {
-                rpc_data: cs_bs::RpcData::GetSellCreateSwapPayload(btc),
-                target: Component::Background,
-                source: Component::Content,
-            };
-            log::info!(
-                "CS: Sending message get sell create swap payload to BS: {:?}",
-                msg
-            );
-
-            let js_value = JsValue::from_serde(&msg).unwrap();
-            let _resp = browser.runtime().send_message(None, &js_value, None);
-        }
-        ips_cs::RpcData::GetBuyCreateSwapPayload(usdt) => {
-            let msg = cs_bs::Message {
-                rpc_data: cs_bs::RpcData::GetBuyCreateSwapPayload(usdt),
-                target: Component::Background,
-                source: Component::Content,
-            };
-            log::info!(
-                "CS: Sending message get buy create swap payload to BS: {:?}",
-                msg
-            );
-
-            let js_value = JsValue::from_serde(&msg).unwrap();
-            let _resp = browser.runtime().send_message(None, &js_value, None);
-        }
-        ips_cs::RpcData::SignAndSend(tx_hex) => {
-            let msg = cs_bs::Message {
-                rpc_data: cs_bs::RpcData::SignAndSend(tx_hex),
-                target: Component::Background,
-                source: Component::Content,
-            };
-            log::info!("CS: Sending message sign and send to BS: {:?}", msg);
-
-            let js_value = JsValue::from_serde(&msg).unwrap();
-            let _resp = browser.runtime().send_message(None, &js_value, None);
-        }
-        _ => {}
+        // TODO: Handle error response?
+        let _resp = browser.runtime().send_message(None, &js_value, None);
     }
 }
