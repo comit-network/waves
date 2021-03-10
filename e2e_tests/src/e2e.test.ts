@@ -21,14 +21,14 @@ describe("webdriver", () => {
     let extensionId;
     // TODO: Do not hard-code website URL
     const webAppUrl = "http://localhost:3030";
-    const webAppTitle = "Waves";
-    const extensionTitle = "Waves Wallet";
+    let webAppTitle;
+    let extensionTitle;
 
     beforeAll(async () => {
         const debug = Debug("e2e-before");
         let service = new firefox.ServiceBuilder(firefoxPath);
 
-        const options = new firefox.Options();
+        const options = new firefox.Options().headless();
 
         driver = new Builder()
             .setFirefoxService(service)
@@ -49,8 +49,7 @@ describe("webdriver", () => {
 
         // load webapp again
         await driver.get(webAppUrl);
-        // Assert that webapp window is loaded
-        await driver.wait(until.titleIs(webAppTitle), 10000);
+        webAppTitle = await driver.getTitle();
 
         // Check we don't have other windows open already
         assert((await driver.getAllWindowHandles()).length === 1);
@@ -61,9 +60,8 @@ describe("webdriver", () => {
         // Open extension
         let extensionUrl = `moz-extension://${extensionId}/popup.html`;
         await driver.get(`${extensionUrl}`);
+        extensionTitle = await driver.getTitle();
 
-        // Assert that extension window is loaded
-        await driver.wait(until.titleIs(extensionTitle), 10000);
     }, 20000);
 
     afterAll(async () => {
