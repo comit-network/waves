@@ -54,7 +54,6 @@ impl Component for App {
             rpc_data: bs_ps::RpcData::GetWalletStatus,
             target: MessageComponent::Background,
             source: MessageComponent::PopUp,
-            content_tab_id: 0,
         };
         send_to_backend(
             msg,
@@ -100,7 +99,6 @@ impl Component for App {
                     ),
                     target: message_types::Component::Background,
                     source: message_types::Component::PopUp,
-                    content_tab_id: 0,
                 };
                 send_to_backend(
                     msg,
@@ -123,7 +121,6 @@ impl Component for App {
                     ),
                     target: message_types::Component::Background,
                     source: message_types::Component::PopUp,
-                    content_tab_id: 0,
                 };
                 send_to_backend(
                     msg,
@@ -149,7 +146,6 @@ impl Component for App {
                     rpc_data: bs_ps::RpcData::SignAndSend { tx_hex, tab_id },
                     target: message_types::Component::Background,
                     source: message_types::Component::PopUp,
-                    content_tab_id: 0,
                 };
                 send_to_backend(
                     msg,

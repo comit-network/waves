@@ -49,7 +49,6 @@ async fn update_wallet_balance(mut event_bus: Dispatcher<EventBus>) {
         rpc_data: bs_ps::RpcData::GetBalance,
         target: MessageComponent::Background,
         source: MessageComponent::PopUp,
-        content_tab_id: 0,
     };
 
     let js_value = JsValue::from_serde(&msg).unwrap();
@@ -69,7 +68,6 @@ async fn update_wallet_status(mut event_bus: Dispatcher<EventBus>) {
         rpc_data: bs_ps::RpcData::GetWalletStatus,
         target: MessageComponent::Background,
         source: MessageComponent::PopUp,
-        content_tab_id: 0,
     };
 
     let js_value = JsValue::from_serde(&msg).unwrap();

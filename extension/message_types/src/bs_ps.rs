@@ -8,7 +8,6 @@ pub struct Message {
     pub rpc_data: RpcData,
     pub target: Component,
     pub source: Component,
-    pub content_tab_id: u32,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
