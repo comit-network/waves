@@ -49,9 +49,6 @@ describe("webdriver", () => {
         await driver.get(webAppUrl);
         webAppTitle = await driver.getTitle();
 
-        // Check we don't have other windows open already
-        assert((await driver.getAllWindowHandles()).length === 1);
-
         // Opens a new tab and switches to new tab
         await driver.switchTo().newWindow("tab");
 
