@@ -17,17 +17,15 @@ const getElementByClass = async (driver, className, timeout = 4000) => {
 };
 
 describe("webdriver", () => {
-    let driver;
-    let extensionId;
-    // TODO: Do not hard-code website URL
     const webAppUrl = "http://localhost:3030";
-    let webAppTitle;
-    let extensionTitle;
+
+    let driver;
+    let extensionId: string;
+    let webAppTitle: string;
+    let extensionTitle: string;
 
     beforeAll(async () => {
-        const debug = Debug("e2e-before");
-        let service = new firefox.ServiceBuilder(firefoxPath);
-
+        const service = new firefox.ServiceBuilder(firefoxPath);
         const options = new firefox.Options().headless();
 
         driver = new Builder()
@@ -84,12 +82,11 @@ describe("webdriver", () => {
 
     test("Create wallet", async () => {
         const debug = Debug("e2e-create");
-        debug("Testing creating a wallet");
-        await switchToWindow(extensionTitle);
-        debug("Switched to extension");
 
+        await switchToWindow(extensionTitle);
+
+        debug("Choosing password");
         let password = "foo";
-        debug("Setting password");
         let passwordInput = await getElementByClass(driver, "data-cy-create-wallet-password-input");
         await passwordInput.sendKeys(password);
 
@@ -97,7 +94,7 @@ describe("webdriver", () => {
         let createWalletButton = await getElementByClass(driver, "data-cy-create-wallet-button");
         await createWalletButton.click();
 
-        debug("Getting address");
+        debug("Getting wallet address");
         let addressField = await getElementByClass(driver, "data-cy-wallet-address-text-field");
         let address = await addressField.getText();
         debug(`Address found: ${address}`);
@@ -113,30 +110,29 @@ describe("webdriver", () => {
 
         debug("Waiting for balance update");
         let btcAmount = await getElementByClass(driver, "data-cy-L-BTC-balance-text-field", 40_000);
-        debug("Found btc amount: %s", await btcAmount.getText());
+        debug("Found L-BTC amount: %s", await btcAmount.getText());
     }, 30000);
 
     test("sell swap", async () => {
         const debug = Debug("e2e-sell");
-        debug("Testing sell swap");
 
         await switchToWindow(webAppTitle);
         await driver.navigate().refresh();
         await driver.sleep(2000);
-        debug("Setting alpha input amount");
+
+        debug("Setting L-BTC amount");
         let alphaAmountInput = await getElementById(driver, "//div[@data-cy='Alpha-amount-input']//input");
         await alphaAmountInput.clear();
         await alphaAmountInput.sendKeys("0.4");
 
-        debug("Checking if button is available.");
-
+        debug("Clicking on swap button");
         let swapButton = await getElementById(driver, "//button[@data-cy='swap-button']");
         await driver.wait(until.elementIsEnabled(swapButton), 20000);
         await swapButton.click();
 
         await switchToWindow(extensionTitle);
 
-        debug("Signing transaction");
+        debug("Signing and sending transaction");
         let signTransactionButton = await getElementByClass(driver, "data-cy-sign-tx-button", 20_000);
         await signTransactionButton.click();
 
@@ -150,29 +146,28 @@ describe("webdriver", () => {
 
     test("buy swap", async () => {
         const debug = Debug("e2e-buy");
-        debug("Testing buy swap");
 
         await switchToWindow(webAppTitle);
         await driver.get(webAppUrl);
         await driver.sleep(2000);
+
         debug("Switching assets");
         let switchAssetTypesButton = await getElementById(driver, "//button[@data-cy='exchange-asset-types-button']");
         await switchAssetTypesButton.click();
 
-        debug("Setting alpha input amount");
+        debug("Setting L-USDt amount");
         let alphaAmountInput = await getElementById(driver, "//div[@data-cy='Alpha-amount-input']//input");
         await alphaAmountInput.clear();
         await alphaAmountInput.sendKeys("10000.0");
 
-        debug("Checking if button is available.");
-
+        debug("Clicking on swap button");
         let swapButton = await getElementById(driver, "//button[@data-cy='swap-button']");
         await driver.wait(until.elementIsEnabled(swapButton), 20000);
         await swapButton.click();
 
         await switchToWindow(extensionTitle);
 
-        debug("Signing transaction");
+        debug("Signing and sending transaction");
         let signTransactionButton = await getElementByClass(driver, "data-cy-sign-tx-button", 20_000);
         await signTransactionButton.click();
 
