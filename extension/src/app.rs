@@ -173,6 +173,22 @@ impl Component for App {
     fn view(&self) -> Html {
         let wallet_form = match self.state.clone() {
             State {
+                wallet_status: WalletStatus::NotLoaded,
+                ..
+            } => {
+                html! {
+                    <UnlockWallet on_form_submit=self.link.callback(|_| Msg::UnlockWallet)></UnlockWallet>
+                }
+            }
+            State {
+                wallet_status: WalletStatus::None,
+                ..
+            } => {
+                html! {
+                    <CreateWallet on_form_submit=self.link.callback(|_| Msg::CreateWallet)></CreateWallet>
+                }
+            }
+            State {
                 wallet_status: WalletStatus::Loaded { address },
                 sign_tx: None,
                 wallet_balances,
@@ -198,22 +214,6 @@ impl Component for App {
                     </>
                 }
             }
-            State {
-                wallet_status: WalletStatus::NotLoaded,
-                ..
-            } => {
-                html! {
-                    <UnlockWallet on_form_submit=self.link.callback(|_| Msg::UnlockWallet)></UnlockWallet>
-                }
-            }
-            State {
-                wallet_status: WalletStatus::None,
-                ..
-            } => {
-                html! {
-                    <CreateWallet on_form_submit=self.link.callback(|_| Msg::CreateWallet)></CreateWallet>
-                }
-            }
         };
 
         let faucet_button = match &self.state.wallet_status {
@@ -237,14 +237,13 @@ impl Component for App {
 
         html! {
             <ybc::Section>
-                <ybc::Container fluid=true>
+                <ybc::Container>
                     <ybc::Box>
-                        <ybc::Title>{ "Waves Wallet" }</ybc::Title>
                         { wallet_form }
                     </ybc::Box>
+                    // TODO: Feature flag this
+                    {faucet_button}
                 </ybc::Container>
-                // TODO: Feature flag this
-                {faucet_button}
             </ybc::Section>
         }
     }

@@ -75,6 +75,8 @@
   "content_security_policy": "script-src 'self' 'unsafe-eval'; object-src 'self'",
   "web_accessible_resources": [
     "js/in_page.wasm",
-    "js/in_page.js"
+    "js/in_page.js",
+    "bitcoin.svg",
+    "tether.svg"
   ]
 }

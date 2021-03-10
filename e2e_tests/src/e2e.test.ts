@@ -96,7 +96,7 @@ describe("webdriver", () => {
 
         debug("Getting wallet address");
         let addressField = await getElementByClass(driver, "data-cy-wallet-address-text-field");
-        let address = await addressField.getText();
+        let address = await addressField.getAttribute("value");
         debug(`Address found: ${address}`);
 
         let url = `${webAppUrl}/api/faucet/${address}`;
