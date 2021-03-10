@@ -61,7 +61,6 @@ describe("webdriver", () => {
         let extensionUrl = `moz-extension://${extensionId}/popup.html`;
         await driver.get(`${extensionUrl}`);
         extensionTitle = await driver.getTitle();
-
     }, 20000);
 
     afterAll(async () => {
