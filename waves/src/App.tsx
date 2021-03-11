@@ -1,5 +1,6 @@
 import { ExternalLinkIcon } from "@chakra-ui/icons";
 import { Box, Button, Center, Flex, Image, Link, Text, VStack } from "@chakra-ui/react";
+import { useToast } from "@chakra-ui/react";
 import Debug from "debug";
 import React, { useEffect, useReducer } from "react";
 import { useAsync } from "react-async";
@@ -166,6 +167,7 @@ export function reducer(state: State = initialState, action: Action) {
 
 function App() {
     const history = useHistory();
+    const toast = useToast();
     const path = history.location.pathname;
 
     useEffect(() => {
@@ -205,17 +207,27 @@ function App() {
         deferFn: async () => {
             let payload;
             let tx;
-            if (state.alpha.type === Asset.LBTC) {
-                payload = await makeSellCreateSwapPayload(state.alpha.amount.toString());
-                tx = await postSellPayload(payload);
-            } else {
-                payload = await makeBuyCreateSwapPayload(state.alpha.amount.toString());
-                tx = await postBuyPayload(payload);
+            try {
+                if (state.alpha.type === Asset.LBTC) {
+                    payload = await makeSellCreateSwapPayload(state.alpha.amount.toString());
+                    tx = await postSellPayload(payload);
+                } else {
+                    payload = await makeBuyCreateSwapPayload(state.alpha.amount.toString());
+                    tx = await postBuyPayload(payload);
+                }
+
+                let txid = await signAndSend(tx);
+
+                history.push(`/swapped/${txid}`);
+            } catch (error) {
+                toast({
+                    title: "Error",
+                    description: `${error}`,
+                    status: "error",
+                    duration: 9000,
+                    isClosable: true,
+                });
             }
-
-            let txid = await signAndSend(tx);
-
-            history.push(`/swapped/${txid}`);
         },
     });
 

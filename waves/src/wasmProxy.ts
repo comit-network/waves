@@ -75,6 +75,23 @@ export async function signAndSend(
     if (!window.sign_and_send) {
         return Promise.reject("sign_and_send undefined");
     }
+
     // @ts-ignore
-    return await window.sign_and_send(transaction);
+    let response = await window.sign_and_send(transaction) as SignResponse;
+
+    debug("Response is: %s", response);
+    if (response.Ok) {
+        debug("Response is ok: %s", response.Ok);
+        return response.Ok ? response.Ok : "";
+    } else {
+        let error = response.Err ? response.Err : "An unknown error occurred";
+        return Promise.reject(error);
+    }
 }
+
+class SignResponse {
+    Ok?: Success;
+    Err?: Reject;
+}
+type Success = string;
+type Reject = string;

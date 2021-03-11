@@ -6,17 +6,20 @@ use yew::{prelude::*, Component, ComponentLink, Html, Properties};
 pub struct TradeInfo {
     link: ComponentLink<Self>,
     props: Props,
-    loading: bool,
+    signing: bool,
+    rejecting: bool,
 }
 
 #[derive(Properties, Clone, PartialEq)]
 pub struct Props {
     pub trade: Trade,
-    pub on_form_submit: Callback<()>,
+    pub on_confirm: Callback<()>,
+    pub on_reject: Callback<()>,
 }
 
 pub enum Msg {
     Sign,
+    Reject,
 }
 
 impl Component for TradeInfo {
@@ -27,15 +30,25 @@ impl Component for TradeInfo {
         TradeInfo {
             link,
             props,
-            loading: false,
+            signing: false,
+            rejecting: false,
         }
     }
 
     fn update(&mut self, msg: Self::Message) -> bool {
         match msg {
             Msg::Sign => {
-                self.loading = true;
-                let submit = self.props.on_form_submit.clone();
+                self.signing = true;
+                let submit = self.props.on_confirm.clone();
+                spawn_local(async move {
+                    submit.emit(());
+                });
+
+                true
+            }
+            Msg::Reject => {
+                self.rejecting = true;
+                let submit = self.props.on_reject.clone();
                 spawn_local(async move {
                     submit.emit(());
                 });
@@ -75,9 +88,15 @@ impl Component for TradeInfo {
                 </ybc::Tile>
                 <ybc::Button
                         onclick=self.link.callback(|_| Msg::Sign)
-                        loading=self.loading
+                        loading=self.signing
                         classes="is-primary data-cy-sign-tx-button">
                     { "Sign" }
+                </ybc::Button>
+                <ybc::Button
+                        onclick=self.link.callback(|_| Msg::Reject)
+                        loading=self.rejecting
+                        classes="is-danger is-light data-cy-sign-tx-button">
+                    { "Reject" }
                 </ybc::Button>
             </>
         }

@@ -4,7 +4,7 @@ use futures::lock::Mutex;
 use js_sys::Promise;
 use message_types::{
     bs_ps::{self, BackgroundStatus, TransactionData, WalletStatus},
-    ToBackground, ToPage,
+    SignError, ToBackground, ToPage,
 };
 use serde::Deserialize;
 use wasm_bindgen::{prelude::*, JsCast};
@@ -160,7 +160,7 @@ fn handle_msg_from_ps(msg: bs_ps::ToBackground) -> Promise {
                         log::debug!("Received swap txid info {:?}", txid);
                         let _resp = browser.tabs().send_message(
                             tab_id,
-                            JsValue::from_serde(&ToPage::SignResponse(txid)).unwrap(),
+                            JsValue::from_serde(&ToPage::SignResponse(Ok(txid))).unwrap(),
                             JsValue::null(),
                         );
                     }
@@ -180,6 +180,33 @@ fn handle_msg_from_ps(msg: bs_ps::ToBackground) -> Promise {
 
                 // reset badge counter
                 decrement_badge_counter().await;
+
+                let sign_tx = guard.clone();
+                wallet_status(WALLET_NAME.to_string(), sign_tx).await
+            })
+        }
+
+        bs_ps::ToBackground::Reject { tx_hex, tab_id } => {
+            future_to_promise(async move {
+                // remove TX from the guard
+                let mut guard = SIGN_TX.lock().await;
+                if let Some(TransactionData { hex, .. }) = &*guard {
+                    if hex == &tx_hex {
+                        let _ = guard.take();
+                    }
+                }
+
+                // reset badge counter
+                log::debug!("Decrementing badge counter");
+                decrement_badge_counter().await;
+                log::debug!("Decrementing badge counter: done");
+
+                log::debug!("Rejected swap");
+                let _resp = browser.tabs().send_message(
+                    tab_id,
+                    JsValue::from_serde(&ToPage::SignResponse(Err(SignError::Rejected))).unwrap(),
+                    JsValue::null(),
+                );
 
                 let sign_tx = guard.clone();
                 wallet_status(WALLET_NAME.to_string(), sign_tx).await

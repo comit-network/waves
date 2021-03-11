@@ -28,6 +28,7 @@ pub enum Msg {
     BackgroundStatus(Box<BackgroundStatus>),
     BalanceUpdate(Vec<BalanceEntry>),
     SignAndSend { tx_hex: String, tab_id: u32 },
+    Reject { tx_hex: String, tab_id: u32 },
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -136,6 +137,20 @@ impl Component for App {
                 );
                 false
             }
+            Msg::Reject { tx_hex, tab_id } => {
+                let inner_link = self.link.clone();
+                send_to_backend(
+                    ToBackground::Reject { tx_hex, tab_id },
+                    Box::new(move |response| {
+                        if let Ok(response) = response {
+                            if let Ok(status) = response.into_serde() {
+                                inner_link.send_message(Msg::BackgroundStatus(status));
+                            }
+                        }
+                    }),
+                );
+                false
+            }
             Msg::BalanceUpdate(balances) => {
                 self.state.wallet_balances = balances;
                 true
@@ -185,9 +200,24 @@ impl Component for App {
                     }),
                 ..
             } => {
+                let tx_hex = hex.clone();
+                let sign_and_send = move |_| Msg::SignAndSend {
+                    tx_hex: tx_hex.clone(),
+                    tab_id,
+                };
+                let reject = move |_| Msg::Reject {
+                    tx_hex: hex.clone(),
+                    tab_id,
+                };
                 html! {
+
                     <>
-                        <TradeInfo trade=decoded on_form_submit=self.link.callback(move |_| Msg::SignAndSend { tx_hex: hex.clone(), tab_id })></TradeInfo>
+                        <TradeInfo
+                            trade=decoded
+                            on_confirm=self.link.callback(sign_and_send)
+                            on_reject=self.link.callback(reject)
+                        >
+                        </TradeInfo>
                     </>
                 }
             }

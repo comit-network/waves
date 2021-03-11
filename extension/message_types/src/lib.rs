@@ -33,5 +33,10 @@ pub enum ToPage {
     StatusResponse(WalletStatus),
     SellResponse(CreateSwapPayload),
     BuyResponse(CreateSwapPayload),
-    SignResponse(Txid),
+    SignResponse(Result<Txid, SignError>),
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub enum SignError {
+    Rejected,
 }

@@ -9,6 +9,7 @@ pub enum ToBackground {
     BackgroundStatusRequest,
     BalanceRequest,
     SignRequest { tx_hex: String, tab_id: u32 },
+    Reject { tx_hex: String, tab_id: u32 },
 }
 
 #[derive(Debug, Deserialize, Serialize)]
