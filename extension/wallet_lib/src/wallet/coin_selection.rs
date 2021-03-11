@@ -1,7 +1,7 @@
 #![allow(dead_code)]
 
 use crate::wallet::avg_vbytes;
-use anyhow::{bail, Result};
+use anyhow::{anyhow, bail, Result};
 use bdk::{
     bitcoin::{Amount, Denomination},
     database::{BatchOperations, Database},
@@ -23,7 +23,11 @@ pub fn coin_select(
     fee_rate_sat_per_vbyte: f32,
     fee_offset: Amount,
 ) -> Result<Output> {
-    let asset = utxos[0].asset;
+    let asset = utxos
+        .first()
+        .map(|utxo| utxo.asset)
+        .ok_or_else(|| anyhow!("cannot select from empty utxo set"))?;
+
     if utxos.iter().any(|utxo| utxo.asset != asset) {
         bail!("all UTXOs must have the same asset ID")
     }
