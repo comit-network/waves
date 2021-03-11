@@ -5,7 +5,7 @@ mod tabs;
 mod windows;
 
 use crate::{runtime::Runtime, tabs::Tabs, windows::Windows};
-use js_sys::Function;
+use js_sys::{Function, Object};
 use serde::Serialize;
 use wasm_bindgen::prelude::*;
 
@@ -31,6 +31,28 @@ extern "C" {
 
     #[wasm_bindgen(method, getter)]
     pub fn tabs(this: &Browser) -> Tabs;
+
+    #[wasm_bindgen(method, getter, js_name = browserAction)]
+    pub fn browser_action(this: &Browser) -> BrowserAction;
+
+}
+
+#[wasm_bindgen]
+extern "C" {
+    #[derive(Debug)]
+    pub type BrowserAction;
+
+    /// https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API/browserAction/setBadgeText
+    #[wasm_bindgen(method, js_name = setBadgeText)]
+    pub fn set_badge_text(this: &BrowserAction, badge_text: &Object);
+
+    /// https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API/browserAction/setBadgeBackgroundColor
+    #[wasm_bindgen(method, js_name = setBadgeBackgroundColor)]
+    pub fn set_badge_background_color(this: &BrowserAction, badge_color: &Object);
+
+    /// https://developer.mozilla.org/en-US/docs/Mozilla/Add-ons/WebExtensions/API/browserAction/setBadgeBackgroundColor
+    #[wasm_bindgen(method, js_name = setBadgeTextColor)]
+    pub fn set_badge_text_color(this: &BrowserAction, badge_color: &Object);
 }
 
 #[wasm_bindgen]

@@ -8,12 +8,13 @@ use message_types::{
 };
 use serde::Deserialize;
 use wasm_bindgen::{prelude::*, JsCast};
-use wasm_bindgen_extension::browser;
+use wasm_bindgen_extension::{browser, object};
 use wasm_bindgen_futures::{future_to_promise, spawn_local};
 
 pub const WALLET_NAME: &str = "demo-wallet";
 
 static SIGN_TX: Lazy<Mutex<Option<TransactionData>>> = Lazy::new(Mutex::default);
+static BADGE_COUNTER: Lazy<Mutex<Option<u32>>> = Lazy::new(|| Mutex::new(Some(0)));
 
 #[derive(Debug, Deserialize)]
 struct MessageSender {
@@ -177,6 +178,9 @@ fn handle_msg_from_ps(msg: bs_ps::ToBackground) -> Promise {
                     }
                 }
 
+                // reset badge counter
+                decrement_badge_counter().await;
+
                 let sign_tx = guard.clone();
                 wallet_status(WALLET_NAME.to_string(), sign_tx).await
             })
@@ -269,6 +273,9 @@ fn handle_msg_from_cs(msg: ToBackground, message_sender: MessageSender) -> Promi
 
                     let mut guard = SIGN_TX.lock().await;
                     guard.replace(tx_data);
+
+                    // increment badge counter
+                    increment_badge_counter().await;
                 }
                 Err(err) => {
                     // TODO deal with error
@@ -279,4 +286,37 @@ fn handle_msg_from_cs(msg: ToBackground, message_sender: MessageSender) -> Promi
     }
 
     Promise::resolve(&JsValue::from("OK"))
+}
+
+async fn decrement_badge_counter() {
+    let mut guard = BADGE_COUNTER.lock().await;
+    let counter = guard.clone().unwrap_or(0);
+    let new_counter = if counter > 0 { counter - 1 } else { 0 };
+    guard.replace(new_counter);
+    set_badge(new_counter);
+}
+
+async fn increment_badge_counter() {
+    let mut guard = BADGE_COUNTER.lock().await;
+    let counter = guard.clone().unwrap_or(0);
+    let new_counter = counter + 1;
+    guard.replace(new_counter);
+    set_badge(new_counter);
+}
+
+fn set_badge(counter: u8) {
+    let counter = if counter == 0 {
+        "".to_string()
+    } else {
+        counter.to_string()
+    };
+    browser.browser_action().set_badge_text(&object! {
+        "text": counter,
+    });
+    browser
+        .browser_action()
+        .set_badge_background_color(&object! {
+            // green
+            "color": "#03D607",
+        });
 }
