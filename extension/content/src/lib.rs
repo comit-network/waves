@@ -1,4 +1,4 @@
-use message_types::{cs_bs, ips_cs};
+use message_types::{ToBackground, ToPage};
 use wasm_bindgen::{prelude::*, JsCast};
 use wasm_bindgen_extension::browser;
 use web_sys::MessageEvent;
@@ -47,33 +47,31 @@ pub async fn main() -> Result<(), JsValue> {
     Ok(())
 }
 
-fn handle_msg_from_bs(msg_in: JsValue) {
-    // TODO: Filter different messages
-
+fn handle_msg_from_bs(msg: JsValue) {
     let window = web_sys::window().expect("no global `window` exists");
-    log::info!("CS: Received response from BS: {:?}", msg_in);
 
-    if let Ok(msg_in) = msg_in.into_serde::<cs_bs::Message>() {
-        let msg_out = ips_cs::Message::from(msg_in);
-        log::info!("CS: Sending response to IPS: {:?}", msg_out);
+    log::trace!("CS: Received response from BS: {:?}", msg);
+
+    if let Ok(msg) = msg.into_serde::<ToPage>() {
+        log::debug!("CS: Forwarding response from BS to IPS: {:?}", msg);
         window
-            .post_message(&JsValue::from_serde(&msg_out).unwrap(), "*")
+            .post_message(&JsValue::from_serde(&msg).unwrap(), "*")
             .unwrap();
     }
 }
 
-fn handle_msg_from_ips(msg_in: JsValue) {
-    let msg_in: MessageEvent = msg_in.into();
-    let msg_in: JsValue = msg_in.data();
+fn handle_msg_from_ips(msg: JsValue) {
+    let event = MessageEvent::from(msg);
+    let msg = event.data();
 
-    log::info!("CS: received from IPS: {:?}", msg_in);
+    log::trace!("CS: Received message from IPS: {:?}", msg);
 
-    if let Ok(msg_in) = msg_in.into_serde::<ips_cs::Message>() {
-        let msg_out = cs_bs::Message::from(msg_in);
-        log::debug!("CS: Sending message BS: {:?}", msg_out);
-        let js_value = JsValue::from_serde(&msg_out).unwrap();
+    if let Ok(msg) = msg.into_serde::<ToBackground>() {
+        log::debug!("CS: Forwarding message from IPS to BS: {:?}", msg);
+        let msg = JsValue::from_serde(&msg).unwrap();
 
-        // TODO: Handle error response?
-        let _resp = browser.runtime().send_message(None, &js_value, None);
+        // the background script will respond by sending a new
+        // message, so we can ignore this
+        let _ = browser.runtime().send_message(None, &msg, None);
     }
 }

@@ -4,10 +4,7 @@ use crate::{
     wallet_updater::WalletUpdater,
 };
 use js_sys::Promise;
-use message_types::{
-    bs_ps::{self, BackgroundStatus, TransactionData, WalletStatus},
-    Component as MessageComponent,
-};
+use message_types::bs_ps::{BackgroundStatus, ToBackground, TransactionData, WalletStatus};
 use serde::{Deserialize, Serialize};
 use wallet::BalanceEntry;
 use wasm_bindgen::prelude::*;
@@ -50,13 +47,8 @@ impl Component for App {
         log::debug!("PopupApp: creating...");
 
         let inner_link = link.clone();
-        let msg = bs_ps::Message {
-            rpc_data: bs_ps::RpcData::GetWalletStatus,
-            target: MessageComponent::Background,
-            source: MessageComponent::PopUp,
-        };
         send_to_backend(
-            msg,
+            ToBackground::BackgroundStatusRequest,
             Box::new(move |response| {
                 if let Ok(response) = response {
                     if let Ok(msg) = response.into_serde() {
@@ -92,16 +84,11 @@ impl Component for App {
         match msg {
             Msg::UnlockWallet => {
                 let inner_link = self.link.clone();
-                let msg = bs_ps::Message {
-                    rpc_data: bs_ps::RpcData::UnlockWallet(
+                send_to_backend(
+                    ToBackground::UnlockRequest(
                         self.state.wallet_name.clone(),
                         self.state.wallet_password.clone(),
                     ),
-                    target: message_types::Component::Background,
-                    source: message_types::Component::PopUp,
-                };
-                send_to_backend(
-                    msg,
                     Box::new(move |response| {
                         if let Ok(response) = response {
                             if let Ok(status) = response.into_serde() {
@@ -114,16 +101,11 @@ impl Component for App {
             }
             Msg::CreateWallet => {
                 let inner_link = self.link.clone();
-                let msg = bs_ps::Message {
-                    rpc_data: bs_ps::RpcData::CreateWallet(
+                send_to_backend(
+                    ToBackground::CreateWalletRequest(
                         self.state.wallet_name.clone(),
                         self.state.wallet_password.clone(),
                     ),
-                    target: message_types::Component::Background,
-                    source: message_types::Component::PopUp,
-                };
-                send_to_backend(
-                    msg,
                     Box::new(move |response| {
                         if response.is_ok() {
                             inner_link.send_message(Msg::BackgroundStatus(Box::new(
@@ -142,13 +124,8 @@ impl Component for App {
             }
             Msg::SignAndSend { tx_hex, tab_id } => {
                 let inner_link = self.link.clone();
-                let msg = bs_ps::Message {
-                    rpc_data: bs_ps::RpcData::SignAndSend { tx_hex, tab_id },
-                    target: message_types::Component::Background,
-                    source: message_types::Component::PopUp,
-                };
                 send_to_backend(
-                    msg,
+                    ToBackground::SignRequest { tx_hex, tab_id },
                     Box::new(move |response| {
                         if let Ok(response) = response {
                             if let Ok(status) = response.into_serde() {
@@ -267,9 +244,9 @@ fn faucet(address: String) {
     })
 }
 
-fn send_to_backend(message: bs_ps::Message, callback: Box<dyn Fn(Result<JsValue, JsValue>)>) {
+fn send_to_backend(msg: ToBackground, callback: Box<dyn Fn(Result<JsValue, JsValue>)>) {
     spawn_local(async move {
-        let js_value = JsValue::from_serde(&message).unwrap();
+        let js_value = JsValue::from_serde(&msg).unwrap();
         let promise: Promise = browser.runtime().send_message(None, &js_value, None);
         let result = JsFuture::from(promise).await;
         callback(result)

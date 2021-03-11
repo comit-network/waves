@@ -1,11 +1,12 @@
 use anyhow::Context;
-use bs_ps::TransactionData;
 use conquer_once::Lazy;
 use futures::lock::Mutex;
 use js_sys::Promise;
-use message_types::{bs_ps, cs_bs, Component};
+use message_types::{
+    bs_ps::{self, BackgroundStatus, TransactionData, WalletStatus},
+    ToBackground, ToPage,
+};
 use serde::Deserialize;
-use wallet::WalletStatus;
 use wasm_bindgen::{prelude::*, JsCast};
 use wasm_bindgen_extension::browser;
 use wasm_bindgen_futures::{future_to_promise, spawn_local};
@@ -41,46 +42,21 @@ pub fn main() {
     handle_msg.forget();
 }
 
-fn handle_msg(js_value: JsValue, message_sender: JsValue) -> Promise {
-    if !js_value.is_object() {
-        let log = format!("BS: Invalid request: {:?}", js_value);
-        log::error!("{}", log);
-        // TODO introduce error message
-        return Promise::resolve(&JsValue::from_str("Unknown request"));
+fn handle_msg(msg: JsValue, sender: JsValue) -> Promise {
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum Msg {
+        FromContent(ToBackground),
+        FromPopup(bs_ps::ToBackground),
     }
 
-    let msg: message_types::Message = match js_value.into_serde() {
-        Ok(msg) => msg,
-        Err(_) => {
-            log::warn!("BS: Unexpected message: {:?}", js_value);
-            // TODO introduce error message
-            return Promise::resolve(&JsValue::from_str("Unknown request"));
-        }
-    };
+    let sender = sender.into_serde::<MessageSender>().unwrap();
 
-    match (&msg.target, &msg.source) {
-        (Component::Background, Component::PopUp) => {
-            match js_value.into_serde() {
-                Ok(msg) => handle_msg_from_ps(msg),
-                Err(_) => {
-                    log::warn!("BS: Unexpected message: {:?}", js_value);
-                    // TODO introduce error message
-                    Promise::resolve(&JsValue::from_str("Unknown request"))
-                }
-            }
-        }
-        (Component::Background, Component::Content) => {
-            match (js_value.into_serde(), message_sender.into_serde()) {
-                (Ok(msg), Ok(sender)) => handle_msg_from_cs(msg, sender),
-                (_, _) => {
-                    log::warn!("BS: Unexpected message: {:?}", js_value);
-                    // TODO introduce error message
-                    Promise::resolve(&JsValue::from_str("Unknown request"))
-                }
-            }
-        }
-        (_, source) => {
-            log::warn!("BS: Unexpected message from {:?}", source);
+    match msg.into_serde() {
+        Ok(Msg::FromPopup(msg)) => handle_msg_from_ps(msg),
+        Ok(Msg::FromContent(msg)) => handle_msg_from_cs(msg, sender),
+        _ => {
+            log::warn!("BS: Unexpected message: {:?}", msg);
             // TODO introduce error message
             Promise::resolve(&JsValue::from_str("Unknown request"))
         }
@@ -99,33 +75,30 @@ macro_rules! map_err_from_anyhow {
 
 async fn wallet_status(name: String, sign_tx: Option<TransactionData>) -> Result<JsValue, JsValue> {
     let status = map_err_from_anyhow!(wallet::wallet_status(name).await)?;
-    if let WalletStatus {
+    if let wallet::WalletStatus {
         exists: false,
         loaded: false,
     } = status
     {
         log::debug!("Wallet does not exist");
-        return Ok(JsValue::from_serde(&bs_ps::BackgroundStatus::new(
-            bs_ps::WalletStatus::None,
-            sign_tx,
-        ))
-        .unwrap_throw());
+        return Ok(
+            JsValue::from_serde(&BackgroundStatus::new(WalletStatus::None, sign_tx)).unwrap_throw(),
+        );
     }
 
-    if let WalletStatus {
+    if let wallet::WalletStatus {
         exists: true,
         loaded: false,
     } = status
     {
         log::debug!("Wallet exists but not loaded");
-        return Ok(JsValue::from_serde(&bs_ps::BackgroundStatus::new(
-            bs_ps::WalletStatus::NotLoaded,
-            sign_tx,
-        ))
-        .unwrap_throw());
+        return Ok(
+            JsValue::from_serde(&BackgroundStatus::new(WalletStatus::NotLoaded, sign_tx))
+                .unwrap_throw(),
+        );
     }
 
-    if let WalletStatus {
+    if let wallet::WalletStatus {
         exists: false,
         loaded: true,
     } = status
@@ -138,8 +111,8 @@ async fn wallet_status(name: String, sign_tx: Option<TransactionData>) -> Result
         .await
         .context("could not get address"))?;
 
-    Ok(JsValue::from_serde(&bs_ps::BackgroundStatus::new(
-        bs_ps::WalletStatus::Loaded {
+    Ok(JsValue::from_serde(&BackgroundStatus::new(
+        WalletStatus::Loaded {
             address: address.to_string(),
         },
         sign_tx,
@@ -147,56 +120,35 @@ async fn wallet_status(name: String, sign_tx: Option<TransactionData>) -> Result
     .unwrap_throw())
 }
 
-fn handle_msg_from_ps(msg: bs_ps::Message) -> Promise {
-    log::info!("BS: Received message from Popup: {:?}", msg);
-    match msg.rpc_data {
-        bs_ps::RpcData::GetWalletStatus => {
-            log::debug!("Received status request from PS.");
-            future_to_promise(async {
-                let sign_tx = SIGN_TX.lock().await.clone();
-                wallet_status(WALLET_NAME.to_string(), sign_tx).await
-            })
-        }
-        bs_ps::RpcData::CreateWallet(name, password) => {
-            log::debug!("Creating wallet: {} ", name);
-            future_to_promise(async move {
-                map_err_from_anyhow!(wallet::create_new_wallet(name.clone(), password).await)?;
-                log::debug!("wallet created");
-                let sign_tx = SIGN_TX.lock().await.clone();
-                log::debug!("got lock on SIGN_TX");
-                let ret = wallet_status(name.to_string(), sign_tx).await;
-                log::debug!("background status: {:?}", ret);
-                log::debug!("dropping lock on SIGN_TX");
+fn handle_msg_from_ps(msg: bs_ps::ToBackground) -> Promise {
+    log::info!("BS: Received message from PS: {:?}", msg);
 
-                ret
-            })
-        }
-        bs_ps::RpcData::UnlockWallet(name, password) => {
-            log::debug!("Received unlock request from PS");
+    match msg {
+        bs_ps::ToBackground::BackgroundStatusRequest => future_to_promise(async {
+            let sign_tx = SIGN_TX.lock().await.clone();
+            wallet_status(WALLET_NAME.to_string(), sign_tx).await
+        }),
+        bs_ps::ToBackground::CreateWalletRequest(name, password) => future_to_promise(async move {
+            map_err_from_anyhow!(wallet::create_new_wallet(name.clone(), password).await)?;
+            let sign_tx = SIGN_TX.lock().await.clone();
+            wallet_status(name.to_string(), sign_tx).await
+        }),
+        bs_ps::ToBackground::UnlockRequest(name, password) => future_to_promise(async move {
+            map_err_from_anyhow!(
+                wallet::load_existing_wallet(name.clone(), password.clone()).await
+            )?;
+            let sign_tx = SIGN_TX.lock().await.clone();
+            wallet_status(name.to_string(), sign_tx).await
+        }),
+        bs_ps::ToBackground::BalanceRequest => future_to_promise(async move {
+            let balances =
+                map_err_from_anyhow!(wallet::get_balances(WALLET_NAME.to_string()).await)?;
+            let rpc_response = bs_ps::ToPopup::BalanceResponse(balances);
+            let js_value = JsValue::from_serde(&rpc_response).unwrap();
 
-            future_to_promise(async move {
-                map_err_from_anyhow!(
-                    wallet::load_existing_wallet(name.clone(), password.clone()).await
-                )?;
-                let sign_tx = SIGN_TX.lock().await.clone();
-                wallet_status(name.to_string(), sign_tx).await
-            })
-        }
-        bs_ps::RpcData::GetBalance => {
-            log::debug!("Received get balance request from PS.");
-
-            let future = async move {
-                let balances =
-                    map_err_from_anyhow!(wallet::get_balances(WALLET_NAME.to_string()).await)?;
-
-                let rpc_response = bs_ps::RpcData::Balance(balances);
-                let js_value = JsValue::from_serde(&rpc_response).unwrap();
-
-                Ok(js_value)
-            };
-            future_to_promise(future)
-        }
-        bs_ps::RpcData::SignAndSend { tx_hex, tab_id } => {
+            Ok(js_value)
+        }),
+        bs_ps::ToBackground::SignRequest { tx_hex, tab_id } => {
             future_to_promise(async move {
                 let result =
                     wallet::sign_and_send_swap_transaction(WALLET_NAME.to_string(), tx_hex.clone())
@@ -207,12 +159,7 @@ fn handle_msg_from_ps(msg: bs_ps::Message) -> Promise {
                         log::debug!("Received swap txid info {:?}", txid);
                         let _resp = browser.tabs().send_message(
                             tab_id,
-                            JsValue::from_serde(&cs_bs::Message {
-                                rpc_data: cs_bs::RpcData::SwapTxid(txid),
-                                target: Component::Content,
-                                source: Component::Background,
-                            })
-                            .unwrap(),
+                            JsValue::from_serde(&ToPage::SignResponse(txid)).unwrap(),
                             JsValue::null(),
                         );
                     }
@@ -234,33 +181,24 @@ fn handle_msg_from_ps(msg: bs_ps::Message) -> Promise {
                 wallet_status(WALLET_NAME.to_string(), sign_tx).await
             })
         }
-        data => {
-            log::warn!("BS: Unexpected message from PS: {:?}", data);
-            Promise::resolve(&JsValue::from_str("Unknown request"))
-        }
     }
 }
 
-fn handle_msg_from_cs(msg: cs_bs::Message, message_sender: MessageSender) -> Promise {
+fn handle_msg_from_cs(msg: ToBackground, message_sender: MessageSender) -> Promise {
     log::info!("BS: Received from CS: {:?}", &msg);
 
-    match msg.rpc_data {
-        cs_bs::RpcData::GetWalletStatus => {
+    match msg {
+        ToBackground::StatusRequest => {
             spawn_local(async move {
                 let result = wallet::wallet_status(WALLET_NAME.to_string()).await;
                 let tab_id = message_sender.tab.expect("tab id to exist").id;
 
                 match result {
-                    Ok(background_status) => {
-                        log::debug!("Received wallet status info {:?}", background_status);
+                    Ok(payload) => {
+                        log::debug!("Received wallet status info {:?}", payload);
                         let _resp = browser.tabs().send_message(
                             tab_id,
-                            JsValue::from_serde(&cs_bs::Message {
-                                rpc_data: cs_bs::RpcData::WalletStatus(background_status),
-                                target: Component::Content,
-                                source: Component::Background,
-                            })
-                            .unwrap(),
+                            JsValue::from_serde(&ToPage::StatusResponse(payload)).unwrap(),
                             JsValue::null(),
                         );
                     }
@@ -271,7 +209,7 @@ fn handle_msg_from_cs(msg: cs_bs::Message, message_sender: MessageSender) -> Pro
                 }
             });
         }
-        cs_bs::RpcData::GetSellCreateSwapPayload(btc) => {
+        ToBackground::SellRequest(btc) => {
             spawn_local(async move {
                 let result =
                     wallet::make_sell_create_swap_payload(WALLET_NAME.to_string(), btc).await;
@@ -282,12 +220,7 @@ fn handle_msg_from_cs(msg: cs_bs::Message, message_sender: MessageSender) -> Pro
                         log::debug!("Received sell payload info {:?}", payload);
                         let _resp = browser.tabs().send_message(
                             tab_id,
-                            JsValue::from_serde(&cs_bs::Message {
-                                rpc_data: cs_bs::RpcData::SellCreateSwapPayload(payload),
-                                target: Component::Content,
-                                source: Component::Background,
-                            })
-                            .unwrap(),
+                            JsValue::from_serde(&ToPage::SellResponse(payload)).unwrap(),
                             JsValue::null(),
                         );
                     }
@@ -298,7 +231,7 @@ fn handle_msg_from_cs(msg: cs_bs::Message, message_sender: MessageSender) -> Pro
                 }
             });
         }
-        cs_bs::RpcData::GetBuyCreateSwapPayload(usdt) => {
+        ToBackground::BuyRequest(usdt) => {
             spawn_local(async move {
                 let result =
                     wallet::make_buy_create_swap_payload(WALLET_NAME.to_string(), usdt).await;
@@ -309,12 +242,7 @@ fn handle_msg_from_cs(msg: cs_bs::Message, message_sender: MessageSender) -> Pro
                         log::debug!("Received buy payload info {:?}", payload);
                         let _resp = browser.tabs().send_message(
                             tab_id,
-                            JsValue::from_serde(&cs_bs::Message {
-                                rpc_data: cs_bs::RpcData::BuyCreateSwapPayload(payload),
-                                target: Component::Content,
-                                source: Component::Background,
-                            })
-                            .unwrap(),
+                            JsValue::from_serde(&ToPage::BuyResponse(payload)).unwrap(),
                             JsValue::null(),
                         );
                     }
@@ -325,7 +253,7 @@ fn handle_msg_from_cs(msg: cs_bs::Message, message_sender: MessageSender) -> Pro
                 }
             });
         }
-        cs_bs::RpcData::SignAndSend(tx_hex) => spawn_local(async move {
+        ToBackground::SignRequest(tx_hex) => spawn_local(async move {
             let result = wallet::extract_trade(WALLET_NAME.to_string(), tx_hex.clone()).await;
             let tab_id = message_sender.tab.expect("tab id to exist").id;
 
@@ -348,7 +276,6 @@ fn handle_msg_from_cs(msg: cs_bs::Message, message_sender: MessageSender) -> Pro
                 }
             }
         }),
-        _ => {}
     }
 
     Promise::resolve(&JsValue::from("OK"))

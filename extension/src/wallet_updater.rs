@@ -1,8 +1,7 @@
 use crate::event_bus::{EventBus, Request};
 use conquer_once::Lazy;
 use futures::lock::Mutex;
-use js_sys::Promise;
-use message_types::{bs_ps, Component as MessageComponent};
+use message_types::bs_ps::{ToBackground, ToPopup};
 use wasm_bindgen::JsValue;
 use wasm_bindgen_extension::browser;
 use wasm_bindgen_futures::{spawn_local, JsFuture};
@@ -45,34 +44,20 @@ impl Drop for WalletUpdater {
 }
 
 async fn update_wallet_balance(mut event_bus: Dispatcher<EventBus>) {
-    let msg = bs_ps::Message {
-        rpc_data: bs_ps::RpcData::GetBalance,
-        target: MessageComponent::Background,
-        source: MessageComponent::PopUp,
-    };
-
-    let js_value = JsValue::from_serde(&msg).unwrap();
-    let promise: Promise = browser.runtime().send_message(None, &js_value, None);
-    let response = JsFuture::from(promise).await;
-    log::trace!("Wallet status update received: {:?}", response);
+    let msg = JsValue::from_serde(&ToBackground::BalanceRequest).unwrap();
+    let response = JsFuture::from(browser.runtime().send_message(None, &msg, None)).await;
+    log::trace!("Balance update received: {:?}", response);
 
     if let Ok(response) = response {
-        if let Ok(bs_ps::RpcData::Balance(balances)) = response.into_serde() {
+        if let Ok(ToPopup::BalanceResponse(balances)) = response.into_serde() {
             event_bus.send(Request::WalletBalanceUpdate(balances));
         }
     }
 }
 
 async fn update_wallet_status(mut event_bus: Dispatcher<EventBus>) {
-    let msg = bs_ps::Message {
-        rpc_data: bs_ps::RpcData::GetWalletStatus,
-        target: MessageComponent::Background,
-        source: MessageComponent::PopUp,
-    };
-
-    let js_value = JsValue::from_serde(&msg).unwrap();
-    let promise: Promise = browser.runtime().send_message(None, &js_value, None);
-    let response = JsFuture::from(promise).await;
+    let msg = JsValue::from_serde(&ToBackground::BackgroundStatusRequest).unwrap();
+    let response = JsFuture::from(browser.runtime().send_message(None, &msg, None)).await;
     log::trace!("Wallet status update received: {:?}", response);
 
     if let Ok(response) = response {

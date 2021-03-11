@@ -1,8 +1,7 @@
-use anyhow::Result;
 extern crate console_error_panic_hook;
 use futures::channel::oneshot;
 use js_sys::{global, Object, Promise};
-use message_types::{ips_cs, Component};
+use message_types::{ToBackground, ToPage};
 use wasm_bindgen::{prelude::*, JsCast};
 use wasm_bindgen_futures::future_to_promise;
 use web_sys::MessageEvent;
@@ -72,35 +71,18 @@ macro_rules! send_to_cs {
 macro_rules! create_listener {
     ($sender:expr, $msg_type:path) => {{
         let func = move |msg: MessageEvent| {
-            let js_value: JsValue = msg.data();
+            let msg = msg.data();
 
-            let message: Result<ips_cs::Message, _> = js_value.into_serde();
-            if let Ok(ips_cs::Message {
-                target,
-                rpc_data,
-                source,
-            }) = &message
-            {
-                match (target, source) {
-                    (Component::InPage, Component::Content) => {}
-                    (_, _) => {
-                        log::warn!("IPS: Unexpected message from: {:?}", message);
-                        return;
-                    }
-                }
+            log::trace!("IPS: Received message from CS: {:?}", msg);
 
-                log::info!("IPS: Received response from CS: {:?}", rpc_data);
-                match rpc_data {
-                    $msg_type(payload) => {
-                        $sender
-                            .take()
-                            .expect("only send response once")
-                            .send(JsValue::from_serde(payload).unwrap())
-                            .unwrap();
-                    }
-                    rpc_data => {
-                        log::warn!("Received unsupported message from CS: {:?}", rpc_data);
-                    }
+            if let Ok(msg) = msg.into_serde::<ToPage>() {
+                log::info!("IPS: Received response from CS: {:?}", msg);
+                if let $msg_type(payload) = msg {
+                    $sender
+                        .take()
+                        .expect("only send response once")
+                        .send(JsValue::from_serde(&payload).unwrap())
+                        .unwrap();
                 }
             }
         };
@@ -112,46 +94,26 @@ macro_rules! create_listener {
 
 #[wasm_bindgen]
 pub fn wallet_status() -> Promise {
-    let js_value = JsValue::from_serde(&ips_cs::Message {
-        rpc_data: ips_cs::RpcData::GetWalletStatus,
-        target: Component::Content,
-        source: Component::InPage,
-    })
-    .unwrap();
-    send_to_cs!(js_value, ips_cs::RpcData::WalletStatus)
+    let msg = JsValue::from_serde(&ToBackground::StatusRequest).unwrap();
+    send_to_cs!(msg, ToPage::StatusResponse)
 }
 
 #[wasm_bindgen]
 pub fn get_sell_create_swap_payload(btc: String) -> Promise {
-    let js_value = JsValue::from_serde(&ips_cs::Message {
-        rpc_data: ips_cs::RpcData::GetSellCreateSwapPayload(btc),
-        target: Component::Content,
-        source: Component::InPage,
-    })
-    .unwrap();
-    send_to_cs!(js_value, ips_cs::RpcData::SellCreateSwapPayload)
+    let msg = JsValue::from_serde(&ToBackground::SellRequest(btc)).unwrap();
+    send_to_cs!(msg, ToPage::SellResponse)
 }
 
 #[wasm_bindgen]
 pub fn get_buy_create_swap_payload(usdt: String) -> Promise {
-    let js_value = JsValue::from_serde(&ips_cs::Message {
-        rpc_data: ips_cs::RpcData::GetBuyCreateSwapPayload(usdt),
-        target: Component::Content,
-        source: Component::InPage,
-    })
-    .unwrap();
-    send_to_cs!(js_value, ips_cs::RpcData::BuyCreateSwapPayload)
+    let msg = JsValue::from_serde(&ToBackground::BuyRequest(usdt)).unwrap();
+    send_to_cs!(msg, ToPage::BuyResponse)
 }
 
 #[wasm_bindgen]
 pub fn sign_and_send(tx_hex: String) -> Promise {
-    let js_value = JsValue::from_serde(&ips_cs::Message {
-        rpc_data: ips_cs::RpcData::SignAndSend(tx_hex),
-        target: Component::Content,
-        source: Component::InPage,
-    })
-    .unwrap();
-    send_to_cs!(js_value, ips_cs::RpcData::SwapTxid)
+    let msg = JsValue::from_serde(&ToBackground::SignRequest(tx_hex)).unwrap();
+    send_to_cs!(msg, ToPage::SignResponse)
 }
 
 struct Listener<F>
