@@ -133,7 +133,6 @@ start_extension () {
 
     build_extension
 
-    cd extension
     yarn run start-dev
 }
 
