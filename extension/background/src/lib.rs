@@ -304,7 +304,7 @@ async fn increment_badge_counter() {
     set_badge(new_counter);
 }
 
-fn set_badge(counter: u8) {
+fn set_badge(counter: u32) {
     let counter = if counter == 0 {
         "".to_string()
     } else {
