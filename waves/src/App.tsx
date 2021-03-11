@@ -226,18 +226,16 @@ function App() {
         rate,
     );
 
-    let walletBalances;
-
     async function unlock_wallet() {
         // TODO send request to open popup to unlock wallet
         debug("For now open popup manually...");
-        await reloadWalletStatus;
+        await reloadWalletStatus();
     }
 
     async function get_extension() {
         // TODO forward to firefox app store
         debug("Download our awesome extension from...");
-        await reloadWalletStatus;
+        await reloadWalletStatus();
     }
 
     let swapButton;
@@ -278,7 +276,9 @@ function App() {
     return (
         <Box className="App">
             <header className="App-header">
-                {walletBalances}
+                <Center>
+                    <Image src={COMIT} h="24px" />
+                </Center>
             </header>
             <Center className="App-body">
                 <Switch>
@@ -331,12 +331,6 @@ function App() {
                     </Route>
                 </Switch>
             </Center>
-
-            <footer className="App-footer">
-                <Center>
-                    <Image src={COMIT} h="24px" />
-                </Center>
-            </footer>
         </Box>
     );
 }
