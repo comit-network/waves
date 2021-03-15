@@ -161,6 +161,15 @@ fn handle_msg_from_ps(msg: bs_ps::ToBackground) -> Promise {
                 Ok(msg)
             })
         }
+
+        bs_ps::ToBackground::WithdrawAll(address) => future_to_promise(async move {
+            let txid = map_err_from_anyhow!(
+                wallet::withdraw_everything_to(WALLET_NAME.to_string(), address).await
+            )?;
+            let js_value = JsValue::from_serde(&txid).unwrap();
+
+            Ok(js_value)
+        }),
     }
 }
 

@@ -4,27 +4,50 @@ use ybc::TileCtx::{Ancestor, Child, Parent};
 use yew::{prelude::*, Component, ComponentLink, Html, Properties};
 
 pub struct WalletDetails {
+    link: ComponentLink<Self>,
     props: Props,
+    withdraw_address: String,
 }
 
 #[derive(Debug, PartialEq, Properties, Clone)]
 pub struct Props {
     pub address: String,
     pub balances: Vec<BalanceEntry>,
+    pub on_withdraw_all: Callback<String>,
+    pub loading: bool,
 }
 
-pub enum Msg {}
+pub enum Msg {
+    UpdateWithdrawAddress(String),
+    WithdrawAll,
+}
 
 impl Component for WalletDetails {
     type Message = Msg;
     type Properties = Props;
 
-    fn create(props: Self::Properties, _link: ComponentLink<Self>) -> Self {
-        WalletDetails { props }
+    fn create(props: Self::Properties, link: ComponentLink<Self>) -> Self {
+        WalletDetails {
+            props,
+            withdraw_address: "".to_string(),
+            link,
+        }
     }
 
-    fn update(&mut self, _msg: Self::Message) -> bool {
-        false
+    fn update(&mut self, msg: Self::Message) -> bool {
+        match msg {
+            Msg::UpdateWithdrawAddress(a) => {
+                self.withdraw_address = a;
+                false
+            }
+            Msg::WithdrawAll => {
+                self.props.loading = true;
+                self.props
+                    .on_withdraw_all
+                    .emit(self.withdraw_address.clone());
+                true
+            }
+        }
     }
 
     fn change(&mut self, props: Self::Properties) -> bool {
@@ -38,7 +61,9 @@ impl Component for WalletDetails {
     }
 
     fn view(&self) -> Html {
-        let Props { address, balances } = &self.props;
+        let Props {
+            address, balances, ..
+        } = &self.props;
         let address_svg_string = QrCode::with_error_correction_level(address, qrcode::EcLevel::H)
             .map(|code| {
                 code.render::<svg::Color>()
@@ -72,6 +97,32 @@ impl Component for WalletDetails {
                                 classes="is-rounded has-fixed-size data-cy-wallet-address-text-field"
                                 value={address}>
                             </ybc::TextArea>
+                        </ybc::Tile>
+                        <ybc::Tile>
+                            <ybc::Tile ctx=Child classes="box">
+                                <ybc::Field addons=true>
+                                    <ybc::Control classes="has-icons-right is-expended">
+                                        <ybc::Input
+                                            name="address"
+                                            value=self.withdraw_address.clone()
+                                            update=self.link.callback(|e| Msg::UpdateWithdrawAddress(e))
+                                            r#type=ybc::InputType::Text
+                                            placeholder="Withdraw everything to">
+                                        </ybc::Input>
+                                    </ybc::Control>
+                                    <ybc::Control>
+                                        <ybc::Button
+                                            onclick=self.link.callback(|_| Msg::WithdrawAll)
+                                            loading=self.props.loading
+                                            classes="is-primary">
+                                            <ybc::Icon classes="is-small is-right">
+                                                <i class="fas fa-share"></i>
+                                            </ybc::Icon>
+                                        </ybc::Button>
+                                    </ybc::Control>
+                                </ybc::Field>
+                            </ybc::Tile>
+
                         </ybc::Tile>
                     </ybc::Tile>
 
