@@ -5,32 +5,6 @@ import { BrowserRouter } from "react-router-dom";
 import App, { Asset, reducer } from "./App";
 import calculateBetaAmount from "./calculateBetaAmount";
 
-// implementation of customSource does not matter but functions need to be there
-class DummySource implements Source {
-    addEventListener(name: string, listener: Listener) {
-    }
-
-    close() {
-    }
-
-    removeEventListener(name: string, listener: Listener) {
-    }
-}
-
-test("if rendering works by asserting `create new wallet` button", () => {
-    act(() => {
-        render(
-            <SSEProvider source={() => new DummySource()}>
-                <BrowserRouter>
-                    <App />
-                </BrowserRouter>
-            </SSEProvider>,
-        );
-    });
-    const linkElement = screen.getByText(/Create wallet/i);
-    expect(linkElement).toBeInTheDocument();
-});
-
 const defaultState = {
     alpha: {
         type: Asset.LBTC,

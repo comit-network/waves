@@ -1,29 +1,21 @@
 import { ExternalLinkIcon } from "@chakra-ui/icons";
-import { Box, Button, Center, Flex, Image, Link, Text, useDisclosure, VStack } from "@chakra-ui/react";
-import React, { useEffect, useReducer, useState } from "react";
+import { Box, Button, Center, Flex, Image, Link, Text, VStack } from "@chakra-ui/react";
+import { useToast } from "@chakra-ui/react";
+import Debug from "debug";
+import React, { useEffect, useReducer } from "react";
 import { useAsync } from "react-async";
 import { useSSE } from "react-hooks-sse";
 import { Route, Switch, useHistory, useParams } from "react-router-dom";
-import useSWR from "swr";
 import "./App.css";
 import { postBuyPayload, postSellPayload } from "./Bobtimus";
 import calculateBetaAmount, { getDirection } from "./calculateBetaAmount";
 import AssetSelector from "./components/AssetSelector";
 import COMIT from "./components/comit_logo_spellout_opacity_50.svg";
 import ExchangeIcon from "./components/ExchangeIcon";
-import ConfirmSwapDrawer from "./ConfirmSwapDrawer";
-import CreateWalletDrawer from "./CreateWalletDrawer";
-import UnlockWalletDrawer from "./UnlockWalletDrawer";
-import WalletBalances from "./WalletBalances";
-import WalletDrawer from "./WalletDrawer";
-import {
-    extractTrade,
-    getBalances,
-    getWalletStatus,
-    makeBuyCreateSwapPayload,
-    makeSellCreateSwapPayload,
-    Trade,
-} from "./wasmProxy";
+import { getWalletStatus, makeBuyCreateSwapPayload, makeSellCreateSwapPayload, signAndSend } from "./wasmProxy";
+
+const debug = Debug("App");
+const error = Debug("App:error");
 
 export enum Asset {
     LBTC = "L-BTC",
@@ -176,6 +168,7 @@ export function reducer(state: State = initialState, action: Action) {
 
 function App() {
     const history = useHistory();
+    const toast = useToast();
     const path = history.location.pathname;
 
     useEffect(() => {
@@ -184,7 +177,6 @@ function App() {
         }
     }, [path, history]);
 
-    const [[transaction, trade], setTransaction] = useState<[string, Trade]>(["", {} as any]);
     const [state, dispatch] = useReducer(reducer, initialState);
 
     const rate = useSSE("rate", {
@@ -192,52 +184,61 @@ function App() {
         bid: 33670.10,
     });
 
-    let { isOpen: isUnlockWalletOpen, onClose: onUnlockWalletClose, onOpen: onUnlockWalletOpen } = useDisclosure();
-    let { isOpen: isCreateWalletOpen, onClose: onCreateWalletClose, onOpen: onCreateWalletOpen } = useDisclosure();
-    let { isOpen: isConfirmSwapOpen, onClose: onConfirmSwapClose, onOpen: onConfirmSwapOpen } = useDisclosure();
-    let { isOpen: isWalletOpen, onClose: onWalletClose, onOpen: onWalletOpen } = useDisclosure();
-
-    let { data: getWalletStatusResponse, isLoading, reload: reloadWalletStatus } = useAsync({
+    let { data: walletStatus, reload: reloadWalletStatus, error: walletStatusError } = useAsync({
         promiseFn: getWalletStatus,
     });
-    let walletStatus = getWalletStatusResponse || { exists: false, loaded: false };
 
-    let { data: getBalancesResponse, mutate: reloadWalletBalances } = useSWR(
-        () => walletStatus.loaded ? "wallet-balances" : null,
-        () => getBalances(),
-        {
-            refreshInterval: 5000,
-        },
-    );
-    let balances = getBalancesResponse || [];
+    useEffect(() => {
+        let callback = (_message: MessageEvent) => {};
+        // @ts-ignore
+        if (!window.wallet_status) {
+            callback = async (message: MessageEvent) => {
+                debug("Received message: %s", message.data);
+                await reloadWalletStatus();
+            };
+        }
+        window.addEventListener("message", callback);
 
-    let btcBalanceEntry = balances.find(
-        balance => balance.ticker === Asset.LBTC,
-    );
-    let usdtBalanceEntry = balances.find(
-        balance => balance.ticker === Asset.USDT,
-    );
-
-    const btcBalance = btcBalanceEntry ? btcBalanceEntry.value : 0;
-    const usdtBalance = usdtBalanceEntry ? usdtBalanceEntry.value : 0;
+        return () => window.removeEventListener("message", callback);
+    });
 
     let { run: makeNewSwap, isLoading: isCreatingNewSwap } = useAsync({
         deferFn: async () => {
             let payload;
             let tx;
-            if (state.alpha.type === Asset.LBTC) {
-                payload = await makeSellCreateSwapPayload(state.alpha.amount.toString());
-                tx = await postSellPayload(payload);
-            } else {
-                payload = await makeBuyCreateSwapPayload(state.alpha.amount.toString());
-                tx = await postBuyPayload(payload);
+            try {
+                if (state.alpha.type === Asset.LBTC) {
+                    payload = await makeSellCreateSwapPayload(state.alpha.amount.toString());
+                    tx = await postSellPayload(payload);
+                } else {
+                    payload = await makeBuyCreateSwapPayload(state.alpha.amount.toString());
+                    tx = await postBuyPayload(payload);
+                }
+
+                let txid = await signAndSend(tx);
+
+                history.push(`/swapped/${txid}`);
+            } catch (e) {
+                let description: string;
+                if (e.InsufficientFunds) {
+                    // TODO: Include alpha asset type in message
+                    description = `Insufficient funds in wallet: expected ${e.InsufficientFunds.needed},
+                         got ${e.InsufficientFunds.available}`;
+                } else if (e === "Rejected") {
+                    description = "Swap not authorised by wallet extension";
+                } else {
+                    description = JSON.stringify(e);
+                    error(e);
+                }
+
+                toast({
+                    title: "Error",
+                    description,
+                    status: "error",
+                    duration: 9000,
+                    isClosable: true,
+                });
             }
-
-            let trade = await extractTrade(tx);
-
-            setTransaction([tx, trade]);
-
-            onConfirmSwapOpen();
         },
     });
 
@@ -248,46 +249,60 @@ function App() {
         rate,
     );
 
-    let walletBalances;
-
-    if (!walletStatus.exists) {
-        walletBalances = <Button
-            onClick={onCreateWalletOpen}
-            size="sm"
-            variant="primary"
-            isLoading={isLoading}
-            data-cy="create-wallet-button"
-        >
-            Create wallet
-        </Button>;
-    } else if (walletStatus.exists && !walletStatus.loaded) {
-        walletBalances = <Button
-            onClick={onUnlockWalletOpen}
-            size="sm"
-            variant="primary"
-            isLoading={isLoading}
-            data-cy="unlock-wallet-button"
-        >
-            Unlock wallet
-        </Button>;
-    } else {
-        walletBalances = <WalletBalances
-            balances={{
-                usdt: usdtBalance,
-                btc: btcBalance,
-            }}
-            onClick={onWalletOpen}
-        />;
+    async function unlock_wallet() {
+        // TODO send request to open popup to unlock wallet
+        debug("For now open popup manually...");
+        await reloadWalletStatus();
     }
 
-    let isSwapButtonDisabled = state.alpha.type === Asset.LBTC
-        ? btcBalance < alphaAmount
-        : usdtBalance < alphaAmount;
+    async function get_extension() {
+        // TODO forward to firefox app store
+        debug("Download our awesome extension from...");
+        await reloadWalletStatus();
+    }
+
+    let swapButton;
+    if (walletStatusError) {
+        error(walletStatusError);
+        swapButton = <Button
+            onClick={async () => {
+                await get_extension();
+            }}
+            variant="primary"
+            w="15rem"
+            data-cy="get-extension-button"
+        >
+            Get Extension
+        </Button>;
+    } else if (walletStatus && (!walletStatus.exists || !walletStatus.loaded)) {
+        swapButton = <Button
+            onClick={async () => {
+                await unlock_wallet();
+            }}
+            variant="primary"
+            w="15rem"
+            data-cy="unlock-wallet-button"
+        >
+            Unlock Wallet
+        </Button>;
+    } else {
+        swapButton = <Button
+            onClick={makeNewSwap}
+            variant="primary"
+            w="15rem"
+            isLoading={isCreatingNewSwap}
+            data-cy="swap-button"
+        >
+            Swap
+        </Button>;
+    }
 
     return (
         <Box className="App">
             <header className="App-header">
-                {walletBalances}
+                <Center>
+                    <Image src={COMIT} h="24px" />
+                </Center>
             </header>
             <Center className="App-body">
                 <Switch>
@@ -325,16 +340,7 @@ function App() {
                             </Flex>
                             <RateInfo rate={rate} direction={getDirection(state.alpha.type)} />
                             <Box>
-                                <Button
-                                    onClick={makeNewSwap}
-                                    variant="primary"
-                                    w="15rem"
-                                    isLoading={isCreatingNewSwap}
-                                    disabled={isSwapButtonDisabled}
-                                    data-cy="swap-button"
-                                >
-                                    Swap
-                                </Button>
+                                {swapButton}
                             </Box>
                         </VStack>
                     </Route>
@@ -349,46 +355,6 @@ function App() {
                     </Route>
                 </Switch>
             </Center>
-            {isWalletOpen && <WalletDrawer
-                balances={{
-                    usdt: usdtBalance,
-                    btc: btcBalance,
-                }}
-                onClose={onWalletClose}
-                reloadBalances={async () => {
-                    await reloadWalletBalances();
-                }}
-            />}
-            {isUnlockWalletOpen && <UnlockWalletDrawer
-                onCancel={onUnlockWalletClose}
-                onUnlock={async () => {
-                    await reloadWalletBalances();
-                    await reloadWalletStatus();
-                    onUnlockWalletClose();
-                }}
-            />}
-            {isCreateWalletOpen && <CreateWalletDrawer
-                onCancel={onCreateWalletClose}
-                onCreate={async () => {
-                    await reloadWalletStatus();
-                    onCreateWalletClose();
-                }}
-            />}
-            {isConfirmSwapOpen && <ConfirmSwapDrawer
-                onCancel={onConfirmSwapClose}
-                onSwapped={(txId) => {
-                    history.push(`/swapped/${txId}`);
-                    onConfirmSwapClose();
-                }}
-                transaction={transaction}
-                trade={trade}
-            />}
-
-            <footer className="App-footer">
-                <Center>
-                    <Image src={COMIT} h="24px" />
-                </Center>
-            </footer>
         </Box>
     );
 }
