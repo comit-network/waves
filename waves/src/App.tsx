@@ -191,7 +191,7 @@ function App() {
     useEffect(() => {
         let callback = (_message: MessageEvent) => {};
         // @ts-ignore
-        if (!window.wallet_status) {
+        if (!window.liquid) {
             callback = async (message: MessageEvent) => {
                 debug("Received message: %s", message.data);
                 await reloadWalletStatus();

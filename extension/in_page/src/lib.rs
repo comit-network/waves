@@ -2,9 +2,46 @@ extern crate console_error_panic_hook;
 use futures::channel::oneshot;
 use js_sys::{global, Object, Promise};
 use message_types::ips_bs::{ToBackground, ToPage};
+use serde::Serialize;
 use wasm_bindgen::{prelude::*, JsCast};
 use wasm_bindgen_futures::future_to_promise;
 use web_sys::MessageEvent;
+
+#[wasm_bindgen]
+#[derive(Default, Serialize)]
+pub struct Liquid {}
+
+#[wasm_bindgen]
+impl Liquid {
+    #[wasm_bindgen(constructor)]
+    pub fn new() -> Self {
+        Liquid {}
+    }
+
+    #[wasm_bindgen]
+    pub fn wallet_status(&self) -> Promise {
+        let msg = JsValue::from_serde(&ToBackground::WalletStatusRequest).unwrap();
+        send_to_cs!(msg, ToPage::StatusResponse)
+    }
+
+    #[wasm_bindgen]
+    pub fn get_sell_create_swap_payload(&self, btc: String) -> Promise {
+        let msg = JsValue::from_serde(&ToBackground::SellRequest(btc)).unwrap();
+        send_to_cs!(msg, ToPage::SellResponse)
+    }
+
+    #[wasm_bindgen]
+    pub fn get_buy_create_swap_payload(&self, usdt: String) -> Promise {
+        let msg = JsValue::from_serde(&ToBackground::BuyRequest(usdt)).unwrap();
+        send_to_cs!(msg, ToPage::BuyResponse)
+    }
+
+    #[wasm_bindgen]
+    pub fn sign_and_send(&self, tx_hex: String) -> Promise {
+        let msg = JsValue::from_serde(&ToBackground::SignRequest(tx_hex)).unwrap();
+        send_to_cs!(msg, ToPage::SignResponse)
+    }
+}
 
 #[wasm_bindgen(start)]
 pub fn main() {
@@ -15,38 +52,16 @@ pub fn main() {
     log::info!("IPS: Hello World");
 
     let global: Object = global();
+    let liquid = Liquid::new();
 
-    let boxed = Box::new(wallet_status) as Box<dyn Fn() -> Promise>;
-    let closure = Closure::wrap(boxed).into_js_value();
-    js_sys::Reflect::set(&global, &JsValue::from("wallet_status"), &closure).unwrap();
-
-    let boxed = Box::new(get_sell_create_swap_payload) as Box<dyn Fn(String) -> Promise>;
-    let closure = Closure::wrap(boxed).into_js_value();
-    js_sys::Reflect::set(
-        &global,
-        &JsValue::from("get_sell_create_swap_payload"),
-        &closure,
-    )
-    .unwrap();
-
-    let boxed = Box::new(get_buy_create_swap_payload) as Box<dyn Fn(String) -> Promise>;
-    let closure = Closure::wrap(boxed).into_js_value();
-    js_sys::Reflect::set(
-        &global,
-        &JsValue::from("get_buy_create_swap_payload"),
-        &closure,
-    )
-    .unwrap();
-
-    let boxed = Box::new(sign_and_send) as Box<dyn Fn(String) -> Promise>;
-    let closure = Closure::wrap(boxed).into_js_value();
-    js_sys::Reflect::set(&global, &JsValue::from("sign_and_send"), &closure).unwrap();
+    js_sys::Reflect::set(&global, &JsValue::from("liquid"), &JsValue::from(liquid)).unwrap();
 
     let window = web_sys::window().expect("no global `window` exists");
     let js_value = JsValue::from("IPS_injected");
     window.post_message(&js_value, "*").unwrap();
 }
 
+#[macro_export]
 macro_rules! send_to_cs {
     ($js_value:ident, $msg_type:path) => {{
         let (sender, receiver) = oneshot::channel::<Result<JsValue, JsValue>>();
@@ -68,6 +83,7 @@ macro_rules! send_to_cs {
     }};
 }
 
+#[macro_export]
 macro_rules! create_listener {
     ($sender:expr, $msg_type:path) => {{
         let func = move |msg: MessageEvent| {

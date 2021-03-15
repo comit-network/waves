@@ -38,44 +38,44 @@ export interface TradeSide {
 
 export async function getWalletStatus(): Promise<WalletStatus> {
     // @ts-ignore
-    if (typeof window.wallet_status === "undefined") {
+    if (typeof window.liquid === "undefined") {
         debug("wallet_status not found. CS not yet defined? ");
         return Promise.reject("wallet_status undefined");
     }
     // @ts-ignore
-    return await window.wallet_status();
+    return await window.liquid.wallet_status();
 }
 
 export async function makeSellCreateSwapPayload(
     btc: string,
 ): Promise<CreateSwapPayload> {
     // @ts-ignore
-    if (!window.get_sell_create_swap_payload) {
+    if (!window.liquid.get_sell_create_swap_payload) {
         return Promise.reject("get_sell_create_swap_payload undefined");
     }
     // @ts-ignore
-    return await window.get_sell_create_swap_payload(btc);
+    return await window.liquid.get_sell_create_swap_payload(btc);
 }
 
 export async function makeBuyCreateSwapPayload(
     usdt: string,
 ): Promise<CreateSwapPayload> {
     // @ts-ignore
-    if (!window.get_buy_create_swap_payload) {
+    if (!window.liquid.get_buy_create_swap_payload) {
         return Promise.reject("get_buy_create_swap_payload undefined");
     }
     // @ts-ignore
-    return await window.get_buy_create_swap_payload(usdt);
+    return await window.liquid.get_buy_create_swap_payload(usdt);
 }
 
 export async function signAndSend(
     transaction: string,
 ): Promise<string> {
     // @ts-ignore
-    if (!window.sign_and_send) {
+    if (!window.liquid.sign_and_send) {
         return Promise.reject("sign_and_send undefined");
     }
 
     // @ts-ignore
-    return await window.sign_and_send(transaction);
+    return await window.liquid.sign_and_send(transaction);
 }
