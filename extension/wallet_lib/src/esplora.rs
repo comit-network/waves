@@ -1,4 +1,4 @@
-use crate::constants::ESPLORA_API_URL;
+use crate::{cache_storage::CacheStorage, constants::ESPLORA_API_URL};
 use anyhow::{anyhow, bail, Context, Result};
 use elements::{
     encode::{deserialize, serialize_hex},
@@ -35,16 +35,12 @@ pub async fn fetch_utxos(address: &Address) -> Result<Vec<Utxo>> {
 
 /// Fetches a transaction.
 ///
-/// This function should make use of the browsers cache or local storage to avoid spamming
-/// the underlying source, but said feature is currently disabled.
-/// See https://github.com/comit-network/waves/issues/143.
+/// This function makes use of the browsers local storage to avoid spamming the underlying source.
 /// Transaction never change after they've been mined, hence we can cache those indefinitely.
 pub async fn fetch_transaction(txid: Txid) -> Result<Transaction> {
-    let client = reqwest::Client::new();
-
-    let body = client
-        .get(&format!("{}/tx/{}/hex", ESPLORA_API_URL, txid))
-        .send()
+    let cache = CacheStorage::new()?;
+    let body = cache
+        .match_or_add(&format!("{}/tx/{}/hex", ESPLORA_API_URL, txid))
         .await?
         .text()
         .await?;
