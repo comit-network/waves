@@ -1,6 +1,6 @@
 #!/bin/bash
 
-start_dev_env () {
+start_webapp_dev_env () {
     set -e
 
     start_nodes
@@ -11,6 +11,20 @@ start_dev_env () {
     start_bobtimus
 
     start_webapp
+}
+
+start_extension_dev_env () {
+    set -e
+
+    start_nodes
+
+    load_native_asset
+    mint_usdt
+
+    build_webapp
+    start_bobtimus
+
+    start_extension
 }
 
 stop_dev_env () {
@@ -107,10 +121,14 @@ start_bobtimus () {
 start_webapp () {
     set -e
 
-    if [ ! -f ".native_asset_id" ]; then
-        echo "Native asset id not configured."
-        exit 1
-    fi
+    build_webapp
+
+    cd waves
+    yarn run start
+}
+
+build_webapp () {
+    set -e
 
     __read_env_file
 
@@ -118,10 +136,22 @@ start_webapp () {
     yarn install
     export REACT_APP_BLOCKEXPLORER_URL="http://localhost:$LIQUID_ESPLORA_PORT"
 
-    yarn start
+    yarn run build
+
+    cd ..
 }
 
+
 start_extension () {
+    set -e
+
+    build_extension
+
+    cd extension
+    yarn run start-dev
+}
+
+build_extension () {
     set -e
 
     if [ ! -f ".native_asset_id" ]; then
@@ -131,12 +161,6 @@ start_extension () {
 
     __read_env_file
 
-    build_extension
-
-    yarn run start-dev
-}
-
-build_extension () {
     cd extension
     yarn install
     export NATIVE_ASSET_ID=$(cat ../.native_asset_id)
@@ -149,6 +173,8 @@ build_extension () {
     echo "export ESPLORA_API_URL=$ESPLORA_API_URL"
 
     yarn run build
+
+    cd ..
 }
 
 stop_nodes () {
