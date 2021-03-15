@@ -3,6 +3,7 @@ use crate::{
     event_bus::{EventBus, Response},
     wallet_updater::WalletUpdater,
 };
+use elements::Txid;
 use js_sys::Promise;
 use message_types::bs_ps::{BackgroundStatus, ToBackground, TransactionData, WalletStatus};
 use serde::{Deserialize, Serialize};
@@ -29,6 +30,7 @@ pub enum Msg {
     BalanceUpdate(Vec<BalanceEntry>),
     SignAndSend { tx_hex: String, tab_id: u32 },
     Reject { tx_hex: String, tab_id: u32 },
+    WithdrawAll(String),
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -38,6 +40,7 @@ pub struct State {
     wallet_status: WalletStatus,
     wallet_balances: Vec<BalanceEntry>,
     sign_tx: Option<TransactionData>,
+    is_withdrawing: bool,
 }
 
 impl Component for App {
@@ -75,6 +78,7 @@ impl Component for App {
                 wallet_status: WalletStatus::None,
                 sign_tx: None,
                 wallet_balances: vec![],
+                is_withdrawing: false,
             },
             _event_bus: EventBus::bridge(callback),
             _wallet_updater: wallet_updater,
@@ -155,6 +159,20 @@ impl Component for App {
                 self.state.wallet_balances = balances;
                 true
             }
+            Msg::WithdrawAll(address) => {
+                send_to_backend(
+                    ToBackground::WithdrawAll(address),
+                    Box::new(move |txid| {
+                        if let Ok(txid) = txid {
+                            if let Ok(txid) = txid.into_serde::<Txid>() {
+                                log::debug!("Withdrawn everything to: {}", txid)
+                            }
+                        }
+                    }),
+                );
+                self.state.is_withdrawing = false;
+                true
+            }
         }
     }
 
@@ -187,7 +205,12 @@ impl Component for App {
                 ..
             } => {
                 html! {
-                    <WalletDetails address=address balances=wallet_balances></WalletDetails>
+                    <WalletDetails
+                        address=address
+                        balances=wallet_balances
+                        loading=self.state.is_withdrawing
+                        on_withdraw_all=self.link.callback(|address| Msg::WithdrawAll(address))
+                        ></WalletDetails>
                 }
             }
             State {
