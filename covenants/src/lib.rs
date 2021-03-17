@@ -1,8 +1,10 @@
 #[cfg(test)]
 mod tests {
+    use elements::bitcoin::util::psbt::serialize::Serialize;
     use elements::confidential::{Asset, Value};
     use elements::opcodes::all::{
-        OP_CAT, OP_CHECKSIGFROMSTACK, OP_CHECKSIGVERIFY, OP_OVER, OP_PICK, OP_SHA256,
+        OP_ADD, OP_CAT, OP_CHECKSIGFROMSTACK, OP_CHECKSIGVERIFY, OP_EQUALVERIFY, OP_NUMEQUAL,
+        OP_NUMEQUALVERIFY, OP_OVER, OP_PICK, OP_PUSHNUM_1, OP_SHA256,
     };
     use elements::script::Builder;
     use elements::secp256k1::rand::thread_rng;
@@ -11,6 +13,7 @@ mod tests {
     use elements::{
         bitcoin::{Amount, Network, PrivateKey, PublicKey},
         hashes::Hash,
+        opcodes, Script,
     };
     use elements::{
         Address, AddressParams, OutPoint, SigHashType, Transaction, TxIn, TxInWitness, TxOut,
@@ -18,6 +21,20 @@ mod tests {
     use elements_harness::Client;
     use elements_harness::Elementsd;
     use testcontainers::clients::Cli;
+
+    fn make_keypair() -> (SecretKey, PublicKey) {
+        let sk = SecretKey::new(&mut thread_rng());
+        let pk = PublicKey::from_private_key(
+            &SECP256K1,
+            &PrivateKey {
+                compressed: true,
+                network: Network::Regtest,
+                key: sk,
+            },
+        );
+
+        (sk, pk)
+    }
 
     #[tokio::test]
     async fn it_works() {
@@ -33,30 +50,11 @@ mod tests {
         };
         let asset_id_lbtc = client.get_bitcoin_asset_id().await.unwrap();
 
-        // create covenants script
-
         let (sk, pk) = make_keypair();
-        // <signature>
-        // <sigTransactionData>
-
-        //     OP_OVER OP_SHA256 <pubKey>
-        //     2 OP_PICK 1 OP_CAT OP_OVER
-        //     OP_CHECKSIGVERIFY
-        //     OP_CHECKSIGFROMSTACKVERIFY
-        let covenant_script = Builder::new()
-            // .push_opcode(OP_OVER)
-            // .push_opcode(OP_SHA256)
-            // .push_slice(&pk.key.serialize())
-            // .push_int(2)
-            // .push_opcode(OP_PICK)
-            // .push_int(1)
-            // .push_opcode(OP_CAT)
-            // .push_opcode(OP_OVER)
-            // .push_opcode(OP_CHECKSIGVERIFY)
+        let script = Builder::new()
             .push_opcode(OP_CHECKSIGFROMSTACK)
             .into_script();
-
-        let address = Address::p2wsh(&covenant_script, None, &AddressParams::ELEMENTS);
+        let address = Address::p2wsh(&script, None, &AddressParams::ELEMENTS);
 
         // fund covenants address
         let funding_amount = 100_000_000;
@@ -106,54 +104,42 @@ mod tests {
             ],
         };
 
-        let mut signing_data = Vec::new();
-        SigHashCache::new(&tx)
-            .encode_segwitv0_signing_data_to(
-                &mut signing_data,
-                0,
-                &covenant_script,
-                Value::Explicit(Amount::from_sat(funding_amount).as_sat()),
-                SigHashType::All,
-            )
-            .unwrap();
-
         let sighash = SigHashCache::new(&tx).segwitv0_sighash(
             0,
-            &covenant_script,
+            &dbg!(script.clone()),
             Value::Explicit(Amount::from_sat(funding_amount).as_sat()),
             SigHashType::All,
         );
 
         let sig = SECP256K1.sign(&elements::secp256k1::Message::from(sighash), &sk);
-        let serialized_signature = sig.serialize_der().to_vec();
+        let mut serialized_signature = sig.serialize_der().to_vec();
+        // serialized_signature.push(SigHashType::All as u8);
 
-        let signing_data_hashed_once = elements::hashes::sha256::Hash::hash(&signing_data);
+        let mut signing_data = Vec::new();
+        SigHashCache::new(&tx)
+            .encode_segwitv0_signing_data_to(
+                &mut signing_data,
+                0,
+                &script,
+                Value::Explicit(Amount::from_sat(funding_amount).as_sat()),
+                SigHashType::All,
+            )
+            .unwrap();
+
+        let hash = elements::hashes::sha256::Hash::hash(&signing_data).to_vec();
 
         tx.input[0].witness = TxInWitness {
             amount_rangeproof: vec![],
             inflation_keys_rangeproof: vec![],
             script_witness: vec![
-                pk.to_bytes(),
-                signing_data_hashed_once.to_vec(),
                 serialized_signature,
+                hash,
+                pk.serialize().to_vec(),
+                script.into_bytes(),
             ],
             pegin_witness: vec![],
         };
 
         client.send_raw_transaction(&tx).await.unwrap();
-    }
-
-    fn make_keypair() -> (SecretKey, PublicKey) {
-        let sk = SecretKey::new(&mut thread_rng());
-        let pk = PublicKey::from_private_key(
-            &SECP256K1,
-            &PrivateKey {
-                compressed: true,
-                network: Network::Regtest,
-                key: sk,
-            },
-        );
-
-        (sk, pk)
     }
 }
