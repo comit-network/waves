@@ -1,15 +1,18 @@
 #[cfg(test)]
 mod tests {
+    use elements::bitcoin::hashes::{sha256d, Hash};
     use elements::bitcoin::util::psbt::serialize::Serialize;
     use elements::bitcoin::{Amount, Network, PrivateKey, PublicKey};
     use elements::confidential::{Asset, Value};
+    use elements::encode::Encodable;
     use elements::opcodes::all::{OP_CAT, OP_CHECKSIGFROMSTACK, OP_SHA256, OP_SWAP};
     use elements::script::Builder;
     use elements::secp256k1::rand::thread_rng;
-    use elements::secp256k1::{SecretKey, SECP256K1};
+    use elements::secp256k1::{SecretKey, Signature, SECP256K1};
     use elements::sighash::SigHashCache;
     use elements::{
-        Address, AddressParams, OutPoint, SigHashType, Transaction, TxIn, TxInWitness, TxOut,
+        Address, AddressParams, OutPoint, Script, SigHashType, Transaction, TxIn, TxInWitness,
+        TxOut,
     };
     use elements_harness::Client;
     use elements_harness::Elementsd;
@@ -43,6 +46,7 @@ mod tests {
         };
         let asset_id_lbtc = client.get_bitcoin_asset_id().await.unwrap();
 
+        // create covenants script
         let (sk, pk) = make_keypair();
         let script = Builder::new()
             .push_opcode(OP_CAT)
@@ -109,37 +113,161 @@ mod tests {
         );
 
         let sig = SECP256K1.sign(&elements::secp256k1::Message::from(sighash), &sk);
-        let serialized_signature = sig.serialize_der().to_vec();
-
-        let mut signing_data = Vec::new();
-        SigHashCache::new(&tx)
-            .encode_segwitv0_signing_data_to(
-                &mut signing_data,
-                0,
-                &script,
-                Value::Explicit(Amount::from_sat(funding_amount).as_sat()),
-                SigHashType::All,
-            )
-            .unwrap();
-
-        let tx_data1 = signing_data[..80].to_vec();
-        let tx_data2 = signing_data[80..160].to_vec();
-        let tx_data3 = signing_data[160..].to_vec();
 
         tx.input[0].witness = TxInWitness {
             amount_rangeproof: vec![],
             inflation_keys_rangeproof: vec![],
-            script_witness: vec![
-                serialized_signature,
-                pk.serialize().to_vec(),
-                tx_data1,
-                tx_data2,
-                tx_data3,
-                script.into_bytes(),
-            ],
+            script_witness: create_witness_stack(sig, pk, funding_amount, &tx, script),
             pegin_witness: vec![],
         };
 
         client.send_raw_transaction(&tx).await.unwrap();
+    }
+
+    fn create_witness_stack(
+        signature: Signature,
+        pk: PublicKey,
+        funding_amount: u64,
+        transaction: &Transaction,
+        script: Script,
+    ) -> Vec<Vec<u8>> {
+        let pk = pk.serialize().to_vec();
+        let signature = signature.serialize_der().to_vec();
+
+        let mut signing_data = Vec::new();
+        let value = Value::Explicit(Amount::from_sat(funding_amount).as_sat());
+        SigHashCache::new(transaction)
+            .encode_segwitv0_signing_data_to(&mut signing_data, 0, &script, value, SigHashType::All)
+            .unwrap();
+
+        let (
+            mut tx_version,
+            mut hash_prev_out,
+            mut hash_sequence,
+            mut hash_issuances,
+            mut tx_in,
+            mut tx_outs,
+            mut lock_time,
+            mut sighhash_type,
+        ) = create_signing_data(transaction, script.clone(), value).unwrap();
+
+        // assert that we created the correct data:
+        let mut tx_data = vec![];
+        tx_data.append(&mut tx_version);
+        tx_data.append(&mut hash_prev_out);
+        tx_data.append(&mut hash_sequence);
+        tx_data.append(&mut hash_issuances);
+        tx_data.append(&mut tx_in);
+        tx_data.append(&mut tx_outs);
+        tx_data.append(&mut lock_time);
+        tx_data.append(&mut sighhash_type);
+        assert_eq!(tx_data, signing_data.clone());
+
+        let tx_data1 = tx_data[..80].to_vec();
+        let tx_data2 = tx_data[80..160].to_vec();
+        let tx_data3 = tx_data[160..].to_vec();
+
+        // TODO: don't use 3 vec<u8> but push each piece of data separately
+
+        vec![
+            signature,
+            pk,
+            tx_data1,
+            tx_data2,
+            tx_data3,
+            script.into_bytes(),
+        ]
+    }
+
+    // supports only 1 input atm and SigHashAll only
+    fn create_signing_data(
+        tx: &Transaction,
+        script: Script,
+        value: Value,
+    ) -> anyhow::Result<(
+        Vec<u8>,
+        Vec<u8>,
+        Vec<u8>,
+        Vec<u8>,
+        Vec<u8>,
+        Vec<u8>,
+        Vec<u8>,
+        Vec<u8>,
+    )> {
+        let tx_version = {
+            let mut writer = Vec::new();
+            tx.version.consensus_encode(&mut writer)?;
+            writer
+        };
+
+        let hash_prev_out = {
+            let mut enc = sha256d::Hash::engine();
+            tx.input[0].previous_output.consensus_encode(&mut enc)?;
+            sha256d::Hash::from_engine(enc).to_vec()
+        };
+
+        let hash_sequence = {
+            let mut enc = sha256d::Hash::engine();
+            tx.input[0].sequence.consensus_encode(&mut enc)?;
+            sha256d::Hash::from_engine(enc).to_vec()
+        };
+
+        let hash_issuances = {
+            let mut enc = sha256d::Hash::engine();
+            if tx.input[0].has_issuance() {
+                tx.input[0].asset_issuance.consensus_encode(&mut enc)?;
+            } else {
+                0u8.consensus_encode(&mut enc)?;
+            }
+            sha256d::Hash::from_engine(enc).to_vec()
+        };
+
+        // input specific values
+        let tx_in = {
+            let mut writer = Vec::new();
+            let txin = &tx.input[0];
+
+            txin.previous_output.consensus_encode(&mut writer)?;
+            script.consensus_encode(&mut writer)?;
+            value.consensus_encode(&mut writer)?;
+            txin.sequence.consensus_encode(&mut writer)?;
+            if txin.has_issuance() {
+                txin.asset_issuance.consensus_encode(&mut writer)?;
+            }
+            writer
+        };
+
+        // hashoutputs (only supporting SigHashType::All)
+        let tx_outs = {
+            let mut enc = sha256d::Hash::engine();
+            let output = &tx.output;
+            for txout in output {
+                txout.consensus_encode(&mut enc)?;
+            }
+            sha256d::Hash::from_engine(enc).to_vec()
+        };
+
+        let lock_time = {
+            let mut writer = Vec::new();
+            tx.lock_time.consensus_encode(&mut writer)?;
+            writer
+        };
+
+        let sighhash_type = {
+            let mut writer = Vec::new();
+            SigHashType::All.as_u32().consensus_encode(&mut writer)?;
+            writer
+        };
+
+        Ok((
+            tx_version,
+            hash_prev_out,
+            hash_sequence,
+            hash_issuances,
+            tx_in,
+            tx_outs,
+            lock_time,
+            sighhash_type,
+        ))
     }
 }
