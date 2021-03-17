@@ -51,6 +51,11 @@ mod tests {
         let script = Builder::new()
             .push_opcode(OP_CAT)
             .push_opcode(OP_CAT)
+            .push_opcode(OP_CAT)
+            .push_opcode(OP_CAT)
+            .push_opcode(OP_CAT)
+            .push_opcode(OP_CAT)
+            .push_opcode(OP_CAT)
             .push_opcode(OP_SHA256)
             .push_opcode(OP_SWAP)
             .push_opcode(OP_CHECKSIGFROMSTACK)
@@ -141,40 +146,39 @@ mod tests {
             .unwrap();
 
         let (
-            mut tx_version,
-            mut hash_prev_out,
-            mut hash_sequence,
-            mut hash_issuances,
-            mut tx_in,
-            mut tx_outs,
-            mut lock_time,
-            mut sighhash_type,
+            tx_version,
+            hash_prev_out,
+            hash_sequence,
+            hash_issuances,
+            tx_in,
+            tx_outs,
+            lock_time,
+            sighhash_type,
         ) = create_signing_data(transaction, script.clone(), value).unwrap();
 
         // assert that we created the correct data:
         let mut tx_data = vec![];
-        tx_data.append(&mut tx_version);
-        tx_data.append(&mut hash_prev_out);
-        tx_data.append(&mut hash_sequence);
-        tx_data.append(&mut hash_issuances);
-        tx_data.append(&mut tx_in);
-        tx_data.append(&mut tx_outs);
-        tx_data.append(&mut lock_time);
-        tx_data.append(&mut sighhash_type);
+        tx_data.append(&mut tx_version.clone());
+        tx_data.append(&mut hash_prev_out.clone());
+        tx_data.append(&mut hash_sequence.clone());
+        tx_data.append(&mut hash_issuances.clone());
+        tx_data.append(&mut tx_in.clone());
+        tx_data.append(&mut tx_outs.clone());
+        tx_data.append(&mut lock_time.clone());
+        tx_data.append(&mut sighhash_type.clone());
         assert_eq!(tx_data, signing_data.clone());
-
-        let tx_data1 = tx_data[..80].to_vec();
-        let tx_data2 = tx_data[80..160].to_vec();
-        let tx_data3 = tx_data[160..].to_vec();
-
-        // TODO: don't use 3 vec<u8> but push each piece of data separately
 
         vec![
             signature,
             pk,
-            tx_data1,
-            tx_data2,
-            tx_data3,
+            tx_version,
+            hash_prev_out,
+            hash_sequence,
+            hash_issuances,
+            tx_in,
+            tx_outs,
+            lock_time,
+            sighhash_type,
             script.into_bytes(),
         ]
     }
