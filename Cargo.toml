@@ -3,6 +3,7 @@ members = [
     "elements-harness",
     "swap",
     "bobtimus",
+    "covenants",
     "extension",
     "extension/message_types",
     "extension/wallet_lib",
