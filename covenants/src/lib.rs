@@ -1,6 +1,5 @@
 #[cfg(test)]
 mod tests {
-    use elements::bitcoin::{Amount, Network, PrivateKey, PublicKey};
     use elements::confidential::{Asset, Value};
     use elements::opcodes::all::{
         OP_CAT, OP_CHECKSIGFROMSTACK, OP_CHECKSIGVERIFY, OP_OVER, OP_PICK, OP_SHA256,
@@ -9,6 +8,10 @@ mod tests {
     use elements::secp256k1::rand::thread_rng;
     use elements::secp256k1::{SecretKey, SECP256K1};
     use elements::sighash::SigHashCache;
+    use elements::{
+        bitcoin::{Amount, Network, PrivateKey, PublicKey},
+        hashes::Hash,
+    };
     use elements::{
         Address, AddressParams, OutPoint, SigHashType, Transaction, TxIn, TxInWitness, TxOut,
     };
@@ -40,20 +43,20 @@ mod tests {
         //     2 OP_PICK 1 OP_CAT OP_OVER
         //     OP_CHECKSIGVERIFY
         //     OP_CHECKSIGFROMSTACKVERIFY
-        let covenants = Builder::new()
-            .push_opcode(OP_OVER)
-            .push_opcode(OP_SHA256)
-            .push_slice(&pk.key.serialize())
-            .push_int(2)
-            .push_opcode(OP_PICK)
-            .push_int(1)
-            .push_opcode(OP_CAT)
-            .push_opcode(OP_OVER)
-            .push_opcode(OP_CHECKSIGVERIFY)
+        let covenant_script = Builder::new()
+            // .push_opcode(OP_OVER)
+            // .push_opcode(OP_SHA256)
+            // .push_slice(&pk.key.serialize())
+            // .push_int(2)
+            // .push_opcode(OP_PICK)
+            // .push_int(1)
+            // .push_opcode(OP_CAT)
+            // .push_opcode(OP_OVER)
+            // .push_opcode(OP_CHECKSIGVERIFY)
             .push_opcode(OP_CHECKSIGFROMSTACK)
             .into_script();
 
-        let address = Address::p2wsh(&covenants, None, &AddressParams::ELEMENTS);
+        let address = Address::p2wsh(&covenant_script, None, &AddressParams::ELEMENTS);
 
         // fund covenants address
         let funding_amount = 100_000_000;
@@ -103,22 +106,37 @@ mod tests {
             ],
         };
 
+        let mut signing_data = Vec::new();
+        SigHashCache::new(&tx)
+            .encode_segwitv0_signing_data_to(
+                &mut signing_data,
+                0,
+                &covenant_script,
+                Value::Explicit(Amount::from_sat(funding_amount).as_sat()),
+                SigHashType::All,
+            )
+            .unwrap();
+
         let sighash = SigHashCache::new(&tx).segwitv0_sighash(
             0,
-            &covenants,
+            &covenant_script,
             Value::Explicit(Amount::from_sat(funding_amount).as_sat()),
             SigHashType::All,
         );
 
         let sig = SECP256K1.sign(&elements::secp256k1::Message::from(sighash), &sk);
+        let serialized_signature = sig.serialize_der().to_vec();
 
-        let mut serialized_signature = sig.serialize_der().to_vec();
-        serialized_signature.push(SigHashType::All as u8);
+        let signing_data_hashed_once = elements::hashes::sha256::Hash::hash(&signing_data);
 
         tx.input[0].witness = TxInWitness {
             amount_rangeproof: vec![],
             inflation_keys_rangeproof: vec![],
-            script_witness: vec![serialized_signature, sighash.to_vec()],
+            script_witness: vec![
+                pk.to_bytes(),
+                signing_data_hashed_once.to_vec(),
+                serialized_signature,
+            ],
             pegin_witness: vec![],
         };
 
