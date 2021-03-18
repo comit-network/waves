@@ -5,7 +5,7 @@ mod tests {
     use elements::bitcoin::{Amount, Network, PrivateKey, PublicKey};
     use elements::confidential::{Asset, Value};
     use elements::encode::Encodable;
-    use elements::opcodes::all::{OP_CAT, OP_CHECKSIGFROMSTACK, OP_SHA256, OP_SWAP};
+    use elements::opcodes::all::*;
     use elements::script::Builder;
     use elements::secp256k1::rand::thread_rng;
     use elements::secp256k1::{SecretKey, Signature, SECP256K1};
@@ -49,6 +49,11 @@ mod tests {
         // create covenants script
         let (sk, pk) = make_keypair();
         let script = Builder::new()
+            .push_opcode(OP_2SWAP)
+            .push_opcode(OP_CAT)
+            .push_opcode(OP_SHA256)
+            .push_opcode(OP_ROT)
+            .push_opcode(OP_ROT)
             .push_opcode(OP_CAT)
             .push_opcode(OP_CAT)
             .push_opcode(OP_CAT)
@@ -139,11 +144,7 @@ mod tests {
         let pk = pk.serialize().to_vec();
         let signature = signature.serialize_der().to_vec();
 
-        let mut signing_data = Vec::new();
         let value = Value::Explicit(Amount::from_sat(funding_amount).as_sat());
-        SigHashCache::new(transaction)
-            .encode_segwitv0_signing_data_to(&mut signing_data, 0, &script, value, SigHashType::All)
-            .unwrap();
 
         let (
             tx_version,
@@ -151,22 +152,11 @@ mod tests {
             hash_sequence,
             hash_issuances,
             tx_in,
-            tx_outs,
+            tx_out0,
+            tx_out1,
             lock_time,
             sighhash_type,
         ) = create_signing_data(transaction, script.clone(), value).unwrap();
-
-        // assert that we created the correct data:
-        let mut tx_data = vec![];
-        tx_data.append(&mut tx_version.clone());
-        tx_data.append(&mut hash_prev_out.clone());
-        tx_data.append(&mut hash_sequence.clone());
-        tx_data.append(&mut hash_issuances.clone());
-        tx_data.append(&mut tx_in.clone());
-        tx_data.append(&mut tx_outs.clone());
-        tx_data.append(&mut lock_time.clone());
-        tx_data.append(&mut sighhash_type.clone());
-        assert_eq!(tx_data, signing_data.clone());
 
         vec![
             signature,
@@ -176,7 +166,8 @@ mod tests {
             hash_sequence,
             hash_issuances,
             tx_in,
-            tx_outs,
+            tx_out0,
+            tx_out1,
             lock_time,
             sighhash_type,
             script.into_bytes(),
@@ -189,6 +180,7 @@ mod tests {
         script: Script,
         value: Value,
     ) -> anyhow::Result<(
+        Vec<u8>,
         Vec<u8>,
         Vec<u8>,
         Vec<u8>,
@@ -242,13 +234,14 @@ mod tests {
         };
 
         // hashoutputs (only supporting SigHashType::All)
-        let tx_outs = {
-            let mut enc = sha256d::Hash::engine();
+        let (tx_out0, tx_out1) = {
+            let mut tx_out0 = Vec::new();
+            let mut tx_out1 = Vec::new();
             let output = &tx.output;
-            for txout in output {
-                txout.consensus_encode(&mut enc)?;
-            }
-            sha256d::Hash::from_engine(enc).to_vec()
+            // for txout in output {
+            output[0].consensus_encode(&mut tx_out0)?;
+            output[1].consensus_encode(&mut tx_out1)?;
+            (tx_out0, tx_out1)
         };
 
         let lock_time = {
@@ -269,7 +262,8 @@ mod tests {
             hash_sequence,
             hash_issuances,
             tx_in,
-            tx_outs,
+            tx_out0,
+            tx_out1,
             lock_time,
             sighhash_type,
         ))
