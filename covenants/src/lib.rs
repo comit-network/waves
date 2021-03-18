@@ -65,6 +65,9 @@ mod tests {
             .push_opcode(OP_CAT)
             .push_opcode(OP_CAT)
             .push_opcode(OP_CAT)
+            .push_opcode(OP_CAT)
+            .push_opcode(OP_CAT)
+            .push_opcode(OP_CAT)
             .push_opcode(OP_SHA256)
             .push_opcode(OP_SWAP)
             .push_opcode(OP_CHECKSIGFROMSTACK)
@@ -228,7 +231,7 @@ mod tests {
             })
         }
 
-        // supports only 1 input atm and SigHashAll only
+        // TODO: Currently specific to 1 input, 2 outputs and sighashall
         fn serialise(&self) -> anyhow::Result<Vec<Vec<u8>>> {
             let sig = self.sig.serialize_der().to_vec();
 
@@ -241,8 +244,7 @@ mod tests {
             };
 
             // input specific values
-            let tx_in = {
-                let mut writer = Vec::new();
+            let (previous_out, script, value, sequence) = {
                 let InputData {
                     previous_output,
                     script,
@@ -250,15 +252,28 @@ mod tests {
                     sequence,
                 } = &self.input;
 
-                previous_output.consensus_encode(&mut writer)?;
-                // TODO: Split
-                script.consensus_encode(&mut writer)?;
-                value.consensus_encode(&mut writer)?;
-                sequence.consensus_encode(&mut writer)?;
-                // if txin.has_issuance() {
-                //     txin.asset_issuance.consensus_encode(&mut writer)?;
-                // }
-                writer
+                (
+                    {
+                        let mut writer = Vec::new();
+                        previous_output.consensus_encode(&mut writer)?;
+                        writer
+                    },
+                    {
+                        let mut writer = Vec::new();
+                        script.consensus_encode(&mut writer)?;
+                        writer
+                    },
+                    {
+                        let mut writer = Vec::new();
+                        value.consensus_encode(&mut writer)?;
+                        writer
+                    },
+                    {
+                        let mut writer = Vec::new();
+                        sequence.consensus_encode(&mut writer)?;
+                        writer
+                    },
+                )
             };
 
             // hashoutputs (only supporting SigHashType::All)
@@ -291,7 +306,10 @@ mod tests {
                 self.hash_prev_out.to_vec(),
                 self.hash_sequence.to_vec(),
                 self.hash_issuances.to_vec(),
-                tx_in,
+                previous_out,
+                script,
+                value,
+                sequence,
                 principal_repayment_output,
                 tx_fee_output,
                 lock_time,
