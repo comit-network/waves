@@ -149,18 +149,18 @@ mod tests {
         hash_prev_out: elements::hashes::sha256d::Hash,
         hash_sequence: elements::hashes::sha256d::Hash,
         hash_issuances: elements::hashes::sha256d::Hash,
-        // tx_in_prevout,
-        // tx_in_script_0,
-        // tx_in_script_1,
-        // tx_in_value,
-        // tx_in_sequence,
-        input: TxIn,
-        value: confidential::Value,
+        input: InputData,
         principal_repayment_output: TxOut,
         tx_fee_output: TxOut,
         lock_time: u32,
         sighash_type: SigHashType,
+    }
+
+    struct InputData {
+        previous_output: OutPoint,
         script: Script,
+        value: confidential::Value,
+        sequence: u32,
     }
 
     impl WitnessStack {
@@ -171,8 +171,6 @@ mod tests {
             tx: &Transaction,
             script: Script,
         ) -> Result<Self> {
-            let value = Value::Explicit(Amount::from_sat(funding_amount).as_sat());
-
             let tx_version = tx.version;
 
             let hash_prev_out = {
@@ -197,7 +195,16 @@ mod tests {
                 sha256d::Hash::from_engine(enc)
             };
 
-            let input = tx.input[0].clone();
+            let input = {
+                let input = &tx.input[0];
+                let value = Value::Explicit(Amount::from_sat(funding_amount).as_sat());
+                InputData {
+                    previous_output: input.previous_output,
+                    script: script.clone(),
+                    value,
+                    sequence: input.sequence,
+                }
+            };
 
             let (principal_repayment_output, tx_fee_output) =
                 (tx.output[0].clone(), tx.output[1].clone());
@@ -218,8 +225,6 @@ mod tests {
                 tx_fee_output,
                 lock_time,
                 sighash_type,
-                script,
-                value,
             })
         }
 
@@ -238,15 +243,21 @@ mod tests {
             // input specific values
             let tx_in = {
                 let mut writer = Vec::new();
-                let txin = &self.input;
+                let InputData {
+                    previous_output,
+                    script,
+                    value,
+                    sequence,
+                } = &self.input;
 
-                txin.previous_output.consensus_encode(&mut writer)?;
-                self.script.consensus_encode(&mut writer)?;
-                self.value.consensus_encode(&mut writer)?;
-                txin.sequence.consensus_encode(&mut writer)?;
-                if txin.has_issuance() {
-                    txin.asset_issuance.consensus_encode(&mut writer)?;
-                }
+                previous_output.consensus_encode(&mut writer)?;
+                // TODO: Split
+                script.consensus_encode(&mut writer)?;
+                value.consensus_encode(&mut writer)?;
+                sequence.consensus_encode(&mut writer)?;
+                // if txin.has_issuance() {
+                //     txin.asset_issuance.consensus_encode(&mut writer)?;
+                // }
                 writer
             };
 
@@ -285,7 +296,7 @@ mod tests {
                 tx_fee_output,
                 lock_time,
                 sighhash_type,
-                self.script.clone().into_bytes(),
+                self.input.script.clone().into_bytes(),
             ])
         }
     }
