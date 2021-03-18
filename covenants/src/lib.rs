@@ -68,6 +68,7 @@ mod tests {
             .push_opcode(OP_CAT)
             .push_opcode(OP_CAT)
             .push_opcode(OP_CAT)
+            .push_opcode(OP_CAT)
             .push_opcode(OP_SHA256)
             .push_opcode(OP_SWAP)
             .push_opcode(OP_CHECKSIGFROMSTACK)
@@ -244,13 +245,15 @@ mod tests {
             };
 
             // input specific values
-            let (previous_out, script, value, sequence) = {
+            let (previous_out, script_0, script_1, value, sequence) = {
                 let InputData {
                     previous_output,
                     script,
                     value,
                     sequence,
                 } = &self.input;
+
+                let middle = script.len() / 2;
 
                 (
                     {
@@ -261,7 +264,12 @@ mod tests {
                     {
                         let mut writer = Vec::new();
                         script.consensus_encode(&mut writer)?;
-                        writer
+                        writer[..middle].to_vec()
+                    },
+                    {
+                        let mut writer = Vec::new();
+                        script.consensus_encode(&mut writer)?;
+                        writer[middle..].to_vec()
                     },
                     {
                         let mut writer = Vec::new();
@@ -307,7 +315,8 @@ mod tests {
                 self.hash_sequence.to_vec(),
                 self.hash_issuances.to_vec(),
                 previous_out,
-                script,
+                script_0,
+                script_1,
                 value,
                 sequence,
                 principal_repayment_output,
