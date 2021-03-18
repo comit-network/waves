@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod tests {
-    use elements::bitcoin::hashes::{sha256d, Hash};
+    use anyhow::Result;
     use elements::bitcoin::util::psbt::serialize::Serialize;
     use elements::bitcoin::{Amount, Network, PrivateKey, PublicKey};
     use elements::confidential::{Asset, Value};
@@ -10,6 +10,10 @@ mod tests {
     use elements::secp256k1::rand::thread_rng;
     use elements::secp256k1::{SecretKey, Signature, SECP256K1};
     use elements::sighash::SigHashCache;
+    use elements::{
+        bitcoin::hashes::{sha256d, Hash},
+        confidential,
+    };
     use elements::{
         Address, AddressParams, OutPoint, Script, SigHashType, Transaction, TxIn, TxInWitness,
         TxOut,
@@ -127,145 +131,162 @@ mod tests {
         tx.input[0].witness = TxInWitness {
             amount_rangeproof: vec![],
             inflation_keys_rangeproof: vec![],
-            script_witness: create_witness_stack(sig, pk, funding_amount, &tx, script),
+            script_witness: WitnessStack::new(sig, pk, funding_amount, &tx, script)
+                .unwrap()
+                .serialise()
+                .unwrap(),
             pegin_witness: vec![],
         };
 
         client.send_raw_transaction(&tx).await.unwrap();
     }
 
-    fn create_witness_stack(
-        signature: Signature,
+    // Only supports 1 input and 2 outputs
+    struct WitnessStack {
+        sig: Signature,
         pk: PublicKey,
-        funding_amount: u64,
-        transaction: &Transaction,
+        tx_version: u32,
+        hash_prev_out: elements::hashes::sha256d::Hash,
+        hash_sequence: elements::hashes::sha256d::Hash,
+        hash_issuances: elements::hashes::sha256d::Hash,
+        // tx_in_prevout,
+        // tx_in_script_0,
+        // tx_in_script_1,
+        // tx_in_value,
+        // tx_in_sequence,
+        input: TxIn,
+        value: confidential::Value,
+        principal_repayment_output: TxOut,
+        tx_fee_output: TxOut,
+        lock_time: u32,
+        sighash_type: SigHashType,
         script: Script,
-    ) -> Vec<Vec<u8>> {
-        let pk = pk.serialize().to_vec();
-        let signature = signature.serialize_der().to_vec();
-
-        let value = Value::Explicit(Amount::from_sat(funding_amount).as_sat());
-
-        let (
-            tx_version,
-            hash_prev_out,
-            hash_sequence,
-            hash_issuances,
-            tx_in,
-            tx_out0,
-            tx_out1,
-            lock_time,
-            sighhash_type,
-        ) = create_signing_data(transaction, script.clone(), value).unwrap();
-
-        vec![
-            signature,
-            pk,
-            tx_version,
-            hash_prev_out,
-            hash_sequence,
-            hash_issuances,
-            tx_in,
-            tx_out0,
-            tx_out1,
-            lock_time,
-            sighhash_type,
-            script.into_bytes(),
-        ]
     }
 
-    // supports only 1 input atm and SigHashAll only
-    fn create_signing_data(
-        tx: &Transaction,
-        script: Script,
-        value: Value,
-    ) -> anyhow::Result<(
-        Vec<u8>,
-        Vec<u8>,
-        Vec<u8>,
-        Vec<u8>,
-        Vec<u8>,
-        Vec<u8>,
-        Vec<u8>,
-        Vec<u8>,
-        Vec<u8>,
-    )> {
-        let tx_version = {
-            let mut writer = Vec::new();
-            tx.version.consensus_encode(&mut writer)?;
-            writer
-        };
+    impl WitnessStack {
+        fn new(
+            sig: Signature,
+            pk: PublicKey,
+            funding_amount: u64,
+            tx: &Transaction,
+            script: Script,
+        ) -> Result<Self> {
+            let value = Value::Explicit(Amount::from_sat(funding_amount).as_sat());
 
-        let hash_prev_out = {
-            let mut enc = sha256d::Hash::engine();
-            tx.input[0].previous_output.consensus_encode(&mut enc)?;
-            sha256d::Hash::from_engine(enc).to_vec()
-        };
+            let tx_version = tx.version;
 
-        let hash_sequence = {
-            let mut enc = sha256d::Hash::engine();
-            tx.input[0].sequence.consensus_encode(&mut enc)?;
-            sha256d::Hash::from_engine(enc).to_vec()
-        };
+            let hash_prev_out = {
+                let mut enc = sha256d::Hash::engine();
+                tx.input[0].previous_output.consensus_encode(&mut enc)?;
+                sha256d::Hash::from_engine(enc)
+            };
 
-        let hash_issuances = {
-            let mut enc = sha256d::Hash::engine();
-            if tx.input[0].has_issuance() {
-                tx.input[0].asset_issuance.consensus_encode(&mut enc)?;
-            } else {
-                0u8.consensus_encode(&mut enc)?;
-            }
-            sha256d::Hash::from_engine(enc).to_vec()
-        };
+            let hash_sequence = {
+                let mut enc = sha256d::Hash::engine();
+                tx.input[0].sequence.consensus_encode(&mut enc)?;
+                sha256d::Hash::from_engine(enc)
+            };
 
-        // input specific values
-        let tx_in = {
-            let mut writer = Vec::new();
-            let txin = &tx.input[0];
+            let hash_issuances = {
+                let mut enc = sha256d::Hash::engine();
+                if tx.input[0].has_issuance() {
+                    tx.input[0].asset_issuance.consensus_encode(&mut enc)?;
+                } else {
+                    0u8.consensus_encode(&mut enc)?;
+                }
+                sha256d::Hash::from_engine(enc)
+            };
 
-            txin.previous_output.consensus_encode(&mut writer)?;
-            script.consensus_encode(&mut writer)?;
-            value.consensus_encode(&mut writer)?;
-            txin.sequence.consensus_encode(&mut writer)?;
-            if txin.has_issuance() {
-                txin.asset_issuance.consensus_encode(&mut writer)?;
-            }
-            writer
-        };
+            let input = tx.input[0].clone();
 
-        // hashoutputs (only supporting SigHashType::All)
-        let (tx_out0, tx_out1) = {
-            let mut tx_out0 = Vec::new();
-            let mut tx_out1 = Vec::new();
-            let output = &tx.output;
-            // for txout in output {
-            output[0].consensus_encode(&mut tx_out0)?;
-            output[1].consensus_encode(&mut tx_out1)?;
-            (tx_out0, tx_out1)
-        };
+            let (principal_repayment_output, tx_fee_output) =
+                (tx.output[0].clone(), tx.output[1].clone());
 
-        let lock_time = {
-            let mut writer = Vec::new();
-            tx.lock_time.consensus_encode(&mut writer)?;
-            writer
-        };
+            let lock_time = tx.lock_time;
 
-        let sighhash_type = {
-            let mut writer = Vec::new();
-            SigHashType::All.as_u32().consensus_encode(&mut writer)?;
-            writer
-        };
+            let sighash_type = SigHashType::All;
 
-        Ok((
-            tx_version,
-            hash_prev_out,
-            hash_sequence,
-            hash_issuances,
-            tx_in,
-            tx_out0,
-            tx_out1,
-            lock_time,
-            sighhash_type,
-        ))
+            Ok(Self {
+                sig,
+                pk,
+                tx_version,
+                hash_prev_out,
+                hash_sequence,
+                hash_issuances,
+                input,
+                principal_repayment_output,
+                tx_fee_output,
+                lock_time,
+                sighash_type,
+                script,
+                value,
+            })
+        }
+
+        // supports only 1 input atm and SigHashAll only
+        fn serialise(&self) -> anyhow::Result<Vec<Vec<u8>>> {
+            let sig = self.sig.serialize_der().to_vec();
+
+            let pk = self.pk.serialize().to_vec();
+
+            let tx_version = {
+                let mut writer = Vec::new();
+                self.tx_version.consensus_encode(&mut writer)?;
+                writer
+            };
+
+            // input specific values
+            let tx_in = {
+                let mut writer = Vec::new();
+                let txin = &self.input;
+
+                txin.previous_output.consensus_encode(&mut writer)?;
+                self.script.consensus_encode(&mut writer)?;
+                self.value.consensus_encode(&mut writer)?;
+                txin.sequence.consensus_encode(&mut writer)?;
+                if txin.has_issuance() {
+                    txin.asset_issuance.consensus_encode(&mut writer)?;
+                }
+                writer
+            };
+
+            // hashoutputs (only supporting SigHashType::All)
+            let (principal_repayment_output, tx_fee_output) = {
+                let mut output0 = Vec::new();
+                let mut output1 = Vec::new();
+
+                self.principal_repayment_output
+                    .consensus_encode(&mut output0)?;
+                self.tx_fee_output.consensus_encode(&mut output1)?;
+                (output0, output1)
+            };
+
+            let lock_time = {
+                let mut writer = Vec::new();
+                self.lock_time.consensus_encode(&mut writer)?;
+                writer
+            };
+
+            let sighhash_type = {
+                let mut writer = Vec::new();
+                self.sighash_type.as_u32().consensus_encode(&mut writer)?;
+                writer
+            };
+
+            Ok(vec![
+                sig,
+                pk,
+                tx_version,
+                self.hash_prev_out.to_vec(),
+                self.hash_sequence.to_vec(),
+                self.hash_issuances.to_vec(),
+                tx_in,
+                principal_repayment_output,
+                tx_fee_output,
+                lock_time,
+                sighhash_type,
+                self.script.clone().into_bytes(),
+            ])
+        }
     }
 }
