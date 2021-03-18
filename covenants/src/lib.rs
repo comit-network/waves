@@ -51,7 +51,7 @@ mod tests {
         let script = Builder::new()
             .push_opcode(OP_2SWAP)
             .push_opcode(OP_CAT)
-            .push_opcode(OP_SHA256)
+            .push_opcode(OP_HASH256)
             .push_opcode(OP_ROT)
             .push_opcode(OP_ROT)
             .push_opcode(OP_CAT)
