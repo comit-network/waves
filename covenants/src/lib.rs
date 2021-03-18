@@ -50,10 +50,37 @@ mod tests {
         };
         let asset_id_lbtc = client.get_bitcoin_asset_id().await.unwrap();
 
-        // create covenants script
         let (sk, pk) = make_keypair();
+        let lender_address = Address::p2wpkh(&pk, None, &AddressParams::ELEMENTS);
+
+        let funding_amount = 100_000_000;
+        let fee = 100_000;
+        let principal_repayment_output = {
+            let txout = TxOut {
+                asset: Asset::Explicit(asset_id_lbtc),
+                value: Value::Explicit(Amount::from_sat(funding_amount - fee).as_sat()),
+                nonce: Default::default(),
+                script_pubkey: lender_address.script_pubkey(),
+                witness: Default::default(),
+            };
+
+            let mut res = Vec::new();
+            txout.consensus_encode(&mut res).unwrap();
+            res
+        };
+
+        // create covenants script
         let script = Builder::new()
-            .push_opcode(OP_2SWAP)
+            .push_opcode(OP_DEPTH)
+            .push_opcode(OP_1SUB)
+            .push_opcode(OP_PICK)
+            .push_opcode(OP_PUSHNUM_1)
+            .push_opcode(OP_CAT)
+            .push_slice(&pk.serialize())
+            .push_opcode(OP_CHECKSIGVERIFY)
+            .push_slice(principal_repayment_output.as_slice())
+            .push_int(3)
+            .push_opcode(OP_ROLL)
             .push_opcode(OP_CAT)
             .push_opcode(OP_HASH256)
             .push_opcode(OP_ROT)
@@ -76,7 +103,7 @@ mod tests {
         let address = Address::p2wsh(&script, None, &AddressParams::ELEMENTS);
 
         // fund covenants address
-        let funding_amount = 100_000_000;
+
         let funding_value = Amount::from_sat(funding_amount);
         let txid = client
             .send_asset_to_address(&address, funding_value, None)
@@ -91,8 +118,6 @@ mod tests {
             .unwrap() as u32;
 
         // spend
-        let fee = 100_000;
-        let address = Address::p2wpkh(&pk, None, &AddressParams::ELEMENTS);
         let mut tx = Transaction {
             version: 2,
             lock_time: 0,
@@ -110,7 +135,7 @@ mod tests {
                     asset: Asset::Explicit(asset_id_lbtc),
                     value: Value::Explicit(Amount::from_sat(funding_amount - fee).as_sat()),
                     nonce: Default::default(),
-                    script_pubkey: address.script_pubkey(),
+                    script_pubkey: lender_address.script_pubkey(),
                     witness: Default::default(),
                 },
                 TxOut {
@@ -154,7 +179,6 @@ mod tests {
         hash_sequence: elements::hashes::sha256d::Hash,
         hash_issuances: elements::hashes::sha256d::Hash,
         input: InputData,
-        principal_repayment_output: TxOut,
         tx_fee_output: TxOut,
         lock_time: u32,
         sighash_type: SigHashType,
@@ -204,14 +228,13 @@ mod tests {
                 let value = Value::Explicit(Amount::from_sat(funding_amount).as_sat());
                 InputData {
                     previous_output: input.previous_output,
-                    script: script.clone(),
+                    script,
                     value,
                     sequence: input.sequence,
                 }
             };
 
-            let (principal_repayment_output, tx_fee_output) =
-                (tx.output[0].clone(), tx.output[1].clone());
+            let tx_fee_output = tx.output[1].clone();
 
             let lock_time = tx.lock_time;
 
@@ -225,7 +248,6 @@ mod tests {
                 hash_sequence,
                 hash_issuances,
                 input,
-                principal_repayment_output,
                 tx_fee_output,
                 lock_time,
                 sighash_type,
@@ -285,14 +307,11 @@ mod tests {
             };
 
             // hashoutputs (only supporting SigHashType::All)
-            let (principal_repayment_output, tx_fee_output) = {
-                let mut output0 = Vec::new();
-                let mut output1 = Vec::new();
+            let tx_fee_output = {
+                let mut output = Vec::new();
 
-                self.principal_repayment_output
-                    .consensus_encode(&mut output0)?;
-                self.tx_fee_output.consensus_encode(&mut output1)?;
-                (output0, output1)
+                self.tx_fee_output.consensus_encode(&mut output)?;
+                output
             };
 
             let lock_time = {
@@ -301,7 +320,7 @@ mod tests {
                 writer
             };
 
-            let sighhash_type = {
+            let sighash_type = {
                 let mut writer = Vec::new();
                 self.sighash_type.as_u32().consensus_encode(&mut writer)?;
                 writer
@@ -319,10 +338,10 @@ mod tests {
                 script_1,
                 value,
                 sequence,
-                principal_repayment_output,
+                // principal_repayment_output,
                 tx_fee_output,
                 lock_time,
-                sighhash_type,
+                sighash_type,
                 self.input.script.clone().into_bytes(),
             ])
         }
