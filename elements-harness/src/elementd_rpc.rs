@@ -63,6 +63,7 @@ pub trait ElementsRpc {
     async fn unblindrawtransaction(&self, tx_hex: String) -> UnblindRawTransactionResponse;
     async fn lockunspent(&self, unlock: bool, utxos: Vec<OutPoint>) -> bool;
     async fn reissueasset(&self, asset: AssetId, amount: f64) -> ReissueAssetResponse;
+    async fn getaddressinfo(&self, address: &Address) -> GetAddressInfoResponse;
 }
 
 #[jsonrpc_client::implement(ElementsRpc)]
@@ -86,6 +87,11 @@ pub struct SignRawTransactionWithWalletResponse {
 pub struct ReissueAssetResponse {
     txid: Txid,
     vin: u8,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+pub struct GetAddressInfoResponse {
+    pub unconfidential: Address,
 }
 
 impl Client {
@@ -228,6 +234,14 @@ impl Client {
     pub async fn sign_raw_transaction(&self, tx: &Transaction) -> Result<Transaction> {
         let tx_hex = serialize_hex(tx);
         let res = self.signrawtransactionwithwallet(tx_hex).await?;
+        let tx = elements::encode::deserialize(&Vec::<u8>::from_hex(&res.hex).unwrap())?;
+
+        Ok(tx)
+    }
+
+    pub async fn fund_raw_transaction(&self, tx: &Transaction) -> Result<Transaction> {
+        let tx_hex = serialize_hex(tx);
+        let res = self.fundrawtransaction(tx_hex).await?;
         let tx = elements::encode::deserialize(&Vec::<u8>::from_hex(&res.hex).unwrap())?;
 
         Ok(tx)
