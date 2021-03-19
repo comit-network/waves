@@ -4,6 +4,7 @@ mod tests {
     use elements::confidential::{Asset, Value};
     use elements::encode::Encodable;
     use elements::opcodes::all::*;
+    use elements::opcodes::OP_TRUE;
     use elements::script::Builder;
     use elements::secp256k1::rand::thread_rng;
     use elements::secp256k1::{SecretKey, Signature, SECP256K1};
@@ -81,6 +82,7 @@ mod tests {
 
         // create covenants script
         let script = Builder::new()
+            .push_opcode(OP_IF)
             .push_opcode(OP_DEPTH)
             .push_opcode(OP_1SUB)
             .push_opcode(OP_PICK)
@@ -109,9 +111,18 @@ mod tests {
             .push_opcode(OP_CAT)
             .push_opcode(OP_CAT)
             .push_opcode(OP_CAT)
+            .push_opcode(OP_CAT)
             .push_opcode(OP_SHA256)
             .push_opcode(OP_SWAP)
             .push_opcode(OP_CHECKSIGFROMSTACK)
+            .push_opcode(OP_ELSE)
+            .push_int(10000)
+            .push_opcode(OP_CLTV)
+            .push_opcode(OP_DROP)
+            .push_opcode(OP_DUP)
+            .push_slice(&lender_pk.serialize())
+            .push_opcode(OP_CHECKSIG)
+            .push_opcode(OP_ENDIF)
             .into_script();
         let address = Address::p2wsh(&script, None, &AddressParams::ELEMENTS);
 
@@ -237,10 +248,16 @@ mod tests {
             tx.input[0].witness = TxInWitness {
                 amount_rangeproof: vec![],
                 inflation_keys_rangeproof: vec![],
-                script_witness: WitnessStack::new(sig, borrower_pk, collateral_amount, &tx, script)
-                    .unwrap()
-                    .serialise()
-                    .unwrap(),
+                script_witness: RepaymentWitnessStack::new(
+                    sig,
+                    borrower_pk,
+                    collateral_amount,
+                    &tx,
+                    script,
+                )
+                .unwrap()
+                .serialise()
+                .unwrap(),
                 pegin_witness: vec![],
             };
         };
@@ -284,7 +301,7 @@ mod tests {
         client.send_raw_transaction(&tx).await.unwrap();
     }
 
-    struct WitnessStack {
+    struct RepaymentWitnessStack {
         sig: Signature,
         pk: PublicKey,
         tx_version: u32,
@@ -304,7 +321,7 @@ mod tests {
         sequence: u32,
     }
 
-    impl WitnessStack {
+    impl RepaymentWitnessStack {
         fn new(
             sig: Signature,
             pk: PublicKey,
@@ -377,6 +394,8 @@ mod tests {
 
         // TODO: Currently specific to 1 input, 2 outputs and sighashall
         fn serialise(&self) -> anyhow::Result<Vec<Vec<u8>>> {
+            let if_flag = 0x01;
+
             let sig = self.sig.serialize_der().to_vec();
 
             let pk = self.pk.serialize().to_vec();
@@ -388,7 +407,7 @@ mod tests {
             };
 
             // input specific values
-            let (previous_out, script_0, script_1, value, sequence) = {
+            let (previous_out, script_0, script_1, script_2, value, sequence) = {
                 let InputData {
                     previous_output,
                     script,
@@ -396,7 +415,7 @@ mod tests {
                     sequence,
                 } = &self.input;
 
-                let middle = script.len() / 2;
+                let third = script.len() / 3;
 
                 (
                     {
@@ -407,12 +426,17 @@ mod tests {
                     {
                         let mut writer = Vec::new();
                         script.consensus_encode(&mut writer)?;
-                        writer[..middle].to_vec()
+                        writer[..third].to_vec()
                     },
                     {
                         let mut writer = Vec::new();
                         script.consensus_encode(&mut writer)?;
-                        writer[middle..].to_vec()
+                        writer[third..2 * third].to_vec()
+                    },
+                    {
+                        let mut writer = Vec::new();
+                        script.consensus_encode(&mut writer)?;
+                        writer[2 * third..].to_vec()
                     },
                     {
                         let mut writer = Vec::new();
@@ -462,6 +486,7 @@ mod tests {
                 previous_out,
                 script_0,
                 script_1,
+                script_2,
                 value,
                 sequence,
                 other_outputs[0].clone(),
@@ -469,6 +494,7 @@ mod tests {
                 other_outputs[2].clone(),
                 lock_time,
                 sighash_type,
+                vec![if_flag],
                 self.input.script.clone().into_bytes(),
             ])
         }
