@@ -449,6 +449,8 @@ dependencies = [
  "elements",
  "elements-harness",
  "hex",
+ "hmac 0.10.1",
+ "sha2",
  "testcontainers",
  "tokio",
 ]
