@@ -1,7 +1,6 @@
 use std::future::Future;
 
 use anyhow::{Context, Result};
-use elements::confidential::{Asset, Value};
 use elements::encode::Encodable;
 use elements::opcodes::all::*;
 use elements::script::Builder;
@@ -11,6 +10,10 @@ use elements::{bitcoin::util::psbt::serialize::Serialize, confidential::Nonce};
 use elements::{
     bitcoin::{Amount, Network, PrivateKey, PublicKey},
     TxOutWitness,
+};
+use elements::{
+    confidential::{Asset, Value},
+    AddressParams,
 };
 use elements::{Address, AssetId, Script, Transaction, TxIn, TxOut};
 
@@ -49,7 +52,7 @@ impl Borrower {
     ) -> Result<Self> {
         let keypair = make_keypair();
 
-        let collateral_input_amount = collateral_inputs
+        let collateral_input_amount = &collateral_inputs
             .iter()
             .fold(Amount::ZERO, |sum, input| sum + input.amount);
         let change_amount = collateral_input_amount
@@ -141,25 +144,27 @@ impl Lender {
         }
     }
 
-    pub fn create_loan_transaction(&mut self, loan_request: LoanRequest) -> Transaction {
+    pub fn create_loan_transaction(&self, loan_request: LoanRequest) -> Transaction {
         let principal_amount = Lender::calc_principal_amount(&loan_request);
 
         let (_, lender_pk) = self.keypair;
-        let tx_out_collateral = TxOut {
+        let collateral_script = self.loan_contract(
+            loan_request.borrower_pk,
+            lender_pk,
+            principal_amount,
+            &self.repayment_address,
+            loan_request.timelock,
+        );
+        let collateral_address = Address::p2wsh(&collateral_script, None, &AddressParams::ELEMENTS);
+        let collateral_tx_out = TxOut {
             asset: Asset::Explicit(self.bitcoin_asset_id),
             value: Value::Explicit(loan_request.collateral_amount.as_sat()),
             nonce: Default::default(),
-            script_pubkey: self.loan_contract(
-                loan_request.borrower_pk,
-                lender_pk,
-                principal_amount,
-                &self.repayment_address,
-                loan_request.timelock,
-            ),
+            script_pubkey: collateral_address.script_pubkey(),
             witness: Default::default(),
         };
 
-        let tx_out_principal = TxOut {
+        let principal_tx_out = TxOut {
             asset: Asset::Explicit(self.usdt_asset_id),
             value: Value::Explicit(principal_amount.as_sat()),
             nonce: Default::default(),
@@ -171,7 +176,7 @@ impl Lender {
             .principal_inputs
             .iter()
             .fold(Amount::ZERO, |sum, input| sum + input.amount);
-        let tx_out_lender_change = TxOut {
+        let principal_change_tx_out = TxOut {
             asset: Asset::Explicit(self.usdt_asset_id),
             value: Value::Explicit(principal_input_amount.as_sat() - principal_amount.as_sat()),
             nonce: Default::default(),
@@ -179,26 +184,26 @@ impl Lender {
             witness: Default::default(),
         };
 
-        let tx_out_borrower_change = loan_request.collateral_change_tx_out;
-        let tx_out_fee = TxOut::new_fee(loan_request.tx_fee.as_sat(), self.bitcoin_asset_id);
+        let collateral_change_tx_out = loan_request.collateral_change_tx_out;
+        let tx_fee_tx_out = TxOut::new_fee(loan_request.tx_fee.as_sat(), self.bitcoin_asset_id);
 
         let mut tx_ins = self
             .principal_inputs
             .iter()
             .map(|input| input.tx_in.clone())
             .collect::<Vec<_>>();
-        let mut tx_ins_borrower = loan_request.collateral_tx_ins;
-        tx_ins.append(&mut tx_ins_borrower);
+        let mut collateral_tx_ins = loan_request.collateral_tx_ins;
+        tx_ins.append(&mut collateral_tx_ins);
         Transaction {
             version: 2,
             lock_time: 0,
             input: tx_ins,
             output: vec![
-                tx_out_collateral,
-                tx_out_principal,
-                tx_out_lender_change,
-                tx_out_borrower_change,
-                tx_out_fee,
+                collateral_tx_out,
+                principal_tx_out,
+                principal_change_tx_out,
+                collateral_change_tx_out,
+                tx_fee_tx_out,
             ],
         }
     }
@@ -282,6 +287,7 @@ impl Lender {
     }
 }
 
+#[derive(Debug)]
 pub struct Input {
     pub amount: Amount,
     pub tx_in: TxIn,

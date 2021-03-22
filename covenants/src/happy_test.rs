@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod tests {
     use crate::{make_keypair, Borrower, Lender};
-    use anyhow::Result;
+    use anyhow::{Context, Result};
     use elements::encode::Encodable;
     use elements::secp256k1::{Signature, SECP256K1};
     use elements::sighash::SigHashCache;
@@ -27,54 +27,8 @@ mod tests {
     use elements_harness::{elementd_rpc::ElementsRpc, Elementsd};
     use testcontainers::clients::Cli;
 
-    async fn find_inputs(
-        client: &elements_harness::Client,
-        asset: AssetId,
-        amount: Amount,
-    ) -> Result<Vec<crate::Input>> {
-        let inputs = client.select_inputs_for(asset, amount, false).await?;
-        let master_blinding_key = client.dumpmasterblindingkey().await?;
-        let master_blinding_key = hex::decode(master_blinding_key)?;
-
-        let inputs = inputs
-            .iter()
-            .filter_map(|(outpoint, tx_out)| {
-                use hmac::{Hmac, Mac, NewMac};
-                use sha2::Sha256;
-
-                let mut mac = Hmac::<Sha256>::new_varkey(&master_blinding_key)
-                    .expect("HMAC can take key of any size");
-                mac.update(tx_out.script_pubkey.as_bytes());
-
-                let result = mac.finalize();
-                let blinding_sk = SecretKey::from_slice(&result.into_bytes()).expect("valid sk");
-
-                let amount = match (tx_out.to_explicit(), tx_out.to_confidential()) {
-                    (Some(ExplicitTxOut { value, .. }), None) => value,
-                    (None, Some(conf)) => conf.unblind(SECP256K1, blinding_sk).unwrap().value,
-                    _ => return None,
-                };
-
-                Some(crate::Input {
-                    amount: Amount::from_sat(amount),
-                    tx_in: TxIn {
-                        previous_output: *outpoint,
-                        is_pegin: false,
-                        has_issuance: false,
-                        script_sig: Script::new(),
-                        sequence: 0,
-                        asset_issuance: AssetIssuance::default(),
-                        witness: TxInWitness::default(),
-                    },
-                })
-            })
-            .collect();
-
-        Ok(inputs)
-    }
-
     #[tokio::test]
-    async fn test_2_party_protocol() {
+    async fn loan_protocol() {
         let tc_client = Cli::default();
         let (client, _container) = {
             let blockchain = Elementsd::new(&tc_client, "0.18.1.9").unwrap();
@@ -84,20 +38,33 @@ mod tests {
                 blockchain,
             )
         };
-        let usdt_fund_amount = 40.0;
 
         let bitcoin_asset_id = client.get_bitcoin_asset_id().await.unwrap();
-        let usdt_asset_id = client
-            .issueasset(usdt_fund_amount, 0.0, false)
-            .await
-            .unwrap()
-            .asset;
+        let usdt_asset_id = client.issueasset(40.0, 0.0, false).await.unwrap().asset;
+
+        // TODO: Use a separate wallet per actor. Using the same wallet is confusing and bug-prone.
+        let lender = {
+            let lender_address = client.getnewaddress().await.unwrap();
+            let principal_inputs =
+                generate_unblinded_input(&client, Amount::from_btc(2.0).unwrap(), usdt_asset_id)
+                    .await
+                    .unwrap();
+
+            Lender::new(
+                bitcoin_asset_id,
+                usdt_asset_id,
+                principal_inputs,
+                lender_address.clone(),
+                lender_address,
+            )
+        };
 
         let borrower = {
             let collateral_amount = Amount::ONE_BTC;
-            let collateral_inputs = find_inputs(&client, bitcoin_asset_id, collateral_amount)
-                .await
-                .unwrap();
+            let collateral_inputs =
+                generate_unblinded_input(&client, collateral_amount * 2, bitcoin_asset_id)
+                    .await
+                    .unwrap();
             let borrower_address = client.getnewaddress().await.unwrap();
             let tx_fee = Amount::from_sat(10_000);
             let timelock = 0;
@@ -112,25 +79,6 @@ mod tests {
                 bitcoin_asset_id,
             )
             .unwrap()
-        };
-
-        let mut lender = {
-            let lender_address = client.getnewaddress().await.unwrap();
-            let principal_inputs = find_inputs(
-                &client,
-                usdt_asset_id,
-                Amount::from_btc(usdt_fund_amount).unwrap(),
-            )
-            .await
-            .unwrap();
-
-            Lender::new(
-                bitcoin_asset_id,
-                usdt_asset_id,
-                principal_inputs,
-                lender_address.clone(),
-                lender_address,
-            )
         };
 
         let loan_request = borrower.loan_request();
@@ -611,5 +559,98 @@ mod tests {
                 self.input.script.clone().into_bytes(),
             ])
         }
+    }
+
+    async fn generate_unblinded_input(
+        client: &elements_harness::Client,
+        amount: Amount,
+        asset: AssetId,
+    ) -> Result<Vec<crate::Input>> {
+        let address = client.getnewaddress().await?;
+        let address = client.getaddressinfo(&address).await?;
+        let txid = client
+            .send_asset_to_address(&address.unconfidential, amount, Some(asset))
+            .await?;
+        let tx = client.get_raw_transaction(txid).await?;
+
+        let vout = tx
+            .output
+            .iter()
+            .position(|out| {
+                out.asset.is_explicit()
+                    && out.asset.explicit().unwrap() == asset
+                    && out.value.is_explicit()
+                    && out.value.explicit().unwrap() == amount.as_sat()
+            })
+            .with_context(|| {
+                format!(
+                    "no explicit output with asset {} and amount {}",
+                    asset, amount,
+                )
+            })?;
+
+        Ok(vec![crate::Input {
+            amount,
+            tx_in: TxIn {
+                previous_output: OutPoint {
+                    txid,
+                    vout: vout as u32,
+                },
+                is_pegin: false,
+                has_issuance: false,
+                script_sig: Script::new(),
+                sequence: 0,
+                asset_issuance: AssetIssuance::default(),
+                witness: TxInWitness::default(),
+            },
+        }])
+    }
+
+    // TODO: Using this function to select inputs instead of
+    // `generate_unblinded_input()` seems better, but fails
+    async fn _find_inputs(
+        client: &elements_harness::Client,
+        asset: AssetId,
+        amount: Amount,
+    ) -> Result<Vec<crate::Input>> {
+        let inputs = client.select_inputs_for(asset, amount, false).await?;
+        let master_blinding_key = client.dumpmasterblindingkey().await?;
+        let master_blinding_key = hex::decode(master_blinding_key)?;
+
+        let inputs = inputs
+            .iter()
+            .filter_map(|(outpoint, tx_out)| {
+                use hmac::{Hmac, Mac, NewMac};
+                use sha2::Sha256;
+
+                let mut mac = Hmac::<Sha256>::new_varkey(&master_blinding_key)
+                    .expect("HMAC can take key of any size");
+                mac.update(tx_out.script_pubkey.as_bytes());
+
+                let result = mac.finalize();
+                let blinding_sk = SecretKey::from_slice(&result.into_bytes()).expect("valid sk");
+
+                let amount = match (tx_out.to_explicit(), tx_out.to_confidential()) {
+                    (Some(ExplicitTxOut { value, .. }), None) => value,
+                    (None, Some(conf)) => conf.unblind(SECP256K1, blinding_sk).unwrap().value,
+                    _ => return None,
+                };
+
+                Some(crate::Input {
+                    amount: Amount::from_sat(amount),
+                    tx_in: TxIn {
+                        previous_output: *outpoint,
+                        is_pegin: false,
+                        has_issuance: false,
+                        script_sig: Script::new(),
+                        sequence: 0,
+                        asset_issuance: AssetIssuance::default(),
+                        witness: TxInWitness::default(),
+                    },
+                })
+            })
+            .collect();
+
+        Ok(inputs)
     }
 }
