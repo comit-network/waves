@@ -13,7 +13,7 @@ use std::collections::HashMap;
 #[jsonrpc_client::api(version = "1.0")]
 pub trait ElementsRpc {
     async fn getblockchaininfo(&self) -> BlockchainInfo;
-    async fn getnewaddress(&self) -> Address;
+    async fn getnewaddress(&self, label: String, address_type: String) -> Address;
     #[allow(clippy::too_many_arguments)]
     async fn sendtoaddress(
         &self,
@@ -102,6 +102,14 @@ impl Client {
         })
     }
 
+    pub async fn get_new_address(&self, address_type: Option<String>) -> Result<Address> {
+        let address = self
+            .getnewaddress("".to_string(), address_type.unwrap_or_default())
+            .await?;
+
+        Ok(address)
+    }
+
     pub async fn get_bitcoin_asset_id(&self) -> Result<AssetId> {
         let labels = self.dumpassetlabels().await?;
         let bitcoin_asset_tag = "bitcoin";
@@ -170,7 +178,7 @@ impl Client {
         amount: Amount,
         should_lock: bool,
     ) -> Result<Vec<(OutPoint, TxOut)>> {
-        let placeholder_address = self.getnewaddress().await.unwrap();
+        let placeholder_address = self.get_new_address(None).await.unwrap();
         let tx = Transaction {
             output: vec![TxOut {
                 asset: Asset::Explicit(asset),
@@ -333,7 +341,7 @@ mod test {
             )
         };
 
-        let address = client.getnewaddress().await.unwrap();
+        let address = client.get_new_address(None).await.unwrap();
         let _txid = client
             .sendtoaddress(
                 &address, 1.0, None, None, None, None, None, None, None, true,

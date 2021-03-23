@@ -98,10 +98,14 @@ async fn faucet<R, RS>(
             warp::reject::reject()
         })?;
 
-    let address = bobtimus.elementsd.getnewaddress().await.map_err(|e| {
-        log::error!("could not get new address: {}", e);
-        warp::reject::reject()
-    })?;
+    let address = bobtimus
+        .elementsd
+        .get_new_address(None)
+        .await
+        .map_err(|e| {
+            log::error!("could not get new address: {}", e);
+            warp::reject::reject()
+        })?;
     bobtimus
         .elementsd
         .generatetoaddress(1, &address)

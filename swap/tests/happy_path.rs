@@ -229,7 +229,7 @@ async fn move_output_to_wallet(
     let fee = 900_000;
     let amount_out = Amount::from_sat(amount_in - fee);
 
-    let move_address = client.getnewaddress().await?;
+    let move_address = client.get_new_address(None).await?;
 
     let inputs = [(asset_id, amount_in, txout.asset, abf_in, vbf_in)];
 

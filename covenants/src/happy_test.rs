@@ -1,6 +1,6 @@
 #[cfg(test)]
 mod tests {
-    use crate::{make_keypair, Borrower, Lender};
+    use crate::{make_keypair, Borrower0, Lender0};
     use anyhow::{Context, Result};
     use elements::encode::Encodable;
     use elements::secp256k1::{Signature, SECP256K1};
@@ -44,13 +44,16 @@ mod tests {
 
         // TODO: Use a separate wallet per actor. Using the same wallet is confusing and bug-prone.
         let lender = {
-            let lender_address = client.getnewaddress().await.unwrap();
+            let lender_address = client
+                .get_new_address(Some("bech32".to_string()))
+                .await
+                .unwrap();
             let principal_inputs =
                 generate_unblinded_input(&client, Amount::from_btc(2.0).unwrap(), usdt_asset_id)
                     .await
                     .unwrap();
 
-            Lender::new(
+            Lender0::new(
                 bitcoin_asset_id,
                 usdt_asset_id,
                 principal_inputs,
@@ -65,11 +68,14 @@ mod tests {
                 generate_unblinded_input(&client, collateral_amount * 2, bitcoin_asset_id)
                     .await
                     .unwrap();
-            let borrower_address = client.getnewaddress().await.unwrap();
+            let borrower_address = client
+                .get_new_address(Some("bech32".to_string()))
+                .await
+                .unwrap();
             let tx_fee = Amount::from_sat(10_000);
             let timelock = 0;
 
-            Borrower::new(
+            Borrower0::new(
                 borrower_address.clone(),
                 collateral_amount,
                 collateral_inputs,
@@ -77,28 +83,37 @@ mod tests {
                 tx_fee,
                 timelock,
                 bitcoin_asset_id,
+                usdt_asset_id,
             )
             .unwrap()
         };
 
         let loan_request = borrower.loan_request();
-        let transaction = lender.create_loan_transaction(loan_request);
-        let transaction = borrower
-            .sign(transaction, {
-                let client = client.clone();
-                |transaction| async move { client.sign_raw_transaction(&transaction).await }
-            })
-            .await
-            .unwrap();
-        let transaction = lender
-            .sign(transaction, {
+
+        let lender = lender.interpret(loan_request);
+        let loan_response = lender.loan_response();
+
+        let borrower = borrower.interpret(loan_response).unwrap();
+        let loan_transaction = borrower
+            .sign({
                 let client = client.clone();
                 |transaction| async move { client.sign_raw_transaction(&transaction).await }
             })
             .await
             .unwrap();
 
-        client.send_raw_transaction(&transaction).await.unwrap();
+        let loan_transaction = lender
+            .finalise_loan(loan_transaction, {
+                let client = client.clone();
+                |transaction| async move { client.sign_raw_transaction(&transaction).await }
+            })
+            .await
+            .unwrap();
+
+        client
+            .send_raw_transaction(&loan_transaction)
+            .await
+            .unwrap();
     }
 
     #[tokio::test]
@@ -254,7 +269,7 @@ mod tests {
                 witness: TxInWitness::default(),
             };
 
-            let address = client.getnewaddress().await.unwrap();
+            let address = client.get_new_address(None).await.unwrap();
             let change_output = TxOut {
                 asset: confidential::Asset::Explicit(asset_id_usdt),
                 value: confidential::Value::Explicit(amount - principal_amount),
@@ -566,10 +581,10 @@ mod tests {
         amount: Amount,
         asset: AssetId,
     ) -> Result<Vec<crate::Input>> {
-        let address = client.getnewaddress().await?;
-        let address = client.getaddressinfo(&address).await?;
+        let address = client.get_new_address(Some("bech32".to_string())).await?;
+        let address = client.getaddressinfo(&address).await?.unconfidential;
         let txid = client
-            .send_asset_to_address(&address.unconfidential, amount, Some(asset))
+            .send_asset_to_address(&address, amount, Some(asset))
             .await?;
         let tx = client.get_raw_transaction(txid).await?;
 
