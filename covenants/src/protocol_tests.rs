@@ -13,7 +13,7 @@ mod tests {
     use testcontainers::clients::Cli;
 
     #[tokio::test]
-    async fn loan_protocol() {
+    async fn borrow_and_repay() {
         let tc_client = Cli::default();
         let (client, _container) = {
             let blockchain = Elementsd::new(&tc_client, "0.18.1.9").unwrap();
@@ -123,6 +123,105 @@ mod tests {
 
         client
             .send_raw_transaction(&loan_repayment_transaction)
+            .await
+            .unwrap();
+    }
+
+    #[tokio::test]
+    async fn lend_and_liquidate() {
+        let tc_client = Cli::default();
+        let (client, _container) = {
+            let blockchain = Elementsd::new(&tc_client, "0.18.1.9").unwrap();
+
+            (
+                elements_harness::Client::new(blockchain.node_url.clone().into_string()).unwrap(),
+                blockchain,
+            )
+        };
+
+        let bitcoin_asset_id = client.get_bitcoin_asset_id().await.unwrap();
+        let usdt_asset_id = client.issueasset(40.0, 0.0, false).await.unwrap().asset;
+
+        // TODO: Use a separate wallet per actor. Using the same wallet is confusing and bug-prone.
+        let (lender, _lender_address) = {
+            let address = client
+                .get_new_address(Some("bech32".to_string()))
+                .await
+                .unwrap();
+            let principal_inputs =
+                generate_unblinded_input(&client, Amount::from_btc(2.0).unwrap(), usdt_asset_id)
+                    .await
+                    .unwrap();
+
+            let lender = Lender0::new(
+                bitcoin_asset_id,
+                usdt_asset_id,
+                principal_inputs,
+                address.clone(),
+            );
+
+            (lender, address)
+        };
+
+        let tx_fee = Amount::from_sat(10_000);
+        let (borrower, _borrower_address) = {
+            let collateral_amount = Amount::ONE_BTC;
+            let collateral_inputs =
+                generate_unblinded_input(&client, collateral_amount * 2, bitcoin_asset_id)
+                    .await
+                    .unwrap();
+            let address = client
+                .get_new_address(Some("bech32".to_string()))
+                .await
+                .unwrap();
+
+            let timelock = 0;
+
+            let borrower = Borrower0::new(
+                address.clone(),
+                collateral_amount,
+                collateral_inputs,
+                tx_fee,
+                timelock,
+                bitcoin_asset_id,
+                usdt_asset_id,
+            )
+            .unwrap();
+
+            (borrower, address)
+        };
+
+        let loan_request = borrower.loan_request();
+
+        let lender = lender.interpret(loan_request);
+        let loan_response = lender.loan_response();
+
+        let borrower = borrower.interpret(loan_response).unwrap();
+        let loan_transaction = borrower
+            .sign({
+                let client = client.clone();
+                |transaction| async move { client.sign_raw_transaction(&transaction).await }
+            })
+            .await
+            .unwrap();
+
+        let loan_transaction = lender
+            .finalise_loan(loan_transaction, {
+                let client = client.clone();
+                |transaction| async move { client.sign_raw_transaction(&transaction).await }
+            })
+            .await
+            .unwrap();
+
+        client
+            .send_raw_transaction(&loan_transaction)
+            .await
+            .unwrap();
+
+        let liquidation_transaction = lender.liquidation_transaction(tx_fee).unwrap();
+
+        client
+            .send_raw_transaction(&liquidation_transaction)
             .await
             .unwrap();
     }
