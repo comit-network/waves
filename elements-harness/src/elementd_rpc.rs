@@ -64,6 +64,14 @@ pub trait ElementsRpc {
     async fn lockunspent(&self, unlock: bool, utxos: Vec<OutPoint>) -> bool;
     async fn reissueasset(&self, asset: AssetId, amount: f64) -> ReissueAssetResponse;
     async fn getaddressinfo(&self, address: &Address) -> GetAddressInfoResponse;
+    async fn listreceivedbyaddress(
+        &self,
+        minconf: Option<u32>,
+        include_empty: Option<bool>,
+        include_watchonly: Option<bool>,
+        address_filter: Option<&Address>,
+        assetlabel: Option<String>,
+    ) -> Vec<ListReceivedByAddressResponse>;
 }
 
 #[jsonrpc_client::implement(ElementsRpc)]
@@ -92,6 +100,13 @@ pub struct ReissueAssetResponse {
 #[derive(Clone, Debug, Deserialize)]
 pub struct GetAddressInfoResponse {
     pub unconfidential: Address,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+pub struct ListReceivedByAddressResponse {
+    pub address: Address,
+    pub amount: HashMap<String, f64>,
+    pub confirmations: u64,
 }
 
 impl Client {
@@ -263,6 +278,17 @@ impl Client {
         } else {
             bail!("Could not lock outputs")
         }
+    }
+
+    pub async fn list_received_by_address(
+        &self,
+        address: &Address,
+    ) -> Result<Vec<ListReceivedByAddressResponse>> {
+        let res = self
+            .listreceivedbyaddress(Some(0), None, None, Some(address), None)
+            .await?;
+
+        Ok(res)
     }
 }
 
