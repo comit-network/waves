@@ -2,13 +2,11 @@
 mod tests {
     use crate::{Borrower0, Lender0};
     use anyhow::{Context, Result};
-    use elements::bitcoin::Amount;
-    use elements::secp256k1::SecretKey;
-    use elements::secp256k1::SECP256K1;
-    use elements::AssetId;
-    use elements::AssetIssuance;
-    use elements::ExplicitTxOut;
-    use elements::{OutPoint, Script, TxIn, TxInWitness};
+    use elements::{
+        bitcoin::Amount,
+        secp256k1::{SecretKey, SECP256K1},
+        AssetId, AssetIssuance, ExplicitTxOut, OutPoint, Script, TxIn, TxInWitness,
+    };
     use elements_harness::{elementd_rpc::ElementsRpc, Elementsd};
     use testcontainers::clients::Cli;
 

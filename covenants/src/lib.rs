@@ -1,24 +1,18 @@
 use std::future::Future;
 
 use anyhow::{bail, Context, Result};
-use elements::{bitcoin::util::psbt::serialize::Serialize, confidential::Nonce, hashes::Hash};
 use elements::{
-    bitcoin::{Amount, Network, PrivateKey, PublicKey},
-    TxOutWitness,
+    bitcoin::{util::psbt::serialize::Serialize, Amount, Network, PrivateKey, PublicKey},
+    confidential::{Asset, Nonce, Value},
+    encode::Encodable,
+    hashes::{sha256d, Hash},
+    opcodes::all::*,
+    script::Builder,
+    secp256k1::{rand::thread_rng, SecretKey, Signature, SECP256K1},
+    sighash::SigHashCache,
+    Address, AddressParams, AssetId, OutPoint, Script, SigHashType, Transaction, TxIn, TxInWitness,
+    TxOut, TxOutWitness,
 };
-use elements::{
-    confidential::{Asset, Value},
-    AddressParams,
-};
-use elements::{encode::Encodable, hashes::sha256d, SigHashType};
-use elements::{opcodes::all::*, secp256k1::Signature};
-use elements::{script::Builder, OutPoint};
-use elements::{secp256k1::rand::thread_rng, sighash::SigHashCache};
-use elements::{
-    secp256k1::{SecretKey, SECP256K1},
-    TxInWitness,
-};
-use elements::{Address, AssetId, Script, Transaction, TxIn, TxOut};
 
 #[cfg(test)]
 mod protocol_tests;

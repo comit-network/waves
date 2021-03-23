@@ -216,3 +216,19 @@ jobs:
         with:
           name: wasm-wallet-test-binary
           path: ./target/wasm32-unknown-unknown/debug/deps/wallet-*.wasm
+
+  covenants_tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v2
+
+      - name: Install Rust toolchain
+        id: toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          profile: minimal
+          override: true
+
+      - name: Cargo test
+        run: cargo test -p covenants
