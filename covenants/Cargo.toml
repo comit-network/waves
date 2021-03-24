@@ -11,6 +11,7 @@ elements = "0.15"
 elements-harness = { path = "../elements-harness" }
 hex = "0.4"
 hmac = "0.10"
+secp256k1-zkp = { version = "0.2", features = [ "global-context", "hashes" ] }
 sha2 = "0.9"
 testcontainers = "0.11"
 tokio = { version = "1", default-features = false, features = [ "macros", "rt", "time" ] }

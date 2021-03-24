@@ -450,6 +450,7 @@ dependencies = [
  "elements-harness",
  "hex",
  "hmac 0.10.1",
+ "secp256k1-zkp",
  "sha2",
  "testcontainers",
  "tokio",

@@ -52,7 +52,7 @@ mod tests {
                 .await
                 .unwrap();
             let address_blinding_sk =
-                derive_blinding_key(master_blinding_key, address.script_pubkey()).unwrap();
+                derive_blinding_key(master_blinding_key.clone(), address.script_pubkey()).unwrap();
 
             let timelock = 0;
 
@@ -77,6 +77,9 @@ mod tests {
                 .get_new_address(Some("blech32".into()))
                 .await
                 .unwrap();
+            let address_blinding_sk =
+                derive_blinding_key(master_blinding_key, address.script_pubkey()).unwrap();
+
             let principal_inputs =
                 find_inputs(&client, usdt_asset_id, Amount::from_btc(2.0).unwrap())
                     .await
@@ -88,6 +91,7 @@ mod tests {
                 usdt_asset_id,
                 principal_inputs,
                 address.clone(),
+                address_blinding_sk,
             )
             .unwrap();
 
@@ -123,25 +127,28 @@ mod tests {
             .await
             .unwrap();
 
-        // let loan_repayment_transaction = borrower
-        //     .loan_repayment_transaction(
-        //         {
-        //             let client = client.clone();
-        //             |amount, asset| async move { generate_input(&client, amount, asset).await }
-        //         },
-        //         {
-        //             let client = client.clone();
-        //             |transaction| async move { client.sign_raw_transaction(&transaction).await }
-        //         },
-        //         tx_fee,
-        //     )
-        //     .await
-        //     .unwrap();
+        let loan_repayment_transaction = borrower
+            .loan_repayment_transaction(
+                &mut thread_rng(),
+                &SECP256K1,
+                {
+                    let client = client.clone();
+                    |amount, asset| async move { find_inputs(&client, asset, amount).await }
+                },
+                {
+                    let client = client.clone();
+                    |transaction| async move { client.sign_raw_transaction(&transaction).await }
+                },
+                // TODO: Do the same as in the loan transaction for the fee
+                Amount::from_sat(10_000),
+            )
+            .await
+            .unwrap();
 
-        // client
-        //     .send_raw_transaction(&loan_repayment_transaction)
-        //     .await
-        //     .unwrap();
+        client
+            .send_raw_transaction(&loan_repayment_transaction)
+            .await
+            .unwrap();
     }
 
     // #[tokio::test]
