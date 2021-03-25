@@ -14,10 +14,16 @@ mod tests {
     };
     use elements_harness::{elementd_rpc::ElementsRpc, Elementsd};
     use secp256k1_zkp::Message;
+    use std::env;
     use testcontainers::clients::Cli;
 
     #[tokio::test]
     async fn borrow_and_repay() {
+        // force enabling log output
+        // TODO: remove me again
+        env::set_var("RUST_LOG", "DEBUG");
+        let _ = env_logger::builder().is_test(true).try_init();
+
         let tc_client = Cli::default();
         let (client, _container) = {
             let blockchain = Elementsd::new(&tc_client, "0.18.1.9").unwrap();

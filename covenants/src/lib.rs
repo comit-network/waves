@@ -1,3 +1,4 @@
+use crate::stack_simulator::simulate;
 use anyhow::{bail, Context, Result};
 use elements::{
     bitcoin::{util::psbt::serialize::Serialize, Amount, Network, PrivateKey, PublicKey},
@@ -415,6 +416,8 @@ impl Borrower1 {
             .unwrap()
             .serialise()
             .unwrap();
+
+            simulate(self.collateral_script.clone(), script_witness.clone()).unwrap();
 
             tx.input[1].witness = TxInWitness {
                 amount_rangeproof: vec![],
