@@ -44,6 +44,7 @@ pub fn estimate_virtual_size(number_of_inputs: u64, number_of_outputs: u64) -> u
 
 #[cfg(test)]
 mod protocol_tests;
+mod stack_simulator;
 
 pub struct LoanRequest {
     collateral_amount: Amount,
@@ -56,7 +57,7 @@ pub struct LoanRequest {
 
 pub struct LoanResponse {
     transaction: Transaction,
-    principal_amount: Amount,
+    _principal_amount: Amount,
     lender_pk: PublicKey,
     repayment_collateral_input: Input,
     repayment_collateral_abf: AssetBlindingFactor,
@@ -717,7 +718,7 @@ impl Lender1 {
     pub fn loan_response(&self) -> LoanResponse {
         LoanResponse {
             transaction: self.loan_transaction.clone(),
-            principal_amount: self.principal_amount,
+            _principal_amount: self.principal_amount,
             lender_pk: self.keypair.1,
             repayment_collateral_input: self.repayment_collateral_input.clone(),
             repayment_collateral_abf: self.repayment_collateral_abf,

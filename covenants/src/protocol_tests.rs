@@ -10,7 +10,7 @@ mod tests {
         script::Builder,
         secp256k1::{rand::thread_rng, SecretKey, SECP256K1},
         sighash::SigHashCache,
-        AssetId, OutPoint, Script, SigHashType, TxIn,
+        AssetId, Script, SigHashType, TxIn,
     };
     use elements_harness::{elementd_rpc::ElementsRpc, Elementsd};
     use secp256k1_zkp::Message;
