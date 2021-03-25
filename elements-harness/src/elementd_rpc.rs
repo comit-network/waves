@@ -1,14 +1,14 @@
 use anyhow::{bail, Context, Result};
 use bitcoin_hashes::hex::FromHex;
 use elements::{
-    bitcoin::Amount,
+    bitcoin::{Amount, PrivateKey},
     confidential::{Asset, Nonce, Value},
     encode::serialize_hex,
-    secp256k1::SecretKey,
+    secp256k1::{SecretKey, Signature},
     Address, AssetId, OutPoint, Transaction, TxOut, TxOutWitness, Txid,
 };
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::{collections::HashMap, str::FromStr};
 
 #[jsonrpc_client::api(version = "1.0")]
 pub trait ElementsRpc {
@@ -72,6 +72,21 @@ pub trait ElementsRpc {
         address_filter: Option<&Address>,
         assetlabel: Option<String>,
     ) -> Vec<ListReceivedByAddressResponse>;
+    async fn converttopsbt(
+        &self,
+        tx_hex: String,
+        permitsigdata: Option<bool>,
+        iswitness: Option<bool>,
+    ) -> String;
+    async fn walletsignpsbt(
+        &self,
+        tx_hex: String,
+        sighashtype: Option<String>,
+        imbalance_ok: Option<bool>,
+    ) -> WalletSignPsbtResponse;
+    async fn finalizepsbt(&self, psbt: String, extract: Option<bool>) -> FinalizePsbtResponse;
+    async fn signmessage(&self, address: &Address, message: String) -> String;
+    async fn dumpprivkey(&self, address: &Address) -> String;
 }
 
 #[jsonrpc_client::implement(ElementsRpc)]
@@ -108,6 +123,7 @@ pub struct ReissueAssetResponse {
 #[derive(Clone, Debug, Deserialize)]
 pub struct GetAddressInfoResponse {
     pub unconfidential: Address,
+    pub pubkey: Option<String>,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -115,6 +131,19 @@ pub struct ListReceivedByAddressResponse {
     pub address: Address,
     pub amount: HashMap<String, f64>,
     pub confirmations: u64,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+pub struct WalletSignPsbtResponse {
+    pub psbt: Option<String>,
+    pub complete: bool,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+pub struct FinalizePsbtResponse {
+    pub hex: Option<String>,
+    pub psbt: Option<String>,
+    pub complete: bool,
 }
 
 impl Client {
@@ -263,7 +292,7 @@ impl Client {
     pub async fn sign_raw_transaction(&self, tx: &Transaction) -> Result<Transaction> {
         let tx_hex = serialize_hex(tx);
         let res = self.signrawtransactionwithwallet(tx_hex).await?;
-        dbg!(&res);
+        dbg!(&res.errors);
         let tx = elements::encode::deserialize(&Vec::<u8>::from_hex(&res.hex).unwrap())?;
 
         Ok(tx)
@@ -296,6 +325,20 @@ impl Client {
             .await?;
 
         Ok(res)
+    }
+
+    pub async fn sign_message(&self, address: &Address, message: String) -> Result<Signature> {
+        let sig = self.signmessage(address, message).await?;
+        let sig = Signature::from_str(&sig)?;
+
+        Ok(sig)
+    }
+
+    pub async fn dump_private_key(&self, address: &Address) -> Result<SecretKey> {
+        let privkey = self.dumpprivkey(address).await?;
+        let privkey = PrivateKey::from_wif(&privkey)?;
+
+        Ok(privkey.key)
     }
 }
 

@@ -2,12 +2,18 @@
 mod tests {
     use crate::{Borrower0, Lender0};
     use anyhow::Result;
+    use bitcoin_hashes::Hash;
     use elements::{
         bitcoin::Amount,
+        hashes::hash160,
+        opcodes,
+        script::Builder,
         secp256k1::{rand::thread_rng, SecretKey, SECP256K1},
-        AssetId, Script, TxIn,
+        sighash::SigHashCache,
+        AssetId, OutPoint, Script, SigHashType, TxIn,
     };
     use elements_harness::{elementd_rpc::ElementsRpc, Elementsd};
+    use secp256k1_zkp::Message;
     use testcontainers::clients::Cli;
 
     #[tokio::test]
@@ -136,7 +142,36 @@ mod tests {
                 },
                 {
                     let client = client.clone();
-                    |transaction| async move { client.sign_raw_transaction(&transaction).await }
+                    |mut tx, index, address, value| async move {
+                        let sk = client.dump_private_key(&address).await?;
+                        let pk = secp256k1_zkp::PublicKey::from_secret_key(&SECP256K1, &sk);
+
+                        let hash = hash160::Hash::hash(&pk.serialize());
+                        let script = Builder::new()
+                            .push_opcode(opcodes::all::OP_DUP)
+                            .push_opcode(opcodes::all::OP_HASH160)
+                            .push_slice(&hash.into_inner())
+                            .push_opcode(opcodes::all::OP_EQUALVERIFY)
+                            .push_opcode(opcodes::all::OP_CHECKSIG)
+                            .into_script();
+
+                        let sighash = SigHashCache::new(&tx).segwitv0_sighash(
+                            index as usize,
+                            &script,
+                            value,
+                            SigHashType::All,
+                        );
+
+                        let sig = SECP256K1.sign(&Message::from(sighash), &sk);
+
+                        let mut serialized_signature = sig.serialize_der().to_vec();
+                        serialized_signature.push(SigHashType::All as u8);
+
+                        tx.input[index as usize].witness.script_witness =
+                            vec![serialized_signature, pk.serialize().to_vec()];
+
+                        Ok(tx)
+                    }
                 },
                 // TODO: Do the same as in the loan transaction for the fee
                 Amount::from_sat(10_000),
@@ -249,14 +284,41 @@ mod tests {
     //         .unwrap();
     // }
 
-    // TODO: Using this function to select inputs instead of
-    // `generate_unblinded_input()` seems better, but fails
     async fn find_inputs(
         client: &elements_harness::Client,
         asset: AssetId,
         amount: Amount,
     ) -> Result<Vec<crate::Input>> {
         let inputs = client.select_inputs_for(asset, amount, false).await?;
+
+        // let address = client
+        //     .get_new_address(Some("blech32".into()))
+        //     .await
+        //     .unwrap();
+        // let txid = client
+        //     .send_asset_to_address(&address, amount, Some(asset))
+        //     .await
+        //     .unwrap();
+
+        // // let inputs = client.select_inputs_for(asset, amount, false).await?;
+        // let inputs = {
+        //     let tx = client.get_raw_transaction(txid).await.unwrap();
+
+        //     let vout = tx
+        //         .output
+        //         .iter()
+        //         .position(|out| out.script_pubkey == address.script_pubkey())
+        //         .unwrap();
+
+        //     let outpoint = OutPoint {
+        //         txid,
+        //         vout: vout as u32,
+        //     };
+        //     let tx_out = tx.output[vout].clone();
+
+        //     vec![(outpoint, tx_out)]
+        // };
+
         let master_blinding_key = client.dumpmasterblindingkey().await?;
         let master_blinding_key = hex::decode(master_blinding_key)?;
 
@@ -268,7 +330,7 @@ mod tests {
 
                 Result::<_, anyhow::Error>::Ok(crate::Input {
                     tx_in: TxIn {
-                        previous_output: dbg!(outpoint),
+                        previous_output: outpoint,
                         is_pegin: false,
                         has_issuance: false,
                         script_sig: Default::default(),
@@ -301,4 +363,35 @@ mod tests {
 
         Ok(blinding_sk)
     }
+
+    // pub fn sign_with_key<C>(
+    //     secp: &Secp256k1<C>,
+    //     cache: &mut SigHashCache<&Transaction>,
+    //     index: usize,
+    //     input_sk: &SecretKey,
+    //     value: confidential::Value,
+    // ) -> Vec<Vec<u8>>
+    // where
+    //     C: Signing,
+    // {
+    //     let input_pk = PublicKey::from_secret_key(&secp, &input_sk);
+
+    //     let hash = hash160::Hash::hash(&input_pk.serialize());
+    //     let script = Builder::new()
+    //         .push_opcode(opcodes::all::OP_DUP)
+    //         .push_opcode(opcodes::all::OP_HASH160)
+    //         .push_slice(&hash.into_inner())
+    //         .push_opcode(opcodes::all::OP_EQUALVERIFY)
+    //         .push_opcode(opcodes::all::OP_CHECKSIG)
+    //         .into_script();
+
+    //     let sighash = cache.segwitv0_sighash(index, &script, value, SigHashType::All);
+
+    //     let sig = secp.sign(&Message::from(sighash), &input_sk);
+
+    //     let mut serialized_signature = sig.serialize_der().to_vec();
+    //     serialized_signature.push(SigHashType::All as u8);
+
+    //     vec![serialized_signature, input_pk.serialize().to_vec()]
+    // }
 }

@@ -146,6 +146,8 @@ impl Borrower0 {
             loan_response.repayment_principal_output.clone(),
         )?;
 
+        dbg!(&collateral_script);
+
         let collateral_address = Address::p2wsh(&collateral_script, None, &AddressParams::ELEMENTS);
         let collateral_script_pubkey = collateral_address.script_pubkey();
         let collateral_blinding_sk = loan_response.repayment_collateral_input.blinding_key;
@@ -258,7 +260,7 @@ impl Borrower1 {
         C: Verification + Signing,
         CS: FnOnce(Amount, AssetId) -> CF,
         CF: Future<Output = Result<Vec<Input>>>,
-        SI: FnOnce(Transaction) -> SF,
+        SI: FnOnce(Transaction, u32, Address, Value) -> SF,
         SF: Future<Output = Result<Transaction>>,
     {
         let repayment_amount = self.principal_tx_out_amount;
@@ -270,12 +272,15 @@ impl Borrower1 {
             .into_unblinded_input(secp)
             .context("could not unblind repayment collateral input")?;
         let principal_inputs = coin_selector(repayment_amount, self.usdt_asset_id).await?;
-        let principal_inputs = principal_inputs
+
+        let unblinded_principal_inputs = principal_inputs
+            .clone()
             .into_iter()
             .map(|input| input.into_unblinded_input(secp))
             .collect::<Result<Vec<_>>>()?;
+
         let inputs = {
-            let mut borrower_inputs = principal_inputs
+            let mut borrower_inputs = unblinded_principal_inputs
                 .iter()
                 .map(|input| {
                     (
@@ -313,7 +318,7 @@ impl Borrower1 {
         )?
         .serialize();
 
-        let principal_input_amount = principal_inputs
+        let principal_input_amount = unblinded_principal_inputs
             .iter()
             .fold(0, |acc, input| acc + input.unblinded.value);
         let change_amount = Amount::from_sat(principal_input_amount)
@@ -363,7 +368,7 @@ impl Borrower1 {
 
         let tx_fee_output = TxOut::new_fee(tx_fee.as_sat(), self.bitcoin_asset_id);
 
-        let mut tx_ins: Vec<TxIn> = principal_inputs
+        let mut tx_ins: Vec<TxIn> = unblinded_principal_inputs
             .into_iter()
             .map(|input| input.tx_in)
             .collect();
@@ -378,24 +383,19 @@ impl Borrower1 {
             tx_outs.push(change_output)
         }
 
-        let tx = Transaction {
+        let mut tx = Transaction {
             version: 2,
             lock_time: 0,
             input: tx_ins,
             output: tx_outs,
         };
 
-        // sign repayment input of the principal amount
-
-        let mut tx = signer(tx).await?;
-        dbg!(&tx.input);
-
         // fulfill collateral input covenant script
         {
             let sighash = SigHashCache::new(&tx).segwitv0_sighash(
-                0,
+                1,
                 &self.collateral_script.clone(),
-                Value::Explicit(self.collateral_amount.as_sat()),
+                self.repayment_collateral_input.original_tx_out.value,
                 SigHashType::All,
             );
 
@@ -404,21 +404,36 @@ impl Borrower1 {
                 &self.keypair.0,
             );
 
-            tx.input[0].witness = TxInWitness {
+            let script_witness = RepaymentWitnessStack::new(
+                sig,
+                self.keypair.1,
+                self.collateral_amount.as_sat(),
+                &tx,
+                self.collateral_script.clone(),
+            )
+            .unwrap()
+            .serialise()
+            .unwrap();
+
+            tx.input[1].witness = TxInWitness {
                 amount_rangeproof: vec![],
                 inflation_keys_rangeproof: vec![],
-                script_witness: RepaymentWitnessStack::new(
-                    sig,
-                    self.keypair.1,
-                    self.collateral_amount.as_sat(),
-                    &tx,
-                    self.collateral_script.clone(),
-                )
-                .unwrap()
-                .serialise()
-                .unwrap(),
+                script_witness,
                 pegin_witness: vec![],
             };
+        };
+
+        // TODO: Sign more than one input if necessary
+        // sign repayment input of the principal amount
+        let tx = {
+            let script_pubkey = principal_inputs[0].original_tx_out.script_pubkey.clone();
+            let blinder_sk = principal_inputs[0].blinding_key;
+            let blinder_pk = secp256k1_zkp::PublicKey::from_secret_key(secp, &blinder_sk);
+            let address =
+                Address::from_script(&script_pubkey, Some(blinder_pk), &AddressParams::ELEMENTS)
+                    .unwrap();
+            let value = principal_inputs[0].original_tx_out.value;
+            signer(tx, 0, address, value).await?
         };
 
         Ok(tx)
@@ -542,6 +557,8 @@ impl Lender0 {
             repayment_principal_output.clone(),
         )?;
 
+        dbg!(&collateral_script);
+
         let (collateral_blinding_sk, collateral_blinding_pk) = make_keypair();
         let collateral_address = Address::p2wsh(
             &collateral_script,
@@ -551,9 +568,9 @@ impl Lender0 {
         let (collateral_tx_out, abf_collateral, vbf_collateral) = TxOut::new_not_last_confidential(
             rng,
             secp,
-            dbg!(collateral_amount.as_sat()),
+            collateral_amount.as_sat(),
             collateral_address,
-            dbg!(self.bitcoin_asset_id),
+            self.bitcoin_asset_id,
             &inputs,
         )
         .context("could not construct collateral txout")?;
@@ -561,9 +578,9 @@ impl Lender0 {
         let (principal_tx_out, abf_principal, vbf_principal) = TxOut::new_not_last_confidential(
             rng,
             secp,
-            dbg!(principal_amount.as_sat()),
+            principal_amount.as_sat(),
             loan_request.borrower_address.clone(),
-            dbg!(self.usdt_asset_id),
+            self.usdt_asset_id,
             &inputs,
         )
         .context("could not construct principal txout")?;
@@ -572,15 +589,14 @@ impl Lender0 {
             .principal_inputs
             .iter()
             .fold(0, |sum, input| sum + input.unblinded.value);
-        let principal_change_amount =
-            Amount::from_sat(dbg!(principal_input_amount)) - principal_amount;
+        let principal_change_amount = Amount::from_sat(principal_input_amount) - principal_amount;
         let (principal_change_tx_out, abf_principal_change, vbf_principal_change) =
             TxOut::new_not_last_confidential(
                 rng,
                 secp,
-                dbg!(principal_change_amount).as_sat(),
+                principal_change_amount.as_sat(),
                 self.address.clone(),
-                dbg!(self.usdt_asset_id),
+                self.usdt_asset_id,
                 &inputs,
             )
             .context("could not construct principal change txout")?;
@@ -599,9 +615,9 @@ impl Lender0 {
             estimate_virtual_size(inputs.len() as u64, 4)
                 * loan_request.fee_sats_per_vbyte.as_sat(),
         );
-        let collateral_change_amount = Amount::from_sat(dbg!(collateral_input_amount))
+        let collateral_change_amount = Amount::from_sat(collateral_input_amount)
             .checked_sub(collateral_amount)
-            .map(|a| a.checked_sub(dbg!(tx_fee)))
+            .map(|a| a.checked_sub(tx_fee))
             .flatten()
             .with_context(|| {
                 format!(
@@ -612,9 +628,9 @@ impl Lender0 {
         let collateral_change_tx_out = TxOut::new_last_confidential(
             rng,
             secp,
-            dbg!(collateral_change_amount.as_sat()),
+            collateral_change_amount.as_sat(),
             loan_request.borrower_address,
-            dbg!(self.bitcoin_asset_id),
+            self.bitcoin_asset_id,
             &inputs,
             &not_last_confidential_outputs,
         )
@@ -812,6 +828,16 @@ fn loan_contract(
 
     Ok(Builder::new()
         .push_opcode(OP_IF)
+        .push_opcode(OP_CAT)
+        .push_opcode(OP_CAT)
+        .push_opcode(OP_CAT)
+        .push_opcode(OP_CAT)
+        .push_opcode(OP_CAT)
+        .push_opcode(OP_CAT)
+        .push_slice(repayment_output_bytes.as_slice())
+        .push_opcode(OP_SWAP)
+        .push_opcode(OP_CAT)
+        .push_opcode(OP_HASH256)
         .push_opcode(OP_DEPTH)
         .push_opcode(OP_1SUB)
         .push_opcode(OP_PICK)
@@ -819,18 +845,10 @@ fn loan_contract(
         .push_opcode(OP_CAT)
         .push_slice(&borrower_pk.serialize())
         .push_opcode(OP_CHECKSIGVERIFY)
-        .push_slice(repayment_output_bytes.as_slice())
-        .push_opcode(OP_2ROT)
-        .push_int(5)
-        .push_opcode(OP_ROLL)
+        .push_opcode(OP_TOALTSTACK)
         .push_opcode(OP_CAT)
-        .push_opcode(OP_CAT)
-        .push_opcode(OP_CAT)
-        .push_opcode(OP_HASH256)
-        .push_opcode(OP_ROT)
-        .push_opcode(OP_ROT)
-        .push_opcode(OP_CAT)
-        .push_opcode(OP_CAT)
+        .push_opcode(OP_FROMALTSTACK)
+        .push_opcode(OP_SWAP)
         .push_opcode(OP_CAT)
         .push_opcode(OP_CAT)
         .push_opcode(OP_CAT)
@@ -945,6 +963,9 @@ impl RepaymentWitnessStack {
         })
     }
 
+    // Items on the witness stack are limited to 80 bytes, so we have
+    // to split things all around the place e.g. the script in the
+    // input that we sign and the "other" outputs
     fn serialise(&self) -> anyhow::Result<Vec<Vec<u8>>> {
         let if_flag = vec![0x01];
 
@@ -1010,15 +1031,19 @@ impl RepaymentWitnessStack {
             for txout in self.other_outputs.iter() {
                 let mut output = Vec::new();
                 txout.consensus_encode(&mut output)?;
-                other_outputs.push(output)
+
+                let middle = output.len() / 2;
+                other_outputs.push(output[..middle].to_vec());
+                other_outputs.push(output[middle..].to_vec());
             }
 
-            if other_outputs.len() < 2 {
+            if other_outputs.len() < 4 {
                 bail!("insufficient outputs");
             }
 
-            if other_outputs.len() == 2 {
-                other_outputs.push(vec![])
+            if other_outputs.len() == 4 {
+                other_outputs.push(vec![]);
+                other_outputs.push(vec![]);
             }
 
             other_outputs
@@ -1049,11 +1074,14 @@ impl RepaymentWitnessStack {
             script_2,
             value,
             sequence,
+            lock_time,
+            sighash_type,
             other_outputs[0].clone(),
             other_outputs[1].clone(),
             other_outputs[2].clone(),
-            lock_time,
-            sighash_type,
+            other_outputs[3].clone(),
+            other_outputs[4].clone(),
+            other_outputs[5].clone(),
             if_flag,
             self.input.script.clone().into_bytes(),
         ])
