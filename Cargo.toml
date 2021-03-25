@@ -15,4 +15,4 @@ members = [
 
 [patch.crates-io]
 # Until https://github.com/ElementsProject/rust-elements/pull/70/ is merged
-elements = { git = "https://github.com/luckysori/rust-elements", branch = "upstreaming-fun" }
+elements = { path = "/Users/bonomat/src/github/luckysori/rust-elements" }

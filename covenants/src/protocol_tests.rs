@@ -77,8 +77,6 @@ mod tests {
                 .get_new_address(Some("blech32".into()))
                 .await
                 .unwrap();
-            let address_blinding_sk =
-                derive_blinding_key(master_blinding_key, address.script_pubkey()).unwrap();
 
             let principal_inputs =
                 find_inputs(&client, usdt_asset_id, Amount::from_btc(2.0).unwrap())
@@ -91,7 +89,6 @@ mod tests {
                 usdt_asset_id,
                 principal_inputs,
                 address.clone(),
-                address_blinding_sk,
             )
             .unwrap();
 
@@ -126,6 +123,8 @@ mod tests {
             .send_raw_transaction(&loan_transaction)
             .await
             .unwrap();
+
+        client.generatetoaddress(1, &miner_address).await.unwrap();
 
         let loan_repayment_transaction = borrower
             .loan_repayment_transaction(
@@ -277,7 +276,7 @@ mod tests {
                         asset_issuance: Default::default(),
                         witness: Default::default(),
                     },
-                    tx_out,
+                    original_tx_out: tx_out,
                     blinding_key: input_blinding_sk,
                 })
             })

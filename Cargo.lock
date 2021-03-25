@@ -552,7 +552,6 @@ checksum = "e78d4f1cc4ae33bbfc157ed5d5a5ef3bc29227303d595861deb238fcec4e9457"
 [[package]]
 name = "elements"
 version = "0.15.0"
-source = "git+https://github.com/luckysori/rust-elements?branch=upstreaming-fun#512dca4236ad19cc7585e96050e7128ed9e9ba15"
 dependencies = [
  "bitcoin",
  "bitcoin_hashes 0.9.4",

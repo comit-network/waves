@@ -57,12 +57,12 @@ pub struct LoanRequest {
 pub struct LoanResponse {
     transaction: Transaction,
     principal_amount: Amount,
-    collateral_blinding_sk: SecretKey,
     lender_pk: PublicKey,
     repayment_collateral_input: Input,
     repayment_collateral_abf: AssetBlindingFactor,
     repayment_collateral_vbf: ValueBlindingFactor,
     timelock: u64,
+    repayment_principal_output: TxOut,
 }
 
 pub struct Borrower0 {
@@ -143,12 +143,12 @@ impl Borrower0 {
             self.keypair.1,
             loan_response.lender_pk,
             loan_response.timelock,
-            loan_response.repayment_collateral_input.tx_out.clone(),
+            loan_response.repayment_principal_output.clone(),
         )?;
 
         let collateral_address = Address::p2wsh(&collateral_script, None, &AddressParams::ELEMENTS);
         let collateral_script_pubkey = collateral_address.script_pubkey();
-        let collateral_blinding_sk = loan_response.collateral_blinding_sk;
+        let collateral_blinding_sk = loan_response.repayment_collateral_input.blinding_key;
         transaction
             .output
             .iter()
@@ -216,6 +216,7 @@ impl Borrower0 {
             repayment_collateral_vbf: loan_response.repayment_collateral_vbf,
             bitcoin_asset_id: self.bitcoin_asset_id,
             usdt_asset_id: self.usdt_asset_id,
+            repayment_principal_output: loan_response.repayment_principal_output,
         })
     }
 }
@@ -232,6 +233,7 @@ pub struct Borrower1 {
     repayment_collateral_vbf: ValueBlindingFactor,
     bitcoin_asset_id: AssetId,
     usdt_asset_id: AssetId,
+    repayment_principal_output: TxOut,
 }
 
 impl Borrower1 {
@@ -265,14 +267,15 @@ impl Borrower1 {
         let collateral_input = self
             .repayment_collateral_input
             .clone()
-            .into_unblinded_input(secp)?;
+            .into_unblinded_input(secp)
+            .context("could not unblind repayment collateral input")?;
         let principal_inputs = coin_selector(repayment_amount, self.usdt_asset_id).await?;
         let principal_inputs = principal_inputs
             .into_iter()
             .map(|input| input.into_unblinded_input(secp))
             .collect::<Result<Vec<_>>>()?;
         let inputs = {
-            let mut lender_inputs = principal_inputs
+            let mut borrower_inputs = principal_inputs
                 .iter()
                 .map(|input| {
                     (
@@ -284,7 +287,7 @@ impl Borrower1 {
                     )
                 })
                 .collect::<Vec<_>>();
-            lender_inputs.push((
+            borrower_inputs.push((
                 collateral_input.unblinded.asset,
                 collateral_input.unblinded.value,
                 collateral_input.confidential.asset,
@@ -292,11 +295,11 @@ impl Borrower1 {
                 collateral_input.unblinded.value_blinding_factor,
             ));
 
-            lender_inputs
+            borrower_inputs
         };
 
-        let mut repayment_output = self.repayment_collateral_input.tx_out.clone();
-        repayment_output.witness.surjection_proof = SurjectionProof::new(
+        let mut repayment_principal_output = self.repayment_principal_output.clone();
+        repayment_principal_output.witness.surjection_proof = SurjectionProof::new(
             secp,
             rng,
             Tag::from(self.usdt_asset_id.into_inner().0),
@@ -338,7 +341,8 @@ impl Borrower1 {
                     self.address.clone(),
                     self.usdt_asset_id,
                     &inputs,
-                )?;
+                )
+                .context("Change output creation failed")?;
 
                 outputs.push((change_amount.as_sat(), abf, vbf));
 
@@ -354,7 +358,8 @@ impl Borrower1 {
             self.bitcoin_asset_id,
             &inputs,
             &outputs,
-        )?;
+        )
+        .context("Creation of collateral output failed")?;
 
         let tx_fee_output = TxOut::new_fee(tx_fee.as_sat(), self.bitcoin_asset_id);
 
@@ -364,17 +369,26 @@ impl Borrower1 {
             .collect();
         tx_ins.push(collateral_input.tx_in);
 
-        let mut tx_outs = vec![repayment_output.clone(), collateral_output, tx_fee_output];
+        let mut tx_outs = vec![
+            repayment_principal_output.clone(),
+            collateral_output,
+            tx_fee_output,
+        ];
         if let Some(change_output) = change_output {
             tx_outs.push(change_output)
         }
 
-        let mut tx = Transaction {
+        let tx = Transaction {
             version: 2,
             lock_time: 0,
             input: tx_ins,
             output: tx_outs,
         };
+
+        // sign repayment input of the principal amount
+
+        let mut tx = signer(tx).await?;
+        dbg!(&tx.input);
 
         // fulfill collateral input covenant script
         {
@@ -407,8 +421,6 @@ impl Borrower1 {
             };
         };
 
-        let tx = signer(tx).await?;
-
         Ok(tx)
     }
 }
@@ -417,7 +429,6 @@ pub struct Lender0 {
     keypair: (SecretKey, PublicKey),
     principal_inputs: Vec<UnblindedInput>,
     address: Address,
-    blinding_key: SecretKey,
     bitcoin_asset_id: AssetId,
     usdt_asset_id: AssetId,
 }
@@ -433,7 +444,6 @@ impl Lender0 {
         // loan request
         principal_inputs: Vec<Input>,
         address: Address,
-        blinding_key: SecretKey,
     ) -> Result<Self>
     where
         C: Verification,
@@ -449,7 +459,6 @@ impl Lender0 {
             bitcoin_asset_id,
             keypair,
             address,
-            blinding_key,
             usdt_asset_id,
             principal_inputs,
         })
@@ -499,7 +508,7 @@ impl Lender0 {
 
         let collateral_amount = loan_request.collateral_amount;
 
-        let (repayment_output, repayment_collateral_abf, repayment_collateral_vbf) = {
+        let (repayment_principal_output, repayment_collateral_abf, repayment_collateral_vbf) = {
             let dummy_asset = self.usdt_asset_id;
             let dummy_abf = AssetBlindingFactor::random(rng);
             let dummy_generator = Asset::new_confidential(secp, dummy_asset, dummy_abf)
@@ -530,7 +539,7 @@ impl Lender0 {
             loan_request.borrower_pk,
             lender_pk,
             loan_request.timelock,
-            repayment_output.clone(),
+            repayment_principal_output.clone(),
         )?;
 
         let (collateral_blinding_sk, collateral_blinding_pk) = make_keypair();
@@ -608,7 +617,8 @@ impl Lender0 {
             dbg!(self.bitcoin_asset_id),
             &inputs,
             &not_last_confidential_outputs,
-        )?;
+        )
+        .context("Creation of collateral change output failed")?;
 
         let tx_ins = {
             let borrower_inputs = collateral_inputs.iter().map(|input| input.tx_in.clone());
@@ -626,7 +636,7 @@ impl Lender0 {
             lock_time: 0,
             input: tx_ins,
             output: vec![
-                collateral_tx_out,
+                collateral_tx_out.clone(),
                 principal_tx_out,
                 principal_change_tx_out,
                 collateral_change_tx_out,
@@ -647,8 +657,8 @@ impl Lender0 {
                 asset_issuance: AssetIssuance::default(),
                 witness: TxInWitness::default(),
             },
-            tx_out: repayment_output,
-            blinding_key: self.blinding_key,
+            original_tx_out: collateral_tx_out,
+            blinding_key: collateral_blinding_sk,
         };
 
         Ok(Lender1 {
@@ -658,12 +668,12 @@ impl Lender0 {
             loan_transaction,
             collateral_script,
             collateral_amount: loan_request.collateral_amount,
-            collateral_blinding_sk,
             principal_amount,
             repayment_collateral_input,
             repayment_collateral_abf,
             repayment_collateral_vbf,
             bitcoin_asset_id: self.bitcoin_asset_id,
+            repayment_principal_output,
         })
     }
 
@@ -679,12 +689,12 @@ pub struct Lender1 {
     loan_transaction: Transaction,
     collateral_script: Script,
     collateral_amount: Amount,
-    collateral_blinding_sk: SecretKey,
     principal_amount: Amount,
     repayment_collateral_input: Input,
     repayment_collateral_abf: AssetBlindingFactor,
     repayment_collateral_vbf: ValueBlindingFactor,
     bitcoin_asset_id: AssetId,
+    repayment_principal_output: TxOut,
 }
 
 impl Lender1 {
@@ -692,12 +702,12 @@ impl Lender1 {
         LoanResponse {
             transaction: self.loan_transaction.clone(),
             principal_amount: self.principal_amount,
-            collateral_blinding_sk: self.collateral_blinding_sk,
             lender_pk: self.keypair.1,
             repayment_collateral_input: self.repayment_collateral_input.clone(),
             repayment_collateral_abf: self.repayment_collateral_abf,
             repayment_collateral_vbf: self.repayment_collateral_vbf,
             timelock: self.timelock,
+            repayment_principal_output: self.repayment_principal_output.clone(),
         }
     }
 
@@ -1053,7 +1063,7 @@ impl RepaymentWitnessStack {
 #[derive(Debug, Clone)]
 pub struct Input {
     pub tx_in: TxIn,
-    pub tx_out: TxOut,
+    pub original_tx_out: TxOut,
     pub blinding_key: SecretKey,
 }
 
@@ -1064,7 +1074,7 @@ impl Input {
     {
         let tx_in = self.tx_in;
         let confidential = self
-            .tx_out
+            .original_tx_out
             .into_confidential()
             .with_context(|| format!("input {} is not confidential", tx_in.previous_output))?;
 
