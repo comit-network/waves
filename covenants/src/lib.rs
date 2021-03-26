@@ -376,14 +376,12 @@ impl Borrower1 {
             .collect();
         tx_ins.push(collateral_input.tx_in);
 
-        let mut tx_outs = vec![
-            repayment_principal_output.clone(),
-            collateral_output,
-            tx_fee_output,
-        ];
+        let mut tx_outs = vec![repayment_principal_output.clone()];
         if let Some(change_output) = change_output {
             tx_outs.push(change_output)
         }
+        tx_outs.push(collateral_output);
+        tx_outs.push(tx_fee_output);
 
         let mut tx = Transaction {
             version: 2,
@@ -394,12 +392,28 @@ impl Borrower1 {
 
         // fulfill collateral input covenant script
         {
+            let mut unhashed = Vec::new();
+
+            SigHashCache::new(&tx)
+                .encode_segwitv0_signing_data_to(
+                    &mut unhashed,
+                    1,
+                    &self.collateral_script.clone(),
+                    self.repayment_collateral_input.original_tx_out.value,
+                    SigHashType::All,
+                )
+                .unwrap();
+
+            dbg!(hex::encode(unhashed));
+
             let sighash = SigHashCache::new(&tx).segwitv0_sighash(
                 1,
                 &self.collateral_script.clone(),
                 self.repayment_collateral_input.original_tx_out.value,
                 SigHashType::All,
             );
+
+            dbg!(sighash);
 
             let sig = SECP256K1.sign(
                 &elements::secp256k1::Message::from(sighash),
@@ -409,7 +423,7 @@ impl Borrower1 {
             let script_witness = RepaymentWitnessStack::new(
                 sig,
                 self.keypair.1,
-                self.collateral_amount.as_sat(),
+                self.repayment_collateral_input.original_tx_out.value,
                 &tx,
                 self.collateral_script.clone(),
             )
@@ -417,7 +431,7 @@ impl Borrower1 {
             .serialise()
             .unwrap();
 
-            simulate(self.collateral_script.clone(), script_witness.clone()).unwrap();
+            // simulate(self.collateral_script.clone(), script_witness.clone()).unwrap();
 
             tx.input[1].witness = TxInWitness {
                 amount_rangeproof: vec![],
@@ -837,7 +851,6 @@ fn loan_contract(
         .push_opcode(OP_CAT)
         .push_opcode(OP_CAT)
         .push_opcode(OP_CAT)
-        .push_opcode(OP_CAT)
         .push_slice(repayment_output_bytes.as_slice())
         .push_opcode(OP_SWAP)
         .push_opcode(OP_CAT)
@@ -853,6 +866,7 @@ fn loan_contract(
         .push_opcode(OP_CAT)
         .push_opcode(OP_FROMALTSTACK)
         .push_opcode(OP_SWAP)
+        .push_opcode(OP_CAT)
         .push_opcode(OP_CAT)
         .push_opcode(OP_CAT)
         .push_opcode(OP_CAT)
@@ -900,7 +914,7 @@ impl RepaymentWitnessStack {
     fn new(
         sig: Signature,
         pk: PublicKey,
-        collateral_amount: u64,
+        collateral_value: Value,
         tx: &Transaction,
         script: Script,
     ) -> Result<Self> {
@@ -937,12 +951,11 @@ impl RepaymentWitnessStack {
         };
 
         let input = {
-            let input = &tx.input[0];
-            let value = Value::Explicit(collateral_amount);
+            let input = &tx.input[1];
             InputData {
                 previous_output: input.previous_output,
                 script,
-                value,
+                value: collateral_value,
                 sequence: input.sequence,
             }
         };
@@ -1032,6 +1045,14 @@ impl RepaymentWitnessStack {
         let other_outputs = {
             let mut other_outputs = vec![];
 
+            if self.other_outputs.len() < 2 {
+                bail!("insufficient outputs");
+            }
+
+            if self.other_outputs.len() > 3 {
+                bail!("too many outputs");
+            }
+
             for txout in self.other_outputs.iter() {
                 let mut output = Vec::new();
                 txout.consensus_encode(&mut output)?;
@@ -1041,10 +1062,7 @@ impl RepaymentWitnessStack {
                 other_outputs.push(output[middle..].to_vec());
             }
 
-            if other_outputs.len() < 4 {
-                bail!("insufficient outputs");
-            }
-
+            // fill in space for missing principal change output
             if other_outputs.len() == 4 {
                 other_outputs.push(vec![]);
                 other_outputs.push(vec![]);
