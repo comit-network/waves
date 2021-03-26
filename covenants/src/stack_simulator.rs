@@ -1,14 +1,15 @@
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use bitcoin_hashes::Hash;
-use elements::bitcoin::PublicKey;
-use elements::opcodes::all::*;
-use elements::secp256k1::{Message, Signature, SECP256K1};
-use elements::Script;
+use elements::{
+    bitcoin::PublicKey,
+    secp256k1::{Message, Signature, SECP256K1},
+    Script,
+};
 
 pub fn simulate(script: Script, witness_stack: Vec<Vec<u8>>) -> Result<Vec<Vec<u8>>> {
-    let mut stack = witness_stack.clone();
+    let mut stack = witness_stack;
     let scritp_asm = script.asm();
-    let script = scritp_asm.split(" ");
+    let script = scritp_asm.split(' ');
 
     let mut alt_stack = vec![];
 
@@ -18,11 +19,12 @@ pub fn simulate(script: Script, witness_stack: Vec<Vec<u8>>) -> Result<Vec<Vec<u
     log::debug!("Before: {}", &format(&stack));
     for item in script {
         log::debug!("Current: {}", &format(&stack));
+        log::debug!("opcode: {}", item);
 
         match item {
             "OP_CAT" => {
-                let mut item1 = stack.pop().unwrap();
-                let mut item0 = stack.pop().unwrap();
+                let mut item1 = pop(&mut stack)?;
+                let mut item0 = pop(&mut stack)?;
                 item0.append(&mut item1);
                 stack.push(item0);
             }
@@ -33,27 +35,28 @@ pub fn simulate(script: Script, witness_stack: Vec<Vec<u8>>) -> Result<Vec<Vec<u
                 // ignore
             }
             "OP_SWAP" => {
-                let first = stack.pop().unwrap();
-                let second = stack.pop().unwrap();
+                let first = pop(&mut stack)?;
+                let second = pop(&mut stack)?;
                 stack.push(first);
                 stack.push(second);
             }
             "OP_HASH256" => {
-                let un_hashed = stack.pop().unwrap();
+                let un_hashed = pop(&mut stack)?;
                 let hashed = bitcoin_hashes::sha256d::Hash::hash(&un_hashed).to_vec();
                 stack.push(hashed);
             }
             "OP_SHA256" => {
-                let un_hashed = stack.pop().unwrap();
+                let un_hashed = pop(&mut stack)?;
                 let hashed = bitcoin_hashes::sha256::Hash::hash(&un_hashed).to_vec();
                 stack.push(hashed);
             }
             "OP_TOALTSTACK" => {
-                let item = stack.pop().unwrap();
+                let item = pop(&mut stack)?;
                 alt_stack.push(item);
             }
             "OP_FROMALTSTACK" => {
-                stack.push(alt_stack.pop().unwrap());
+                let item = pop(&mut alt_stack)?;
+                stack.push(item);
             }
             "OP_DEPTH" => {
                 let depth = stack.len();
@@ -61,11 +64,11 @@ pub fn simulate(script: Script, witness_stack: Vec<Vec<u8>>) -> Result<Vec<Vec<u
             }
             "OP_1SUB" => {
                 // we assume that it's max 1 byte
-                let item = stack.pop().unwrap()[0];
+                let item = pop(&mut stack)?[0];
                 stack.push(vec![item - 1]);
             }
             "OP_PICK" => {
-                let index = stack.pop().unwrap()[0];
+                let index = pop(&mut stack)?[0];
                 let picked = stack[stack.clone().len() - index as usize - 1].clone();
                 stack.push(picked);
             }
@@ -78,15 +81,17 @@ pub fn simulate(script: Script, witness_stack: Vec<Vec<u8>>) -> Result<Vec<Vec<u
                 stack.pop();
             }
             "OP_CHECKSIGFROMSTACK" => {
-                let pk = PublicKey::from_slice(&stack.pop().unwrap()).unwrap();
-                let message = Message::from_slice(&stack.pop().unwrap()).unwrap();
-                let signature = Signature::from_der(&stack.pop().unwrap()).unwrap();
+                let pk = PublicKey::from_slice(&pop(&mut stack)?)?;
+                let message_unhashed = &pop(&mut stack)?;
+                let hashed = bitcoin_hashes::sha256::Hash::hash(&message_unhashed).to_vec();
+                let message = Message::from_slice(&hashed)?;
+                let signature = Signature::from_der(&pop(&mut stack)?)?;
 
-                SECP256K1.verify(&message, &signature, &pk.key).unwrap();
+                SECP256K1.verify(&message, &signature, &pk.key)?;
                 return Ok(stack);
             }
             everything_else => {
-                let byte_array = hex::decode(everything_else).unwrap();
+                let byte_array = hex::decode(everything_else)?;
                 stack.push(byte_array);
             }
         }
@@ -95,7 +100,12 @@ pub fn simulate(script: Script, witness_stack: Vec<Vec<u8>>) -> Result<Vec<Vec<u
     Ok(stack)
 }
 
-fn format(stack: &Vec<Vec<u8>>) -> String {
+fn pop(stack: &mut Vec<Vec<u8>>) -> Result<Vec<u8>> {
+    let item = stack.pop().ok_or_else(|| anyhow!("Could not pop item."))?;
+    Ok(item)
+}
+
+fn format(stack: &[Vec<u8>]) -> String {
     let mut message = "".to_string();
     for i in stack {
         let item = hex::encode(i);
@@ -107,12 +117,12 @@ fn format(stack: &Vec<Vec<u8>>) -> String {
 #[cfg(all(test))]
 mod test {
     use super::*;
-    use elements::bitcoin::util::psbt::serialize::Serialize;
-    use elements::bitcoin::{Network, PrivateKey};
-    use elements::script::Builder;
-    use elements::secp256k1::rand::thread_rng;
-    use elements::secp256k1::SecretKey;
-    use env_logger;
+    use elements::{
+        bitcoin::{util::psbt::serialize::Serialize, Network, PrivateKey},
+        opcodes::all::*,
+        script::Builder,
+        secp256k1::{rand::thread_rng, SecretKey},
+    };
     use std::env;
 
     const LAST_ITEM: u8 = 0xFF;
@@ -290,7 +300,8 @@ mod test {
     #[test]
     fn op_checksigfromstack() {
         init();
-        let msg = Message::from_slice(&b"Yoda: btc, I trust. HODL I must!"[..]).expect("32 bytes");
+
+        let msg_unhashed = b"Yoda: btc, I trust. HODL I must!".to_vec();
         let sk = SecretKey::new(&mut thread_rng());
         let pk = PublicKey::from_private_key(
             &SECP256K1,
@@ -300,7 +311,12 @@ mod test {
                 key: sk,
             },
         );
-        let signature = SECP256K1.sign(&msg, &sk);
+
+        //OP_CHECKSIGFROMSTACK will hash the message before verifying against the signature.
+        // hence we need to hash ig first before we signing it.
+        let msg_hashed = bitcoin_hashes::sha256::Hash::hash(&msg_unhashed).to_vec();
+        let msg_hashed = Message::from_slice(&msg_hashed).unwrap();
+        let signature = SECP256K1.sign(&msg_hashed, &sk);
 
         let script = Builder::new()
             .push_opcode(OP_CHECKSIGFROMSTACK)
@@ -308,7 +324,7 @@ mod test {
         let witness = vec![
             vec![LAST_ITEM],
             signature.serialize_der().to_vec(),
-            msg.as_ref().to_vec(),
+            msg_unhashed,
             pk.serialize().to_vec(),
             script.to_bytes(),
         ];

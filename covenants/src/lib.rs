@@ -15,8 +15,7 @@ use elements::{
     Address, AddressParams, AssetId, AssetIssuance, ConfidentialTxOut, OutPoint, Script,
     SigHashType, Transaction, TxIn, TxInWitness, TxOut, TxOutWitness, UnblindedTxOut,
 };
-use secp256k1_zkp::SurjectionProof;
-use secp256k1_zkp::Tag;
+use secp256k1_zkp::{SurjectionProof, Tag};
 use std::future::Future;
 
 /// These constants have been reverse engineered through the following transactions:
@@ -431,7 +430,7 @@ impl Borrower1 {
             .serialise()
             .unwrap();
 
-            // simulate(self.collateral_script.clone(), script_witness.clone()).unwrap();
+            simulate(self.collateral_script.clone(), script_witness.clone()).unwrap();
 
             tx.input[1].witness = TxInWitness {
                 amount_rangeproof: vec![],
