@@ -66,7 +66,7 @@ mod tests {
             let address_blinding_sk =
                 derive_blinding_key(master_blinding_key.clone(), address.script_pubkey()).unwrap();
 
-            let timelock = 0;
+            let timelock = 10;
 
             let borrower = Borrower0::new(
                 address.clone(),

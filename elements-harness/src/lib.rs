@@ -49,9 +49,7 @@ impl<'c> Elementsd<'c> {
         let auth = container.image().auth();
         let url = format!(
             "http://{}:{}@localhost:{}",
-            &auth.username,
-            dbg!(&auth.password),
-            port
+            &auth.username, &auth.password, port
         );
         let url = Url::parse(&url)?;
 

@@ -292,7 +292,6 @@ impl Client {
     pub async fn sign_raw_transaction(&self, tx: &Transaction) -> Result<Transaction> {
         let tx_hex = serialize_hex(tx);
         let res = self.signrawtransactionwithwallet(tx_hex).await?;
-        dbg!(&res.errors);
         let tx = elements::encode::deserialize(&Vec::<u8>::from_hex(&res.hex).unwrap())?;
 
         Ok(tx)

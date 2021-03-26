@@ -147,8 +147,6 @@ impl Borrower0 {
             loan_response.repayment_principal_output.clone(),
         )?;
 
-        dbg!(&collateral_script);
-
         let collateral_address = Address::p2wsh(&collateral_script, None, &AddressParams::ELEMENTS);
         let collateral_script_pubkey = collateral_address.script_pubkey();
         let collateral_blinding_sk = loan_response.repayment_collateral_input.blinding_key;
@@ -391,28 +389,12 @@ impl Borrower1 {
 
         // fulfill collateral input covenant script
         {
-            let mut unhashed = Vec::new();
-
-            SigHashCache::new(&tx)
-                .encode_segwitv0_signing_data_to(
-                    &mut unhashed,
-                    1,
-                    &self.collateral_script.clone(),
-                    self.repayment_collateral_input.original_tx_out.value,
-                    SigHashType::All,
-                )
-                .unwrap();
-
-            dbg!(hex::encode(unhashed));
-
             let sighash = SigHashCache::new(&tx).segwitv0_sighash(
                 1,
                 &self.collateral_script.clone(),
                 self.repayment_collateral_input.original_tx_out.value,
                 SigHashType::All,
             );
-
-            dbg!(sighash);
 
             let sig = SECP256K1.sign(
                 &elements::secp256k1::Message::from(sighash),
@@ -573,8 +555,6 @@ impl Lender0 {
             loan_request.timelock,
             repayment_principal_output.clone(),
         )?;
-
-        dbg!(&collateral_script);
 
         let (collateral_blinding_sk, collateral_blinding_pk) = make_keypair();
         let collateral_address = Address::p2wsh(
