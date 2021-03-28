@@ -2,7 +2,7 @@ use crate::stack_simulator::simulate;
 use anyhow::{bail, Context, Result};
 use elements::{
     bitcoin::{util::psbt::serialize::Serialize, Amount, Network, PrivateKey, PublicKey},
-    confidential::{Asset, AssetBlindingFactor, Nonce, Value, ValueBlindingFactor},
+    confidential::{Asset, AssetBlindingFactor, Value, ValueBlindingFactor},
     encode::Encodable,
     hashes::{sha256d, Hash},
     opcodes::all::*,
@@ -13,7 +13,7 @@ use elements::{
     },
     sighash::SigHashCache,
     Address, AddressParams, AssetId, AssetIssuance, ConfidentialTxOut, OutPoint, Script,
-    SigHashType, Transaction, TxIn, TxInWitness, TxOut, TxOutWitness, UnblindedTxOut,
+    SigHashType, Transaction, TxIn, TxInWitness, TxOut, UnblindedTxOut,
 };
 use secp256k1_zkp::{SurjectionProof, Tag};
 use std::future::Future;
@@ -740,75 +740,77 @@ impl Lender1 {
         signer(loan_transaction).await
     }
 
-    pub fn liquidation_transaction(&self, tx_fee: Amount) -> Result<Transaction> {
-        let loan_transaction = self.loan_transaction.clone();
-        let loan_txid = loan_transaction.txid();
-
+    pub fn liquidation_transaction<R, C>(
+        &self,
+        rng: &mut R,
+        secp: &Secp256k1<C>,
+        tx_fee: Amount,
+    ) -> Result<Transaction>
+    where
+        R: RngCore + CryptoRng,
+        C: Verification + Signing,
+    {
         // construct collateral input
-        let collateral_address =
-            Address::p2wsh(&self.collateral_script, None, &AddressParams::ELEMENTS);
-        let collateral_script_pubkey = collateral_address.script_pubkey();
-        let vout = self
-            .loan_transaction
-            .output
-            .iter()
-            .position(|out| out.script_pubkey == collateral_script_pubkey)
-            .context("no collateral txout")?;
+        let collateral_input = self
+            .repayment_collateral_input
+            .clone()
+            .into_unblinded_input(secp)
+            .context("could not unblind repayment collateral input")?;
 
-        let collateral_input = TxIn {
-            previous_output: OutPoint {
-                txid: loan_txid,
-                vout: vout as u32,
-            },
-            is_pegin: false,
-            has_issuance: false,
-            script_sig: Default::default(),
-            sequence: 0,
-            asset_issuance: Default::default(),
-            witness: Default::default(),
-        };
+        let inputs = vec![(
+            collateral_input.unblinded.asset,
+            collateral_input.unblinded.value,
+            collateral_input.confidential.asset,
+            collateral_input.unblinded.asset_blinding_factor,
+            collateral_input.unblinded.value_blinding_factor,
+        )];
 
-        let collateral_tx_out = TxOut {
-            asset: Asset::Explicit(self.bitcoin_asset_id),
-            value: Value::Explicit((self.collateral_amount - tx_fee).as_sat()),
-            nonce: Nonce::Null,
-            script_pubkey: self.address.script_pubkey(),
-            witness: TxOutWitness::default(),
-        };
+        let collateral_output = TxOut::new_last_confidential(
+            rng,
+            secp,
+            (self.collateral_amount - tx_fee).as_sat(),
+            self.address.clone(),
+            self.bitcoin_asset_id,
+            &inputs,
+            &[],
+        )
+        .context("Creation of collateral output failed")?;
 
-        let tx_fee_tx_out = TxOut::new_fee(tx_fee.as_sat(), self.bitcoin_asset_id);
+        let tx_fee_output = TxOut::new_fee(tx_fee.as_sat(), self.bitcoin_asset_id);
+
+        let tx_ins = vec![collateral_input.tx_in];
+        let tx_outs = vec![collateral_output, tx_fee_output];
 
         let mut liquidation_transaction = Transaction {
             version: 2,
             lock_time: 0,
-            input: vec![collateral_input],
-            output: vec![collateral_tx_out, tx_fee_tx_out],
+            input: tx_ins,
+            output: tx_outs,
         };
 
-        {
-            let sighash = SigHashCache::new(&liquidation_transaction).segwitv0_sighash(
-                0,
-                &self.collateral_script.clone(),
-                Value::Explicit(self.collateral_amount.as_sat()),
-                SigHashType::All,
-            );
+        // fulfill collateral input covenant script to liquidate the position
+        let sighash = SigHashCache::new(&liquidation_transaction).segwitv0_sighash(
+            0,
+            &self.collateral_script.clone(),
+            self.repayment_collateral_input.original_tx_out.value,
+            SigHashType::All,
+        );
 
-            let sig = SECP256K1.sign(
-                &elements::secp256k1::Message::from(sighash),
-                &self.keypair.0,
-            );
-            let mut sig = sig.serialize_der().to_vec();
-            sig.push(SigHashType::All as u8);
+        let sig = SECP256K1.sign(
+            &elements::secp256k1::Message::from(sighash),
+            &self.keypair.0,
+        );
 
-            let if_flag = vec![];
+        let mut sig = sig.serialize_der().to_vec();
+        sig.push(SigHashType::All as u8);
+        let if_flag = vec![];
 
-            liquidation_transaction.input[0].witness = TxInWitness {
-                amount_rangeproof: vec![],
-                inflation_keys_rangeproof: vec![],
-                script_witness: vec![sig, if_flag, self.collateral_script.to_bytes()],
-                pegin_witness: vec![],
-            };
-        }
+        liquidation_transaction.input[0].witness = TxInWitness {
+            amount_rangeproof: vec![],
+            inflation_keys_rangeproof: vec![],
+            script_witness: vec![sig, if_flag, self.collateral_script.to_bytes()],
+            pegin_witness: vec![],
+        };
 
         Ok(liquidation_transaction)
     }

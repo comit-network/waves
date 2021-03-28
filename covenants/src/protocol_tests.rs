@@ -19,10 +19,7 @@ mod tests {
 
     #[tokio::test]
     async fn borrow_and_repay() {
-        // force enabling log output
-        // TODO: remove me again
-        env::set_var("RUST_LOG", "DEBUG");
-        let _ = env_logger::builder().is_test(true).try_init();
+        init_logger();
 
         let tc_client = Cli::default();
         let (client, _container) = {
@@ -191,104 +188,141 @@ mod tests {
             .unwrap();
     }
 
-    // #[tokio::test]
-    // async fn lend_and_liquidate() {
-    //     let tc_client = Cli::default();
-    //     let (client, _container) = {
-    //         let blockchain = Elementsd::new(&tc_client, "0.18.1.9").unwrap();
+    fn init_logger() {
+        // force enabling log output
+        // TODO: remove me again
+        env::set_var("RUST_LOG", "DEBUG");
+        let _ = env_logger::builder().is_test(true).try_init();
+    }
 
-    //         (
-    //             elements_harness::Client::new(blockchain.node_url.clone().into_string()).unwrap(),
-    //             blockchain,
-    //         )
-    //     };
+    #[tokio::test]
+    async fn lend_and_liquidate() {
+        init_logger();
 
-    //     let bitcoin_asset_id = client.get_bitcoin_asset_id().await.unwrap();
-    //     let usdt_asset_id = client.issueasset(40.0, 0.0, false).await.unwrap().asset;
+        let tc_client = Cli::default();
+        let (client, _container) = {
+            let blockchain = Elementsd::new(&tc_client, "0.18.1.9").unwrap();
 
-    //     // TODO: Use a separate wallet per actor. Using the same wallet is confusing and bug-prone.
-    //     let (lender, _lender_address) = {
-    //         let address = client
-    //             .get_new_address(Some("blech32".to_string()))
-    //             .await
-    //             .unwrap();
-    //         let principal_inputs =
-    //             generate_input(&client, Amount::from_btc(2.0).unwrap(), usdt_asset_id)
-    //                 .await
-    //                 .unwrap();
+            (
+                elements_harness::Client::new(blockchain.node_url.clone().into_string()).unwrap(),
+                blockchain,
+            )
+        };
 
-    //         let lender = Lender0::new(
-    //             bitcoin_asset_id,
-    //             usdt_asset_id,
-    //             principal_inputs,
-    //             address.clone(),
-    //         );
+        let master_blinding_key = client.dumpmasterblindingkey().await.unwrap();
+        let master_blinding_key = hex::decode(master_blinding_key).unwrap();
 
-    //         (lender, address)
-    //     };
+        let bitcoin_asset_id = client.get_bitcoin_asset_id().await.unwrap();
+        let usdt_asset_id = client.issueasset(40.0, 0.0, false).await.unwrap().asset;
 
-    //     let tx_fee = Amount::from_sat(10_000);
-    //     let (borrower, _borrower_address) = {
-    //         let collateral_amount = Amount::ONE_BTC;
-    //         let collateral_inputs =
-    //             generate_input(&client, collateral_amount * 2, bitcoin_asset_id)
-    //                 .await
-    //                 .unwrap();
-    //         let address = client
-    //             .get_new_address(Some("blech32".to_string()))
-    //             .await
-    //             .unwrap();
+        let address = client
+            .get_new_address(Some("blech32".into()))
+            .await
+            .unwrap();
+        client
+            .send_asset_to_address(&address, Amount::from_btc(5.0).unwrap(), None)
+            .await
+            .unwrap();
+        let miner_address = client
+            .get_new_address(Some("blech32".into()))
+            .await
+            .unwrap();
+        client.generatetoaddress(10, &miner_address).await.unwrap();
 
-    //         let timelock = 0;
+        let (borrower, _borrower_address) = {
+            let collateral_amount = Amount::ONE_BTC;
+            let collateral_inputs = find_inputs(&client, bitcoin_asset_id, collateral_amount * 2)
+                .await
+                .unwrap();
+            let address = client
+                .get_new_address(Some("blech32".into()))
+                .await
+                .unwrap();
+            let address_blinding_sk =
+                derive_blinding_key(master_blinding_key.clone(), address.script_pubkey()).unwrap();
 
-    //         let borrower = Borrower0::new(
-    //             address.clone(),
-    //             collateral_amount,
-    //             collateral_inputs,
-    //             tx_fee,
-    //             timelock,
-    //             bitcoin_asset_id,
-    //             usdt_asset_id,
-    //         )
-    //         .unwrap();
+            // TODO: test with proper timeout
+            let timelock = 0;
 
-    //         (borrower, address)
-    //     };
+            let borrower = Borrower0::new(
+                address.clone(),
+                address_blinding_sk,
+                collateral_amount,
+                collateral_inputs,
+                Amount::ONE_SAT,
+                timelock,
+                bitcoin_asset_id,
+                usdt_asset_id,
+            )
+            .unwrap();
 
-    //     let loan_request = borrower.loan_request();
+            (borrower, address)
+        };
 
-    //     let lender = lender.interpret(loan_request);
-    //     let loan_response = lender.loan_response();
+        // TODO: Use a separate wallet per actor. Using the same wallet is confusing and bug-prone.
+        let (lender, _lender_address) = {
+            let address = client
+                .get_new_address(Some("blech32".into()))
+                .await
+                .unwrap();
 
-    //     let borrower = borrower.interpret(loan_response).unwrap();
-    //     let loan_transaction = borrower
-    //         .sign({
-    //             let client = client.clone();
-    //             |transaction| async move { client.sign_raw_transaction(&transaction).await }
-    //         })
-    //         .await
-    //         .unwrap();
+            let principal_inputs =
+                find_inputs(&client, usdt_asset_id, Amount::from_btc(2.0).unwrap())
+                    .await
+                    .unwrap();
 
-    //     let loan_transaction = lender
-    //         .finalise_loan(loan_transaction, {
-    //             let client = client.clone();
-    //             |transaction| async move { client.sign_raw_transaction(&transaction).await }
-    //         })
-    //         .await
-    //         .unwrap();
+            let lender = Lender0::new(
+                &SECP256K1,
+                bitcoin_asset_id,
+                usdt_asset_id,
+                principal_inputs,
+                address.clone(),
+            )
+            .unwrap();
 
-    //     client
-    //         .send_raw_transaction(&loan_transaction)
-    //         .await
-    //         .unwrap();
+            (lender, address)
+        };
 
-    //     let liquidation_transaction = lender.liquidation_transaction(tx_fee).unwrap();
+        let loan_request = borrower.loan_request();
 
-    //     client
-    //         .send_raw_transaction(&liquidation_transaction)
-    //         .await
-    //         .unwrap();
-    // }
+        let lender = lender
+            .interpret(&mut thread_rng(), &SECP256K1, loan_request)
+            .unwrap();
+        let loan_response = lender.loan_response();
+
+        let borrower = borrower.interpret(&SECP256K1, loan_response).unwrap();
+        let loan_transaction = borrower
+            .sign({
+                let client = client.clone();
+                |transaction| async move { client.sign_raw_transaction(&transaction).await }
+            })
+            .await
+            .unwrap();
+
+        let loan_transaction = lender
+            .finalise_loan(loan_transaction, {
+                let client = client.clone();
+                |transaction| async move { client.sign_raw_transaction(&transaction).await }
+            })
+            .await
+            .unwrap();
+
+        client
+            .send_raw_transaction(&loan_transaction)
+            .await
+            .unwrap();
+
+        client.generatetoaddress(1, &miner_address).await.unwrap();
+
+        let liquidation_transaction = lender
+            .liquidation_transaction(&mut thread_rng(), &SECP256K1, Amount::from_sat(10_000))
+            .unwrap();
+
+        client
+            .send_raw_transaction(&liquidation_transaction)
+            .await
+            .unwrap();
+    }
 
     async fn find_inputs(
         client: &elements_harness::Client,
