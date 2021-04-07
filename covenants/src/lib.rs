@@ -127,10 +127,10 @@ impl Borrower0 {
             .find_map(|out| match out.to_confidential() {
                 Some(conf) => {
                     let unblinded_out = conf.unblind(secp, self.address_blinding_sk).ok()?;
-                    let predicate = unblinded_out.asset == self.usdt_asset_id
+                    let is_principal_out = unblinded_out.asset == self.usdt_asset_id
                         && conf.script_pubkey == self.address.script_pubkey();
 
-                    predicate.then(|| Amount::from_sat(unblinded_out.value))
+                    is_principal_out.then(|| Amount::from_sat(unblinded_out.value))
                 }
                 None => None,
             })
@@ -155,11 +155,11 @@ impl Borrower0 {
             .find_map(|out| match out.to_confidential() {
                 Some(conf) => {
                     let unblinded_out = conf.unblind(secp, collateral_blinding_sk).ok()?;
-                    let predicate = unblinded_out.asset == self.bitcoin_asset_id
+                    let is_collateral_out = unblinded_out.asset == self.bitcoin_asset_id
                         && unblinded_out.value == self.collateral_amount.as_sat()
                         && out.script_pubkey == collateral_script_pubkey;
 
-                    predicate.then(|| out)
+                    is_collateral_out.then(|| out)
                 }
                 None => None,
             })
@@ -194,11 +194,11 @@ impl Borrower0 {
             .find_map(|out| match out.to_confidential() {
                 Some(conf) => {
                     let unblinded_out = conf.unblind(secp, self.address_blinding_sk).ok()?;
-                    let predicate = unblinded_out.asset == self.bitcoin_asset_id
+                    let is_collateral_change_out = unblinded_out.asset == self.bitcoin_asset_id
                         && unblinded_out.value == collateral_change_amount.as_sat()
                         && out.script_pubkey == self.address.script_pubkey();
 
-                    predicate.then(|| out)
+                    is_collateral_change_out.then(|| out)
                 }
                 None => None,
             })
