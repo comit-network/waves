@@ -57,7 +57,6 @@ pub struct LoanRequest {
 
 pub struct LoanResponse {
     transaction: Transaction,
-    _principal_amount: Amount,
     lender_pk: PublicKey,
     repayment_collateral_input: Input,
     repayment_collateral_abf: AssetBlindingFactor,
@@ -681,7 +680,6 @@ impl Lender0 {
             loan_transaction,
             collateral_script,
             collateral_amount: loan_request.collateral_amount,
-            principal_amount,
             repayment_collateral_input,
             repayment_collateral_abf,
             repayment_collateral_vbf,
@@ -702,7 +700,6 @@ pub struct Lender1 {
     loan_transaction: Transaction,
     collateral_script: Script,
     collateral_amount: Amount,
-    principal_amount: Amount,
     repayment_collateral_input: Input,
     repayment_collateral_abf: AssetBlindingFactor,
     repayment_collateral_vbf: ValueBlindingFactor,
@@ -714,7 +711,6 @@ impl Lender1 {
     pub fn loan_response(&self) -> LoanResponse {
         LoanResponse {
             transaction: self.loan_transaction.clone(),
-            _principal_amount: self.principal_amount,
             lender_pk: self.keypair.1,
             repayment_collateral_input: self.repayment_collateral_input.clone(),
             repayment_collateral_abf: self.repayment_collateral_abf,
