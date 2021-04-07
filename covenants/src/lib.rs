@@ -440,52 +440,39 @@ impl Borrower1 {
 
 pub struct Lender0 {
     keypair: (SecretKey, PublicKey),
-    principal_inputs: Vec<UnblindedInput>,
     address: Address,
     bitcoin_asset_id: AssetId,
     usdt_asset_id: AssetId,
 }
 
 impl Lender0 {
-    pub fn new<C>(
-        secp: &Secp256k1<C>,
+    pub fn new(
         bitcoin_asset_id: AssetId,
         usdt_asset_id: AssetId,
-        // TODO: Here we assume that the wallet is giving us _all_ the
-        // inputs available. It would be better to coin-select these
-        // as soon as we know the principal amount after receiving the
-        // loan request
-        principal_inputs: Vec<Input>,
         address: Address,
-    ) -> Result<Self>
-    where
-        C: Verification,
-    {
+    ) -> Result<Self> {
         let keypair = make_keypair();
-
-        let principal_inputs = principal_inputs
-            .into_iter()
-            .map(|input| input.into_unblinded_input(secp))
-            .collect::<Result<Vec<_>>>()?;
 
         Ok(Self {
             bitcoin_asset_id,
             keypair,
             address,
             usdt_asset_id,
-            principal_inputs,
         })
     }
 
-    pub fn interpret<R, C>(
+    pub async fn interpret<R, C, CS, CF>(
         self,
         rng: &mut R,
         secp: &Secp256k1<C>,
+        coin_selector: CS,
         loan_request: LoanRequest,
     ) -> Result<Lender1>
     where
         R: RngCore + CryptoRng,
         C: Verification + Signing,
+        CS: FnOnce(Amount, AssetId) -> CF,
+        CF: Future<Output = Result<Vec<Input>>>,
     {
         let principal_amount = Lender0::calc_principal_amount(&loan_request);
         let collateral_inputs = loan_request
@@ -503,15 +490,25 @@ impl Lender0 {
                 input.unblinded.value_blinding_factor,
             )
         });
-        let lender_inputs = self.principal_inputs.iter().map(|input| {
-            (
-                input.unblinded.asset,
-                input.unblinded.value,
-                input.confidential.asset,
-                input.unblinded.asset_blinding_factor,
-                input.unblinded.value_blinding_factor,
-            )
-        });
+
+        let principal_inputs = coin_selector(principal_amount, self.usdt_asset_id).await?;
+        let unblinded_principal_inputs = principal_inputs
+            .clone()
+            .into_iter()
+            .map(|input| input.into_unblinded_input(secp))
+            .collect::<Result<Vec<_>>>()?;
+        let lender_inputs = unblinded_principal_inputs
+            .iter()
+            .map(|input| {
+                (
+                    input.unblinded.asset,
+                    input.unblinded.value,
+                    input.confidential.asset,
+                    input.unblinded.asset_blinding_factor,
+                    input.unblinded.value_blinding_factor,
+                )
+            })
+            .collect::<Vec<_>>();
 
         let inputs = borrower_inputs.chain(lender_inputs).collect::<Vec<_>>();
 
@@ -581,8 +578,7 @@ impl Lender0 {
         )
         .context("could not construct principal txout")?;
 
-        let principal_input_amount = self
-            .principal_inputs
+        let principal_input_amount = unblinded_principal_inputs
             .iter()
             .fold(0, |sum, input| sum + input.unblinded.value);
         let principal_change_amount = Amount::from_sat(principal_input_amount) - principal_amount;
@@ -634,10 +630,7 @@ impl Lender0 {
 
         let tx_ins = {
             let borrower_inputs = collateral_inputs.iter().map(|input| input.tx_in.clone());
-            let lender_inputs = self
-                .principal_inputs
-                .iter()
-                .map(|input| input.tx_in.clone());
+            let lender_inputs = principal_inputs.iter().map(|input| input.tx_in.clone());
             borrower_inputs.chain(lender_inputs).collect::<Vec<_>>()
         };
 

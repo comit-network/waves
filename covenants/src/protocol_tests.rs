@@ -87,19 +87,7 @@ mod tests {
                 .await
                 .unwrap();
 
-            let principal_inputs =
-                find_inputs(&client, usdt_asset_id, Amount::from_btc(2.0).unwrap())
-                    .await
-                    .unwrap();
-
-            let lender = Lender0::new(
-                &SECP256K1,
-                bitcoin_asset_id,
-                usdt_asset_id,
-                principal_inputs,
-                address.clone(),
-            )
-            .unwrap();
+            let lender = Lender0::new(bitcoin_asset_id, usdt_asset_id, address.clone()).unwrap();
 
             (lender, address)
         };
@@ -107,7 +95,16 @@ mod tests {
         let loan_request = borrower.loan_request();
 
         let lender = lender
-            .interpret(&mut thread_rng(), &SECP256K1, loan_request)
+            .interpret(
+                &mut thread_rng(),
+                &SECP256K1,
+                {
+                    let client = client.clone();
+                    |amount, asset| async move { find_inputs(&client, asset, amount).await }
+                },
+                loan_request,
+            )
+            .await
             .unwrap();
         let loan_response = lender.loan_response();
 
@@ -266,19 +263,7 @@ mod tests {
                 .await
                 .unwrap();
 
-            let principal_inputs =
-                find_inputs(&client, usdt_asset_id, Amount::from_btc(2.0).unwrap())
-                    .await
-                    .unwrap();
-
-            let lender = Lender0::new(
-                &SECP256K1,
-                bitcoin_asset_id,
-                usdt_asset_id,
-                principal_inputs,
-                address.clone(),
-            )
-            .unwrap();
+            let lender = Lender0::new(bitcoin_asset_id, usdt_asset_id, address.clone()).unwrap();
 
             (lender, address)
         };
@@ -286,7 +271,16 @@ mod tests {
         let loan_request = borrower.loan_request();
 
         let lender = lender
-            .interpret(&mut thread_rng(), &SECP256K1, loan_request)
+            .interpret(
+                &mut thread_rng(),
+                &SECP256K1,
+                {
+                    let client = client.clone();
+                    |amount, asset| async move { find_inputs(&client, asset, amount).await }
+                },
+                loan_request,
+            )
+            .await
             .unwrap();
         let loan_response = lender.loan_response();
 
