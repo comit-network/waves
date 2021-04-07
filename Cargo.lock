@@ -384,6 +384,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "coin_selection"
+version = "0.1.0"
+dependencies = [
+ "bdk",
+ "elements",
+ "estimate_transaction_size",
+ "thiserror",
+]
+
+[[package]]
 name = "conquer-once"
 version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -447,9 +457,11 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "bitcoin_hashes 0.9.4",
+ "coin_selection",
  "elements",
  "elements-harness",
  "env_logger",
+ "estimate_transaction_size",
  "hex",
  "hmac 0.10.1",
  "log",
@@ -611,6 +623,10 @@ dependencies = [
  "regex",
  "termcolor",
 ]
+
+[[package]]
+name = "estimate_transaction_size"
+version = "0.1.0"
 
 [[package]]
 name = "fake-simd"
@@ -1215,6 +1231,7 @@ checksum = "8452105ba047068f40ff7093dd1d9da90898e63dd61736462e9cdda6a90ad3c3"
 name = "message_types"
 version = "0.1.0"
 dependencies = [
+ "coin_selection",
  "elements",
  "js-sys",
  "rust_decimal",
@@ -2180,6 +2197,7 @@ dependencies = [
  "anyhow",
  "elements",
  "elements-harness",
+ "estimate_transaction_size",
  "secp256k1",
  "serde 1.0.123",
  "sha2",
@@ -2574,9 +2592,11 @@ dependencies = [
  "aes-gcm-siv",
  "anyhow",
  "bdk",
+ "coin_selection",
  "conquer-once",
  "console_error_panic_hook",
  "elements",
+ "estimate_transaction_size",
  "futures",
  "getrandom 0.1.16",
  "hex",

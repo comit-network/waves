@@ -1,8 +1,7 @@
 use crate::{
     esplora,
     wallet::{
-        current, estimate_virtual_size, get_txouts, Wallet, DEFAULT_SAT_PER_VBYTE, NATIVE_ASSET_ID,
-        NATIVE_ASSET_TICKER,
+        current, get_txouts, Wallet, DEFAULT_SAT_PER_VBYTE, NATIVE_ASSET_ID, NATIVE_ASSET_TICKER,
     },
 };
 use anyhow::{bail, Context, Result};
@@ -14,6 +13,7 @@ use elements::{
     sighash::SigHashCache,
     Address, OutPoint, SigHashType, Transaction, TxIn, TxOut, Txid,
 };
+use estimate_transaction_size::estimate_virtual_size;
 use futures::lock::Mutex;
 use itertools::Itertools;
 use rand::thread_rng;

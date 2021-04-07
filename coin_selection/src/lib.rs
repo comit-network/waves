@@ -1,6 +1,5 @@
 #![allow(dead_code)]
 
-use crate::wallet::avg_vbytes;
 use bdk::{
     bitcoin::{Amount, Denomination},
     database::{BatchOperations, Database},
@@ -9,6 +8,7 @@ use bdk::{
     },
 };
 use elements::{AssetId, OutPoint, Script};
+use estimate_transaction_size::avg_vbytes;
 
 /// Select a subset of `utxos` to cover the `target` amount.
 ///
