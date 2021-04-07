@@ -966,7 +966,7 @@ impl RepaymentWitnessStack {
             writer
         };
 
-        // input specific values
+        // input-specific values
         let (previous_out, script_0, script_1, script_2, value, sequence) = {
             let InputData {
                 previous_output,
@@ -974,6 +974,13 @@ impl RepaymentWitnessStack {
                 value,
                 sequence,
             } = &self.input;
+
+            // a witness stack element cannot be larger than 80 bytes,
+            // so we split the script into 3 to allow for a 240-byte
+            // long script
+            if script.len() > 240 {
+                bail!("script larger than max size of 240 bytes");
+            }
 
             let third = script.len() / 3;
 
@@ -1026,6 +1033,13 @@ impl RepaymentWitnessStack {
             for txout in self.other_outputs.iter() {
                 let mut output = Vec::new();
                 txout.consensus_encode(&mut output)?;
+
+                // a witness stack element cannot be larger than 80
+                // bytes, so we split each output into 2 to allow for
+                // 160-byte long txouts
+                if output.len() > 160 {
+                    bail!("txout larger than max size of 160 bytes");
+                }
 
                 let middle = output.len() / 2;
                 other_outputs.push(output[..middle].to_vec());
