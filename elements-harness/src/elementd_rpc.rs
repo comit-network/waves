@@ -13,7 +13,7 @@ use std::{collections::HashMap, str::FromStr};
 #[jsonrpc_client::api(version = "1.0")]
 pub trait ElementsRpc {
     async fn getblockchaininfo(&self) -> BlockchainInfo;
-    async fn getnewaddress(&self, label: String, address_type: Option<String>) -> Address;
+    async fn getnewaddress(&self, label: &str, address_type: Option<&str>) -> Address;
     #[allow(clippy::too_many_arguments)]
     async fn sendtoaddress(
         &self,
@@ -154,10 +154,14 @@ impl Client {
         })
     }
 
-    pub async fn get_new_address(&self, address_type: Option<String>) -> Result<Address> {
-        let address = self.getnewaddress("".to_string(), address_type).await?;
+    pub async fn get_new_address(&self, address_type: Option<&str>) -> Result<Address> {
+        let address = self.getnewaddress("", address_type).await?;
 
         Ok(address)
+    }
+
+    pub async fn get_new_segwit_confidential_address(&self) -> Result<Address> {
+        self.get_new_address(Some("blech32")).await
     }
 
     pub async fn get_bitcoin_asset_id(&self) -> Result<AssetId> {

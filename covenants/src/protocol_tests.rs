@@ -37,18 +37,12 @@ mod tests {
         let bitcoin_asset_id = client.get_bitcoin_asset_id().await.unwrap();
         let usdt_asset_id = client.issueasset(40.0, 0.0, false).await.unwrap().asset;
 
-        let address = client
-            .get_new_address(Some("blech32".into()))
-            .await
-            .unwrap();
+        let address = client.get_new_segwit_confidential_address().await.unwrap();
         client
             .send_asset_to_address(&address, Amount::from_btc(5.0).unwrap(), None)
             .await
             .unwrap();
-        let miner_address = client
-            .get_new_address(Some("blech32".into()))
-            .await
-            .unwrap();
+        let miner_address = client.get_new_segwit_confidential_address().await.unwrap();
         client.generatetoaddress(10, &miner_address).await.unwrap();
 
         let (borrower, _borrower_address) = {
@@ -56,10 +50,7 @@ mod tests {
             let collateral_inputs = find_inputs(&client, bitcoin_asset_id, collateral_amount * 2)
                 .await
                 .unwrap();
-            let address = client
-                .get_new_address(Some("blech32".into()))
-                .await
-                .unwrap();
+            let address = client.get_new_segwit_confidential_address().await.unwrap();
             let address_blinding_sk =
                 derive_blinding_key(master_blinding_key.clone(), address.script_pubkey()).unwrap();
 
@@ -82,10 +73,7 @@ mod tests {
 
         // TODO: Use a separate wallet per actor. Using the same wallet is confusing and bug-prone.
         let (lender, _lender_address) = {
-            let address = client
-                .get_new_address(Some("blech32".into()))
-                .await
-                .unwrap();
+            let address = client.get_new_segwit_confidential_address().await.unwrap();
 
             let lender = Lender0::new(bitcoin_asset_id, usdt_asset_id, address.clone()).unwrap();
 
@@ -212,18 +200,12 @@ mod tests {
         let bitcoin_asset_id = client.get_bitcoin_asset_id().await.unwrap();
         let usdt_asset_id = client.issueasset(40.0, 0.0, false).await.unwrap().asset;
 
-        let address = client
-            .get_new_address(Some("blech32".into()))
-            .await
-            .unwrap();
+        let address = client.get_new_segwit_confidential_address().await.unwrap();
         client
             .send_asset_to_address(&address, Amount::from_btc(5.0).unwrap(), None)
             .await
             .unwrap();
-        let miner_address = client
-            .get_new_address(Some("blech32".into()))
-            .await
-            .unwrap();
+        let miner_address = client.get_new_segwit_confidential_address().await.unwrap();
         client.generatetoaddress(10, &miner_address).await.unwrap();
 
         let (borrower, _borrower_address) = {
@@ -231,10 +213,7 @@ mod tests {
             let collateral_inputs = find_inputs(&client, bitcoin_asset_id, collateral_amount * 2)
                 .await
                 .unwrap();
-            let address = client
-                .get_new_address(Some("blech32".into()))
-                .await
-                .unwrap();
+            let address = client.get_new_segwit_confidential_address().await.unwrap();
             let address_blinding_sk =
                 derive_blinding_key(master_blinding_key.clone(), address.script_pubkey()).unwrap();
 
@@ -258,10 +237,7 @@ mod tests {
 
         // TODO: Use a separate wallet per actor. Using the same wallet is confusing and bug-prone.
         let (lender, _lender_address) = {
-            let address = client
-                .get_new_address(Some("blech32".into()))
-                .await
-                .unwrap();
+            let address = client.get_new_segwit_confidential_address().await.unwrap();
 
             let lender = Lender0::new(bitcoin_asset_id, usdt_asset_id, address.clone()).unwrap();
 
