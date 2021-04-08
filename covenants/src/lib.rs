@@ -92,6 +92,14 @@ impl Borrower0 {
         }
     }
 
+    /// Interpret loan response from lender.
+    ///
+    /// This method does not check if the borrower agrees with the
+    /// "repayment condition" i.e. the values in
+    /// `repayment_collateral_input`. This belongs in a higher level,
+    /// much like verifying that other loan conditions haven't
+    /// changed.
+
     pub fn interpret<C>(self, secp: &Secp256k1<C>, loan_response: LoanResponse) -> Result<Borrower1>
     where
         C: Signing + Verification,
@@ -112,9 +120,6 @@ impl Borrower0 {
                 None => None,
             })
             .context("no principal txout")?;
-
-        // TODO: Verify repayment collateral input to ensure that the
-        // lender agrees with the repayment condition
 
         let collateral_script = loan_contract(
             self.keypair.1,
