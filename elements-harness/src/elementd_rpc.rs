@@ -1,19 +1,19 @@
 use anyhow::{bail, Context, Result};
 use bitcoin_hashes::hex::FromHex;
 use elements::{
-    bitcoin::Amount,
+    bitcoin::{Amount, PrivateKey},
     confidential::{Asset, Nonce, Value},
     encode::serialize_hex,
-    secp256k1::SecretKey,
+    secp256k1::{SecretKey, Signature},
     Address, AssetId, OutPoint, Transaction, TxOut, TxOutWitness, Txid,
 };
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::{collections::HashMap, str::FromStr};
 
 #[jsonrpc_client::api(version = "1.0")]
 pub trait ElementsRpc {
     async fn getblockchaininfo(&self) -> BlockchainInfo;
-    async fn getnewaddress(&self) -> Address;
+    async fn getnewaddress(&self, label: &str, address_type: Option<&str>) -> Address;
     #[allow(clippy::too_many_arguments)]
     async fn sendtoaddress(
         &self,
@@ -63,6 +63,30 @@ pub trait ElementsRpc {
     async fn unblindrawtransaction(&self, tx_hex: String) -> UnblindRawTransactionResponse;
     async fn lockunspent(&self, unlock: bool, utxos: Vec<OutPoint>) -> bool;
     async fn reissueasset(&self, asset: AssetId, amount: f64) -> ReissueAssetResponse;
+    async fn getaddressinfo(&self, address: &Address) -> GetAddressInfoResponse;
+    async fn listreceivedbyaddress(
+        &self,
+        minconf: Option<u32>,
+        include_empty: Option<bool>,
+        include_watchonly: Option<bool>,
+        address_filter: Option<&Address>,
+        assetlabel: Option<String>,
+    ) -> Vec<ListReceivedByAddressResponse>;
+    async fn converttopsbt(
+        &self,
+        tx_hex: String,
+        permitsigdata: Option<bool>,
+        iswitness: Option<bool>,
+    ) -> String;
+    async fn walletsignpsbt(
+        &self,
+        tx_hex: String,
+        sighashtype: Option<String>,
+        imbalance_ok: Option<bool>,
+    ) -> WalletSignPsbtResponse;
+    async fn finalizepsbt(&self, psbt: String, extract: Option<bool>) -> FinalizePsbtResponse;
+    async fn signmessage(&self, address: &Address, message: String) -> String;
+    async fn dumpprivkey(&self, address: &Address) -> String;
 }
 
 #[jsonrpc_client::implement(ElementsRpc)]
@@ -80,6 +104,14 @@ pub struct UnblindRawTransactionResponse {
 #[derive(Debug, Deserialize)]
 pub struct SignRawTransactionWithWalletResponse {
     hex: String,
+    errors: Option<Vec<ErrorResponse>>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct ErrorResponse {
+    txid: String,
+    vout: u32,
+    error: String,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize)]
@@ -88,12 +120,48 @@ pub struct ReissueAssetResponse {
     vin: u8,
 }
 
+#[derive(Clone, Debug, Deserialize)]
+pub struct GetAddressInfoResponse {
+    pub unconfidential: Address,
+    pub pubkey: Option<String>,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+pub struct ListReceivedByAddressResponse {
+    pub address: Address,
+    pub amount: HashMap<String, f64>,
+    pub confirmations: u64,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+pub struct WalletSignPsbtResponse {
+    pub psbt: Option<String>,
+    pub complete: bool,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+pub struct FinalizePsbtResponse {
+    pub hex: Option<String>,
+    pub psbt: Option<String>,
+    pub complete: bool,
+}
+
 impl Client {
     pub fn new(base_url: String) -> Result<Self> {
         Ok(Self {
             inner: reqwest::Client::new(),
             base_url: base_url.parse()?,
         })
+    }
+
+    pub async fn get_new_address(&self, address_type: Option<&str>) -> Result<Address> {
+        let address = self.getnewaddress("", address_type).await?;
+
+        Ok(address)
+    }
+
+    pub async fn get_new_segwit_confidential_address(&self) -> Result<Address> {
+        self.get_new_address(Some("blech32")).await
     }
 
     pub async fn get_bitcoin_asset_id(&self) -> Result<AssetId> {
@@ -164,7 +232,7 @@ impl Client {
         amount: Amount,
         should_lock: bool,
     ) -> Result<Vec<(OutPoint, TxOut)>> {
-        let placeholder_address = self.getnewaddress().await.unwrap();
+        let placeholder_address = self.get_new_address(None).await.unwrap();
         let tx = Transaction {
             output: vec![TxOut {
                 asset: Asset::Explicit(asset),
@@ -233,6 +301,14 @@ impl Client {
         Ok(tx)
     }
 
+    pub async fn fund_raw_transaction(&self, tx: &Transaction) -> Result<Transaction> {
+        let tx_hex = serialize_hex(tx);
+        let res = self.fundrawtransaction(tx_hex).await?;
+        let tx = elements::encode::deserialize(&Vec::<u8>::from_hex(&res.hex).unwrap())?;
+
+        Ok(tx)
+    }
+
     pub async fn lock_utxos(&self, utxos: Vec<OutPoint>) -> Result<()> {
         let res = self.lockunspent(false, utxos).await?;
 
@@ -241,6 +317,31 @@ impl Client {
         } else {
             bail!("Could not lock outputs")
         }
+    }
+
+    pub async fn list_received_by_address(
+        &self,
+        address: &Address,
+    ) -> Result<Vec<ListReceivedByAddressResponse>> {
+        let res = self
+            .listreceivedbyaddress(Some(0), None, None, Some(address), None)
+            .await?;
+
+        Ok(res)
+    }
+
+    pub async fn sign_message(&self, address: &Address, message: String) -> Result<Signature> {
+        let sig = self.signmessage(address, message).await?;
+        let sig = Signature::from_str(&sig)?;
+
+        Ok(sig)
+    }
+
+    pub async fn dump_private_key(&self, address: &Address) -> Result<SecretKey> {
+        let privkey = self.dumpprivkey(address).await?;
+        let privkey = PrivateKey::from_wif(&privkey)?;
+
+        Ok(privkey.key)
     }
 }
 
@@ -319,7 +420,7 @@ mod test {
             )
         };
 
-        let address = client.getnewaddress().await.unwrap();
+        let address = client.get_new_address(None).await.unwrap();
         let _txid = client
             .sendtoaddress(
                 &address, 1.0, None, None, None, None, None, None, None, true,

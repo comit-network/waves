@@ -384,6 +384,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "coin_selection"
+version = "0.1.0"
+dependencies = [
+ "bdk",
+ "elements",
+ "estimate_transaction_size",
+ "thiserror",
+]
+
+[[package]]
 name = "conquer-once"
 version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -440,6 +450,26 @@ name = "core-foundation-sys"
 version = "0.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ea221b5284a47e40033bf9b66f35f984ec0ea2931eb03505246cd27a963f981b"
+
+[[package]]
+name = "covenants"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "bitcoin_hashes 0.9.4",
+ "coin_selection",
+ "elements",
+ "elements-harness",
+ "env_logger",
+ "estimate_transaction_size",
+ "hex",
+ "hmac 0.10.1",
+ "log",
+ "secp256k1-zkp",
+ "sha2",
+ "testcontainers",
+ "tokio",
+]
 
 [[package]]
 name = "cpuid-bool"
@@ -537,7 +567,7 @@ checksum = "e78d4f1cc4ae33bbfc157ed5d5a5ef3bc29227303d595861deb238fcec4e9457"
 [[package]]
 name = "elements"
 version = "0.15.0"
-source = "git+https://github.com/luckysori/rust-elements?branch=upstreaming-fun#ef19ce26a07ddd13b4fe128d934586ec54d1dfa7"
+source = "git+https://github.com/luckysori/rust-elements?branch=upstreaming-fun#512dca4236ad19cc7585e96050e7128ed9e9ba15"
 dependencies = [
  "bitcoin",
  "bitcoin_hashes 0.9.4",
@@ -593,6 +623,10 @@ dependencies = [
  "regex",
  "termcolor",
 ]
+
+[[package]]
+name = "estimate_transaction_size"
+version = "0.1.0"
 
 [[package]]
 name = "fake-simd"
@@ -1197,6 +1231,7 @@ checksum = "8452105ba047068f40ff7093dd1d9da90898e63dd61736462e9cdda6a90ad3c3"
 name = "message_types"
 version = "0.1.0"
 dependencies = [
+ "coin_selection",
  "elements",
  "js-sys",
  "rust_decimal",
@@ -2162,6 +2197,7 @@ dependencies = [
  "anyhow",
  "elements",
  "elements-harness",
+ "estimate_transaction_size",
  "secp256k1",
  "serde 1.0.123",
  "sha2",
@@ -2556,9 +2592,11 @@ dependencies = [
  "aes-gcm-siv",
  "anyhow",
  "bdk",
+ "coin_selection",
  "conquer-once",
  "console_error_panic_hook",
  "elements",
+ "estimate_transaction_size",
  "futures",
  "getrandom 0.1.16",
  "hex",

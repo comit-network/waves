@@ -1,14 +1,12 @@
 use crate::{
     constants::{NATIVE_ASSET_ID, USDT_ASSET_ID},
-    wallet::{
-        coin_selection, coin_selection::coin_select, current, get_txouts, CreateSwapPayload,
-        SwapUtxo, Wallet,
-    },
+    wallet::{current, get_txouts, CreateSwapPayload, SwapUtxo, Wallet},
 };
 use bdk::bitcoin::{Amount, Denomination};
+use coin_selection::{self, coin_select};
 use elements::{secp256k1::SECP256K1, AssetId, OutPoint};
+use estimate_transaction_size::avg_vbytes;
 use futures::lock::Mutex;
-use swap::avg_vbytes;
 
 pub async fn make_buy_create_swap_payload(
     name: String,

@@ -6,6 +6,7 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+coin_selection = { path = "../../coin_selection" }
 elements = { version = "0.15", features = [ "serde-feature" ] }
 js-sys = "0.3"
 rust_decimal = "1"

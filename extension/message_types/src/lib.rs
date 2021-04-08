@@ -39,7 +39,7 @@ pub mod ips_bs {
         fn from(e: wallet::MakePayloadError) -> Self {
             match e {
                 wallet::MakePayloadError::CoinSelection(
-                    wallet::CoinSelectionError::InsufficientFunds { needed, available },
+                    coin_selection::Error::InsufficientFunds { needed, available },
                 ) => Self::InsufficientFunds { needed, available },
                 e => Self::Other(format!("{:#}", e)),
             }
