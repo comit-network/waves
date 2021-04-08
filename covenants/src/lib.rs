@@ -237,7 +237,7 @@ impl Borrower1 {
         secp: &Secp256k1<C>,
         coin_selector: CS,
         signer: SI,
-        tx_fee: Amount,
+        fee_sats_per_vbyte: Amount,
     ) -> Result<Transaction>
     where
         R: RngCore + CryptoRng,
@@ -320,6 +320,12 @@ impl Borrower1 {
             self.repayment_collateral_vbf,
         )];
 
+        let mut tx_ins: Vec<TxIn> = unblinded_principal_inputs
+            .into_iter()
+            .map(|input| input.tx_in)
+            .collect();
+        tx_ins.push(collateral_input.tx_in);
+
         let change_output = match change_amount {
             Amount::ZERO => None,
             _ => {
@@ -338,7 +344,9 @@ impl Borrower1 {
                 Some(output)
             }
         };
-
+        let tx_fee = Amount::from_sat(
+            estimate_virtual_size(tx_ins.len() as u64, 4) * fee_sats_per_vbyte.as_sat(),
+        );
         let collateral_output = TxOut::new_last_confidential(
             rng,
             secp,
@@ -351,12 +359,6 @@ impl Borrower1 {
         .context("Creation of collateral output failed")?;
 
         let tx_fee_output = TxOut::new_fee(tx_fee.as_sat(), self.bitcoin_asset_id);
-
-        let mut tx_ins: Vec<TxIn> = unblinded_principal_inputs
-            .into_iter()
-            .map(|input| input.tx_in)
-            .collect();
-        tx_ins.push(collateral_input.tx_in);
 
         let mut tx_outs = vec![repayment_principal_output.clone()];
         if let Some(change_output) = change_output {

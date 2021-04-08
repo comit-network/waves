@@ -1,7 +1,7 @@
 #[cfg(test)]
 mod tests {
     use crate::{make_keypair, Borrower0, Lender0};
-    use anyhow::{anyhow, Context, Result};
+    use anyhow::Result;
     use bitcoin_hashes::Hash;
     use elements::{
         bitcoin::{util::psbt::serialize::Serialize, Amount, PublicKey},
@@ -70,7 +70,7 @@ mod tests {
             client.generatetoaddress(1, &miner_address).await.unwrap();
 
             let collateral_inputs = wallet
-                .find_inputs(bitcoin_asset_id, collateral_amount * 2)
+                .find_inputs(bitcoin_asset_id, collateral_amount)
                 .await
                 .unwrap();
 
@@ -155,8 +155,7 @@ mod tests {
                     |amount, asset| async move { borrower_wallet.find_inputs(asset, amount).await }
                 },
                 |tx| async move { Ok(borrower_wallet.sign_all_inputs(tx)) },
-                // TODO: Do the same as in the loan transaction for the fee
-                Amount::from_sat(10_000),
+                Amount::ONE_SAT,
             )
             .await
             .unwrap();
@@ -226,7 +225,7 @@ mod tests {
             client.generatetoaddress(1, &miner_address).await.unwrap();
 
             let collateral_inputs = wallet
-                .find_inputs(bitcoin_asset_id, collateral_amount * 2)
+                .find_inputs(bitcoin_asset_id, collateral_amount)
                 .await
                 .unwrap();
 
@@ -406,47 +405,66 @@ mod tests {
             }
         }
 
-        // TODO use amounts to assert that we have enough funding
-        async fn find_inputs(
-            &self,
-            want_asset: AssetId,
-            _amount: Amount,
-        ) -> Result<Vec<crate::Input>> {
+        async fn find_inputs(&self, asset: AssetId, amount: Amount) -> Result<Vec<crate::Input>> {
             let utxos = self.known_utxos.clone();
 
-            let inputs = utxos
-                .into_iter()
-                .filter_map(|(txid, vout, original_tx_out)| {
-                    let found_asset = if let Some(confidential_tx_out) =
-                        original_tx_out.clone().into_confidential()
-                    {
-                        let out = confidential_tx_out
-                            .unblind(SECP256K1, self.blinder_keypair.0)
-                            .context("could not unblind output")
-                            .unwrap();
-                        out.asset
-                    } else {
-                        original_tx_out
-                            .asset
-                            .explicit()
-                            .ok_or_else(|| anyhow!("Should be explicit"))
-                            .unwrap()
-                    };
-                    if found_asset != want_asset {
-                        log::debug!(
-                            "Found transaction with different asset: found: {}, wanted: {}",
-                            found_asset,
-                            want_asset
-                        );
-                        return None;
-                    }
+            let asset_utxos = utxos
+                .iter()
+                .filter_map(
+                    |(txid, vout, tx_out)| match tx_out.clone().into_confidential() {
+                        Some(confidential) => {
+                            let unblinded_txout = confidential
+                                .unblind(SECP256K1, self.blinder_keypair.0)
+                                .expect("all utxos have the same blinding key");
+                            let outpoint = OutPoint {
+                                txid: *txid,
+                                vout: *vout as u32,
+                            };
+                            let candidate_asset = unblinded_txout.asset;
 
-                    Some(crate::Input {
+                            if candidate_asset == asset {
+                                Some(coin_selection::Utxo {
+                                    outpoint,
+                                    value: unblinded_txout.value,
+                                    script_pubkey: confidential.script_pubkey,
+                                    asset: candidate_asset,
+                                })
+                            } else {
+                                log::debug!(
+                                    "utxo {} with asset id {} is not the sell asset, ignoring",
+                                    outpoint,
+                                    candidate_asset
+                                );
+                                None
+                            }
+                        }
+                        None => {
+                            log::warn!("swapping explicit txouts is unsupported");
+                            None
+                        }
+                    },
+                )
+                .collect();
+
+            let coin_selection::Output {
+                coins: selected_coins,
+                ..
+            } = coin_selection::coin_select(asset_utxos, amount, 1.0, Amount::ZERO)?;
+
+            let selected_coins = selected_coins
+                .iter()
+                .map(|coin| {
+                    let original_tx_out = utxos
+                        .iter()
+                        .find_map(|(txid, vout, tx_out)| {
+                            (coin.outpoint.txid == *txid && coin.outpoint.vout == *vout as u32)
+                                .then(|| tx_out)
+                        })
+                        .expect("coin came from utxos");
+
+                    crate::Input {
                         tx_in: TxIn {
-                            previous_output: OutPoint {
-                                txid,
-                                vout: vout as u32,
-                            },
+                            previous_output: coin.outpoint,
                             is_pegin: false,
                             has_issuance: false,
                             script_sig: Default::default(),
@@ -454,12 +472,13 @@ mod tests {
                             asset_issuance: Default::default(),
                             witness: Default::default(),
                         },
-                        original_tx_out,
+                        original_tx_out: original_tx_out.clone(),
                         blinding_key: self.blinder_keypair.0,
-                    })
+                    }
                 })
-                .collect::<Vec<_>>();
-            Ok(inputs)
+                .collect();
+
+            Ok(selected_coins)
         }
 
         fn sign_all_inputs(&self, tx: Transaction) -> Transaction {
