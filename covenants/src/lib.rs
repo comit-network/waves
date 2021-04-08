@@ -235,7 +235,7 @@ impl Borrower1 {
         C: Verification + Signing,
         CS: FnOnce(Amount, AssetId) -> CF,
         CF: Future<Output = Result<Vec<Input>>>,
-        SI: FnOnce(Transaction, u32, Address, Value) -> SF,
+        SI: FnOnce(Transaction) -> SF,
         SF: Future<Output = Result<Transaction>>,
     {
         let repayment_amount = self.principal_tx_out_amount;
@@ -398,18 +398,8 @@ impl Borrower1 {
             };
         };
 
-        // TODO: Sign more than one input if necessary
         // sign repayment input of the principal amount
-        let tx = {
-            let script_pubkey = principal_inputs[0].original_tx_out.script_pubkey.clone();
-            let blinder_sk = principal_inputs[0].blinding_key;
-            let blinder_pk = secp256k1_zkp::PublicKey::from_secret_key(secp, &blinder_sk);
-            let address =
-                Address::from_script(&script_pubkey, Some(blinder_pk), &AddressParams::ELEMENTS)
-                    .unwrap();
-            let value = principal_inputs[0].original_tx_out.value;
-            signer(tx, 0, address, value).await?
-        };
+        let tx = { signer(tx).await? };
 
         Ok(tx)
     }
@@ -1107,7 +1097,7 @@ pub struct UnblindedInput {
 }
 
 // TODO: Take rng param
-fn make_keypair() -> (SecretKey, PublicKey) {
+pub fn make_keypair() -> (SecretKey, PublicKey) {
     let sk = SecretKey::new(&mut thread_rng());
     let pk = PublicKey::from_private_key(
         &SECP256K1,

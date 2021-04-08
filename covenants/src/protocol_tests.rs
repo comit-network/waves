@@ -1,19 +1,18 @@
 #[cfg(test)]
 mod tests {
-    use crate::{Borrower0, Lender0};
-    use anyhow::Result;
+    use crate::{make_keypair, Borrower0, Lender0};
+    use anyhow::{anyhow, Context, Result};
     use bitcoin_hashes::Hash;
     use elements::{
-        bitcoin::Amount,
-        hashes::hash160,
+        bitcoin::{util::psbt::serialize::Serialize, Amount, PublicKey},
         opcodes,
         script::Builder,
         secp256k1::{rand::thread_rng, SecretKey, SECP256K1},
         sighash::SigHashCache,
-        AssetId, Script, SigHashType, TxIn,
+        Address, AddressParams, AssetId, OutPoint, Script, SigHashType, Transaction, TxIn, TxOut,
+        Txid,
     };
     use elements_harness::{elementd_rpc::ElementsRpc, Elementsd};
-    use secp256k1_zkp::Message;
     use std::env;
     use testcontainers::clients::Cli;
 
@@ -31,28 +30,50 @@ mod tests {
             )
         };
 
-        let master_blinding_key = client.dumpmasterblindingkey().await.unwrap();
-        let master_blinding_key = hex::decode(master_blinding_key).unwrap();
-
         let bitcoin_asset_id = client.get_bitcoin_asset_id().await.unwrap();
         let usdt_asset_id = client.issueasset(40.0, 0.0, false).await.unwrap().asset;
 
-        let address = client.get_new_segwit_confidential_address().await.unwrap();
+        let miner_address = client.get_new_segwit_confidential_address().await.unwrap();
+
         client
-            .send_asset_to_address(&address, Amount::from_btc(5.0).unwrap(), None)
+            .send_asset_to_address(&miner_address, Amount::from_btc(5.0).unwrap(), None)
             .await
             .unwrap();
-        let miner_address = client.get_new_segwit_confidential_address().await.unwrap();
         client.generatetoaddress(10, &miner_address).await.unwrap();
 
-        let (borrower, _borrower_address) = {
+        let (borrower, _borrower_address, borrower_wallet) = {
+            let mut wallet = Wallet::new();
+
             let collateral_amount = Amount::ONE_BTC;
-            let collateral_inputs = find_inputs(&client, bitcoin_asset_id, collateral_amount * 2)
+
+            let address = wallet.address();
+            let address_blinding_sk = wallet.dump_blinding_sk();
+
+            // fund borrower address with bitcoin
+            let txid = client
+                .send_asset_to_address(&address, collateral_amount * 2, Some(bitcoin_asset_id))
                 .await
                 .unwrap();
-            let address = client.get_new_segwit_confidential_address().await.unwrap();
-            let address_blinding_sk =
-                derive_blinding_key(master_blinding_key.clone(), address.script_pubkey()).unwrap();
+
+            wallet.add_known_utxo(&client, txid).await;
+
+            // fund wallet with some usdt to pay back the loan later on
+            let txid = client
+                .send_asset_to_address(
+                    &address,
+                    Amount::from_btc(2.0).unwrap(),
+                    Some(usdt_asset_id),
+                )
+                .await
+                .unwrap();
+            wallet.add_known_utxo(&client, txid).await;
+
+            client.generatetoaddress(1, &miner_address).await.unwrap();
+
+            let collateral_inputs = wallet
+                .find_inputs(bitcoin_asset_id, collateral_amount * 2)
+                .await
+                .unwrap();
 
             let timelock = 10;
 
@@ -68,10 +89,9 @@ mod tests {
             )
             .unwrap();
 
-            (borrower, address)
+            (borrower, address, wallet)
         };
 
-        // TODO: Use a separate wallet per actor. Using the same wallet is confusing and bug-prone.
         let (lender, _lender_address) = {
             let address = client.get_new_segwit_confidential_address().await.unwrap();
 
@@ -99,8 +119,8 @@ mod tests {
         let borrower = borrower.interpret(&SECP256K1, loan_response).unwrap();
         let loan_transaction = borrower
             .sign({
-                let client = client.clone();
-                |transaction| async move { client.sign_raw_transaction(&transaction).await }
+                let wallet = borrower_wallet.clone();
+                |transaction| async move { Ok(wallet.sign_all_inputs(transaction)) }
             })
             .await
             .unwrap();
@@ -125,42 +145,10 @@ mod tests {
                 &mut thread_rng(),
                 &SECP256K1,
                 {
-                    let client = client.clone();
-                    |amount, asset| async move { find_inputs(&client, asset, amount).await }
+                    let borrower_wallet = borrower_wallet.clone();
+                    |amount, asset| async move { borrower_wallet.find_inputs(asset, amount).await }
                 },
-                {
-                    let client = client.clone();
-                    |mut tx, index, address, value| async move {
-                        let sk = client.dump_private_key(&address).await?;
-                        let pk = secp256k1_zkp::PublicKey::from_secret_key(&SECP256K1, &sk);
-
-                        let hash = hash160::Hash::hash(&pk.serialize());
-                        let script = Builder::new()
-                            .push_opcode(opcodes::all::OP_DUP)
-                            .push_opcode(opcodes::all::OP_HASH160)
-                            .push_slice(&hash.into_inner())
-                            .push_opcode(opcodes::all::OP_EQUALVERIFY)
-                            .push_opcode(opcodes::all::OP_CHECKSIG)
-                            .into_script();
-
-                        let sighash = SigHashCache::new(&tx).segwitv0_sighash(
-                            index as usize,
-                            &script,
-                            value,
-                            SigHashType::All,
-                        );
-
-                        let sig = SECP256K1.sign(&Message::from(sighash), &sk);
-
-                        let mut serialized_signature = sig.serialize_der().to_vec();
-                        serialized_signature.push(SigHashType::All as u8);
-
-                        tx.input[index as usize].witness.script_witness =
-                            vec![serialized_signature, pk.serialize().to_vec()];
-
-                        Ok(tx)
-                    }
-                },
+                |tx| async move { Ok(borrower_wallet.sign_all_inputs(tx)) },
                 // TODO: Do the same as in the loan transaction for the fee
                 Amount::from_sat(10_000),
             )
@@ -301,34 +289,6 @@ mod tests {
     ) -> Result<Vec<crate::Input>> {
         let inputs = client.select_inputs_for(asset, amount, false).await?;
 
-        // let address = client
-        //     .get_new_address(Some("blech32".into()))
-        //     .await
-        //     .unwrap();
-        // let txid = client
-        //     .send_asset_to_address(&address, amount, Some(asset))
-        //     .await
-        //     .unwrap();
-
-        // // let inputs = client.select_inputs_for(asset, amount, false).await?;
-        // let inputs = {
-        //     let tx = client.get_raw_transaction(txid).await.unwrap();
-
-        //     let vout = tx
-        //         .output
-        //         .iter()
-        //         .position(|out| out.script_pubkey == address.script_pubkey())
-        //         .unwrap();
-
-        //     let outpoint = OutPoint {
-        //         txid,
-        //         vout: vout as u32,
-        //     };
-        //     let tx_out = tx.output[vout].clone();
-
-        //     vec![(outpoint, tx_out)]
-        // };
-
         let master_blinding_key = client.dumpmasterblindingkey().await?;
         let master_blinding_key = hex::decode(master_blinding_key)?;
 
@@ -374,34 +334,162 @@ mod tests {
         Ok(blinding_sk)
     }
 
-    // pub fn sign_with_key<C>(
-    //     secp: &Secp256k1<C>,
-    //     cache: &mut SigHashCache<&Transaction>,
-    //     index: usize,
-    //     input_sk: &SecretKey,
-    //     value: confidential::Value,
-    // ) -> Vec<Vec<u8>>
-    // where
-    //     C: Signing,
-    // {
-    //     let input_pk = PublicKey::from_secret_key(&secp, &input_sk);
+    #[derive(Clone)]
+    pub struct Wallet {
+        keypair: (SecretKey, PublicKey),
+        blinder_keypair: (SecretKey, PublicKey),
+        address: Address,
+        known_utxos: Vec<(Txid, usize, TxOut)>,
+    }
 
-    //     let hash = hash160::Hash::hash(&input_pk.serialize());
-    //     let script = Builder::new()
-    //         .push_opcode(opcodes::all::OP_DUP)
-    //         .push_opcode(opcodes::all::OP_HASH160)
-    //         .push_slice(&hash.into_inner())
-    //         .push_opcode(opcodes::all::OP_EQUALVERIFY)
-    //         .push_opcode(opcodes::all::OP_CHECKSIG)
-    //         .into_script();
+    impl Wallet {
+        pub fn new() -> Self {
+            let (sk, pk) = make_keypair();
+            let (blinder_sk, blinder_pk) = make_keypair();
 
-    //     let sighash = cache.segwitv0_sighash(index, &script, value, SigHashType::All);
+            let address = Address::p2wpkh(&pk, Some(blinder_pk.key), &AddressParams::ELEMENTS);
 
-    //     let sig = secp.sign(&Message::from(sighash), &input_sk);
+            Wallet {
+                keypair: (sk, pk),
+                blinder_keypair: (blinder_sk, blinder_pk),
+                address,
+                known_utxos: vec![],
+            }
+        }
 
-    //     let mut serialized_signature = sig.serialize_der().to_vec();
-    //     serialized_signature.push(SigHashType::All as u8);
+        pub fn address(&self) -> Address {
+            self.address.clone()
+        }
 
-    //     vec![serialized_signature, input_pk.serialize().to_vec()]
-    // }
+        pub fn dump_blinding_sk(&self) -> SecretKey {
+            return self.blinder_keypair.0.clone();
+        }
+
+        pub async fn add_known_utxo(&mut self, client: &elements_harness::Client, txid: Txid) {
+            let transaction = client.get_raw_transaction(txid).await.unwrap();
+
+            let maybe_vout = transaction
+                .output
+                .iter()
+                .position(|txout| txout.script_pubkey == self.address.script_pubkey());
+
+            if let Some(vout) = maybe_vout {
+                let txout = transaction.output.get(vout).unwrap();
+                self.known_utxos.push((txid, vout, txout.clone()));
+            }
+        }
+
+        // TODO use amounts to assert that we have enough funding
+        async fn find_inputs(
+            &self,
+            want_asset: AssetId,
+            _amount: Amount,
+        ) -> Result<Vec<crate::Input>> {
+            let utxos = self.known_utxos.clone();
+
+            let inputs = utxos
+                .into_iter()
+                .filter_map(|(txid, vout, txout)| {
+                    let original_tx_out = txout.clone();
+
+                    let found_asset = if let Some(confidential_tx_out) =
+                        original_tx_out.clone().into_confidential()
+                    {
+                        let out = confidential_tx_out
+                            .unblind(SECP256K1, self.blinder_keypair.0)
+                            .context("could not unblind output")
+                            .unwrap();
+                        out.asset
+                    } else {
+                        let asset_id = original_tx_out
+                            .asset
+                            .explicit()
+                            .ok_or_else(|| anyhow!("Should be explicit"))
+                            .unwrap();
+                        asset_id
+                    };
+                    if found_asset != want_asset {
+                        log::debug!(
+                            "Found transaction with different asset: found: {}, wanted: {}",
+                            found_asset,
+                            want_asset
+                        );
+                        return None;
+                    }
+
+                    Some(crate::Input {
+                        tx_in: TxIn {
+                            previous_output: OutPoint {
+                                txid,
+                                vout: vout as u32,
+                            },
+                            is_pegin: false,
+                            has_issuance: false,
+                            script_sig: Default::default(),
+                            sequence: 0,
+                            asset_issuance: Default::default(),
+                            witness: Default::default(),
+                        },
+                        original_tx_out,
+                        blinding_key: self.blinder_keypair.0.clone(),
+                    })
+                })
+                .collect::<Vec<_>>();
+            Ok(inputs)
+        }
+
+        fn sign_all_inputs(&self, tx: Transaction) -> Transaction {
+            let mut tx_to_sign = tx;
+            // first try to find out which utxos we know
+            let known_inputs = tx_to_sign
+                .clone()
+                .input
+                .into_iter()
+                .filter_map(|txin| {
+                    if let Some((_, _, outpoint)) = self
+                        .known_utxos
+                        .iter()
+                        .find(|(txid, _, _)| txid == &txin.previous_output.txid)
+                    {
+                        Some((txin, outpoint.value))
+                    } else {
+                        None
+                    }
+                })
+                .collect::<Vec<_>>();
+
+            known_inputs.into_iter().for_each(|(txin, value)| {
+                let hash = bitcoin_hashes::hash160::Hash::hash(&self.keypair.1.serialize());
+                let script = Builder::new()
+                    .push_opcode(opcodes::all::OP_DUP)
+                    .push_opcode(opcodes::all::OP_HASH160)
+                    .push_slice(&hash.into_inner())
+                    .push_opcode(opcodes::all::OP_EQUALVERIFY)
+                    .push_opcode(opcodes::all::OP_CHECKSIG)
+                    .into_script();
+
+                let index = tx_to_sign
+                    .input
+                    .iter()
+                    .position(|other| other == &txin)
+                    .unwrap();
+
+                let sighash = SigHashCache::new(&tx_to_sign).segwitv0_sighash(
+                    index,
+                    &script,
+                    value,
+                    SigHashType::All,
+                );
+                let sig = SECP256K1.sign(&secp256k1_zkp::Message::from(sighash), &self.keypair.0);
+
+                let mut serialized_signature = sig.serialize_der().to_vec();
+                serialized_signature.push(SigHashType::All as u8);
+
+                tx_to_sign.input[index as usize].witness.script_witness =
+                    vec![serialized_signature, self.keypair.1.serialize().to_vec()];
+            });
+
+            tx_to_sign
+        }
+    }
 }
