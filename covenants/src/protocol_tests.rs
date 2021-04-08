@@ -77,6 +77,7 @@ mod tests {
             let timelock = 10;
 
             let borrower = Borrower0::new(
+                &mut thread_rng(),
                 address.clone(),
                 address_blinding_sk,
                 collateral_amount,
@@ -94,7 +95,13 @@ mod tests {
         let (lender, _lender_address) = {
             let address = client.get_new_segwit_confidential_address().await.unwrap();
 
-            let lender = Lender0::new(bitcoin_asset_id, usdt_asset_id, address.clone()).unwrap();
+            let lender = Lender0::new(
+                &mut thread_rng(),
+                bitcoin_asset_id,
+                usdt_asset_id,
+                address.clone(),
+            )
+            .unwrap();
 
             (lender, address)
         };
@@ -226,6 +233,7 @@ mod tests {
             let timelock = 0;
 
             let borrower = Borrower0::new(
+                &mut thread_rng(),
                 address.clone(),
                 address_blinding_sk,
                 collateral_amount,
@@ -243,7 +251,13 @@ mod tests {
         let (lender, _lender_address) = {
             let address = client.get_new_segwit_confidential_address().await.unwrap();
 
-            let lender = Lender0::new(bitcoin_asset_id, usdt_asset_id, address.clone()).unwrap();
+            let lender = Lender0::new(
+                &mut thread_rng(),
+                bitcoin_asset_id,
+                usdt_asset_id,
+                address.clone(),
+            )
+            .unwrap();
 
             (lender, address)
         };
@@ -357,8 +371,8 @@ mod tests {
 
     impl Wallet {
         pub fn new() -> Self {
-            let (sk, pk) = make_keypair();
-            let (blinder_sk, blinder_pk) = make_keypair();
+            let (sk, pk) = make_keypair(&mut thread_rng());
+            let (blinder_sk, blinder_pk) = make_keypair(&mut thread_rng());
 
             let address = Address::p2wpkh(&pk, Some(blinder_pk.key), &AddressParams::ELEMENTS);
 

@@ -8,7 +8,7 @@ use elements::{
     opcodes::all::*,
     script::Builder,
     secp256k1::{
-        rand::{thread_rng, CryptoRng, RngCore},
+        rand::{CryptoRng, RngCore},
         Secp256k1, SecretKey, Signature, Signing, Verification, SECP256K1,
     },
     sighash::SigHashCache,
@@ -16,7 +16,7 @@ use elements::{
     SigHashType, Transaction, TxIn, TxInWitness, TxOut, UnblindedTxOut,
 };
 use estimate_transaction_size::estimate_virtual_size;
-use secp256k1_zkp::{SurjectionProof, Tag};
+use secp256k1_zkp::{rand::thread_rng, SurjectionProof, Tag};
 use std::future::Future;
 
 #[cfg(test)]
@@ -56,7 +56,8 @@ pub struct Borrower0 {
 
 impl Borrower0 {
     #[allow(clippy::too_many_arguments)]
-    pub fn new(
+    pub fn new<R>(
+        rng: &mut R,
         address: Address,
         address_blinding_sk: SecretKey,
         collateral_amount: Amount,
@@ -65,8 +66,11 @@ impl Borrower0 {
         timelock: u64,
         bitcoin_asset_id: AssetId,
         usdt_asset_id: AssetId,
-    ) -> Result<Self> {
-        let keypair = make_keypair();
+    ) -> Result<Self>
+    where
+        R: RngCore + CryptoRng,
+    {
+        let keypair = make_keypair(rng);
 
         Ok(Self {
             keypair,
@@ -418,12 +422,16 @@ pub struct Lender0 {
 }
 
 impl Lender0 {
-    pub fn new(
+    pub fn new<R>(
+        rng: &mut R,
         bitcoin_asset_id: AssetId,
         usdt_asset_id: AssetId,
         address: Address,
-    ) -> Result<Self> {
-        let keypair = make_keypair();
+    ) -> Result<Self>
+    where
+        R: RngCore + CryptoRng,
+    {
+        let keypair = make_keypair(rng);
 
         Ok(Self {
             bitcoin_asset_id,
@@ -524,7 +532,7 @@ impl Lender0 {
             repayment_principal_output.clone(),
         )?;
 
-        let (collateral_blinding_sk, collateral_blinding_pk) = make_keypair();
+        let (collateral_blinding_sk, collateral_blinding_pk) = make_keypair(&mut thread_rng());
         let collateral_address = Address::p2wsh(
             &collateral_script,
             Some(collateral_blinding_pk.key),
@@ -1109,9 +1117,11 @@ pub struct UnblindedInput {
     pub unblinded: UnblindedTxOut,
 }
 
-// TODO: Take rng param
-pub fn make_keypair() -> (SecretKey, PublicKey) {
-    let sk = SecretKey::new(&mut thread_rng());
+pub fn make_keypair<R>(rng: &mut R) -> (SecretKey, PublicKey)
+where
+    R: RngCore + CryptoRng,
+{
+    let sk = SecretKey::new(rng);
     let pk = PublicKey::from_private_key(
         &SECP256K1,
         &PrivateKey {
