@@ -375,7 +375,7 @@ mod tests {
         }
 
         pub fn dump_blinding_sk(&self) -> SecretKey {
-            return self.blinder_keypair.0.clone();
+            self.blinder_keypair.0
         }
 
         pub async fn add_known_utxo(&mut self, client: &elements_harness::Client, txid: Txid) {
@@ -402,9 +402,7 @@ mod tests {
 
             let inputs = utxos
                 .into_iter()
-                .filter_map(|(txid, vout, txout)| {
-                    let original_tx_out = txout.clone();
-
+                .filter_map(|(txid, vout, original_tx_out)| {
                     let found_asset = if let Some(confidential_tx_out) =
                         original_tx_out.clone().into_confidential()
                     {
@@ -414,12 +412,11 @@ mod tests {
                             .unwrap();
                         out.asset
                     } else {
-                        let asset_id = original_tx_out
+                        original_tx_out
                             .asset
                             .explicit()
                             .ok_or_else(|| anyhow!("Should be explicit"))
-                            .unwrap();
-                        asset_id
+                            .unwrap()
                     };
                     if found_asset != want_asset {
                         log::debug!(
@@ -444,7 +441,7 @@ mod tests {
                             witness: Default::default(),
                         },
                         original_tx_out,
-                        blinding_key: self.blinder_keypair.0.clone(),
+                        blinding_key: self.blinder_keypair.0,
                     })
                 })
                 .collect::<Vec<_>>();
@@ -454,22 +451,17 @@ mod tests {
         fn sign_all_inputs(&self, tx: Transaction) -> Transaction {
             let mut tx_to_sign = tx;
             // first try to find out which utxos we know
-            let known_inputs = tx_to_sign
-                .clone()
-                .input
-                .into_iter()
-                .filter_map(|txin| {
-                    if let Some((_, _, outpoint)) = self
-                        .known_utxos
-                        .iter()
-                        .find(|(txid, _, _)| txid == &txin.previous_output.txid)
-                    {
-                        Some((txin, outpoint.value))
-                    } else {
-                        None
-                    }
-                })
-                .collect::<Vec<_>>();
+            let known_inputs = tx_to_sign.clone().input.into_iter().filter_map(|txin| {
+                if let Some((_, _, outpoint)) = self
+                    .known_utxos
+                    .iter()
+                    .find(|(txid, _, _)| txid == &txin.previous_output.txid)
+                {
+                    Some((txin, outpoint.value))
+                } else {
+                    None
+                }
+            });
 
             known_inputs.into_iter().for_each(|(txin, value)| {
                 let hash = bitcoin_hashes::hash160::Hash::hash(&self.keypair.1.serialize());
