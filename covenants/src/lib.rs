@@ -529,7 +529,7 @@ impl Lender0 {
             rng,
             secp,
             collateral_amount.as_sat(),
-            collateral_address,
+            collateral_address.clone(),
             self.bitcoin_asset_id,
             &inputs,
         )
@@ -616,21 +616,29 @@ impl Lender0 {
             ],
         };
 
-        let repayment_collateral_input = Input {
-            tx_in: TxIn {
-                previous_output: OutPoint {
-                    txid: loan_transaction.txid(),
-                    vout: 0,
+        let repayment_collateral_input = {
+            let vout = loan_transaction
+                .output
+                .iter()
+                .position(|out| out.script_pubkey == collateral_address.script_pubkey())
+                .expect("loan transaction contains collateral output");
+
+            Input {
+                tx_in: TxIn {
+                    previous_output: OutPoint {
+                        txid: loan_transaction.txid(),
+                        vout: vout as u32,
+                    },
+                    is_pegin: false,
+                    has_issuance: false,
+                    script_sig: Script::new(),
+                    sequence: 0,
+                    asset_issuance: AssetIssuance::default(),
+                    witness: TxInWitness::default(),
                 },
-                is_pegin: false,
-                has_issuance: false,
-                script_sig: Script::new(),
-                sequence: 0,
-                asset_issuance: AssetIssuance::default(),
-                witness: TxInWitness::default(),
-            },
-            original_tx_out: collateral_tx_out,
-            blinding_key: collateral_blinding_sk,
+                original_tx_out: collateral_tx_out,
+                blinding_key: collateral_blinding_sk,
+            }
         };
 
         Ok(Lender1 {
