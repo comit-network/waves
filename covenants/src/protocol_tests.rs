@@ -13,7 +13,6 @@ mod tests {
         Txid,
     };
     use elements_harness::{elementd_rpc::ElementsRpc, Elementsd};
-    use std::env;
     use testcontainers::clients::Cli;
 
     #[tokio::test]
@@ -41,7 +40,7 @@ mod tests {
             .unwrap();
         client.generatetoaddress(10, &miner_address).await.unwrap();
 
-        let (borrower, _borrower_address, borrower_wallet) = {
+        let (borrower, borrower_wallet) = {
             let mut wallet = Wallet::new();
 
             let collateral_amount = Amount::ONE_BTC;
@@ -89,7 +88,7 @@ mod tests {
             )
             .unwrap();
 
-            (borrower, address, wallet)
+            (borrower, wallet)
         };
 
         let (lender, _lender_address) = {
@@ -163,8 +162,6 @@ mod tests {
 
     fn init_logger() {
         // force enabling log output
-        // TODO: remove me again
-        env::set_var("RUST_LOG", "DEBUG");
         let _ = env_logger::builder().is_test(true).try_init();
     }
 
@@ -182,30 +179,50 @@ mod tests {
             )
         };
 
-        let master_blinding_key = client.dumpmasterblindingkey().await.unwrap();
-        let master_blinding_key = hex::decode(master_blinding_key).unwrap();
-
         let bitcoin_asset_id = client.get_bitcoin_asset_id().await.unwrap();
         let usdt_asset_id = client.issueasset(40.0, 0.0, false).await.unwrap().asset;
 
-        let address = client.get_new_segwit_confidential_address().await.unwrap();
+        let miner_address = client.get_new_segwit_confidential_address().await.unwrap();
         client
-            .send_asset_to_address(&address, Amount::from_btc(5.0).unwrap(), None)
+            .send_asset_to_address(&miner_address, Amount::from_btc(5.0).unwrap(), None)
             .await
             .unwrap();
-        let miner_address = client.get_new_segwit_confidential_address().await.unwrap();
         client.generatetoaddress(10, &miner_address).await.unwrap();
 
-        let (borrower, _borrower_address) = {
+        let (borrower, borrower_wallet) = {
+            let mut wallet = Wallet::new();
+
             let collateral_amount = Amount::ONE_BTC;
-            let collateral_inputs = find_inputs(&client, bitcoin_asset_id, collateral_amount * 2)
+
+            let address = wallet.address();
+            let address_blinding_sk = wallet.dump_blinding_sk();
+
+            // fund borrower address with bitcoin
+            let txid = client
+                .send_asset_to_address(&address, collateral_amount * 2, Some(bitcoin_asset_id))
                 .await
                 .unwrap();
-            let address = client.get_new_segwit_confidential_address().await.unwrap();
-            let address_blinding_sk =
-                derive_blinding_key(master_blinding_key.clone(), address.script_pubkey()).unwrap();
 
-            // TODO: test with proper timeout
+            wallet.add_known_utxo(&client, txid).await;
+
+            // fund wallet with some usdt to pay back the loan later on
+            let txid = client
+                .send_asset_to_address(
+                    &address,
+                    Amount::from_btc(2.0).unwrap(),
+                    Some(usdt_asset_id),
+                )
+                .await
+                .unwrap();
+            wallet.add_known_utxo(&client, txid).await;
+
+            client.generatetoaddress(1, &miner_address).await.unwrap();
+
+            let collateral_inputs = wallet
+                .find_inputs(bitcoin_asset_id, collateral_amount * 2)
+                .await
+                .unwrap();
+
             let timelock = 0;
 
             let borrower = Borrower0::new(
@@ -220,10 +237,9 @@ mod tests {
             )
             .unwrap();
 
-            (borrower, address)
+            (borrower, wallet)
         };
 
-        // TODO: Use a separate wallet per actor. Using the same wallet is confusing and bug-prone.
         let (lender, _lender_address) = {
             let address = client.get_new_segwit_confidential_address().await.unwrap();
 
@@ -250,10 +266,7 @@ mod tests {
 
         let borrower = borrower.interpret(&SECP256K1, loan_response).unwrap();
         let loan_transaction = borrower
-            .sign({
-                let client = client.clone();
-                |transaction| async move { client.sign_raw_transaction(&transaction).await }
-            })
+            .sign(|transaction| async move { Ok(borrower_wallet.sign_all_inputs(transaction)) })
             .await
             .unwrap();
 
