@@ -24,7 +24,7 @@ mod tests {
             let blockchain = Elementsd::new(&tc_client, "0.18.1.9").unwrap();
 
             (
-                elements_harness::Client::new(blockchain.node_url.clone().into_string()).unwrap(),
+                elements_harness::Client::new(blockchain.node_url.clone().into()).unwrap(),
                 blockchain,
             )
         };
@@ -180,7 +180,7 @@ mod tests {
             let blockchain = Elementsd::new(&tc_client, "0.18.1.9").unwrap();
 
             (
-                elements_harness::Client::new(blockchain.node_url.clone().into_string()).unwrap(),
+                elements_harness::Client::new(blockchain.node_url.clone().into()).unwrap(),
                 blockchain,
             )
         };

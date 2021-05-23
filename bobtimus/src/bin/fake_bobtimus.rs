@@ -21,7 +21,7 @@ async fn main() -> Result<()> {
         usdt_asset_id,
     } = StartCommand::from_args();
 
-    let elementsd = Client::new(elementsd_url.into_string())?;
+    let elementsd = Client::new(elementsd_url.into())?;
     let btc_asset_id = elementsd.get_bitcoin_asset_id().await?;
 
     let rate_service = fixed_rate::Service::new();
