@@ -1,0 +1,11 @@
+pull_request_rules:
+  - name: Automatic merge on approval
+    conditions:
+      - base=master # only automatically merge into master
+      - -title~=(?i)wip # when the title does not contain “WIP” (ignoring case)
+      - "#approved-reviews-by>=1" # min 1 review
+    actions:
+      merge:
+        method: merge
+      delete_head_branch:
+
