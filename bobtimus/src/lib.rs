@@ -297,7 +297,7 @@ mod tests {
             let blockchain = Elementsd::new(&tc_client, "0.18.1.9").unwrap();
 
             (
-                Client::new(blockchain.node_url.clone().into_string()).unwrap(),
+                Client::new(blockchain.node_url.clone().into()).unwrap(),
                 blockchain,
             )
         };
@@ -430,7 +430,7 @@ mod tests {
             let blockchain = Elementsd::new(&tc_client, "0.18.1.9").unwrap();
 
             (
-                Client::new(blockchain.node_url.clone().into_string()).unwrap(),
+                Client::new(blockchain.node_url.clone().into()).unwrap(),
                 blockchain,
             )
         };
