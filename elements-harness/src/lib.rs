@@ -17,7 +17,7 @@ pub mod image;
 
 use crate::image::ElementsCore;
 use reqwest::Url;
-use testcontainers::{clients, core::Port, Container, Docker};
+use testcontainers::{clients, Container, Docker, RunArgs};
 
 pub use crate::elementd_rpc::Client;
 
@@ -34,14 +34,8 @@ pub struct Elementsd<'c> {
 impl<'c> Elementsd<'c> {
     /// Starts a new regtest elementsd container
     pub fn new(client: &'c clients::Cli, tag: &str) -> Result<Self> {
-        let container = client.run(
-            ElementsCore::default()
-                .with_tag(tag)
-                .with_mapped_port(Port {
-                    local: 0,
-                    internal: ELEMENTSD_RPC_PORT,
-                }),
-        );
+        let run_args = RunArgs::default().with_mapped_port((0, ELEMENTSD_RPC_PORT));
+        let container = client.run_with_args(ElementsCore::default().with_tag(tag), run_args);
         let port = container
             .get_host_port(ELEMENTSD_RPC_PORT)
             .ok_or(Error::PortNotExposed(ELEMENTSD_RPC_PORT))?;

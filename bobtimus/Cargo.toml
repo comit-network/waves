@@ -29,4 +29,4 @@ tokio-tungstenite = { version = "0.13", features = [ "tls" ] }
 warp = { version = "0.3", default-features = false }
 
 [dev-dependencies]
-testcontainers = "0.11"
+testcontainers = "0.12"

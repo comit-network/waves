@@ -4,13 +4,12 @@ use hmac::{Hmac, Mac, NewMac};
 use rand::{thread_rng, Rng};
 use sha2::Sha256;
 use std::{collections::HashMap, env::var, fmt, thread::sleep, time::Duration};
-use testcontainers::core::{Container, Docker, Image, Port, WaitForMessage};
+use testcontainers::core::{Container, Docker, Image, WaitForMessage};
 
 #[derive(Debug)]
 pub struct ElementsCore {
     tag: String,
     arguments: ElementsCoreImageArgs,
-    ports: Option<Vec<Port>>,
 }
 
 impl ElementsCore {
@@ -241,16 +240,12 @@ impl Image for ElementsCore {
         self.arguments.clone()
     }
 
-    fn volumes(&self) -> Self::Volumes {
-        HashMap::new()
-    }
-
     fn env_vars(&self) -> Self::EnvVars {
         HashMap::new()
     }
 
-    fn ports(&self) -> Option<Vec<Port>> {
-        self.ports.clone()
+    fn volumes(&self) -> Self::Volumes {
+        HashMap::new()
     }
 
     fn with_args(self, arguments: <Self as Image>::Args) -> Self {
@@ -263,7 +258,6 @@ impl Default for ElementsCore {
         ElementsCore {
             tag: "0.18.1.9".into(),
             arguments: ElementsCoreImageArgs::default(),
-            ports: None,
         }
     }
 }
@@ -274,13 +268,6 @@ impl ElementsCore {
             tag: tag_str.to_string(),
             ..self
         }
-    }
-
-    pub fn with_mapped_port<P: Into<Port>>(mut self, port: P) -> Self {
-        let mut ports = self.ports.unwrap_or_default();
-        ports.push(port.into());
-        self.ports = Some(ports);
-        self
     }
 }
 
