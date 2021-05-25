@@ -246,33 +246,12 @@ impl Component for App {
             }
         };
 
-        let faucet_button = match &self.state.wallet_status {
-            WalletStatus::Loaded { address, .. } => {
-                let address = address.clone();
-                html! {
-                    <>
-                        <ybc::Button
-                            onclick=self.link.batch_callback(
-                            move |_| {
-                                faucet(address.to_string());
-                                vec![]
-                            })
-                            classes="is-primary is-light">{ "Faucet" }
-                        </ybc::Button>
-                    </>
-                }
-            }
-            _ => html! {},
-        };
-
         html! {
             <ybc::Section>
                 <ybc::Container>
                     <ybc::Box>
                         { wallet_form }
                     </ybc::Box>
-                    // TODO: Feature flag this
-                    {faucet_button}
                 </ybc::Container>
             </ybc::Section>
         }
@@ -281,20 +260,6 @@ impl Component for App {
     fn rendered(&mut self, _first_render: bool) {}
 
     fn destroy(&mut self) {}
-}
-
-fn faucet(address: String) {
-    spawn_local(async move {
-        let client = reqwest::Client::new();
-        match client
-            .post(format!("http://127.0.0.1:3030/api/faucet/{}", address).as_str())
-            .send()
-            .await
-        {
-            Ok(_) => {}
-            Err(e) => log::error!("Call to faucet failed: {:?}", e),
-        };
-    })
 }
 
 fn send_to_backend(msg: ToBackground, callback: Box<dyn Fn(Result<JsValue, JsValue>)>) {
