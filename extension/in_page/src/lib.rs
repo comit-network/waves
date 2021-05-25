@@ -110,30 +110,6 @@ macro_rules! create_listener {
     }};
 }
 
-#[wasm_bindgen]
-pub fn wallet_status() -> Promise {
-    let msg = JsValue::from_serde(&ToBackground::WalletStatusRequest).unwrap();
-    send_to_cs!(msg, ToPage::StatusResponse)
-}
-
-#[wasm_bindgen]
-pub fn get_sell_create_swap_payload(btc: String) -> Promise {
-    let msg = JsValue::from_serde(&ToBackground::SellRequest(btc)).unwrap();
-    send_to_cs!(msg, ToPage::SellResponse)
-}
-
-#[wasm_bindgen]
-pub fn get_buy_create_swap_payload(usdt: String) -> Promise {
-    let msg = JsValue::from_serde(&ToBackground::BuyRequest(usdt)).unwrap();
-    send_to_cs!(msg, ToPage::BuyResponse)
-}
-
-#[wasm_bindgen]
-pub fn sign_and_send(tx_hex: String) -> Promise {
-    let msg = JsValue::from_serde(&ToBackground::SignRequest(tx_hex)).unwrap();
-    send_to_cs!(msg, ToPage::SignResponse)
-}
-
 struct Listener<F>
 where
     F: ?Sized,
