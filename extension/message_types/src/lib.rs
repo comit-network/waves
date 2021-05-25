@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 /// These are also used by the content script, which acts as a middleman.
 pub mod ips_bs {
     use super::*;
-    use elements::Txid;
+    use elements::{Address, Txid};
     use wallet::{CreateSwapPayload, WalletStatus};
 
     /// Requests sent from the in-page script to the background script.
@@ -15,6 +15,7 @@ pub mod ips_bs {
         SellRequest(String),
         BuyRequest(String),
         SignRequest(String),
+        NewAddress,
     }
 
     /// Responses sent from the background script to the in-page script.
@@ -24,6 +25,7 @@ pub mod ips_bs {
         SellResponse(Result<CreateSwapPayload, MakePayloadError>),
         BuyResponse(Result<CreateSwapPayload, MakePayloadError>),
         SignResponse(Result<Txid, SignAndSendError>),
+        NewAddressResponse(Result<Address, NewAddressError>),
     }
 
     #[derive(Debug, Deserialize, Serialize)]
@@ -62,6 +64,9 @@ pub mod ips_bs {
             }
         }
     }
+
+    #[derive(Debug, Deserialize, Serialize)]
+    pub struct NewAddressError(pub String);
 }
 
 /// Types used for communication between the background script and the pop-up script.

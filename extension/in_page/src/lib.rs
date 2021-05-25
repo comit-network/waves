@@ -41,6 +41,12 @@ impl Liquid {
         let msg = JsValue::from_serde(&ToBackground::SignRequest(tx_hex)).unwrap();
         send_to_cs!(msg, ToPage::SignResponse)
     }
+
+    #[wasm_bindgen]
+    pub fn new_address(&self) -> Promise {
+        let msg = JsValue::from_serde(&ToBackground::NewAddress).unwrap();
+        send_to_cs!(msg, ToPage::NewAddressResponse)
+    }
 }
 
 #[wasm_bindgen(start)]
