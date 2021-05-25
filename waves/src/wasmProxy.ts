@@ -79,3 +79,13 @@ export async function signAndSend(
     // @ts-ignore
     return await window.liquid.sign_and_send(transaction);
 }
+
+export async function getNewAddress(): Promise<string> {
+    // @ts-ignore
+    if (!window.liquid.new_address) {
+        return Promise.reject("new_address undefined");
+    }
+
+    // @ts-ignore
+    return await window.liquid.new_address();
+}

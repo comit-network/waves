@@ -41,6 +41,12 @@ impl Liquid {
         let msg = JsValue::from_serde(&ToBackground::SignRequest(tx_hex)).unwrap();
         send_to_cs!(msg, ToPage::SignResponse)
     }
+
+    #[wasm_bindgen]
+    pub fn new_address(&self) -> Promise {
+        let msg = JsValue::from_serde(&ToBackground::NewAddress).unwrap();
+        send_to_cs!(msg, ToPage::NewAddressResponse)
+    }
 }
 
 #[wasm_bindgen(start)]
@@ -108,30 +114,6 @@ macro_rules! create_listener {
         let cb = Closure::wrap(Box::new(func) as Box<dyn FnMut(MessageEvent)>);
         Listener::new("message".to_string(), cb)
     }};
-}
-
-#[wasm_bindgen]
-pub fn wallet_status() -> Promise {
-    let msg = JsValue::from_serde(&ToBackground::WalletStatusRequest).unwrap();
-    send_to_cs!(msg, ToPage::StatusResponse)
-}
-
-#[wasm_bindgen]
-pub fn get_sell_create_swap_payload(btc: String) -> Promise {
-    let msg = JsValue::from_serde(&ToBackground::SellRequest(btc)).unwrap();
-    send_to_cs!(msg, ToPage::SellResponse)
-}
-
-#[wasm_bindgen]
-pub fn get_buy_create_swap_payload(usdt: String) -> Promise {
-    let msg = JsValue::from_serde(&ToBackground::BuyRequest(usdt)).unwrap();
-    send_to_cs!(msg, ToPage::BuyResponse)
-}
-
-#[wasm_bindgen]
-pub fn sign_and_send(tx_hex: String) -> Promise {
-    let msg = JsValue::from_serde(&ToBackground::SignRequest(tx_hex)).unwrap();
-    send_to_cs!(msg, ToPage::SignResponse)
 }
 
 struct Listener<F>

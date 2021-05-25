@@ -253,6 +253,20 @@ fn handle_msg_from_cs(msg: ips_bs::ToBackground, message_sender: MessageSender) 
                 }
             }
         }),
+        ips_bs::ToBackground::NewAddress => {
+            spawn_local(async move {
+                let tab_id = message_sender.tab.expect("tab id to exist").id;
+                let response = wallet::get_address(WALLET_NAME.to_string())
+                    .await
+                    .map_err(|e| ips_bs::NewAddressError(format!("{:#}", e)));
+
+                let _resp = browser.tabs().send_message(
+                    tab_id,
+                    JsValue::from_serde(&ips_bs::ToPage::NewAddressResponse(response)).unwrap(),
+                    JsValue::null(),
+                );
+            });
+        }
     }
 
     Promise::resolve(&JsValue::from("OK"))

@@ -1,5 +1,5 @@
 import { ExternalLinkIcon } from "@chakra-ui/icons";
-import { Box, Button, Center, Flex, Image, Link, Text, VStack } from "@chakra-ui/react";
+import { Box, Button, Center, Flex, HStack, Image, Link, Text, VStack } from "@chakra-ui/react";
 import { useToast } from "@chakra-ui/react";
 import Debug from "debug";
 import React, { useEffect, useReducer } from "react";
@@ -7,12 +7,18 @@ import { useAsync } from "react-async";
 import { useSSE } from "react-hooks-sse";
 import { Route, Switch, useHistory, useParams } from "react-router-dom";
 import "./App.css";
-import { postBuyPayload, postSellPayload } from "./Bobtimus";
+import { fundAddress, postBuyPayload, postSellPayload } from "./Bobtimus";
 import calculateBetaAmount, { getDirection } from "./calculateBetaAmount";
 import AssetSelector from "./components/AssetSelector";
 import COMIT from "./components/comit_logo_spellout_opacity_50.svg";
 import ExchangeIcon from "./components/ExchangeIcon";
-import { getWalletStatus, makeBuyCreateSwapPayload, makeSellCreateSwapPayload, signAndSend } from "./wasmProxy";
+import {
+    getNewAddress,
+    getWalletStatus,
+    makeBuyCreateSwapPayload,
+    makeSellCreateSwapPayload,
+    signAndSend,
+} from "./wasmProxy";
 
 const debug = Debug("App");
 const error = Debug("App:error");
@@ -297,9 +303,30 @@ function App() {
         </Button>;
     }
 
+    let { run: callFaucet, isLoading: isFaucetLoading } = useAsync({
+        deferFn: async () => {
+            try {
+                let address = await getNewAddress();
+                await fundAddress(address);
+            } catch (e) {
+                error("Could not call faucet: {}", e);
+                toast({
+                    title: "Error",
+                    description: `Could not call faucet: ${e}`,
+                    status: "error",
+                    duration: 9000,
+                    isClosable: true,
+                });
+            }
+        },
+    });
+
     return (
         <Box className="App">
             <header className="App-header">
+                <HStack align="left">
+                    <Button variant="secondary" onClick={callFaucet} isLoading={isFaucetLoading}>Faucet</Button>
+                </HStack>
                 <Center>
                     <Image src={COMIT} h="24px" />
                 </Center>
