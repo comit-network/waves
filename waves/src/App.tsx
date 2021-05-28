@@ -34,10 +34,14 @@ export type Action =
     | { type: "UpdateWalletStatus"; value: WalletStatus }
     | { type: "UpdateBalance"; value: Balances };
 
-export interface State {
+export interface TradeState {
     alpha: AssetState;
     beta: Asset;
     txId: string;
+}
+
+export interface State {
+    trade: TradeState;
     wallet: Wallet;
 }
 
@@ -66,16 +70,18 @@ interface AssetState {
 }
 
 const initialState = {
-    alpha: {
-        type: Asset.LBTC,
-        amount: "0.01",
+    trade: {
+        alpha: {
+            type: Asset.LBTC,
+            amount: "0.01",
+        },
+        beta: Asset.USDT,
+        rate: {
+            ask: 33766.30,
+            bid: 33670.10,
+        },
+        txId: "",
     },
-    beta: Asset.USDT,
-    rate: {
-        ask: 33766.30,
-        bid: 33670.10,
-    },
-    txId: "",
     wallet: {
         balance: {
             usdtBalance: 0,
@@ -93,43 +99,55 @@ export function reducer(state: State = initialState, action: Action) {
         case "UpdateAlphaAmount":
             return {
                 ...state,
-                alpha: {
-                    type: state.alpha.type,
-                    amount: action.value,
+                trade: {
+                    ...state.trade,
+                    alpha: {
+                        type: state.trade.alpha.type,
+                        amount: action.value,
+                    },
                 },
             };
         case "UpdateAlphaAssetType":
-            let beta = state.beta;
+            let beta = state.trade.beta;
             if (beta === action.value) {
-                beta = state.alpha.type;
+                beta = state.trade.alpha.type;
             }
             return {
                 ...state,
-                beta,
-                alpha: {
-                    type: action.value,
-                    amount: state.alpha.amount,
+                trade: {
+                    ...state.trade,
+                    beta,
+                    alpha: {
+                        type: action.value,
+                        amount: state.trade.alpha.amount,
+                    },
                 },
             };
 
         case "UpdateBetaAssetType":
-            let alpha = state.alpha;
+            let alpha = state.trade.alpha;
             if (alpha.type === action.value) {
-                alpha.type = state.beta;
+                alpha.type = state.trade.beta;
             }
             return {
                 ...state,
-                alpha,
-                beta: action.value,
+                trade: {
+                    ...state.trade,
+                    alpha,
+                    beta: action.value,
+                },
             };
         case "SwapAssetTypes":
             return {
                 ...state,
-                alpha: {
-                    type: state.beta,
-                    amount: state.alpha.amount,
+                trade: {
+                    ...state.trade,
+                    alpha: {
+                        type: state.trade.beta,
+                        amount: state.trade.alpha.amount,
+                    },
+                    beta: state.trade.alpha.type,
                 },
-                beta: state.alpha.type,
             };
         case "PublishTransaction":
             return {
@@ -238,7 +256,7 @@ function App() {
                     <Switch>
                         <Route path="/swap">
                             <Trade
-                                state={state}
+                                state={state.trade}
                                 dispatch={dispatch}
                                 rate={rate}
                                 walletStatusAsyncState={walletStatusAsyncState}

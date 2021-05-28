@@ -4,7 +4,7 @@ import Debug from "debug";
 import React, { Dispatch } from "react";
 import { AsyncState, useAsync } from "react-async";
 import { Route, Switch, useHistory, useParams } from "react-router-dom";
-import { Action, Asset, Rate, State } from "./App";
+import { Action, Asset, Rate, TradeState } from "./App";
 import { postBuyPayload, postSellPayload } from "./Bobtimus";
 import calculateBetaAmount, { getDirection } from "./calculateBetaAmount";
 import AssetSelector from "./components/AssetSelector";
@@ -15,7 +15,7 @@ const debug = Debug("Swap");
 const error = Debug("Swap:error");
 
 interface SwapProps {
-    state: State;
+    state: TradeState;
     dispatch: Dispatch<Action>;
     rate: Rate;
     walletStatusAsyncState: AsyncState<WalletStatus>;
