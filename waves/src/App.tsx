@@ -321,12 +321,17 @@ function App() {
         },
     });
 
+    let faucet_button;
+    if (process.env.NODE_ENV === "development") {
+        faucet_button = <HStack align="left">
+            <Button variant="secondary" onClick={callFaucet} isLoading={isFaucetLoading}>Faucet</Button>
+        </HStack>;
+    }
+
     return (
         <Box className="App">
             <header className="App-header">
-                <HStack align="left">
-                    <Button variant="secondary" onClick={callFaucet} isLoading={isFaucetLoading}>Faucet</Button>
-                </HStack>
+                {faucet_button}
                 <Center>
                     <Image src={COMIT} h="24px" />
                 </Center>
