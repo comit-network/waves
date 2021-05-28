@@ -1,9 +1,9 @@
-import { Box, Button, Center, HStack, Image, useToast } from "@chakra-ui/react";
+import { Box, Button, Center, HStack, Image, useToast, VStack } from "@chakra-ui/react";
 import Debug from "debug";
 import React, { useEffect, useReducer } from "react";
 import { useAsync } from "react-async";
 import { useSSE } from "react-hooks-sse";
-import { useHistory } from "react-router-dom";
+import { Link as RouteLink, Route, Switch, useHistory } from "react-router-dom";
 import "./App.css";
 import { fundAddress } from "./Bobtimus";
 import COMIT from "./components/comit_logo_spellout_opacity_50.svg";
@@ -228,14 +228,44 @@ function App() {
                     <Image src={COMIT} h="24px" />
                 </Center>
             </header>
-            <Trade
-                state={state}
-                dispatch={dispatch}
-                rate={rate}
-                walletStatusAsyncState={walletStatusAsyncState}
-            />
+
+            <Center className="App-body">
+                <VStack spacing={4}>
+                    <HStack spacing={4} as="nav">
+                        <NavLink text="Trade" path={"/swap"} />
+                        <NavLink text="Borrow" path={"/borrow"} />
+                    </HStack>
+                    <Switch>
+                        <Route path="/swap">
+                            <Trade
+                                state={state}
+                                dispatch={dispatch}
+                                rate={rate}
+                                walletStatusAsyncState={walletStatusAsyncState}
+                            />
+                        </Route>
+                        <Route path="/borrow">
+                            <p>Lending/Borrowing</p>
+                        </Route>
+                    </Switch>
+                </VStack>
+            </Center>
         </Box>
     );
 }
+
+type NavLinkProps = { text: string; path: string };
+const NavLink = ({ text, path }: NavLinkProps) => (
+    <RouteLink to={path}>
+        <Route
+            path={path}
+            children={({ match }) => (
+                <Button colorScheme="blue" variant={match?.path ? "solid" : "outline"}>
+                    {text}
+                </Button>
+            )}
+        />
+    </RouteLink>
+);
 
 export default App;

@@ -49,7 +49,7 @@ function Trade({ state, dispatch, rate, walletStatusAsyncState }: SwapProps) {
 
                 let txid = await signAndSend(tx);
 
-                history.push(`/swapped/${txid}`);
+                history.push(`/swap/swapped/${txid}`);
             } catch (e) {
                 let description: string;
                 if (e.InsufficientFunds) {
@@ -123,73 +123,71 @@ function Trade({ state, dispatch, rate, walletStatusAsyncState }: SwapProps) {
     }
 
     return (
-        <Center className="App-body">
-            <Switch>
-                <Route exact path="/">
-                    <VStack spacing={4} align="stretch">
-                        <Flex color="white">
-                            <AssetSelector
-                                assetSide="Alpha"
-                                placement="left"
-                                amount={state.alpha.amount}
-                                type={state.alpha.type}
-                                dispatch={dispatch}
-                            />
-                            <Center w="10px">
-                                <Box zIndex={2}>
-                                    <ExchangeIcon
-                                        onClick={() =>
-                                            dispatch({
-                                                type: "SwapAssetTypes",
-                                                value: {
-                                                    betaAmount,
-                                                },
-                                            })}
-                                        dataCy="exchange-asset-types-button"
-                                    />
-                                </Box>
-                            </Center>
-                            <AssetSelector
-                                assetSide="Beta"
-                                placement="right"
-                                amount={betaAmount}
-                                type={state.beta}
-                                dispatch={dispatch}
-                            />
-                        </Flex>
-                        <RateInfo rate={rate} direction={getDirection(state.alpha.type)} />
-                        <Box>
-                            {swapButton}
-                        </Box>
-                    </VStack>
-                </Route>
+        <Switch>
+            <Route exact path="/swap">
+                <VStack spacing={4} align="stretch">
+                    <Flex color="white">
+                        <AssetSelector
+                            assetSide="Alpha"
+                            placement="left"
+                            amount={state.alpha.amount}
+                            type={state.alpha.type}
+                            dispatch={dispatch}
+                        />
+                        <Center w="10px">
+                            <Box zIndex={2}>
+                                <ExchangeIcon
+                                    onClick={() =>
+                                        dispatch({
+                                            type: "SwapAssetTypes",
+                                            value: {
+                                                betaAmount,
+                                            },
+                                        })}
+                                    dataCy="exchange-asset-types-button"
+                                />
+                            </Box>
+                        </Center>
+                        <AssetSelector
+                            assetSide="Beta"
+                            placement="right"
+                            amount={betaAmount}
+                            type={state.beta}
+                            dispatch={dispatch}
+                        />
+                    </Flex>
+                    <RateInfo rate={rate} direction={getDirection(state.alpha.type)} />
+                    <Box>
+                        {swapButton}
+                    </Box>
+                </VStack>
+            </Route>
 
-                <Route exact path="/swapped/:txId">
-                    <VStack>
-                        <Text textStyle="smGray">
-                            <VStack
-                                divider={<StackDivider borderColor="gray.200" />}
-                                spacing={4}
-                                align="stretch"
+            <Route exact path="/swap/swapped/:txId">
+                <VStack>
+                    <Text textStyle="smGray">
+                        <VStack
+                            divider={<StackDivider borderColor="gray.200" />}
+                            spacing={4}
+                            align="stretch"
+                        >
+                            <>
+                                Check in{" "}
+                                <BlockExplorerLink />
+                            </>
+                            <Button
+                                variant="primary"
+                                onClick={() => {
+                                    history.push(`/swap`);
+                                }}
                             >
-                                <>
-                                    Check in{" "}
-                                    <BlockExplorerLink />
-                                </>
-                                <Button
-                                    variant="primary"
-                                    onClick={() => {
-                                        history.push(`/`);
-                                    }}
-                                >
-                                    Home
-                                </Button>
-                            </VStack>
-                        </Text>
-                    </VStack>
-                </Route>
-            </Switch>
-        </Center>
+                                Home
+                            </Button>
+                        </VStack>
+                    </Text>
+                </VStack>
+            </Route>
+        </Switch>
     );
 }
 
