@@ -14,6 +14,10 @@ const defaultState = {
         beta: Asset.USDT,
         txId: "",
     },
+    borrow: {
+        principalAmount: "1000",
+        loanTerm: 30,
+    },
     wallet: {
         balance: {
             usdtBalance: 0,
@@ -173,4 +177,22 @@ test("Swap asset types", () => {
     ).toBe(
         initialState.trade.alpha.amount.toString(),
     );
+});
+
+test("update principal amount logic", () => {
+    const initialState = {
+        ...defaultState,
+        borrow: {
+            loanTerm: 30,
+            principalAmount: "10000",
+        },
+    };
+
+    let newValue = "42";
+    expect(
+        reducer(initialState, {
+            type: "UpdatePrincipalAmount",
+            value: newValue,
+        }).borrow.principalAmount,
+    ).toBe(newValue);
 });

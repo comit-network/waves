@@ -9,8 +9,8 @@ import { postBuyPayload, postSellPayload } from "./Bobtimus";
 import calculateBetaAmount, { getDirection } from "./calculateBetaAmount";
 import AssetSelector from "./components/AssetSelector";
 import ExchangeIcon from "./components/ExchangeIcon";
-import { makeBuyCreateSwapPayload, makeSellCreateSwapPayload, signAndSend, WalletStatus } from "./wasmProxy";
 import RateInfo from "./components/RateInfo";
+import { makeBuyCreateSwapPayload, makeSellCreateSwapPayload, signAndSend, WalletStatus } from "./wasmProxy";
 
 const debug = Debug("Swap");
 const error = Debug("Swap:error");
@@ -205,6 +205,5 @@ function BlockExplorerLink() {
         Block Explorer <ExternalLinkIcon mx="2px" />
     </Link>;
 }
-
 
 export default Trade;

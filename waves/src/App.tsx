@@ -6,6 +6,7 @@ import { useSSE } from "react-hooks-sse";
 import { Link as RouteLink, Route, Switch, useHistory } from "react-router-dom";
 import "./App.css";
 import { fundAddress } from "./Bobtimus";
+import Borrow from "./Borrow";
 import COMIT from "./components/comit_logo_spellout_opacity_50.svg";
 import Trade from "./Trade";
 import { getNewAddress, getWalletStatus } from "./wasmProxy";
@@ -22,6 +23,7 @@ export type AssetSide = "Alpha" | "Beta";
 
 export type Action =
     | { type: "UpdateAlphaAmount"; value: string }
+    | { type: "UpdatePrincipalAmount"; value: string }
     | { type: "UpdateAlphaAssetType"; value: Asset }
     | { type: "UpdateBetaAssetType"; value: Asset }
     | {
@@ -40,8 +42,14 @@ export interface TradeState {
     txId: string;
 }
 
+export interface BorrowState {
+    loanTerm: number;
+    principalAmount: string;
+}
+
 export interface State {
     trade: TradeState;
+    borrow: BorrowState;
     wallet: Wallet;
 }
 
@@ -81,6 +89,10 @@ const initialState = {
             bid: 33670.10,
         },
         txId: "",
+    },
+    borrow: {
+        principalAmount: "50000.0",
+        loanTerm: 30,
     },
     wallet: {
         balance: {
@@ -175,6 +187,15 @@ export function reducer(state: State = initialState, action: Action) {
                     },
                 },
             };
+
+        case "UpdatePrincipalAmount":
+            return {
+                ...state,
+                borrow: {
+                    ...state.borrow,
+                    principalAmount: action.value,
+                },
+            };
         default:
             throw new Error("Unknown update action received");
     }
@@ -263,7 +284,7 @@ function App() {
                             />
                         </Route>
                         <Route path="/borrow">
-                            <p>Lending/Borrowing</p>
+                            <Borrow dispatch={dispatch} state={state.borrow} rate={rate} />
                         </Route>
                     </Switch>
                 </VStack>
