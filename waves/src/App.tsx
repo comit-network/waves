@@ -3,7 +3,7 @@ import Debug from "debug";
 import React, { useEffect, useReducer } from "react";
 import { useAsync } from "react-async";
 import { useSSE } from "react-hooks-sse";
-import { Link as RouteLink, Route, Switch, useHistory } from "react-router-dom";
+import { Link as RouteLink, Redirect, Route, Switch, useHistory } from "react-router-dom";
 import "./App.css";
 import { fundAddress } from "./Bobtimus";
 import Borrow from "./Borrow";
@@ -259,6 +259,10 @@ function App() {
 
     return (
         <Box className="App">
+            <Route exact path="/">
+                <Redirect to="/swap" />
+            </Route>
+
             <header className="App-header">
                 <HStack align="left">
                     <Button variant="secondary" onClick={callFaucet} isLoading={isFaucetLoading}>Faucet</Button>
