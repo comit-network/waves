@@ -260,7 +260,7 @@ function App() {
     return (
         <Box className="App">
             <Route exact path="/">
-                <Redirect to="/swap" />
+                <Redirect to="/trade" />
             </Route>
 
             <header className="App-header">
@@ -275,11 +275,11 @@ function App() {
             <Center className="App-body">
                 <VStack spacing={4}>
                     <HStack spacing={4} as="nav">
-                        <NavLink text="Trade" path={"/swap"} />
+                        <NavLink text="Trade" path={"/trade"} />
                         <NavLink text="Borrow" path={"/borrow"} />
                     </HStack>
                     <Switch>
-                        <Route path="/swap">
+                        <Route path="/trade">
                             <Trade
                                 state={state.trade}
                                 dispatch={dispatch}

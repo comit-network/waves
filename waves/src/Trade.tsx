@@ -50,7 +50,7 @@ function Trade({ state, dispatch, rate, walletStatusAsyncState }: SwapProps) {
 
                 let txid = await signAndSend(tx);
 
-                history.push(`/swap/swapped/${txid}`);
+                history.push(`/trade/swapped/${txid}`);
             } catch (e) {
                 let description: string;
                 if (e.InsufficientFunds) {
@@ -125,7 +125,7 @@ function Trade({ state, dispatch, rate, walletStatusAsyncState }: SwapProps) {
 
     return (
         <Switch>
-            <Route exact path="/swap">
+            <Route exact path="/trade">
                 <VStack spacing={4} align="stretch">
                     <Flex color="white">
                         <AssetSelector
@@ -164,7 +164,7 @@ function Trade({ state, dispatch, rate, walletStatusAsyncState }: SwapProps) {
                 </VStack>
             </Route>
 
-            <Route exact path="/swap/swapped/:txId">
+            <Route exact path="/trade/swapped/:txId">
                 <VStack>
                     <Text textStyle="smGray">
                         <VStack
@@ -179,7 +179,7 @@ function Trade({ state, dispatch, rate, walletStatusAsyncState }: SwapProps) {
                             <Button
                                 variant="primary"
                                 onClick={() => {
-                                    history.push(`/swap`);
+                                    history.push(`/trade`);
                                 }}
                             >
                                 Home
