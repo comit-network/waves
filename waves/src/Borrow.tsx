@@ -1,9 +1,14 @@
 import { Button, Center, useToast, VStack } from "@chakra-ui/react";
+import Debug from "debug";
 import React, { Dispatch } from "react";
+import { useAsync } from "react-async";
 import { Action, Asset, BorrowState, Rate } from "./App";
 import calculateBetaAmount from "./calculateBetaAmount";
 import NumberInput from "./components/NumberInput";
 import RateInfo from "./components/RateInfo";
+import { makeBorrowPayload } from "./wasmProxy";
+
+const error = Debug("Borrow:error");
 
 interface BorrowProps {
     dispatch: Dispatch<Action>;
@@ -32,6 +37,36 @@ function Borrow({ dispatch, state, rate }: BorrowProps) {
             value: newAmount,
         });
     }
+
+    let { run: requestNewLoan, isLoading: isRequestingNewLoan } = useAsync({
+        deferFn: async () => {
+            try {
+                let payload = await makeBorrowPayload(state.principalAmount);
+                // TODO: send payload to bobtimus
+                // TODO: forward response to wallet to sign and publish transaction
+                // TODO: redirect to /trade/swapped/${txid}`
+
+                toast({
+                    title: "Mockup",
+                    description: `Dummy response: ${payload.dummy_field}`,
+                    status: "warning",
+                    duration: 5000,
+                    isClosable: true,
+                });
+            } catch (e) {
+                let description = JSON.stringify(e);
+                error(e);
+
+                toast({
+                    title: "Error",
+                    description,
+                    status: "error",
+                    duration: 5000,
+                    isClosable: true,
+                });
+            }
+        },
+    });
 
     return (
         <VStack spacing={4} align="stretch">
@@ -77,15 +112,8 @@ function Borrow({ dispatch, state, rate }: BorrowProps) {
                 <Button
                     variant="primary"
                     w="15rem"
-                    onClick={() => {
-                        toast({
-                            title: "Demo",
-                            description: "This is currently just a mockup.",
-                            status: "warning",
-                            duration: 9000,
-                            isClosable: true,
-                        });
-                    }}
+                    isLoading={isRequestingNewLoan}
+                    onClick={requestNewLoan}
                 >
                     Take loan
                 </Button>

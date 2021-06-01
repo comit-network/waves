@@ -19,6 +19,10 @@ export interface CreateSwapPayload {
     amount: number;
 }
 
+export interface LoanRequestPayload {
+    dummy_field: string;
+}
+
 export interface OutPoint {
     txid: string;
     vout: number;
@@ -88,4 +92,13 @@ export async function getNewAddress(): Promise<string> {
 
     // @ts-ignore
     return await window.liquid.new_address();
+}
+
+export async function makeBorrowPayload(principal_amount: string): Promise<LoanRequestPayload> {
+    // @ts-ignore
+    if (!window.liquid.get_loan_request_payload) {
+        return Promise.reject("get_loan_request_payload undefined");
+    }
+    // @ts-ignore
+    return await window.liquid.get_loan_request_payload(principal_amount);
 }

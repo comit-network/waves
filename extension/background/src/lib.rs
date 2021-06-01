@@ -7,6 +7,7 @@ use message_types::{
     ips_bs::{self, SignAndSendError},
 };
 use serde::Deserialize;
+use wallet::LoanRequestPayload;
 use wasm_bindgen::{prelude::*, JsCast};
 use wasm_bindgen_extension::{browser, object};
 use wasm_bindgen_futures::{future_to_promise, spawn_local};
@@ -263,6 +264,24 @@ fn handle_msg_from_cs(msg: ips_bs::ToBackground, message_sender: MessageSender) 
                 let _resp = browser.tabs().send_message(
                     tab_id,
                     JsValue::from_serde(&ips_bs::ToPage::NewAddressResponse(response)).unwrap(),
+                    JsValue::null(),
+                );
+            });
+        }
+        ips_bs::ToBackground::LoanRequest(principal_amount) => {
+            spawn_local(async move {
+                let tab_id = message_sender.tab.expect("tab id to exist").id;
+
+                log::info!("BS: Received borrow request.");
+
+                // TODO implement logic into wallet
+                let result = LoanRequestPayload {
+                    dummy_field: format!("mocked loan for {}", principal_amount),
+                };
+
+                let _resp = browser.tabs().send_message(
+                    tab_id,
+                    JsValue::from_serde(&ips_bs::ToPage::LoanResponse(Ok(result))).unwrap(),
                     JsValue::null(),
                 );
             });

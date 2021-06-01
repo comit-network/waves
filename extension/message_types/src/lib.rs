@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 pub mod ips_bs {
     use super::*;
     use elements::{Address, Txid};
-    use wallet::{CreateSwapPayload, WalletStatus};
+    use wallet::{CreateSwapPayload, LoanRequestPayload, WalletStatus};
 
     /// Requests sent from the in-page script to the background script.
     #[derive(Debug, Deserialize, Serialize)]
@@ -16,6 +16,7 @@ pub mod ips_bs {
         BuyRequest(String),
         SignRequest(String),
         NewAddress,
+        LoanRequest(String),
     }
 
     /// Responses sent from the background script to the in-page script.
@@ -26,6 +27,7 @@ pub mod ips_bs {
         BuyResponse(Result<CreateSwapPayload, MakePayloadError>),
         SignResponse(Result<Txid, SignAndSendError>),
         NewAddressResponse(Result<Address, NewAddressError>),
+        LoanResponse(Result<LoanRequestPayload, MakePayloadError>),
     }
 
     #[derive(Debug, Deserialize, Serialize)]
