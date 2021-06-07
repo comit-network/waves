@@ -13,7 +13,7 @@ use elements::{
     bitcoin,
     bitcoin::secp256k1::{SecretKey, SECP256K1},
     confidential,
-    secp256k1::{rand, PublicKey},
+    secp256k1_zkp::{rand, PublicKey},
     Address, AssetId, OutPoint, TxOut,
 };
 use futures::{
@@ -313,20 +313,13 @@ fn compute_balances(wallet: &Wallet, txouts: &[TxOut]) -> Vec<BalanceEntry> {
                 value: confidential::Value::Explicit(value),
                 ..
             } => Some((*asset, *value)),
-            txout => {
-                let confidential = match txout.to_confidential() {
-                    Some(confidential) => confidential,
-                    None => return None,
-                };
-
-                match confidential.unblind(SECP256K1, wallet.blinding_key()) {
-                    Ok(unblinded_txout) => Some((unblinded_txout.asset, unblinded_txout.value)),
-                    Err(e) => {
-                        log::warn!("failed to unblind txout: {}", e);
-                        None
-                    }
+            txout => match txout.unblind(SECP256K1, wallet.blinding_key()) {
+                Ok(unblinded_txout) => Some((unblinded_txout.asset, unblinded_txout.value)),
+                Err(e) => {
+                    log::warn!("failed to unblind txout: {}", e);
+                    None
                 }
-            }
+            },
         })
         .into_group_map();
 

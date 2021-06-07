@@ -2,7 +2,7 @@ use crate::{problem, Bobtimus, CreateSwapPayload, LatestRate, RateSubscription};
 use anyhow::Context;
 use elements::{
     encode::serialize_hex,
-    secp256k1::rand::{CryptoRng, RngCore},
+    secp256k1_zkp::rand::{CryptoRng, RngCore},
 };
 use futures::{StreamExt, TryStreamExt};
 use rust_embed::RustEmbed;

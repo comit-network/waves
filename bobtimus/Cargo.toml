@@ -7,7 +7,7 @@ edition = "2018"
 [dependencies]
 anyhow = "1"
 async-trait = "0.1"
-elements = { version = "0.15", features = [ "serde-feature" ] }
+elements = { version = "0.16", features = [ "serde-feature" ] }
 elements-harness = { path = "../elements-harness" }
 env_logger = "0.8"
 futures = { version = "0.3", default-features = false }

@@ -4,7 +4,7 @@ use crate::{
 };
 use bdk::bitcoin::{Amount, Denomination};
 use coin_selection::{self, coin_select};
-use elements::{secp256k1::SECP256K1, AssetId, OutPoint};
+use elements::{secp256k1_zkp::SECP256K1, AssetId, OutPoint};
 use estimate_transaction_size::avg_vbytes;
 use futures::lock::Mutex;
 
@@ -54,33 +54,27 @@ async fn make_create_swap_payload(
     let blinding_key = wallet.blinding_key();
 
     let utxos = get_txouts(&wallet, |utxo, txout| {
-        Ok(match txout.into_confidential() {
-            Some(confidential) => {
-                let unblinded_txout = confidential.unblind(SECP256K1, blinding_key)?;
-                let outpoint = OutPoint {
-                    txid: utxo.txid,
-                    vout: utxo.vout,
-                };
-                let candidate_asset = unblinded_txout.asset;
+        Ok({
+            let unblinded_txout = txout.unblind(SECP256K1, blinding_key)?;
+            let outpoint = OutPoint {
+                txid: utxo.txid,
+                vout: utxo.vout,
+            };
+            let candidate_asset = unblinded_txout.asset;
 
-                if candidate_asset == sell_asset {
-                    Some(coin_selection::Utxo {
-                        outpoint,
-                        value: unblinded_txout.value,
-                        script_pubkey: confidential.script_pubkey,
-                        asset: candidate_asset,
-                    })
-                } else {
-                    log::debug!(
-                        "utxo {} with asset id {} is not the sell asset, ignoring",
-                        outpoint,
-                        candidate_asset
-                    );
-                    None
-                }
-            }
-            None => {
-                log::warn!("swapping explicit txouts is unsupported");
+            if candidate_asset == sell_asset {
+                Some(coin_selection::Utxo {
+                    outpoint,
+                    value: unblinded_txout.value,
+                    script_pubkey: txout.script_pubkey,
+                    asset: candidate_asset,
+                })
+            } else {
+                log::debug!(
+                    "utxo {} with asset id {} is not the sell asset, ignoring",
+                    outpoint,
+                    candidate_asset
+                );
                 None
             }
         })

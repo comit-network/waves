@@ -9,9 +9,9 @@ use elements::{
     hashes::{hash160, Hash},
     opcodes,
     script::Builder,
-    secp256k1::{rand, Message, SECP256K1},
+    secp256k1_zkp::{rand, Message, SECP256K1},
     sighash::SigHashCache,
-    Address, OutPoint, SigHashType, Transaction, TxIn, TxOut, Txid,
+    Address, OutPoint, SigHashType, Transaction, TxIn, TxOut, TxOutSecrets, Txid,
 };
 use estimate_transaction_size::estimate_virtual_size;
 use futures::lock::Mutex;
@@ -36,17 +36,8 @@ pub async fn withdraw_everything_to(
     let blinding_key = wallet.blinding_key();
 
     let txouts = get_txouts(&wallet, |utxo, txout| {
-        Ok(match txout.into_confidential() {
-            Some(confidential) => {
-                let unblinded_txout = confidential.unblind(SECP256K1, blinding_key)?;
-
-                Some((utxo, confidential, unblinded_txout))
-            }
-            None => {
-                log::warn!("spending explicit txouts is unsupported");
-                None
-            }
-        })
+        let unblinded_txout = txout.unblind(SECP256K1, blinding_key)?;
+        Ok(Some((utxo, txout, unblinded_txout)))
     })
     .await?;
 
@@ -81,15 +72,7 @@ pub async fn withdraw_everything_to(
 
     let txout_inputs = txouts
         .iter()
-        .map(|(_, confidential, unblinded)| {
-            (
-                unblinded.asset,
-                unblinded.value,
-                confidential.asset,
-                unblinded.asset_blinding_factor,
-                unblinded.value_blinding_factor,
-            )
-        })
+        .map(|(_, txout, secrets)| (txout.asset, secrets))
         .collect::<Vec<_>>();
 
     let txouts_grouped_by_asset = txouts
@@ -143,7 +126,11 @@ pub async fn withdraw_everything_to(
                         *to_spend,
                         address.clone(),
                         *asset,
-                        &txout_inputs,
+                        txout_inputs
+                            .iter()
+                            .map(|(asset, secrets)| (*asset, Some(*secrets)))
+                            .collect::<Vec<_>>()
+                            .as_slice(),
                     )?;
 
                     log::debug!(
@@ -152,7 +139,7 @@ pub async fn withdraw_everything_to(
                         to_spend
                     );
 
-                    Ok((txout, *to_spend, abf, vbf))
+                    Ok((txout, asset, *to_spend, abf, vbf))
                 })
                 .collect::<Result<Vec<_>>>()?;
 
@@ -160,17 +147,19 @@ pub async fn withdraw_everything_to(
             let last_txout = {
                 let other_outputs = other_txouts
                     .iter()
-                    .map(|(_, value, abf, vbf)| (*value, *abf, *vbf))
+                    .map(|(_, asset, value, abf, vbf)| {
+                        TxOutSecrets::new(**asset, *abf, *value, *vbf)
+                    })
                     .collect::<Vec<_>>();
 
-                let txout = TxOut::new_last_confidential(
+                let (txout, _, _) = TxOut::new_last_confidential(
                     &mut thread_rng(),
                     SECP256K1,
                     *to_spend_last_txout,
                     address,
                     *last_asset,
                     txout_inputs.as_slice(),
-                    other_outputs.as_slice(),
+                    other_outputs.iter().collect::<Vec<_>>().as_ref(),
                 )
                 .context("failed to make confidential txout")?;
 
@@ -200,7 +189,7 @@ pub async fn withdraw_everything_to(
                 .collect::<Vec<_>>();
             let txouts = other_txouts
                 .iter()
-                .map(|(txout, _, _, _)| txout)
+                .map(|(txout, _, _, _, _)| txout)
                 .chain(iter::once(&last_txout))
                 .chain(iter::once(&TxOut::new_fee(fee, *NATIVE_ASSET_ID)))
                 .cloned()

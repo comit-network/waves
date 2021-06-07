@@ -1,5 +1,5 @@
 use crate::stack_simulator::simulate;
-use anyhow::{bail, Context, Result};
+use anyhow::{anyhow, bail, Context, Result};
 use elements::{
     bitcoin::{util::psbt::serialize::Serialize, Amount, Network, PrivateKey, PublicKey},
     confidential::{Asset, AssetBlindingFactor, Value, ValueBlindingFactor},
@@ -7,13 +7,13 @@ use elements::{
     hashes::{sha256d, Hash},
     opcodes::all::*,
     script::Builder,
-    secp256k1::{
+    secp256k1_zkp::{
         rand::{CryptoRng, RngCore},
         Secp256k1, SecretKey, Signature, Signing, Verification, SECP256K1,
     },
     sighash::SigHashCache,
-    Address, AddressParams, AssetId, AssetIssuance, ConfidentialTxOut, OutPoint, Script,
-    SigHashType, Transaction, TxIn, TxInWitness, TxOut, UnblindedTxOut,
+    Address, AddressParams, AssetId, AssetIssuance, OutPoint, Script, SigHashType, Transaction,
+    TxIn, TxInWitness, TxOut, TxOutSecrets,
 };
 use estimate_transaction_size::estimate_virtual_size;
 use secp256k1_zkp::{rand::thread_rng, SurjectionProof, Tag};
@@ -113,15 +113,12 @@ impl Borrower0 {
         let principal_tx_out_amount = transaction
             .output
             .iter()
-            .find_map(|out| match out.to_confidential() {
-                Some(conf) => {
-                    let unblinded_out = conf.unblind(secp, self.address_blinding_sk).ok()?;
-                    let is_principal_out = unblinded_out.asset == self.usdt_asset_id
-                        && conf.script_pubkey == self.address.script_pubkey();
+            .find_map(|out| {
+                let unblinded_out = out.unblind(secp, self.address_blinding_sk).ok()?;
+                let is_principal_out = unblinded_out.asset == self.usdt_asset_id
+                    && out.script_pubkey == self.address.script_pubkey();
 
-                    is_principal_out.then(|| Amount::from_sat(unblinded_out.value))
-                }
-                None => None,
+                is_principal_out.then(|| Amount::from_sat(unblinded_out.value))
             })
             .context("no principal txout")?;
 
@@ -138,16 +135,13 @@ impl Borrower0 {
         transaction
             .output
             .iter()
-            .find_map(|out| match out.to_confidential() {
-                Some(conf) => {
-                    let unblinded_out = conf.unblind(secp, collateral_blinding_sk).ok()?;
-                    let is_collateral_out = unblinded_out.asset == self.bitcoin_asset_id
-                        && unblinded_out.value == self.collateral_amount.as_sat()
-                        && out.script_pubkey == collateral_script_pubkey;
+            .find_map(|out| {
+                let unblinded_out = out.unblind(secp, collateral_blinding_sk).ok()?;
+                let is_collateral_out = unblinded_out.asset == self.bitcoin_asset_id
+                    && unblinded_out.value == self.collateral_amount.as_sat()
+                    && out.script_pubkey == collateral_script_pubkey;
 
-                    is_collateral_out.then(|| out)
-                }
-                None => None,
+                is_collateral_out.then(|| out)
             })
             .context("no collateral txout")?;
 
@@ -156,7 +150,7 @@ impl Borrower0 {
             .iter()
             .map(|input| input.clone().into_unblinded_input(secp))
             .try_fold(0, |sum, input| {
-                input.map(|input| sum + input.unblinded.value).ok()
+                input.map(|input| sum + input.secrets.value).ok()
             })
             .context("could not sum collateral inputs")?;
         let tx_fee = Amount::from_sat(
@@ -177,16 +171,13 @@ impl Borrower0 {
         transaction
             .output
             .iter()
-            .find_map(|out| match out.to_confidential() {
-                Some(conf) => {
-                    let unblinded_out = conf.unblind(secp, self.address_blinding_sk).ok()?;
-                    let is_collateral_change_out = unblinded_out.asset == self.bitcoin_asset_id
-                        && unblinded_out.value == collateral_change_amount.as_sat()
-                        && out.script_pubkey == self.address.script_pubkey();
+            .find_map(|out| {
+                let unblinded_out = out.unblind(secp, self.address_blinding_sk).ok()?;
+                let is_collateral_change_out = unblinded_out.asset == self.bitcoin_asset_id
+                    && unblinded_out.value == collateral_change_amount.as_sat()
+                    && out.script_pubkey == self.address.script_pubkey();
 
-                    is_collateral_change_out.then(|| out)
-                }
-                None => None,
+                is_collateral_change_out.then(|| out)
             })
             .context("no collateral change txout")?;
 
@@ -214,6 +205,7 @@ pub struct Borrower1 {
     collateral_script: Script,
     principal_tx_out_amount: Amount,
     address: Address,
+    // TODO: This name sucks. Thanks, Lucas.
     repayment_collateral_input: Input,
     repayment_collateral_abf: AssetBlindingFactor,
     repayment_collateral_vbf: ValueBlindingFactor,
@@ -266,45 +258,39 @@ impl Borrower1 {
         let inputs = {
             let mut borrower_inputs = unblinded_principal_inputs
                 .iter()
-                .map(|input| {
-                    (
-                        input.unblinded.asset,
-                        input.unblinded.value,
-                        input.confidential.asset,
-                        input.unblinded.asset_blinding_factor,
-                        input.unblinded.value_blinding_factor,
-                    )
-                })
+                .map(|input| (input.txout.asset, &input.secrets))
                 .collect::<Vec<_>>();
-            borrower_inputs.push((
-                collateral_input.unblinded.asset,
-                collateral_input.unblinded.value,
-                collateral_input.confidential.asset,
-                collateral_input.unblinded.asset_blinding_factor,
-                collateral_input.unblinded.value_blinding_factor,
-            ));
+            borrower_inputs.push((collateral_input.txout.asset, &collateral_input.secrets));
 
             borrower_inputs
         };
 
         let mut repayment_principal_output = self.repayment_principal_output.clone();
-        repayment_principal_output.witness.surjection_proof = SurjectionProof::new(
+        let domain = inputs
+            .iter()
+            .map(|(asset, secrets)| {
+                Ok((
+                    asset
+                        .into_asset_gen(secp)
+                        .ok_or_else(|| anyhow!("unexpected explicit or null asset"))?,
+                    Tag::from(secrets.asset.into_inner().0),
+                    secrets.asset_bf.into_inner(),
+                ))
+            })
+            .collect::<Result<Vec<_>>>()?;
+        repayment_principal_output.witness.surjection_proof = Some(SurjectionProof::new(
             secp,
             rng,
             Tag::from(self.usdt_asset_id.into_inner().0),
+            // TODO: Consider changing upstream API to take Tweak
+            // SecretKey::from_slice(&self.repayment_collateral_abf.into_inner()[..]).unwrap(),
             self.repayment_collateral_abf.into_inner(),
-            &inputs
-                .iter()
-                .map(|(id, _, asset, abf, _)| {
-                    (*asset, Tag::from(id.into_inner().0), abf.into_inner())
-                })
-                .collect::<Vec<_>>(),
-        )?
-        .serialize();
+            domain.as_slice(),
+        )?);
 
         let principal_input_amount = unblinded_principal_inputs
             .iter()
-            .fold(0, |acc, input| acc + input.unblinded.value);
+            .fold(0, |acc, input| acc + input.secrets.value);
         let change_amount = Amount::from_sat(principal_input_amount)
             .checked_sub(repayment_amount)
             .with_context(|| {
@@ -314,18 +300,26 @@ impl Borrower1 {
                 )
             })?;
 
-        let mut outputs = vec![(
-            repayment_amount.as_sat(),
+        let principal_repayment_output = TxOutSecrets::new(
+            self.usdt_asset_id,
             self.repayment_collateral_abf,
+            repayment_amount.as_sat(),
             self.repayment_collateral_vbf,
-        )];
+        );
+        let mut outputs = vec![principal_repayment_output];
 
         let mut tx_ins: Vec<TxIn> = unblinded_principal_inputs
+            .clone()
             .into_iter()
-            .map(|input| input.tx_in)
+            .map(|input| input.txin)
             .collect();
-        tx_ins.push(collateral_input.tx_in);
+        tx_ins.push(collateral_input.txin);
 
+        let inputs_not_last_confidential = inputs
+            .iter()
+            .copied()
+            .map(|(asset, secrets)| (asset, Some(secrets)))
+            .collect::<Vec<_>>();
         let change_output = match change_amount {
             Amount::ZERO => None,
             _ => {
@@ -335,11 +329,13 @@ impl Borrower1 {
                     change_amount.as_sat(),
                     self.address.clone(),
                     self.usdt_asset_id,
-                    &inputs,
+                    &inputs_not_last_confidential,
                 )
                 .context("Change output creation failed")?;
 
-                outputs.push((change_amount.as_sat(), abf, vbf));
+                let principal_change_output =
+                    TxOutSecrets::new(self.usdt_asset_id, abf, change_amount.as_sat(), vbf);
+                outputs.push(principal_change_output);
 
                 Some(output)
             }
@@ -347,14 +343,14 @@ impl Borrower1 {
         let tx_fee = Amount::from_sat(
             estimate_virtual_size(tx_ins.len() as u64, 4) * fee_sats_per_vbyte.as_sat(),
         );
-        let collateral_output = TxOut::new_last_confidential(
+        let (collateral_output, _, _) = TxOut::new_last_confidential(
             rng,
             secp,
             (self.collateral_amount - tx_fee).as_sat(),
             self.address.clone(),
             self.bitcoin_asset_id,
             &inputs,
-            &outputs,
+            outputs.iter().collect::<Vec<_>>().as_ref(),
         )
         .context("Creation of collateral output failed")?;
 
@@ -384,7 +380,7 @@ impl Borrower1 {
             );
 
             let sig = SECP256K1.sign(
-                &elements::secp256k1::Message::from(sighash),
+                &elements::secp256k1_zkp::Message::from(sighash),
                 &self.keypair.0,
             );
 
@@ -402,8 +398,8 @@ impl Borrower1 {
             simulate(self.collateral_script.clone(), script_witness.clone()).unwrap();
 
             tx.input[1].witness = TxInWitness {
-                amount_rangeproof: vec![],
-                inflation_keys_rangeproof: vec![],
+                amount_rangeproof: None,
+                inflation_keys_rangeproof: None,
                 script_witness,
                 pegin_witness: vec![],
             };
@@ -463,15 +459,9 @@ impl Lender0 {
             .map(|input| input.into_unblinded_input(secp))
             .collect::<Result<Vec<_>>>()?;
 
-        let borrower_inputs = collateral_inputs.iter().map(|input| {
-            (
-                input.unblinded.asset,
-                input.unblinded.value,
-                input.confidential.asset,
-                input.unblinded.asset_blinding_factor,
-                input.unblinded.value_blinding_factor,
-            )
-        });
+        let borrower_inputs = collateral_inputs
+            .iter()
+            .map(|input| (input.txout.asset, &input.secrets));
 
         let principal_inputs = coin_selector(principal_amount, self.usdt_asset_id).await?;
         let unblinded_principal_inputs = principal_inputs
@@ -481,40 +471,26 @@ impl Lender0 {
             .collect::<Result<Vec<_>>>()?;
         let lender_inputs = unblinded_principal_inputs
             .iter()
-            .map(|input| {
-                (
-                    input.unblinded.asset,
-                    input.unblinded.value,
-                    input.confidential.asset,
-                    input.unblinded.asset_blinding_factor,
-                    input.unblinded.value_blinding_factor,
-                )
-            })
+            .map(|input| (input.txout.asset, &input.secrets))
             .collect::<Vec<_>>();
 
         let inputs = borrower_inputs.chain(lender_inputs).collect::<Vec<_>>();
 
         let collateral_input_amount = collateral_inputs
             .iter()
-            .fold(0, |sum, input| sum + input.unblinded.value);
+            .fold(0, |sum, input| sum + input.secrets.value);
 
         let collateral_amount = loan_request.collateral_amount;
 
         let (repayment_principal_output, repayment_collateral_abf, repayment_collateral_vbf) = {
-            let dummy_asset = self.usdt_asset_id;
-            let dummy_abf = AssetBlindingFactor::random(rng);
-            let dummy_generator = Asset::new_confidential(secp, dummy_asset, dummy_abf)
-                .commitment()
-                .expect("confidential");
+            let dummy_asset_id = self.usdt_asset_id;
+            let dummy_abf = AssetBlindingFactor::new(rng);
+            let dummy_asset = Asset::new_confidential(secp, dummy_asset_id, dummy_abf);
             let dummy_amount = principal_amount.as_sat();
-            let dummy_vbf = ValueBlindingFactor::random(rng);
-            let dummy_inputs = &[(
-                dummy_asset,
-                dummy_amount,
-                dummy_generator,
-                dummy_abf,
-                dummy_vbf,
-            )];
+            let dummy_vbf = ValueBlindingFactor::new(rng);
+            let dummy_secrets =
+                TxOutSecrets::new(dummy_asset_id, dummy_abf, dummy_amount, dummy_vbf);
+            let dummy_inputs = [(dummy_asset, Some(&dummy_secrets))];
 
             TxOut::new_not_last_confidential(
                 rng,
@@ -522,7 +498,7 @@ impl Lender0 {
                 principal_amount.as_sat(),
                 self.address.clone(),
                 self.usdt_asset_id,
-                dummy_inputs,
+                &dummy_inputs,
             )?
         };
 
@@ -540,13 +516,17 @@ impl Lender0 {
             Some(collateral_blinding_pk.key),
             &AddressParams::ELEMENTS,
         );
+        let inputs_not_last_confidential = inputs
+            .iter()
+            .map(|(asset, secrets)| (*asset, Some(*secrets)))
+            .collect::<Vec<_>>();
         let (collateral_tx_out, abf_collateral, vbf_collateral) = TxOut::new_not_last_confidential(
             rng,
             secp,
             collateral_amount.as_sat(),
             collateral_address.clone(),
             self.bitcoin_asset_id,
-            &inputs,
+            inputs_not_last_confidential.as_slice(),
         )
         .context("could not construct collateral txout")?;
 
@@ -556,13 +536,13 @@ impl Lender0 {
             principal_amount.as_sat(),
             loan_request.borrower_address.clone(),
             self.usdt_asset_id,
-            &inputs,
+            inputs_not_last_confidential.as_slice(),
         )
         .context("could not construct principal txout")?;
 
         let principal_input_amount = unblinded_principal_inputs
             .iter()
-            .fold(0, |sum, input| sum + input.unblinded.value);
+            .fold(0, |sum, input| sum + input.secrets.value);
         let principal_change_amount = Amount::from_sat(principal_input_amount) - principal_amount;
         let (principal_change_tx_out, abf_principal_change, vbf_principal_change) =
             TxOut::new_not_last_confidential(
@@ -571,16 +551,27 @@ impl Lender0 {
                 principal_change_amount.as_sat(),
                 self.address.clone(),
                 self.usdt_asset_id,
-                &inputs,
+                &inputs_not_last_confidential,
             )
             .context("could not construct principal change txout")?;
 
         let not_last_confidential_outputs = [
-            (collateral_amount.as_sat(), abf_collateral, vbf_collateral),
-            (principal_amount.as_sat(), abf_principal, vbf_principal),
-            (
-                principal_change_amount.as_sat(),
+            &TxOutSecrets::new(
+                self.bitcoin_asset_id,
+                abf_collateral,
+                collateral_amount.as_sat(),
+                vbf_collateral,
+            ),
+            &TxOutSecrets::new(
+                self.usdt_asset_id,
+                abf_principal,
+                principal_amount.as_sat(),
+                vbf_principal,
+            ),
+            &TxOutSecrets::new(
+                self.usdt_asset_id,
                 abf_principal_change,
+                principal_change_amount.as_sat(),
                 vbf_principal_change,
             ),
         ];
@@ -599,19 +590,23 @@ impl Lender0 {
                     collateral_amount, tx_fee, collateral_input_amount,
                 )
             })?;
-        let collateral_change_tx_out = TxOut::new_last_confidential(
+        let (collateral_change_tx_out, _, _) = TxOut::new_last_confidential(
             rng,
             secp,
             collateral_change_amount.as_sat(),
             loan_request.borrower_address,
             self.bitcoin_asset_id,
-            &inputs,
+            inputs
+                .iter()
+                .map(|(asset, secrets)| (*asset, *secrets))
+                .collect::<Vec<_>>()
+                .as_slice(),
             &not_last_confidential_outputs,
         )
         .context("Creation of collateral change output failed")?;
 
         let tx_ins = {
-            let borrower_inputs = collateral_inputs.iter().map(|input| input.tx_in.clone());
+            let borrower_inputs = collateral_inputs.iter().map(|input| input.txin.clone());
             let lender_inputs = principal_inputs.iter().map(|input| input.tx_in.clone());
             borrower_inputs.chain(lender_inputs).collect::<Vec<_>>()
         };
@@ -736,15 +731,9 @@ impl Lender1 {
             .into_unblinded_input(secp)
             .context("could not unblind repayment collateral input")?;
 
-        let inputs = vec![(
-            collateral_input.unblinded.asset,
-            collateral_input.unblinded.value,
-            collateral_input.confidential.asset,
-            collateral_input.unblinded.asset_blinding_factor,
-            collateral_input.unblinded.value_blinding_factor,
-        )];
+        let inputs = [(collateral_input.txout.asset, &collateral_input.secrets)];
 
-        let collateral_output = TxOut::new_last_confidential(
+        let (collateral_output, _, _) = TxOut::new_last_confidential(
             rng,
             secp,
             (self.collateral_amount - tx_fee).as_sat(),
@@ -757,7 +746,7 @@ impl Lender1 {
 
         let tx_fee_output = TxOut::new_fee(tx_fee.as_sat(), self.bitcoin_asset_id);
 
-        let tx_ins = vec![collateral_input.tx_in];
+        let tx_ins = vec![collateral_input.txin];
         let tx_outs = vec![collateral_output, tx_fee_output];
 
         let mut liquidation_transaction = Transaction {
@@ -776,7 +765,7 @@ impl Lender1 {
         );
 
         let sig = SECP256K1.sign(
-            &elements::secp256k1::Message::from(sighash),
+            &elements::secp256k1_zkp::Message::from(sighash),
             &self.keypair.0,
         );
 
@@ -785,8 +774,8 @@ impl Lender1 {
         let if_flag = vec![];
 
         liquidation_transaction.input[0].witness = TxInWitness {
-            amount_rangeproof: vec![],
-            inflation_keys_rangeproof: vec![],
+            amount_rangeproof: None,
+            inflation_keys_rangeproof: None,
             script_witness: vec![sig, if_flag, self.collateral_script.to_bytes()],
             pegin_witness: vec![],
         };
@@ -1096,27 +1085,23 @@ impl Input {
     where
         C: Verification,
     {
-        let tx_in = self.tx_in;
-        let confidential = self
-            .original_tx_out
-            .into_confidential()
-            .with_context(|| format!("input {} is not confidential", tx_in.previous_output))?;
-
-        let unblinded = confidential.unblind(secp, self.blinding_key)?;
+        let txin = self.tx_in;
+        let txout = self.original_tx_out;
+        let secrets = txout.unblind(secp, self.blinding_key)?;
 
         Ok(UnblindedInput {
-            tx_in,
-            confidential,
-            unblinded,
+            txin,
+            txout,
+            secrets,
         })
     }
 }
 
 #[derive(Debug, Clone)]
-pub struct UnblindedInput {
-    pub tx_in: TxIn,
-    pub confidential: ConfidentialTxOut,
-    pub unblinded: UnblindedTxOut,
+struct UnblindedInput {
+    pub txin: TxIn,
+    pub txout: TxOut,
+    pub secrets: TxOutSecrets,
 }
 
 pub fn make_keypair<R>(rng: &mut R) -> (SecretKey, PublicKey)
