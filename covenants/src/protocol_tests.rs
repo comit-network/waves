@@ -7,7 +7,7 @@ mod tests {
         bitcoin::{util::psbt::serialize::Serialize, Amount, PublicKey},
         opcodes,
         script::Builder,
-        secp256k1::{rand::thread_rng, SecretKey, SECP256K1},
+        secp256k1_zkp::{rand::thread_rng, SecretKey, SECP256K1},
         sighash::SigHashCache,
         Address, AddressParams, AssetId, OutPoint, Script, SigHashType, Transaction, TxIn, TxOut,
         Txid,
@@ -410,40 +410,32 @@ mod tests {
 
             let asset_utxos = utxos
                 .iter()
-                .filter_map(
-                    |(txid, vout, tx_out)| match tx_out.clone().into_confidential() {
-                        Some(confidential) => {
-                            let unblinded_txout = confidential
-                                .unblind(SECP256K1, self.blinder_keypair.0)
-                                .expect("all utxos have the same blinding key");
-                            let outpoint = OutPoint {
-                                txid: *txid,
-                                vout: *vout as u32,
-                            };
-                            let candidate_asset = unblinded_txout.asset;
+                .filter_map(|(txid, vout, tx_out)| {
+                    let unblinded_txout = tx_out
+                        .unblind(SECP256K1, self.blinder_keypair.0)
+                        .expect("all utxos have the same blinding key");
+                    let outpoint = OutPoint {
+                        txid: *txid,
+                        vout: *vout as u32,
+                    };
+                    let candidate_asset = unblinded_txout.asset;
 
-                            if candidate_asset == asset {
-                                Some(coin_selection::Utxo {
-                                    outpoint,
-                                    value: unblinded_txout.value,
-                                    script_pubkey: confidential.script_pubkey,
-                                    asset: candidate_asset,
-                                })
-                            } else {
-                                log::debug!(
-                                    "utxo {} with asset id {} is not the sell asset, ignoring",
-                                    outpoint,
-                                    candidate_asset
-                                );
-                                None
-                            }
-                        }
-                        None => {
-                            log::warn!("swapping explicit txouts is unsupported");
-                            None
-                        }
-                    },
-                )
+                    if candidate_asset == asset {
+                        Some(coin_selection::Utxo {
+                            outpoint,
+                            value: unblinded_txout.value,
+                            script_pubkey: tx_out.script_pubkey.clone(),
+                            asset: candidate_asset,
+                        })
+                    } else {
+                        log::debug!(
+                            "utxo {} with asset id {} is not the sell asset, ignoring",
+                            outpoint,
+                            candidate_asset
+                        );
+                        None
+                    }
+                })
                 .collect();
 
             let coin_selection::Output {

@@ -2,7 +2,7 @@ use anyhow::Result;
 use bobtimus::{cli::StartCommand, http, kraken, Bobtimus};
 use elements::{
     bitcoin::secp256k1::Secp256k1,
-    secp256k1::rand::{rngs::StdRng, thread_rng, SeedableRng},
+    secp256k1_zkp::rand::{rngs::StdRng, thread_rng, SeedableRng},
 };
 use elements_harness::Client;
 use std::sync::Arc;

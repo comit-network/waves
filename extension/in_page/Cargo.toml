@@ -10,7 +10,7 @@ crate-type = [ "cdylib" ]
 [dependencies]
 anyhow = "1.0"
 console_error_panic_hook = { version = "0.1.6", optional = true }
-elements = { version = "0.15", features = [ "serde-feature" ] }
+elements = { version = "0.16", features = [ "serde-feature" ] }
 futures = "0.3"
 hex = "0.4"
 js-sys = "0.3"

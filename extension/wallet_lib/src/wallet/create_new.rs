@@ -1,5 +1,5 @@
 use anyhow::{bail, Context, Result};
-use elements::secp256k1::SecretKey;
+use elements::secp256k1_zkp::SecretKey;
 use futures::lock::Mutex;
 
 use crate::{

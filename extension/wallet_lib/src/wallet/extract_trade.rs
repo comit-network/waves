@@ -4,7 +4,7 @@ use crate::{
 };
 use anyhow::{bail, Context, Result};
 use elements::{
-    confidential, encode::deserialize, secp256k1::SECP256K1, AssetId, Transaction, TxOut,
+    confidential, encode::deserialize, secp256k1_zkp::SECP256K1, AssetId, Transaction, TxOut,
 };
 use futures::lock::Mutex;
 use itertools::Itertools;
@@ -56,11 +56,7 @@ pub async fn extract_trade(
                             ..
                         } => Some((*asset, *value)),
                         txout => {
-                            let confidential = match txout.to_confidential() {
-                                Some(confidential) => confidential,
-                                None => return Ok(None),
-                            };
-                            let unblinded = confidential.unblind(SECP256K1, blinding_key)?;
+                            let unblinded = txout.unblind(SECP256K1, blinding_key)?;
 
                             Some((unblinded.asset, unblinded.value))
                         }
@@ -100,17 +96,10 @@ pub async fn extract_trade(
                 );
                 None
             }
-            txout => {
-                let confidential = match txout.to_confidential() {
-                    Some(confidential) => confidential,
-                    None => return None,
-                };
-
-                match confidential.unblind(SECP256K1, blinding_key) {
-                    Ok(unblinded) => Some((unblinded.asset, unblinded.value)),
-                    _ => None,
-                }
-            }
+            txout => match txout.unblind(SECP256K1, blinding_key) {
+                Ok(unblinded) => Some((unblinded.asset, unblinded.value)),
+                _ => None,
+            },
         })
         .into_grouping_map()
         .fold(0, |sum, _asset, value| sum + value)
