@@ -7,7 +7,7 @@ use elements::{
     opcodes,
     script::Builder,
     sighash::SigHashCache,
-    Address, AddressParams, OutPoint, SigHashType, Transaction, TxIn, TxOut, Txid, UnblindedTxOut,
+    Address, AddressParams, OutPoint, SigHashType, Transaction, TxIn, TxOut, Txid,
 };
 use elements_harness::{elementd_rpc::ElementsRpc, Client, Elementsd};
 use secp256k1::{rand::thread_rng, Message, SecretKey, SECP256K1};
@@ -135,7 +135,7 @@ async fn collaborative_create_and_sign() {
         asset_id_lbtc,
         Amount::from_sat(1), // sats / vbyte
         {
-            let commitment_1 = input_bob.1.into_confidential().unwrap().value;
+            let commitment_1 = input_bob.1.value;
             move |mut tx| async move {
                 let input_index_1 = tx
                     .input
@@ -148,7 +148,7 @@ async fn collaborative_create_and_sign() {
                     &mut SigHashCache::new(&tx),
                     input_index_1,
                     &fund_sk_bob,
-                    commitment_1.into(),
+                    commitment_1,
                 );
 
                 Ok(tx)
@@ -159,7 +159,7 @@ async fn collaborative_create_and_sign() {
     .unwrap();
 
     let transaction = alice_finalize_transaction(transaction, {
-        let commitment = input_alice.1.into_confidential().unwrap().value;
+        let commitment = input_alice.1.value;
         move |mut tx| async move {
             let input_index = tx
                 .input
@@ -172,7 +172,7 @@ async fn collaborative_create_and_sign() {
                 &mut SigHashCache::new(&tx),
                 input_index,
                 &fund_sk_alice,
-                commitment.into(),
+                commitment,
             );
 
             Ok(tx)
@@ -215,31 +215,25 @@ async fn move_output_to_wallet(
     let previous_output_tx = client.get_raw_transaction(previous_output.txid).await?;
     let previous_output = previous_output_tx.output[previous_output.vout as usize].clone();
 
-    let txout = previous_output
-        .to_confidential()
-        .context("not a confidential txout")?;
+    let previous_output_secrets =
+        previous_output.unblind(SECP256K1, previous_output_blinding_sk)?;
 
-    let UnblindedTxOut {
-        asset: asset_id,
-        asset_blinding_factor: abf_in,
-        value_blinding_factor: vbf_in,
-        value: amount_in,
-    } = txout.unblind(SECP256K1, previous_output_blinding_sk)?;
-
+    let amount_in = previous_output_secrets.value;
     let fee = 900_000;
     let amount_out = Amount::from_sat(amount_in - fee);
 
     let move_address = client.get_new_address(None).await?;
 
-    let inputs = [(asset_id, amount_in, txout.asset, abf_in, vbf_in)];
+    let inputs = [(previous_output.asset, &previous_output_secrets)];
 
-    let output = TxOut::new_last_confidential(
+    let asset_id = previous_output_secrets.asset;
+    let (output, _, _) = TxOut::new_last_confidential(
         &mut thread_rng(),
         &SECP256K1,
         amount_out.as_sat(),
         move_address,
         asset_id,
-        &inputs,
+        &inputs[..],
         &[],
     )?;
 
@@ -274,7 +268,7 @@ async fn move_output_to_wallet(
         let sighash = SigHashCache::new(&tx).segwitv0_sighash(
             0,
             &script,
-            txout.value.into(),
+            previous_output.value,
             SigHashType::All,
         );
 

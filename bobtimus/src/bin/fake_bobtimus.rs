@@ -2,7 +2,7 @@ use anyhow::Result;
 use bobtimus::{cli::Config, database::Sqlite, fixed_rate, http, Bobtimus, LiquidUsdt};
 use elements::{
     bitcoin::{secp256k1::Secp256k1, Amount},
-    secp256k1::rand::{rngs::StdRng, thread_rng, SeedableRng},
+    secp256k1_zkp::rand::{rngs::StdRng, thread_rng, SeedableRng},
     Address,
 };
 use elements_harness::{elementd_rpc::ElementsRpc, Client};

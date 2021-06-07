@@ -5,9 +5,9 @@ use elements::{
     hashes::{hash160, Hash},
     opcodes,
     script::Builder,
-    secp256k1::{Message, PublicKey},
+    secp256k1_zkp::{Message, PublicKey},
     sighash::SigHashCache,
-    Address, AssetId, ConfidentialTxOut, SigHashType, Transaction, TxIn, TxOut, UnblindedTxOut,
+    Address, AssetId, SigHashType, Transaction, TxIn, TxOut, TxOutSecrets,
 };
 use estimate_transaction_size::estimate_virtual_size;
 use secp256k1::{
@@ -32,24 +32,14 @@ where
     S: FnOnce(Transaction) -> F,
     F: Future<Output = Result<Transaction>>,
 {
-    let alice_inputs = alice.inputs.iter().map(|input| {
-        (
-            input.unblinded.asset,
-            input.unblinded.value,
-            input.confidential.asset,
-            input.unblinded.asset_blinding_factor,
-            input.unblinded.value_blinding_factor,
-        )
-    });
-    let bob_inputs = bob.inputs.iter().map(|input| {
-        (
-            input.unblinded.asset,
-            input.unblinded.value,
-            input.confidential.asset,
-            input.unblinded.asset_blinding_factor,
-            input.unblinded.value_blinding_factor,
-        )
-    });
+    let alice_inputs = alice
+        .inputs
+        .iter()
+        .map(|input| (input.txout.asset, &input.secrets));
+    let bob_inputs = bob
+        .inputs
+        .iter()
+        .map(|input| (input.txout.asset, &input.secrets));
 
     let inputs = alice_inputs.chain(bob_inputs).collect::<Vec<_>>();
 
@@ -69,6 +59,11 @@ where
         )
         .context("failed to calculate change amount for bob")?;
 
+    let inputs_not_last_confidential = inputs
+        .iter()
+        .copied()
+        .map(|(asset, secrets)| (asset, Some(secrets)))
+        .collect::<Vec<_>>();
     let (receive_output_alice, abf_receive_alice, vbf_receive_alice) =
         TxOut::new_not_last_confidential(
             rng,
@@ -76,15 +71,16 @@ where
             alice.receive_amount.as_sat(),
             alice.address.clone(),
             alice.receive_asset,
-            &inputs,
+            &inputs_not_last_confidential.as_slice(),
         )?;
+
     let (redeem_output_bob, abf_receive_bob, vbf_receive_bob) = TxOut::new_not_last_confidential(
         rng,
         &secp,
         bob.receive_amount.as_sat(),
         bob.address.clone(),
         bob.receive_asset,
-        &inputs,
+        &inputs_not_last_confidential,
     )?;
     let (change_output_alice, abf_change_alice, vbf_change_alice) =
         TxOut::new_not_last_confidential(
@@ -93,35 +89,38 @@ where
             change_amount_alice.as_sat(),
             alice.address.clone(),
             bob.receive_asset,
-            &inputs,
+            &inputs_not_last_confidential,
         )?;
 
     let outputs = [
-        (
-            alice.receive_amount.as_sat(),
+        &TxOutSecrets::new(
+            alice.receive_asset,
             abf_receive_alice,
+            alice.receive_amount.as_sat(),
             vbf_receive_alice,
         ),
-        (
-            bob.receive_amount.as_sat(),
+        &TxOutSecrets::new(
+            bob.receive_asset,
             abf_receive_bob,
+            bob.receive_amount.as_sat(),
             vbf_receive_bob,
         ),
-        (
-            change_amount_alice.as_sat(),
+        &TxOutSecrets::new(
+            bob.receive_asset,
             abf_change_alice,
+            change_amount_alice.as_sat(),
             vbf_change_alice,
         ),
     ];
 
-    let change_output_bob = TxOut::new_last_confidential(
+    let (change_output_bob, _, _) = TxOut::new_last_confidential(
         rng,
         &secp,
         change_amount_bob.as_sat(),
         bob.address,
         alice.receive_asset,
         &inputs,
-        &outputs,
+        &outputs[..],
     )?;
 
     let alice_inputs_iter = alice.inputs.iter().map(|input| input.txin.clone());
@@ -203,17 +202,13 @@ impl Input {
         C: Verification,
     {
         let txin = self.txin;
-        let confidential = self
-            .txout
-            .into_confidential()
-            .with_context(|| format!("input {} is not confidential", txin.previous_output))?;
-
-        let unblinded = confidential.unblind(secp, self.blinding_key)?;
+        let txout = self.txout;
+        let unblinded = txout.unblind(secp, self.blinding_key)?;
 
         Ok(UnblindedInput {
             txin,
-            confidential,
-            unblinded,
+            txout,
+            secrets: unblinded,
         })
     }
 }
@@ -221,8 +216,8 @@ impl Input {
 #[derive(Debug)]
 struct UnblindedInput {
     pub txin: TxIn,
-    pub confidential: ConfidentialTxOut,
-    pub unblinded: UnblindedTxOut,
+    pub txout: TxOut,
+    pub secrets: TxOutSecrets,
 }
 
 #[derive(Debug)]
@@ -285,12 +280,12 @@ impl Actor {
         if self
             .inputs
             .iter()
-            .any(|input| input.unblinded.asset != other_receive_asset)
+            .any(|input| input.secrets.asset != other_receive_asset)
         {
             bail!(InvalidAssetTypes(other_receive_asset))
         }
 
-        let amount_in = self.inputs.iter().map(|input| input.unblinded.value).sum();
+        let amount_in = self.inputs.iter().map(|input| input.secrets.value).sum();
 
         let change_amount = Amount::from_sat(amount_in)
             .checked_sub(other_receive_amount)

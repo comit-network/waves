@@ -4,7 +4,7 @@ use elements::{
     bitcoin::{Amount, PrivateKey},
     confidential::{Asset, Nonce, Value},
     encode::serialize_hex,
-    secp256k1::{SecretKey, Signature},
+    secp256k1_zkp::{SecretKey, Signature},
     Address, AssetId, OutPoint, Transaction, TxOut, TxOutWitness, Txid,
 };
 use serde::{Deserialize, Serialize};
@@ -268,9 +268,9 @@ impl Client {
                 .await
                 .context("cannot unblind raw source transaction")?;
             if unblinded_raw_tx.output[source_vout as usize]
-                .to_explicit()
-                .expect("explicit output")
                 .asset
+                .explicit()
+                .expect("explicit output")
                 == asset
             {
                 let source_txout = source_tx.output[input.previous_output.vout as usize].clone();

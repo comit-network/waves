@@ -11,7 +11,7 @@ use elements::{
         secp256k1::{All, Secp256k1},
         Amount,
     },
-    secp256k1::{
+    secp256k1_zkp::{
         rand::{CryptoRng, RngCore},
         SecretKey,
     },
@@ -290,7 +290,7 @@ mod tests {
     use anyhow::{Context, Result};
     use elements::{
         bitcoin::{secp256k1::Secp256k1, Amount, Network, PrivateKey, PublicKey},
-        secp256k1::{rand::thread_rng, SecretKey, SECP256K1},
+        secp256k1_zkp::{rand::thread_rng, SecretKey, SECP256K1},
         sighash::SigHashCache,
         Address, AddressParams, OutPoint, Transaction, TxOut,
     };
@@ -389,7 +389,7 @@ mod tests {
             .unwrap();
 
         let transaction = swap::alice_finalize_transaction(transaction, {
-            let commitment = input_alice.1.into_confidential().unwrap().value;
+            let value = input_alice.1.value;
             move |mut tx| async move {
                 let input_index = tx
                     .input
@@ -398,13 +398,8 @@ mod tests {
                     .context("transaction does not contain input")?;
                 let mut cache = SigHashCache::new(&tx);
 
-                tx.input[input_index].witness.script_witness = sign_with_key(
-                    &SECP256K1,
-                    &mut cache,
-                    input_index,
-                    &fund_sk_alice,
-                    commitment.into(),
-                );
+                tx.input[input_index].witness.script_witness =
+                    sign_with_key(&SECP256K1, &mut cache, input_index, &fund_sk_alice, value);
 
                 Ok(tx)
             }
@@ -513,7 +508,7 @@ mod tests {
             .unwrap();
 
         let transaction = swap::alice_finalize_transaction(transaction, {
-            let commitment = input_alice.1.into_confidential().unwrap().value;
+            let value = input_alice.1.value;
             move |mut tx| async move {
                 let input_index = tx
                     .input
@@ -522,13 +517,8 @@ mod tests {
                     .context("transaction does not contain input")?;
                 let mut cache = SigHashCache::new(&tx);
 
-                tx.input[input_index].witness.script_witness = sign_with_key(
-                    &SECP256K1,
-                    &mut cache,
-                    input_index,
-                    &fund_sk_alice,
-                    commitment.into(),
-                );
+                tx.input[input_index].witness.script_witness =
+                    sign_with_key(&SECP256K1, &mut cache, input_index, &fund_sk_alice, value);
 
                 Ok(tx)
             }

@@ -3,7 +3,7 @@ use crate::{
     wallet::{current, get_txouts, Wallet},
 };
 use anyhow::{Context, Result};
-use elements::{encode::deserialize, secp256k1::SECP256K1, sighash::SigHashCache, Txid};
+use elements::{encode::deserialize, secp256k1_zkp::SECP256K1, sighash::SigHashCache, Txid};
 use futures::lock::Mutex;
 use swap::{alice_finalize_transaction, sign_with_key};
 
@@ -46,7 +46,7 @@ pub async fn sign_and_send_swap_transaction(
                     &mut cache,
                     index,
                     &wallet.secret_key,
-                    output.to_confidential().unwrap().value.into(),
+                    output.value,
                 );
 
                 (index, script_witness)

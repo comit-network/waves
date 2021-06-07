@@ -2,7 +2,7 @@ use anyhow::{anyhow, Result};
 use bitcoin_hashes::Hash;
 use elements::{
     bitcoin::PublicKey,
-    secp256k1::{Message, Signature, SECP256K1},
+    secp256k1_zkp::{Message, Signature, SECP256K1},
     Script,
 };
 
@@ -121,7 +121,7 @@ mod test {
         bitcoin::{util::psbt::serialize::Serialize, Network, PrivateKey},
         opcodes::all::*,
         script::Builder,
-        secp256k1::{rand::thread_rng, SecretKey},
+        secp256k1_zkp::{rand::thread_rng, SecretKey},
     };
     use std::env;
 
