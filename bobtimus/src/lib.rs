@@ -1,4 +1,5 @@
 use anyhow::{Context, Result};
+use covenants::{Lender0, LoanRequest};
 use elements::{
     bitcoin::{
         secp256k1::{All, Secp256k1},
@@ -239,6 +240,11 @@ where
         .await?;
 
         Ok(transaction)
+    }
+
+    pub async fn handle_loan_request(&mut self, payload: LoanRequest) -> Result<Transaction> {
+        todo!()
+        // Lender0::new(rng, bitcoin_asset_id, usdt_asset_id, address);
     }
 }
 

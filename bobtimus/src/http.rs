@@ -52,17 +52,32 @@ where
     let create_sell_swap = warp::post()
         .and(warp::path!("api" / "swap" / "lbtc-lusdt" / "sell"))
         .and(warp::body::json())
+        .and_then({
+            let bobtimus = bobtimus.clone();
+            move |payload| {
+                let bobtimus = bobtimus.clone();
+                async move {
+                    let mut bobtimus = bobtimus.lock().await;
+                    create_sell_swap(&mut bobtimus, payload).await
+                }
+            }
+        });
+
+    let create_loan = warp::post()
+        .and(warp::path!("api" / "loan" / "lbtc-lusdt"))
+        .and(warp::body::json())
         .and_then(move |payload| {
             let bobtimus = bobtimus.clone();
             async move {
                 let mut bobtimus = bobtimus.lock().await;
-                create_sell_swap(&mut bobtimus, payload).await
+                create_loan(&mut bobtimus, payload).await
             }
         });
 
     latest_rate
         .or(create_sell_swap)
         .or(create_buy_swap)
+        .or(create_loan)
         .or(waves_resources)
         .or(index_html)
         .recover(problem::unpack_problem)
@@ -108,6 +123,29 @@ where
 
     bobtimus
         .handle_create_sell_swap(payload)
+        .await
+        .map(|transaction| serialize_hex(&transaction))
+        .map_err(anyhow::Error::from)
+        .map_err(problem::from_anyhow)
+        .map_err(warp::reject::custom)
+}
+
+async fn create_loan<R, RS>(
+    bobtimus: &mut Bobtimus<R, RS>,
+    payload: serde_json::Value,
+) -> Result<impl Reply, Rejection>
+where
+    R: RngCore + CryptoRng,
+    RS: LatestRate,
+{
+    let payload = payload.to_string();
+    let payload = serde_json::from_str(&payload)
+        .map_err(anyhow::Error::from)
+        .map_err(problem::from_anyhow)
+        .map_err(warp::reject::custom)?;
+
+    bobtimus
+        .handle_loan_request(payload)
         .await
         .map(|transaction| serialize_hex(&transaction))
         .map_err(anyhow::Error::from)
