@@ -8,7 +8,7 @@ edition = "2018"
 anyhow = "1.0"
 async-trait = "0.1"
 bitcoin_hashes = "0.9.0"
-elements = { version = "0.16", features = [ "serde-feature" ] }
+elements = { version = "0.17", features = [ "serde-feature" ] }
 futures = "0.3.5"
 hex = "0.4.2"
 hmac = "0.10"

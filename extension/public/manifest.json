@@ -1,0 +1,50 @@
+{
+  "manifest_version": 2,
+  "version": "0.0.1",
+  "short_name": "React App",
+  "name": "waves_wallet",
+  "description": "A Liquid Wallet",
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "waves-wallet@comit.network"
+    }
+  },
+  "browser_action": {
+    "default_title": "waves_wallet",
+    "default_popup": "popup.html"
+  },
+  "background": {
+    "scripts": [
+      "background.bundle.js"
+    ]
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["contentScript.bundle.js"],
+      "run_at": "document_start"
+    }
+  ],
+  "icons": {
+    "16": "img/icon-16.png",
+    "48": "img/icon-48.png",
+    "128": "img/icon-128.png"
+  },
+  "options_ui": {
+    "page": "options.html",
+    "browser_style": false,
+    "open_in_tab": true
+  },
+  "content_security_policy": "script-src 'self' 'unsafe-eval'; object-src 'self'",
+  "web_accessible_resources": [
+    "in_page.bundle.js"
+  ],
+  "permissions": [
+    "<all_urls>",
+    "activeTab",
+    "storage",
+    "tabs",
+    "unlimitedStorage",
+    "webRequest"
+  ]
+}

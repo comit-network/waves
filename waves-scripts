@@ -23,8 +23,6 @@ start_extension_dev_env () {
 
     build_webapp
     start_bobtimus
-
-    start_extension
 }
 
 stop_dev_env () {
@@ -96,7 +94,9 @@ start_bobtimus () {
 
     local -r elementsd_rpc_user="admin1"
     local -r elementsd_rpc_password="123"
-    RUST_LOG=debug cargo run --bin fake_bobtimus -- \
+
+    RUST_LOG=debug,hyper=info,reqwest=info cargo run --bin fake_bobtimus -- \
+            start \
             --elementsd http://$elementsd_rpc_user:$elementsd_rpc_password@127.0.0.1:$LIQUID_NODE_PORT \
             --usdt $usdt_asset_id > $log_dir/bobtimus 2>&1 &
     bobtimus_pid=$!
@@ -145,10 +145,8 @@ build_webapp () {
 start_extension () {
     set -e
 
-    build_extension
-
     cd extension
-    yarn run start-dev
+    yarn run dev
 }
 
 build_extension () {
@@ -166,11 +164,9 @@ build_extension () {
     export NATIVE_ASSET_ID=$(cat ../.native_asset_id)
     export USDT_ASSET_ID=$(cat ../.usdt_asset_id)
     export CHAIN=ELEMENTS
-    export ESPLORA_API_URL=$LIQUID_ESPLORA_URL
     echo "export NATIVE_ASSET_ID=$NATIVE_ASSET_ID"
     echo "export USDT_ASSET_ID=$USDT_ASSET_ID"
     echo "export CHAIN=$CHAIN"
-    echo "export ESPLORA_API_URL=$ESPLORA_API_URL"
 
     yarn run build
 

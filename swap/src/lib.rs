@@ -10,6 +10,7 @@ use elements::{
     Address, AssetId, SigHashType, Transaction, TxIn, TxOut, TxOutSecrets,
 };
 use estimate_transaction_size::estimate_virtual_size;
+use input::{Input, UnblindedInput};
 use secp256k1::{
     rand::{CryptoRng, RngCore},
     Secp256k1, SecretKey, Signing, Verification,
@@ -123,9 +124,20 @@ where
         &outputs[..],
     )?;
 
-    let alice_inputs_iter = alice.inputs.iter().map(|input| input.txin.clone());
-    let bob_inputs_iter = bob.inputs.iter().map(|input| input.txin.clone());
-    let inputs = alice_inputs_iter.chain(bob_inputs_iter).collect::<Vec<_>>();
+    let alice_inputs_iter = alice.inputs.iter().map(|input| input.txin);
+    let bob_inputs_iter = bob.inputs.iter().map(|input| input.txin);
+    let inputs = alice_inputs_iter
+        .chain(bob_inputs_iter)
+        .map(|previous_output| TxIn {
+            previous_output,
+            is_pegin: false,
+            has_issuance: false,
+            script_sig: Default::default(),
+            sequence: 0,
+            asset_issuance: Default::default(),
+            witness: Default::default(),
+        })
+        .collect::<Vec<_>>();
 
     let fee = TxOut::new_fee(fee_amount.as_sat(), fee_asset);
 
@@ -187,37 +199,6 @@ where
     serialized_signature.push(SigHashType::All as u8);
 
     vec![serialized_signature, input_pk.serialize().to_vec()]
-}
-
-#[derive(Debug)]
-pub struct Input {
-    pub txin: TxIn,
-    pub txout: TxOut,
-    pub blinding_key: SecretKey,
-}
-
-impl Input {
-    fn into_unblinded_input<C>(self, secp: &Secp256k1<C>) -> Result<UnblindedInput>
-    where
-        C: Verification,
-    {
-        let txin = self.txin;
-        let txout = self.txout;
-        let unblinded = txout.unblind(secp, self.blinding_key)?;
-
-        Ok(UnblindedInput {
-            txin,
-            txout,
-            secrets: unblinded,
-        })
-    }
-}
-
-#[derive(Debug)]
-struct UnblindedInput {
-    pub txin: TxIn,
-    pub txout: TxOut,
-    pub secrets: TxOutSecrets,
 }
 
 #[derive(Debug)]

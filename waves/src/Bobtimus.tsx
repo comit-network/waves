@@ -1,7 +1,7 @@
 import Debug from "debug";
 import React, { ReactElement } from "react";
 import { SSEProvider } from "react-hooks-sse";
-import { CreateSwapPayload } from "./wasmProxy";
+import { CreateSwapPayload, LoanRequestPayload } from "./waves-provider/wavesProvider";
 
 const debug = Debug("bobtimus");
 
@@ -17,6 +17,42 @@ export async function postSellPayload(payload: CreateSwapPayload) {
 
 export async function postBuyPayload(payload: CreateSwapPayload) {
     return await postPayload(payload, "buy");
+}
+
+export async function postLoanRequest(payload: LoanRequestPayload) {
+    let res = await fetch(`/api/loan/lbtc-lusdt`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json",
+        },
+        body: JSON.stringify(payload),
+    });
+
+    if (res.status !== 200) {
+        debug("failed to create new loan");
+        throw new Error("failed to create new loan");
+    }
+
+    return await res.json();
+}
+
+export async function postLoanFinalization(txHex: string) {
+    let res = await fetch(`/api/loan/lbtc-lusdt/finalize`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json",
+        },
+        body: JSON.stringify({ tx_hex: txHex }),
+    });
+
+    if (res.status !== 200) {
+        debug("failed to create new loan");
+        throw new Error("failed to create new loan");
+    }
+
+    return await res.json();
 }
 
 async function postPayload(payload: CreateSwapPayload, path: string) {

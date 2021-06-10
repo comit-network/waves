@@ -1,0 +1,56 @@
+[package]
+name = "wallet"
+version = "0.1.0"
+authors = [ "CoBloX Team <team@coblox.tech>" ]
+edition = "2018"
+
+[lib]
+crate-type = [ "cdylib", "rlib" ]
+
+[features]
+default = [ "console_error_panic_hook" ]
+
+[dependencies]
+aes-gcm-siv = { version = "0.9", features = [ "std" ] }
+anyhow = "1"
+bdk = { version = "0.4", default-features = false }
+coin_selection = { path = "../../coin_selection" }
+conquer-once = "0.3"
+console_error_panic_hook = { version = "0.1.6", optional = true }
+covenants = { path = "../../covenants" }
+elements = { version = "0.17", features = [ "serde-feature" ] }
+estimate_transaction_size = { path = "../../estimate_transaction_size" }
+futures = "0.3"
+getrandom = { version = "0.2", features = [ "wasm-bindgen", "js" ] }
+hex = "0.4"
+hkdf = { version = "0.10", features = [ "std" ] }
+input = { path = "../../input" }
+itertools = "0.10"
+js-sys = "0.3"
+log = "0.4"
+rand = { version = "0.6", features = [ "wasm-bindgen" ] }
+rand_core = { version = "0.5", features = [ "std" ] }
+reqwest = { version = "0.11", default-features = false, features = [ "rustls", "json" ] }
+rust_decimal = "1"
+scrypt = { version = "0.5" }
+serde = { version = "1", features = [ "derive" ] }
+serde_json = "1"
+sha2 = "0.9"
+swap = { path = "../../swap" }
+thiserror = "1"
+wasm-bindgen = { version = "0.2", features = [ "serde-serialize" ] }
+wasm-bindgen-futures = "0.4"
+wasm-logger = "0.2"
+web-sys = { version = "0.3", features = [ "Window", "Storage", "Cache", "CacheStorage", "StorageEvent" ] }
+
+[dev-dependencies]
+wasm-bindgen-test = "0.3.13"
+
+[build-dependencies]
+anyhow = "1"
+conquer-once = "0.3"
+elements = { version = "0.17" }
+
+# By default wasm-opt is true which makes the build fail.
+[package.metadata.wasm-pack.profile.release]
+wasm-opt = false

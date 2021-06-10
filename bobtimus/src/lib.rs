@@ -1,11 +1,14 @@
-// TODO: remove this allow once we have tables
-#[allow(unused_imports)]
 #[macro_use]
 extern crate diesel;
 #[macro_use]
 extern crate diesel_migrations;
-use crate::database::Sqlite;
+
+use std::{collections::HashMap, convert::TryInto};
+
+use crate::database::{queries, Sqlite};
 use anyhow::{Context, Result};
+use covenants::{Lender0, Lender1, LoanRequest, LoanResponse};
+use database::LiquidationForm;
 use elements::{
     bitcoin::{
         secp256k1::{All, Secp256k1},
@@ -13,12 +16,13 @@ use elements::{
     },
     secp256k1_zkp::{
         rand::{CryptoRng, RngCore},
-        SecretKey,
+        SecretKey, SECP256K1,
     },
-    Address, AssetId, OutPoint, Transaction, TxIn,
+    Address, AssetId, OutPoint, Transaction, Txid,
 };
 use elements_harness::{elementd_rpc::ElementsRpc, Client as ElementsdClient};
 use futures::{stream, stream::FuturesUnordered, Stream, TryStreamExt};
+use input::Input;
 use serde::{Deserialize, Serialize};
 use tokio::sync::watch::Receiver;
 
@@ -45,6 +49,7 @@ pub struct Bobtimus<R, RS> {
     pub btc_asset_id: AssetId,
     pub usdt_asset_id: AssetId,
     pub db: Sqlite,
+    pub lender_states: HashMap<Txid, Lender1>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -111,25 +116,21 @@ where
         Ok(transaction)
     }
 
-    async fn swap_transaction(
-        &mut self,
-        (alice_input_asset_id, alice_input_amount): (AssetId, Amount),
-        (bob_input_asset_id, bob_input_amount): (AssetId, Amount),
-        alice_inputs: Vec<AliceInput>,
-        alice_address: Address,
-        btc_asset_id: AssetId,
-    ) -> Result<Transaction> {
-        let bob_inputs = self
-            .elementsd
-            .select_inputs_for(bob_input_asset_id, bob_input_amount, false)
+    async fn find_inputs(
+        elements_client: &ElementsdClient,
+        asset_id: AssetId,
+        input_amount: Amount,
+    ) -> Result<Vec<Input>> {
+        let bob_inputs = elements_client
+            .select_inputs_for(asset_id, input_amount, false)
             .await
             .context("failed to select inputs for swap")?;
 
-        let master_blinding_key = self
-            .elementsd
+        let master_blinding_key = elements_client
             .dumpmasterblindingkey()
             .await
             .context("failed to dump master blinding key")?;
+
         let master_blinding_key = hex::decode(master_blinding_key)?;
 
         let bob_inputs = bob_inputs
@@ -145,25 +146,32 @@ where
                 let result = mac.finalize();
                 let input_blinding_sk = SecretKey::from_slice(&result.into_bytes())?;
 
-                Result::<_, anyhow::Error>::Ok(swap::Input {
-                    txin: TxIn {
-                        previous_output: outpoint,
-                        is_pegin: false,
-                        has_issuance: false,
-                        script_sig: Default::default(),
-                        sequence: 0,
-                        asset_issuance: Default::default(),
-                        witness: Default::default(),
-                    },
-                    txout,
+                Result::<_, anyhow::Error>::Ok(Input {
+                    txin: outpoint,
+                    original_txout: txout,
                     blinding_key: input_blinding_sk,
                 })
             })
             .collect::<Result<Vec<_>, _>>()?;
 
+        Ok(bob_inputs)
+    }
+
+    async fn swap_transaction(
+        &mut self,
+        (alice_input_asset_id, alice_input_amount): (AssetId, Amount),
+        (bob_input_asset_id, bob_input_amount): (AssetId, Amount),
+        alice_inputs: Vec<AliceInput>,
+        alice_address: Address,
+        btc_asset_id: AssetId,
+    ) -> Result<Transaction> {
+        let bob_inputs = Self::find_inputs(&self.elementsd, bob_input_asset_id, bob_input_amount)
+            .await
+            .context("could not find transaction inputs for Bob")?;
+
         let bob_address = self
             .elementsd
-            .get_new_address(None)
+            .get_new_segwit_confidential_address()
             .await
             .context("failed to get redeem address")?;
 
@@ -184,15 +192,6 @@ where
                                 format!("failed to fetch transaction {}", outpoint.txid)
                             })?;
 
-                        let txin = TxIn {
-                            previous_output: outpoint,
-                            is_pegin: false,
-                            has_issuance: false,
-                            script_sig: Default::default(),
-                            sequence: 0,
-                            asset_issuance: Default::default(),
-                            witness: Default::default(),
-                        };
                         let txout = transaction
                             .output
                             .get(outpoint.vout as usize)
@@ -204,9 +203,9 @@ where
                             })?
                             .clone();
 
-                        Result::<_, anyhow::Error>::Ok(swap::Input {
-                            txin,
-                            txout,
+                        Result::<_, anyhow::Error>::Ok(Input {
+                            txin: outpoint,
+                            original_txout: txout,
                             blinding_key,
                         })
                     }
@@ -223,6 +222,7 @@ where
             bob_input_asset_id,
             bob_input_amount,
         )?;
+
         let bob = swap::Actor::new(
             &self.secp,
             bob_inputs,
@@ -250,6 +250,93 @@ where
         .await?;
 
         Ok(transaction)
+    }
+
+    /// Handle Alice's loan request in which she puts up L-BTC as
+    /// collateral and we give lend her L-USDt which she will have to
+    /// repay in the future.
+    pub async fn handle_loan_request(&mut self, payload: LoanRequest) -> Result<LoanResponse> {
+        let lender_address = self
+            .elementsd
+            .get_new_segwit_confidential_address()
+            .await
+            .context("failed to get lender address")?;
+
+        let lender0 = Lender0::new(
+            &mut self.rng,
+            self.btc_asset_id,
+            self.usdt_asset_id,
+            lender_address,
+        )
+        .unwrap();
+
+        let lender1 = lender0
+            .interpret(
+                &mut self.rng,
+                &SECP256K1,
+                {
+                    let elementsd_client = self.elementsd.clone();
+                    |amount, asset| async move {
+                        Self::find_inputs(&elementsd_client, asset, amount).await
+                    }
+                },
+                payload,
+                self.rate_service.latest_rate().bid.as_satodollar(),
+            )
+            .await
+            .unwrap();
+
+        let loan_response = lender1.loan_response();
+
+        self.lender_states
+            .insert(loan_response.transaction.txid(), lender1);
+
+        Ok(loan_response)
+    }
+
+    /// Handle Alice's request to finalize a loan.
+    ///
+    /// If we still agree with the loan transaction sent by Alice, we
+    /// will sign and broadcast it.
+    ///
+    /// Additionally, we save the signed liquidation transaction so
+    /// that we can broadcast it when the locktime is reached.
+    pub async fn finalize_loan(&mut self, transaction: Transaction) -> Result<Txid> {
+        // TODO: We should only take into account loan transactions which
+        // are relatively recent e.g. within 1 minute. We expect the
+        // borrower to quickly perform the protocol and let us broadcast
+        // the loan transaction
+
+        let lender = self
+            .lender_states
+            .get(&transaction.txid())
+            .context("unknown loan transaction")?;
+
+        let transaction = lender
+            .finalise_loan(transaction, {
+                let elementsd = self.elementsd.clone();
+                |transaction| async move { elementsd.sign_raw_transaction(&transaction).await }
+            })
+            .await?;
+
+        let txid = self.elementsd.send_raw_transaction(&transaction).await?;
+
+        let liquidation_tx =
+            lender.liquidation_transaction(&mut self.rng, &self.secp, Amount::ONE_SAT)?;
+        let locktime = lender
+            .timelock
+            .try_into()
+            .expect("TODO: locktimes should be modelled as u32");
+
+        self.db
+            .do_in_transaction(|conn| {
+                LiquidationForm::new(txid, &liquidation_tx, locktime).insert(conn)?;
+
+                Ok(())
+            })
+            .await?;
+
+        Ok(txid)
     }
 }
 
@@ -283,6 +370,25 @@ impl RateSubscription {
     }
 }
 
+pub async fn liquidate_loans(elementsd: &ElementsdClient, db: Sqlite) -> Result<()> {
+    let blockcount = elementsd.get_blockcount().await?;
+    let liquidation_txs = db
+        .do_in_transaction(|conn| {
+            let txs = queries::get_publishable_liquidations_txs(conn, blockcount)?;
+            Ok(txs)
+        })
+        .await?;
+
+    for tx in liquidation_txs.iter() {
+        match elementsd.send_raw_transaction(&tx).await {
+            Ok(txid) => log::info!("Broadcast liquidation transaction {}", txid),
+            Err(e) => log::error!("Failed to broadcast liquidation transaction: {}", e),
+        };
+    }
+
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -314,7 +420,7 @@ mod tests {
                 blockchain,
             )
         };
-        let mining_address = client.get_new_address(None).await.unwrap();
+        let mining_address = client.get_new_segwit_confidential_address().await.unwrap();
 
         let have_asset_id_alice = client.get_bitcoin_asset_id().await.unwrap();
         let have_asset_id_bob = client.issueasset(100_000.0, 0.0, true).await.unwrap().asset;
@@ -355,7 +461,7 @@ mod tests {
         ) = make_confidential_address();
 
         // move issued asset to wallet address
-        let address = client.get_new_address(None).await.unwrap();
+        let address = client.get_new_segwit_confidential_address().await.unwrap();
         let _txid = client
             .send_asset_to_address(
                 &address,
@@ -374,6 +480,7 @@ mod tests {
             btc_asset_id: have_asset_id_alice,
             usdt_asset_id: have_asset_id_bob,
             db,
+            lender_states: HashMap::new(),
         };
 
         let transaction = bob
@@ -445,7 +552,7 @@ mod tests {
                 blockchain,
             )
         };
-        let mining_address = client.get_new_address(None).await.unwrap();
+        let mining_address = client.get_new_segwit_confidential_address().await.unwrap();
 
         let have_asset_id_alice = client.issueasset(100_000.0, 0.0, true).await.unwrap().asset;
         let have_asset_id_bob = client.get_bitcoin_asset_id().await.unwrap();
@@ -493,6 +600,7 @@ mod tests {
             btc_asset_id: have_asset_id_bob,
             usdt_asset_id: have_asset_id_alice,
             db,
+            lender_states: HashMap::new(),
         };
 
         let transaction = bob
