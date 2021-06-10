@@ -274,6 +274,12 @@ pub struct CreateSwapPayload {
     pub amount: bdk::bitcoin::Amount,
 }
 
+// Represents the payload for requesting a loan.
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+pub struct LoanRequestPayload {
+    pub dummy_field: String,
+}
+
 #[derive(Clone, Copy, Debug, serde::Serialize, serde::Deserialize)]
 pub struct SwapUtxo {
     pub outpoint: OutPoint,

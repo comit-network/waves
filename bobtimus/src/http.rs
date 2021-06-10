@@ -25,7 +25,7 @@ where
     R: RngCore + CryptoRng + Clone + Send + Sync + 'static,
     RS: LatestRate + Clone + Send + Sync + 'static,
 {
-    let index_html = warp::get().and(warp::path::end()).and_then(serve_index);
+    let index_html = warp::get().and(warp::path::tail()).and_then(serve_index);
     let waves_resources = warp::get()
         .and(warp::path("app"))
         .and(warp::path::tail())
@@ -60,11 +60,11 @@ where
             }
         });
 
-    index_html
-        .or(latest_rate)
+    latest_rate
         .or(create_sell_swap)
         .or(create_buy_swap)
         .or(waves_resources)
+        .or(index_html)
         .recover(problem::unpack_problem)
         .boxed()
 }
@@ -157,7 +157,7 @@ impl From<anyhow::Error> for RateStreamError {
     }
 }
 
-async fn serve_index() -> Result<impl Reply, Rejection> {
+async fn serve_index(_path: Tail) -> Result<impl Reply, Rejection> {
     serve_impl("index.html")
 }
 

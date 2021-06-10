@@ -1,24 +1,15 @@
-import { ExternalLinkIcon } from "@chakra-ui/icons";
-import { Box, Button, Center, Flex, HStack, Image, Link, Text, VStack } from "@chakra-ui/react";
-import { useToast } from "@chakra-ui/react";
+import { Box, Button, Center, HStack, Image, useToast, VStack } from "@chakra-ui/react";
 import Debug from "debug";
 import React, { useEffect, useReducer } from "react";
 import { useAsync } from "react-async";
 import { useSSE } from "react-hooks-sse";
-import { Route, Switch, useHistory, useParams } from "react-router-dom";
+import { Link as RouteLink, Redirect, Route, Switch, useHistory } from "react-router-dom";
 import "./App.css";
-import { fundAddress, postBuyPayload, postSellPayload } from "./Bobtimus";
-import calculateBetaAmount, { getDirection } from "./calculateBetaAmount";
-import AssetSelector from "./components/AssetSelector";
+import { fundAddress } from "./Bobtimus";
+import Borrow from "./Borrow";
 import COMIT from "./components/comit_logo_spellout_opacity_50.svg";
-import ExchangeIcon from "./components/ExchangeIcon";
-import {
-    getNewAddress,
-    getWalletStatus,
-    makeBuyCreateSwapPayload,
-    makeSellCreateSwapPayload,
-    signAndSend,
-} from "./wasmProxy";
+import Trade from "./Trade";
+import { getNewAddress, getWalletStatus } from "./wasmProxy";
 
 const debug = Debug("App");
 const error = Debug("App:error");
@@ -32,6 +23,7 @@ export type AssetSide = "Alpha" | "Beta";
 
 export type Action =
     | { type: "UpdateAlphaAmount"; value: string }
+    | { type: "UpdatePrincipalAmount"; value: string }
     | { type: "UpdateAlphaAssetType"; value: Asset }
     | { type: "UpdateBetaAssetType"; value: Asset }
     | {
@@ -44,10 +36,20 @@ export type Action =
     | { type: "UpdateWalletStatus"; value: WalletStatus }
     | { type: "UpdateBalance"; value: Balances };
 
-interface State {
+export interface TradeState {
     alpha: AssetState;
     beta: Asset;
     txId: string;
+}
+
+export interface BorrowState {
+    loanTerm: number;
+    principalAmount: string;
+}
+
+export interface State {
+    trade: TradeState;
+    borrow: BorrowState;
     wallet: Wallet;
 }
 
@@ -76,16 +78,22 @@ interface AssetState {
 }
 
 const initialState = {
-    alpha: {
-        type: Asset.LBTC,
-        amount: "0.01",
+    trade: {
+        alpha: {
+            type: Asset.LBTC,
+            amount: "0.01",
+        },
+        beta: Asset.USDT,
+        rate: {
+            ask: 33766.30,
+            bid: 33670.10,
+        },
+        txId: "",
     },
-    beta: Asset.USDT,
-    rate: {
-        ask: 33766.30,
-        bid: 33670.10,
+    borrow: {
+        principalAmount: "50000.0",
+        loanTerm: 30,
     },
-    txId: "",
     wallet: {
         balance: {
             usdtBalance: 0,
@@ -103,43 +111,55 @@ export function reducer(state: State = initialState, action: Action) {
         case "UpdateAlphaAmount":
             return {
                 ...state,
-                alpha: {
-                    type: state.alpha.type,
-                    amount: action.value,
+                trade: {
+                    ...state.trade,
+                    alpha: {
+                        type: state.trade.alpha.type,
+                        amount: action.value,
+                    },
                 },
             };
         case "UpdateAlphaAssetType":
-            let beta = state.beta;
+            let beta = state.trade.beta;
             if (beta === action.value) {
-                beta = state.alpha.type;
+                beta = state.trade.alpha.type;
             }
             return {
                 ...state,
-                beta,
-                alpha: {
-                    type: action.value,
-                    amount: state.alpha.amount,
+                trade: {
+                    ...state.trade,
+                    beta,
+                    alpha: {
+                        type: action.value,
+                        amount: state.trade.alpha.amount,
+                    },
                 },
             };
 
         case "UpdateBetaAssetType":
-            let alpha = state.alpha;
+            let alpha = state.trade.alpha;
             if (alpha.type === action.value) {
-                alpha.type = state.beta;
+                alpha.type = state.trade.beta;
             }
             return {
                 ...state,
-                alpha,
-                beta: action.value,
+                trade: {
+                    ...state.trade,
+                    alpha,
+                    beta: action.value,
+                },
             };
         case "SwapAssetTypes":
             return {
                 ...state,
-                alpha: {
-                    type: state.beta,
-                    amount: state.alpha.amount,
+                trade: {
+                    ...state.trade,
+                    alpha: {
+                        type: state.trade.beta,
+                        amount: state.trade.alpha.amount,
+                    },
+                    beta: state.trade.alpha.type,
                 },
-                beta: state.alpha.type,
             };
         case "PublishTransaction":
             return {
@@ -167,6 +187,15 @@ export function reducer(state: State = initialState, action: Action) {
                     },
                 },
             };
+
+        case "UpdatePrincipalAmount":
+            return {
+                ...state,
+                borrow: {
+                    ...state.borrow,
+                    principalAmount: action.value,
+                },
+            };
         default:
             throw new Error("Unknown update action received");
     }
@@ -190,9 +219,11 @@ function App() {
         bid: 33670.10,
     });
 
-    let { data: walletStatus, reload: reloadWalletStatus, error: walletStatusError } = useAsync({
+    let walletStatusAsyncState = useAsync({
         promiseFn: getWalletStatus,
     });
+
+    let { reload: reloadWalletStatus } = walletStatusAsyncState;
 
     useEffect(() => {
         let callback = (_message: MessageEvent) => {};
@@ -207,101 +238,6 @@ function App() {
 
         return () => window.removeEventListener("message", callback);
     });
-
-    let { run: makeNewSwap, isLoading: isCreatingNewSwap } = useAsync({
-        deferFn: async () => {
-            let payload;
-            let tx;
-            try {
-                if (state.alpha.type === Asset.LBTC) {
-                    payload = await makeSellCreateSwapPayload(state.alpha.amount.toString());
-                    tx = await postSellPayload(payload);
-                } else {
-                    payload = await makeBuyCreateSwapPayload(state.alpha.amount.toString());
-                    tx = await postBuyPayload(payload);
-                }
-
-                let txid = await signAndSend(tx);
-
-                history.push(`/swapped/${txid}`);
-            } catch (e) {
-                let description: string;
-                if (e.InsufficientFunds) {
-                    // TODO: Include alpha asset type in message
-                    description = `Insufficient funds in wallet: expected ${e.InsufficientFunds.needed},
-                         got ${e.InsufficientFunds.available}`;
-                } else if (e === "Rejected") {
-                    description = "Swap not authorised by wallet extension";
-                } else {
-                    description = JSON.stringify(e);
-                    error(e);
-                }
-
-                toast({
-                    title: "Error",
-                    description,
-                    status: "error",
-                    duration: 9000,
-                    isClosable: true,
-                });
-            }
-        },
-    });
-
-    const alphaAmount = Number.parseFloat(state.alpha.amount);
-    const betaAmount = calculateBetaAmount(
-        state.alpha.type,
-        alphaAmount,
-        rate,
-    );
-
-    async function unlock_wallet() {
-        // TODO send request to open popup to unlock wallet
-        debug("For now open popup manually...");
-        await reloadWalletStatus();
-    }
-
-    async function get_extension() {
-        // TODO forward to firefox app store
-        debug("Download our awesome extension from...");
-        await reloadWalletStatus();
-    }
-
-    let swapButton;
-    if (walletStatusError) {
-        error(walletStatusError);
-        swapButton = <Button
-            onClick={async () => {
-                await get_extension();
-            }}
-            variant="primary"
-            w="15rem"
-            data-cy="get-extension-button"
-        >
-            Get Extension
-        </Button>;
-    } else if (walletStatus && (!walletStatus.exists || !walletStatus.loaded)) {
-        swapButton = <Button
-            onClick={async () => {
-                await unlock_wallet();
-            }}
-            variant="primary"
-            w="15rem"
-            data-cy="unlock-wallet-button"
-        >
-            Unlock Wallet
-        </Button>;
-    } else {
-        swapButton = <Button
-            onClick={makeNewSwap}
-            variant="primary"
-            w="15rem"
-            isLoading={isCreatingNewSwap}
-            data-cy="swap-button"
-        >
-            Swap
-        </Button>;
-    }
 
     let { run: callFaucet, isLoading: isFaucetLoading } = useAsync({
         deferFn: async () => {
@@ -321,106 +257,58 @@ function App() {
         },
     });
 
-    let faucet_button;
-    if (process.env.NODE_ENV === "development") {
-        faucet_button = <HStack align="left">
-            <Button variant="secondary" onClick={callFaucet} isLoading={isFaucetLoading}>Faucet</Button>
-        </HStack>;
-    }
-
     return (
         <Box className="App">
+            <Route exact path="/">
+                <Redirect to="/trade" />
+            </Route>
+
             <header className="App-header">
-                {faucet_button}
+                <HStack align="left">
+                    <Button variant="secondary" onClick={callFaucet} isLoading={isFaucetLoading}>Faucet</Button>
+                </HStack>
                 <Center>
                     <Image src={COMIT} h="24px" />
                 </Center>
             </header>
-            <Center className="App-body">
-                <Switch>
-                    <Route exact path="/">
-                        <VStack spacing={4} align="stretch">
-                            <Flex color="white">
-                                <AssetSelector
-                                    assetSide="Alpha"
-                                    placement="left"
-                                    amount={state.alpha.amount}
-                                    type={state.alpha.type}
-                                    dispatch={dispatch}
-                                />
-                                <Center w="10px">
-                                    <Box zIndex={2}>
-                                        <ExchangeIcon
-                                            onClick={() =>
-                                                dispatch({
-                                                    type: "SwapAssetTypes",
-                                                    value: {
-                                                        betaAmount,
-                                                    },
-                                                })}
-                                            dataCy="exchange-asset-types-button"
-                                        />
-                                    </Box>
-                                </Center>
-                                <AssetSelector
-                                    assetSide="Beta"
-                                    placement="right"
-                                    amount={betaAmount}
-                                    type={state.beta}
-                                    dispatch={dispatch}
-                                />
-                            </Flex>
-                            <RateInfo rate={rate} direction={getDirection(state.alpha.type)} />
-                            <Box>
-                                {swapButton}
-                            </Box>
-                        </VStack>
-                    </Route>
 
-                    <Route exact path="/swapped/:txId">
-                        <VStack>
-                            <Text textStyle="smGray">
-                                Check in{" "}
-                                <BlockExplorerLink />
-                            </Text>
-                        </VStack>
-                    </Route>
-                </Switch>
+            <Center className="App-body">
+                <VStack spacing={4}>
+                    <HStack spacing={4} as="nav">
+                        <NavLink text="Trade" path={"/trade"} />
+                        <NavLink text="Borrow" path={"/borrow"} />
+                    </HStack>
+                    <Switch>
+                        <Route path="/trade">
+                            <Trade
+                                state={state.trade}
+                                dispatch={dispatch}
+                                rate={rate}
+                                walletStatusAsyncState={walletStatusAsyncState}
+                            />
+                        </Route>
+                        <Route path="/borrow">
+                            <Borrow dispatch={dispatch} state={state.borrow} rate={rate} />
+                        </Route>
+                    </Switch>
+                </VStack>
             </Center>
         </Box>
     );
 }
 
-function BlockExplorerLink() {
-    const { txId } = useParams<{ txId: string }>();
-    const baseUrl = process.env.REACT_APP_BLOCKEXPLORER_URL
-        ? `${process.env.REACT_APP_BLOCKEXPLORER_URL}`
-        : "https://blockstream.info/liquid";
-
-    return <Link
-        href={`${baseUrl}/tx/${txId}`}
-        isExternal
-    >
-        Block Explorer <ExternalLinkIcon mx="2px" />
-    </Link>;
-}
-
-interface RateInfoProps {
-    rate: Rate;
-    direction: "ask" | "bid";
-}
-
-function RateInfo({ rate, direction }: RateInfoProps) {
-    switch (direction) {
-        case "ask":
-            return <Box>
-                <Text textStyle="smGray">{rate.ask} USDT ~ 1 BTC</Text>
-            </Box>;
-        case "bid":
-            return <Box>
-                <Text textStyle="smGray">1 BTC ~ {rate.bid} USDT</Text>
-            </Box>;
-    }
-}
+type NavLinkProps = { text: string; path: string };
+const NavLink = ({ text, path }: NavLinkProps) => (
+    <RouteLink to={path}>
+        <Route
+            path={path}
+            children={({ match }) => (
+                <Button colorScheme="blue" variant={match?.path ? "solid" : "outline"}>
+                    {text}
+                </Button>
+            )}
+        />
+    </RouteLink>
+);
 
 export default App;
