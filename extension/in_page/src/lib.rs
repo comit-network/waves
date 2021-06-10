@@ -47,6 +47,12 @@ impl Liquid {
         let msg = JsValue::from_serde(&ToBackground::NewAddress).unwrap();
         send_to_cs!(msg, ToPage::NewAddressResponse)
     }
+
+    #[wasm_bindgen]
+    pub fn get_loan_request_payload(&self, principal_amount: String) -> Promise {
+        let msg = JsValue::from_serde(&ToBackground::LoanRequest(principal_amount)).unwrap();
+        send_to_cs!(msg, ToPage::LoanRequestResponse)
+    }
 }
 
 #[wasm_bindgen(start)]
