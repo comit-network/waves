@@ -17,4 +17,4 @@ members = [
 
 [patch.crates-io]
 # Until https://github.com/ElementsProject/rust-elements/pull/78 is merged
-elements = { git = "https://github.com/luckysori/rust-elements", branch = "explicit-and-confidential-txouts" }
+elements = { git = "https://github.com/luckysori/rust-elements", branch = "waves-changes" }

@@ -444,6 +444,7 @@ dependencies = [
  "hmac",
  "log",
  "secp256k1-zkp",
+ "serde 1.0.126",
  "sha2",
  "testcontainers",
  "tokio",
@@ -519,7 +520,7 @@ checksum = "e78d4f1cc4ae33bbfc157ed5d5a5ef3bc29227303d595861deb238fcec4e9457"
 [[package]]
 name = "elements"
 version = "0.16.0"
-source = "git+https://github.com/luckysori/rust-elements?branch=explicit-and-confidential-txouts#33c58da490241f83b31efdbbbeb8fa0ac24c60b6"
+source = "git+https://github.com/luckysori/rust-elements?branch=waves-changes#2a4c881dbae262e355211d9991fa15dbd4abfe29"
 dependencies = [
  "bitcoin",
  "bitcoin_hashes 0.9.6",
