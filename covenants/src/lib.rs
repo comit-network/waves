@@ -23,15 +23,19 @@ use std::future::Future;
 mod protocol_tests;
 mod stack_simulator;
 
+#[derive(serde::Serialize, serde::Deserialize)]
 pub struct LoanRequest {
+    #[serde(with = "::elements::bitcoin::util::amount::serde::as_sat")]
     collateral_amount: Amount,
     collateral_inputs: Vec<Input>,
+    #[serde(with = "::elements::bitcoin::util::amount::serde::as_sat")]
     fee_sats_per_vbyte: Amount,
     borrower_pk: PublicKey,
     timelock: u64,
     borrower_address: Address,
 }
 
+#[derive(serde::Serialize, serde::Deserialize)]
 pub struct LoanResponse {
     transaction: Transaction,
     lender_pk: PublicKey,
@@ -1073,7 +1077,7 @@ impl RepaymentWitnessStack {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct Input {
     pub tx_in: TxIn,
     pub original_tx_out: TxOut,

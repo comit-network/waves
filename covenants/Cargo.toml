@@ -17,6 +17,7 @@ hmac = "0.10"
 log = "0.4"
 # TODO: See if we can remove this direct dependency
 secp256k1-zkp = { version = "0.4", features = [ "global-context", "hashes" ] }
+serde = { version = "1", features = [ "derive" ] }
 sha2 = "0.9"
 testcontainers = "0.12"
 tokio = { version = "1", default-features = false, features = [ "macros", "rt", "time" ] }
