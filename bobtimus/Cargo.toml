@@ -7,6 +7,7 @@ edition = "2018"
 [dependencies]
 anyhow = "1"
 async-trait = "0.1"
+covenants = { path = "../covenants" }
 diesel = { version = "1.4", features = [ "sqlite" ] }
 diesel_migrations = "1.4"
 directories = "3.0"
