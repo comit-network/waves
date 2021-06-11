@@ -14,6 +14,7 @@ env_logger = "0.8.3"
 estimate_transaction_size = { path = "../estimate_transaction_size" }
 hex = "0.4"
 hmac = "0.10"
+input = { path = "../input" }
 log = "0.4"
 # TODO: See if we can remove this direct dependency
 secp256k1-zkp = { version = "0.4", features = [ "global-context", "hashes" ] }

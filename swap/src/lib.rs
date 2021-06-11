@@ -7,9 +7,10 @@ use elements::{
     script::Builder,
     secp256k1_zkp::{Message, PublicKey},
     sighash::SigHashCache,
-    Address, AssetId, SigHashType, Transaction, TxIn, TxOut, TxOutSecrets,
+    Address, AssetId, SigHashType, Transaction, TxOut, TxOutSecrets,
 };
 use estimate_transaction_size::estimate_virtual_size;
+use input::{Input, UnblindedInput};
 use secp256k1::{
     rand::{CryptoRng, RngCore},
     Secp256k1, SecretKey, Signing, Verification,
@@ -187,37 +188,6 @@ where
     serialized_signature.push(SigHashType::All as u8);
 
     vec![serialized_signature, input_pk.serialize().to_vec()]
-}
-
-#[derive(Debug)]
-pub struct Input {
-    pub txin: TxIn,
-    pub txout: TxOut,
-    pub blinding_key: SecretKey,
-}
-
-impl Input {
-    fn into_unblinded_input<C>(self, secp: &Secp256k1<C>) -> Result<UnblindedInput>
-    where
-        C: Verification,
-    {
-        let txin = self.txin;
-        let txout = self.txout;
-        let unblinded = txout.unblind(secp, self.blinding_key)?;
-
-        Ok(UnblindedInput {
-            txin,
-            txout,
-            secrets: unblinded,
-        })
-    }
-}
-
-#[derive(Debug)]
-struct UnblindedInput {
-    pub txin: TxIn,
-    pub txout: TxOut,
-    pub secrets: TxOutSecrets,
 }
 
 #[derive(Debug)]

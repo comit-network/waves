@@ -12,7 +12,8 @@ members = [
     "extension/in_page",
     "extension/wasm_bindgen_extension",
     "coin_selection",
-    "estimate_transaction_size"
+    "estimate_transaction_size",
+    "input"
 ]
 
 [patch.crates-io]

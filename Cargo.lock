@@ -468,6 +468,7 @@ dependencies = [
  "estimate_transaction_size",
  "hex",
  "hmac",
+ "input",
  "log",
  "secp256k1-zkp",
  "serde 1.0.126",
@@ -1112,6 +1113,15 @@ checksum = "824845a0bf897a9042383849b02c1bc219c2383772efcd5c6f9766fa4b81aef3"
 dependencies = [
  "autocfg 1.0.1",
  "hashbrown",
+]
+
+[[package]]
+name = "input"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "elements",
+ "serde 1.0.126",
 ]
 
 [[package]]
@@ -2269,6 +2279,7 @@ dependencies = [
  "elements",
  "elements-harness",
  "estimate_transaction_size",
+ "input",
  "secp256k1",
  "serde 1.0.126",
  "sha2",
