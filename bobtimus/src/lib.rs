@@ -1,13 +1,22 @@
 use std::ops::Add;
 
 use anyhow::{Context, Result};
-use covenants::{Input, Lender0, Lender1, LoanRequest, LoanResponse};
-use elements::{Address, AssetId, OutPoint, Transaction, TxIn, address, bitcoin::{
+use covenants::{Lender0, Lender1, LoanRequest, LoanResponse};
+use elements::{
+    address,
+    bitcoin::{
         secp256k1::{All, Secp256k1},
         Amount,
-    }, secp256k1_zkp::{SECP256K1, SecretKey, rand::{CryptoRng, RngCore}}};
+    },
+    secp256k1_zkp::{
+        rand::{CryptoRng, RngCore},
+        SecretKey, SECP256K1,
+    },
+    Address, AssetId, OutPoint, Transaction, TxIn,
+};
 use elements_harness::{elementd_rpc::ElementsRpc, Client as ElementsdClient};
-use futures::{Stream, TryFutureExt, TryStreamExt, stream, stream::FuturesUnordered};
+use futures::{stream, stream::FuturesUnordered, Stream, TryFutureExt, TryStreamExt};
+use input::Input;
 use serde::{Deserialize, Serialize};
 use tokio::sync::watch::Receiver;
 
@@ -124,7 +133,7 @@ where
                 let result = mac.finalize();
                 let input_blinding_sk = SecretKey::from_slice(&result.into_bytes())?;
 
-                Result::<_, anyhow::Error>::Ok(swap::Input {
+                Result::<_, anyhow::Error>::Ok(Input {
                     txin: TxIn {
                         previous_output: outpoint,
                         is_pegin: false,
@@ -134,7 +143,7 @@ where
                         asset_issuance: Default::default(),
                         witness: Default::default(),
                     },
-                    txout,
+                    original_txout: txout,
                     blinding_key: input_blinding_sk,
                 })
             })
@@ -238,9 +247,9 @@ where
                             })?
                             .clone();
 
-                        Result::<_, anyhow::Error>::Ok(swap::Input {
+                        Result::<_, anyhow::Error>::Ok(Input {
                             txin,
-                            txout,
+                            original_txout: txout,
                             blinding_key,
                         })
                     }
@@ -286,7 +295,7 @@ where
         Ok(transaction)
     }
 
-    // 
+    //
     pub async fn handle_loan_request(&mut self, payload: LoanRequest) -> Result<LoanResponse> {
         let lender_address = self
             .elementsd
@@ -302,13 +311,10 @@ where
         )
         .unwrap();
 
-        let lender1 = lender0.interpret(
-            &mut self.rng,
-            &SECP256K1,
-            todo!(),
-            payload)
-        .await
-        .unwrap();
+        let lender1 = lender0
+            .interpret(&mut self.rng, &SECP256K1, todo!(), payload)
+            .await
+            .unwrap();
 
         Ok(lender1.loan_response())
     }
