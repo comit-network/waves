@@ -1,18 +1,13 @@
+use std::ops::Add;
+
 use anyhow::{Context, Result};
-use covenants::{Lender0, LoanRequest};
-use elements::{
-    bitcoin::{
+use covenants::{Input, Lender0, Lender1, LoanRequest, LoanResponse};
+use elements::{Address, AssetId, OutPoint, Transaction, TxIn, address, bitcoin::{
         secp256k1::{All, Secp256k1},
         Amount,
-    },
-    secp256k1_zkp::{
-        rand::{CryptoRng, RngCore},
-        SecretKey,
-    },
-    Address, AssetId, OutPoint, Transaction, TxIn,
-};
+    }, secp256k1_zkp::{SECP256K1, SecretKey, rand::{CryptoRng, RngCore}}};
 use elements_harness::{elementd_rpc::ElementsRpc, Client as ElementsdClient};
-use futures::{stream, stream::FuturesUnordered, Stream, TryStreamExt};
+use futures::{Stream, TryFutureExt, TryStreamExt, stream, stream::FuturesUnordered};
 use serde::{Deserialize, Serialize};
 use tokio::sync::watch::Receiver;
 
@@ -101,17 +96,10 @@ where
         Ok(transaction)
     }
 
-    async fn swap_transaction(
-        &mut self,
-        (alice_input_asset_id, alice_input_amount): (AssetId, Amount),
-        (bob_input_asset_id, bob_input_amount): (AssetId, Amount),
-        alice_inputs: Vec<AliceInput>,
-        alice_address: Address,
-        btc_asset_id: AssetId,
-    ) -> Result<Transaction> {
+    async fn find_bob_inputs(self, asset_id: AssetId, input_amount: Amount) -> Result<Vec<Input>> {
         let bob_inputs = self
             .elementsd
-            .select_inputs_for(bob_input_asset_id, bob_input_amount, false)
+            .select_inputs_for(asset_id, input_amount, false)
             .await
             .context("failed to select inputs for swap")?;
 
@@ -120,6 +108,7 @@ where
             .dumpmasterblindingkey()
             .await
             .context("failed to dump master blinding key")?;
+
         let master_blinding_key = hex::decode(master_blinding_key)?;
 
         let bob_inputs = bob_inputs
@@ -150,6 +139,61 @@ where
                 })
             })
             .collect::<Result<Vec<_>, _>>()?;
+
+        Ok(bob_inputs)
+    }
+
+    async fn swap_transaction(
+        &mut self,
+        (alice_input_asset_id, alice_input_amount): (AssetId, Amount),
+        (bob_input_asset_id, bob_input_amount): (AssetId, Amount),
+        alice_inputs: Vec<AliceInput>,
+        alice_address: Address,
+        btc_asset_id: AssetId,
+    ) -> Result<Transaction> {
+        let bob_inputs = self.find_bob_inputs();
+        // let bob_inputs = self
+        //     .elementsd
+        //     .select_inputs_for(bob_input_asset_id, bob_input_amount, false)
+        //     .await
+        //     .context("failed to select inputs for swap")?;
+
+        // let master_blinding_key = self
+        //     .elementsd
+        //     .dumpmasterblindingkey()
+        //     .await
+        //     .context("failed to dump master blinding key")?;
+
+        // let master_blinding_key = hex::decode(master_blinding_key)?;
+
+        // let bob_inputs = bob_inputs
+        //     .into_iter()
+        //     .map(|(outpoint, txout)| {
+        //         use hmac::{Hmac, Mac, NewMac};
+        //         use sha2::Sha256;
+
+        //         let mut mac = Hmac::<Sha256>::new_varkey(&master_blinding_key)
+        //             .expect("HMAC can take key of any size");
+        //         mac.update(txout.script_pubkey.as_bytes());
+
+        //         let result = mac.finalize();
+        //         let input_blinding_sk = SecretKey::from_slice(&result.into_bytes())?;
+
+        //         Result::<_, anyhow::Error>::Ok(swap::Input {
+        //             txin: TxIn {
+        //                 previous_output: outpoint,
+        //                 is_pegin: false,
+        //                 has_issuance: false,
+        //                 script_sig: Default::default(),
+        //                 sequence: 0,
+        //                 asset_issuance: Default::default(),
+        //                 witness: Default::default(),
+        //             },
+        //             txout,
+        //             blinding_key: input_blinding_sk,
+        //         })
+        //     })
+        //     .collect::<Result<Vec<_>, _>>()?;
 
         let bob_address = self
             .elementsd
@@ -242,9 +286,31 @@ where
         Ok(transaction)
     }
 
-    pub async fn handle_loan_request(&mut self, payload: LoanRequest) -> Result<Transaction> {
-        todo!()
-        // Lender0::new(rng, bitcoin_asset_id, usdt_asset_id, address);
+    // 
+    pub async fn handle_loan_request(&mut self, payload: LoanRequest) -> Result<LoanResponse> {
+        let lender_address = self
+            .elementsd
+            .get_new_address(None)
+            .await
+            .context("failed to get lender address")?;
+
+        let lender0 = Lender0::new(
+            &mut self.rng,
+            self.btc_asset_id,
+            self.usdt_asset_id,
+            lender_address,
+        )
+        .unwrap();
+
+        let lender1 = lender0.interpret(
+            &mut self.rng,
+            &SECP256K1,
+            todo!(),
+            payload)
+        .await
+        .unwrap();
+
+        Ok(lender1.loan_response())
     }
 }
 
