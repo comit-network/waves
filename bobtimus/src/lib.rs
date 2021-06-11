@@ -116,15 +116,17 @@ where
         Ok(transaction)
     }
 
-    async fn find_bob_inputs(self, asset_id: AssetId, input_amount: Amount) -> Result<Vec<Input>> {
-        let bob_inputs = self
-            .elementsd
+    async fn find_bob_inputs(
+        elements_client: &ElementsdClient,
+        asset_id: AssetId,
+        input_amount: Amount,
+    ) -> Result<Vec<Input>> {
+        let bob_inputs = elements_client
             .select_inputs_for(asset_id, input_amount, false)
             .await
             .context("failed to select inputs for swap")?;
 
-        let master_blinding_key = self
-            .elementsd
+        let master_blinding_key = elements_client
             .dumpmasterblindingkey()
             .await
             .context("failed to dump master blinding key")?;
@@ -171,49 +173,10 @@ where
         alice_address: Address,
         btc_asset_id: AssetId,
     ) -> Result<Transaction> {
-        let bob_inputs = self.find_bob_inputs();
-        // let bob_inputs = self
-        //     .elementsd
-        //     .select_inputs_for(bob_input_asset_id, bob_input_amount, false)
-        //     .await
-        //     .context("failed to select inputs for swap")?;
-
-        // let master_blinding_key = self
-        //     .elementsd
-        //     .dumpmasterblindingkey()
-        //     .await
-        //     .context("failed to dump master blinding key")?;
-
-        // let master_blinding_key = hex::decode(master_blinding_key)?;
-
-        // let bob_inputs = bob_inputs
-        //     .into_iter()
-        //     .map(|(outpoint, txout)| {
-        //         use hmac::{Hmac, Mac, NewMac};
-        //         use sha2::Sha256;
-
-        //         let mut mac = Hmac::<Sha256>::new_varkey(&master_blinding_key)
-        //             .expect("HMAC can take key of any size");
-        //         mac.update(txout.script_pubkey.as_bytes());
-
-        //         let result = mac.finalize();
-        //         let input_blinding_sk = SecretKey::from_slice(&result.into_bytes())?;
-
-        //         Result::<_, anyhow::Error>::Ok(swap::Input {
-        //             txin: TxIn {
-        //                 previous_output: outpoint,
-        //                 is_pegin: false,
-        //                 has_issuance: false,
-        //                 script_sig: Default::default(),
-        //                 sequence: 0,
-        //                 asset_issuance: Default::default(),
-        //                 witness: Default::default(),
-        //             },
-        //             txout,
-        //             blinding_key: input_blinding_sk,
-        //         })
-        //     })
-        //     .collect::<Result<Vec<_>, _>>()?;
+        let bob_inputs =
+            Self::find_bob_inputs(&self.elementsd, bob_input_asset_id, bob_input_amount)
+                .await
+                .context("problem with bob and his assets")?;
 
         let bob_address = self
             .elementsd
@@ -277,6 +240,7 @@ where
             bob_input_asset_id,
             bob_input_amount,
         )?;
+
         let bob = swap::Actor::new(
             &self.secp,
             bob_inputs,
@@ -322,11 +286,23 @@ where
         )
         .unwrap();
 
+        let lender_loan_principal = payload.collateral_amount;
+        let elementsd_client = self.elementsd.clone();
         let lender1 = lender0
-            .interpret(&mut self.rng, &SECP256K1, todo!(), payload)
+            .interpret(
+                &mut self.rng,
+                &SECP256K1,
+                {
+                    |amount, asset| async move {
+                        Self::find_bob_inputs(&elementsd_client, asset, amount).await
+                    }
+                },
+                payload,
+            )
             .await
             .unwrap();
 
+        // TODO: need to store lender1 in some sense to check for liquidation triggering
         Ok(lender1.loan_response())
     }
 }
