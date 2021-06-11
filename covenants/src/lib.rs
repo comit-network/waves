@@ -27,7 +27,7 @@ mod stack_simulator;
 #[derive(serde::Serialize, serde::Deserialize)]
 pub struct LoanRequest {
     #[serde(with = "::elements::bitcoin::util::amount::serde::as_sat")]
-    collateral_amount: Amount,
+    pub collateral_amount: Amount,
     collateral_inputs: Vec<Input>,
     #[serde(with = "::elements::bitcoin::util::amount::serde::as_sat")]
     fee_sats_per_vbyte: Amount,
@@ -671,6 +671,7 @@ impl Lender0 {
         })
     }
 
+    // TODO: add some better logic here, or at least make it possible
     fn calc_principal_amount(loan_request: &LoanRequest) -> Amount {
         Amount::from_sat(loan_request.collateral_amount.as_sat() / 2)
     }
