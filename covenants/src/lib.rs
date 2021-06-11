@@ -16,6 +16,7 @@ use elements::{
     TxIn, TxInWitness, TxOut, TxOutSecrets,
 };
 use estimate_transaction_size::estimate_virtual_size;
+use input::Input;
 use secp256k1_zkp::{rand::thread_rng, SurjectionProof, Tag};
 use std::future::Future;
 
@@ -379,7 +380,7 @@ impl Borrower1 {
             let sighash = SigHashCache::new(&tx).segwitv0_sighash(
                 1,
                 &self.collateral_script.clone(),
-                self.repayment_collateral_input.original_tx_out.value,
+                self.repayment_collateral_input.original_txout.value,
                 SigHashType::All,
             );
 
@@ -391,7 +392,7 @@ impl Borrower1 {
             let script_witness = RepaymentWitnessStack::new(
                 sig,
                 self.keypair.1,
-                self.repayment_collateral_input.original_tx_out.value,
+                self.repayment_collateral_input.original_txout.value,
                 &tx,
                 self.collateral_script.clone(),
             )
@@ -611,7 +612,7 @@ impl Lender0 {
 
         let tx_ins = {
             let borrower_inputs = collateral_inputs.iter().map(|input| input.txin.clone());
-            let lender_inputs = principal_inputs.iter().map(|input| input.tx_in.clone());
+            let lender_inputs = principal_inputs.iter().map(|input| input.txin.clone());
             borrower_inputs.chain(lender_inputs).collect::<Vec<_>>()
         };
 
@@ -638,7 +639,7 @@ impl Lender0 {
                 .expect("loan transaction contains collateral output");
 
             Input {
-                tx_in: TxIn {
+                txin: TxIn {
                     previous_output: OutPoint {
                         txid: loan_transaction.txid(),
                         vout: vout as u32,
@@ -650,7 +651,7 @@ impl Lender0 {
                     asset_issuance: AssetIssuance::default(),
                     witness: TxInWitness::default(),
                 },
-                original_tx_out: collateral_tx_out,
+                original_txout: collateral_tx_out,
                 blinding_key: collateral_blinding_sk,
             }
         };
@@ -764,7 +765,7 @@ impl Lender1 {
         let sighash = SigHashCache::new(&liquidation_transaction).segwitv0_sighash(
             0,
             &self.collateral_script.clone(),
-            self.repayment_collateral_input.original_tx_out.value,
+            self.repayment_collateral_input.original_txout.value,
             SigHashType::All,
         );
 
@@ -1075,37 +1076,6 @@ impl RepaymentWitnessStack {
             self.input.script.clone().into_bytes(),
         ])
     }
-}
-
-#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-pub struct Input {
-    pub tx_in: TxIn,
-    pub original_tx_out: TxOut,
-    pub blinding_key: SecretKey,
-}
-
-impl Input {
-    fn into_unblinded_input<C>(self, secp: &Secp256k1<C>) -> Result<UnblindedInput>
-    where
-        C: Verification,
-    {
-        let txin = self.tx_in;
-        let txout = self.original_tx_out;
-        let secrets = txout.unblind(secp, self.blinding_key)?;
-
-        Ok(UnblindedInput {
-            txin,
-            txout,
-            secrets,
-        })
-    }
-}
-
-#[derive(Debug, Clone)]
-struct UnblindedInput {
-    pub txin: TxIn,
-    pub txout: TxOut,
-    pub secrets: TxOutSecrets,
 }
 
 pub fn make_keypair<R>(rng: &mut R) -> (SecretKey, PublicKey)

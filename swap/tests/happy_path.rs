@@ -10,8 +10,9 @@ use elements::{
     Address, AddressParams, OutPoint, SigHashType, Transaction, TxIn, TxOut, Txid,
 };
 use elements_harness::{elementd_rpc::ElementsRpc, Client, Elementsd};
+use input::Input;
 use secp256k1::{rand::thread_rng, Message, SecretKey, SECP256K1};
-use swap::{alice_finalize_transaction, bob_create_transaction, sign_with_key, Actor, Input};
+use swap::{alice_finalize_transaction, bob_create_transaction, sign_with_key, Actor};
 use testcontainers::clients::Cli;
 
 #[tokio::test]
@@ -97,7 +98,7 @@ async fn collaborative_create_and_sign() {
                 asset_issuance: Default::default(),
                 witness: Default::default(),
             },
-            txout: input_alice.1.clone(),
+            original_txout: input_alice.1.clone(),
             blinding_key: fund_blinding_sk_alice,
         }],
         final_address_alice,
@@ -118,7 +119,7 @@ async fn collaborative_create_and_sign() {
                 asset_issuance: Default::default(),
                 witness: Default::default(),
             },
-            txout: input_bob.1.clone(),
+            original_txout: input_bob.1.clone(),
             blinding_key: fund_blinding_sk_bob,
         }],
         final_address_bob.clone(),

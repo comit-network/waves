@@ -8,6 +8,7 @@ edition = "2018"
 anyhow = "1.0"
 elements = "0.16"
 estimate_transaction_size = { path = "../estimate_transaction_size" }
+input = { path = "../input" }
 secp256k1 = { version = "0.20", features = [ "bitcoin_hashes", "rand" ] }
 serde = { version = "1", features = [ "derive" ] }
 sha2 = "0.9"

@@ -325,7 +325,7 @@ mod tests {
                     derive_blinding_key(master_blinding_key.clone(), tx_out.script_pubkey.clone())?;
 
                 Result::<_, anyhow::Error>::Ok(crate::Input {
-                    tx_in: TxIn {
+                    txin: TxIn {
                         previous_output: outpoint,
                         is_pegin: false,
                         has_issuance: false,
@@ -334,7 +334,7 @@ mod tests {
                         asset_issuance: Default::default(),
                         witness: Default::default(),
                     },
-                    original_tx_out: tx_out,
+                    original_txout: tx_out,
                     blinding_key: input_blinding_sk,
                 })
             })
@@ -455,7 +455,7 @@ mod tests {
                         .expect("coin came from utxos");
 
                     crate::Input {
-                        tx_in: TxIn {
+                        txin: TxIn {
                             previous_output: coin.outpoint,
                             is_pegin: false,
                             has_issuance: false,
@@ -464,7 +464,7 @@ mod tests {
                             asset_issuance: Default::default(),
                             witness: Default::default(),
                         },
-                        original_tx_out: original_tx_out.clone(),
+                        original_txout: original_tx_out.clone(),
                         blinding_key: self.blinder_keypair.0,
                     }
                 })
