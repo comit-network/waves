@@ -7,7 +7,7 @@ extern crate diesel_migrations;
 
 use crate::database::Sqlite;
 use anyhow::{Context, Result};
-use covenants::{Input, Lender0, Lender1, LoanRequest, LoanResponse};
+use covenants::{Lender0, Lender1, LoanRequest, LoanResponse};
 use elements::{
     address,
     bitcoin::{
@@ -22,6 +22,7 @@ use elements::{
 };
 use elements_harness::{elementd_rpc::ElementsRpc, Client as ElementsdClient};
 use futures::{stream, stream::FuturesUnordered, Stream, TryFutureExt, TryStreamExt};
+use input::Input;
 use serde::{Deserialize, Serialize};
 use std::ops::Add;
 use tokio::sync::watch::Receiver;
@@ -143,7 +144,7 @@ where
                 let result = mac.finalize();
                 let input_blinding_sk = SecretKey::from_slice(&result.into_bytes())?;
 
-                Result::<_, anyhow::Error>::Ok(swap::Input {
+                Result::<_, anyhow::Error>::Ok(Input {
                     txin: TxIn {
                         previous_output: outpoint,
                         is_pegin: false,
@@ -153,7 +154,7 @@ where
                         asset_issuance: Default::default(),
                         witness: Default::default(),
                     },
-                    txout,
+                    original_txout: txout,
                     blinding_key: input_blinding_sk,
                 })
             })
@@ -257,9 +258,9 @@ where
                             })?
                             .clone();
 
-                        Result::<_, anyhow::Error>::Ok(swap::Input {
+                        Result::<_, anyhow::Error>::Ok(Input {
                             txin,
-                            txout,
+                            original_txout: txout,
                             blinding_key,
                         })
                     }

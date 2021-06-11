@@ -264,6 +264,8 @@ dependencies = [
  "hex",
  "hmac",
  "http-api-problem",
+ "input",
+ "log",
  "mime_guess",
  "reqwest",
  "rust-embed",
