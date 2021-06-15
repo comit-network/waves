@@ -1,12 +1,12 @@
 use anyhow::Result;
 use elements::{
     secp256k1_zkp::{Secp256k1, SecretKey, Verification},
-    TxIn, TxOut, TxOutSecrets,
+    OutPoint, TxOut, TxOutSecrets,
 };
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct Input {
-    pub txin: TxIn,
+    pub txin: OutPoint,
     pub original_txout: TxOut,
     pub blinding_key: SecretKey,
 }
@@ -30,7 +30,7 @@ impl Input {
 
 #[derive(Debug, Clone)]
 pub struct UnblindedInput {
-    pub txin: TxIn,
+    pub txin: OutPoint,
     pub txout: TxOut,
     pub secrets: TxOutSecrets,
 }

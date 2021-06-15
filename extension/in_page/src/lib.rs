@@ -49,8 +49,8 @@ impl Liquid {
     }
 
     #[wasm_bindgen]
-    pub fn get_loan_request_payload(&self, principal_amount: String) -> Promise {
-        let msg = JsValue::from_serde(&ToBackground::LoanRequest(principal_amount)).unwrap();
+    pub fn get_loan_request_payload(&self, collateral: String) -> Promise {
+        let msg = JsValue::from_serde(&ToBackground::LoanRequest(collateral)).unwrap();
         send_to_cs!(msg, ToPage::LoanRequestResponse)
     }
 }

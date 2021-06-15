@@ -1,5 +1,6 @@
 use anyhow::Result;
 use conquer_once::Lazy;
+use covenants::LoanRequest;
 use elements::{Address, Txid};
 use futures::lock::Mutex;
 
@@ -109,6 +110,16 @@ pub async fn make_sell_create_swap_payload(
     btc: String,
 ) -> Result<CreateSwapPayload, MakePayloadError> {
     wallet::make_sell_create_swap_payload(wallet_name, &LOADED_WALLET, btc).await
+}
+
+/// Constructs a new [`CreateSwapPayload`] with the given Bitcoin amount.
+///
+/// This will select UTXOs from the wallet to cover the given amount.
+pub async fn make_loan_request(
+    wallet_name: String,
+    collateral: String,
+) -> Result<LoanRequest, MakeLoanRequestError> {
+    wallet::make_loan_request(wallet_name, &LOADED_WALLET, collateral).await
 }
 
 /// Sign the given swap transaction and broadcast it to the network.

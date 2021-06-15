@@ -7,6 +7,7 @@ edition = "2018"
 
 [dependencies]
 coin_selection = { path = "../../coin_selection" }
+covenants = { path = "../../covenants" }
 elements = { version = "0.16", features = [ "serde-feature" ] }
 js-sys = "0.3"
 rust_decimal = "1"

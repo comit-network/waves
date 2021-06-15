@@ -5,8 +5,9 @@ use serde::{Deserialize, Serialize};
 /// These are also used by the content script, which acts as a middleman.
 pub mod ips_bs {
     use super::*;
+    use covenants::LoanRequest;
     use elements::{Address, Txid};
-    use wallet::{CreateSwapPayload, LoanRequestPayload, WalletStatus};
+    use wallet::{CreateSwapPayload, WalletStatus};
 
     /// Requests sent from the in-page script to the background script.
     #[derive(Debug, Deserialize, Serialize)]
@@ -27,7 +28,7 @@ pub mod ips_bs {
         BuyResponse(Result<CreateSwapPayload, MakePayloadError>),
         SignResponse(Result<Txid, SignAndSendError>),
         NewAddressResponse(Result<Address, NewAddressError>),
-        LoanRequestResponse(Result<LoanRequestPayload, MakePayloadError>),
+        LoanRequestResponse(Box<Result<LoanRequest, MakePayloadError>>),
     }
 
     #[derive(Debug, Deserialize, Serialize)]
@@ -43,6 +44,17 @@ pub mod ips_bs {
         fn from(e: wallet::MakePayloadError) -> Self {
             match e {
                 wallet::MakePayloadError::CoinSelection(
+                    coin_selection::Error::InsufficientFunds { needed, available },
+                ) => Self::InsufficientFunds { needed, available },
+                e => Self::Other(format!("{:#}", e)),
+            }
+        }
+    }
+
+    impl From<wallet::MakeLoanRequestError> for MakePayloadError {
+        fn from(e: wallet::MakeLoanRequestError) -> Self {
+            match e {
+                wallet::MakeLoanRequestError::CoinSelection(
                     coin_selection::Error::InsufficientFunds { needed, available },
                 ) => Self::InsufficientFunds { needed, available },
                 e => Self::Other(format!("{:#}", e)),

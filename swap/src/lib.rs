@@ -7,7 +7,7 @@ use elements::{
     script::Builder,
     secp256k1_zkp::{Message, PublicKey},
     sighash::SigHashCache,
-    Address, AssetId, SigHashType, Transaction, TxOut, TxOutSecrets,
+    Address, AssetId, SigHashType, Transaction, TxIn, TxOut, TxOutSecrets,
 };
 use estimate_transaction_size::estimate_virtual_size;
 use input::{Input, UnblindedInput};
@@ -126,7 +126,18 @@ where
 
     let alice_inputs_iter = alice.inputs.iter().map(|input| input.txin.clone());
     let bob_inputs_iter = bob.inputs.iter().map(|input| input.txin.clone());
-    let inputs = alice_inputs_iter.chain(bob_inputs_iter).collect::<Vec<_>>();
+    let inputs = alice_inputs_iter
+        .chain(bob_inputs_iter)
+        .map(|previous_output| TxIn {
+            previous_output,
+            is_pegin: false,
+            has_issuance: false,
+            script_sig: Default::default(),
+            sequence: 0,
+            asset_issuance: Default::default(),
+            witness: Default::default(),
+        })
+        .collect::<Vec<_>>();
 
     let fee = TxOut::new_fee(fee_amount.as_sat(), fee_asset);
 
