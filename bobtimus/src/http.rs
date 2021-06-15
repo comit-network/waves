@@ -147,7 +147,7 @@ where
     bobtimus
         .handle_loan_request(payload)
         .await
-        .map(|transaction| serialize_hex(&transaction))
+        .map(|loan_response| warp::reply::json(&loan_response))
         .map_err(anyhow::Error::from)
         .map_err(problem::from_anyhow)
         .map_err(warp::reject::custom)

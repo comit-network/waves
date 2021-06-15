@@ -21,7 +21,7 @@ covenants = { path = "../../covenants" }
 elements = { version = "0.16", features = [ "serde-feature" ] }
 estimate_transaction_size = { path = "../../estimate_transaction_size" }
 futures = "0.3"
-getrandom = { version = "0.1", features = [ "wasm-bindgen" ] }
+getrandom = { version = "0.2", features = [ "wasm-bindgen", "js" ] }
 hex = "0.4"
 hkdf = { version = "0.10", features = [ "std" ] }
 input = { path = "../../input" }

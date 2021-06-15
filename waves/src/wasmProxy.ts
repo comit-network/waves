@@ -20,7 +20,13 @@ export interface CreateSwapPayload {
 }
 
 export interface LoanRequestPayload {
-    dummy_field: string;
+    collateral_amount: number;
+    // TODO: Replace `any` with concrete type or get rid of `original_txout` field
+    collateral_inputs: { txin: OutPoint; original_txout: any; blinding_key: string }[];
+    fee_sats_per_vbyte: number;
+    borrower_pk: string;
+    timelock: number;
+    borrower_address: string;
 }
 
 export interface OutPoint {
@@ -94,7 +100,7 @@ export async function getNewAddress(): Promise<string> {
     return await window.liquid.new_address();
 }
 
-export async function makeBorrowPayload(principal_amount: string): Promise<LoanRequestPayload> {
+export async function makeLoanRequestPayload(principal_amount: string): Promise<LoanRequestPayload> {
     // @ts-ignore
     if (!window.liquid.get_loan_request_payload) {
         return Promise.reject("get_loan_request_payload undefined");

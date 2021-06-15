@@ -3,11 +3,13 @@ import Debug from "debug";
 import React, { Dispatch } from "react";
 import { useAsync } from "react-async";
 import { Action, Asset, BorrowState, Rate } from "./App";
+import { postLoanRequest } from "./Bobtimus";
 import calculateBetaAmount from "./calculateBetaAmount";
 import NumberInput from "./components/NumberInput";
 import RateInfo from "./components/RateInfo";
-import { makeBorrowPayload } from "./wasmProxy";
+import { makeLoanRequestPayload } from "./wasmProxy";
 
+const debug = Debug("Borrow");
 const error = Debug("Borrow:error");
 
 interface BorrowProps {
@@ -41,18 +43,12 @@ function Borrow({ dispatch, state, rate }: BorrowProps) {
     let { run: requestNewLoan, isLoading: isRequestingNewLoan } = useAsync({
         deferFn: async () => {
             try {
-                let payload = await makeBorrowPayload(state.principalAmount);
-                // TODO: send payload to bobtimus
+                let payload = await makeLoanRequestPayload(state.principalAmount);
+                let loanResponse = await postLoanRequest(payload);
                 // TODO: forward response to wallet to sign and publish transaction
                 // TODO: redirect to /trade/swapped/${txid}`
 
-                toast({
-                    title: "Mockup",
-                    description: `Dummy response: ${payload.dummy_field}`,
-                    status: "warning",
-                    duration: 5000,
-                    isClosable: true,
-                });
+                debug(loanResponse);
             } catch (e) {
                 let description = JSON.stringify(e);
                 error(e);

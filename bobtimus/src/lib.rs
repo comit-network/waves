@@ -147,15 +147,7 @@ where
                 let input_blinding_sk = SecretKey::from_slice(&result.into_bytes())?;
 
                 Result::<_, anyhow::Error>::Ok(Input {
-                    txin: TxIn {
-                        previous_output: outpoint,
-                        is_pegin: false,
-                        has_issuance: false,
-                        script_sig: Default::default(),
-                        sequence: 0,
-                        asset_issuance: Default::default(),
-                        witness: Default::default(),
-                    },
+                    txin: outpoint,
                     original_txout: txout,
                     blinding_key: input_blinding_sk,
                 })
@@ -201,15 +193,6 @@ where
                                 format!("failed to fetch transaction {}", outpoint.txid)
                             })?;
 
-                        let txin = TxIn {
-                            previous_output: outpoint,
-                            is_pegin: false,
-                            has_issuance: false,
-                            script_sig: Default::default(),
-                            sequence: 0,
-                            asset_issuance: Default::default(),
-                            witness: Default::default(),
-                        };
                         let txout = transaction
                             .output
                             .get(outpoint.vout as usize)
@@ -222,7 +205,7 @@ where
                             .clone();
 
                         Result::<_, anyhow::Error>::Ok(Input {
-                            txin,
+                            txin: outpoint,
                             original_txout: txout,
                             blinding_key,
                         })
