@@ -61,12 +61,12 @@ pub struct Borrower0 {
 
 impl Borrower0 {
     #[allow(clippy::too_many_arguments)]
-    pub fn new<R>(
+    pub async fn new<R, CS, CF>(
         rng: &mut R,
+        coin_selector: CS,
         address: Address,
         address_blinding_sk: SecretKey,
         collateral_amount: Amount,
-        collateral_inputs: Vec<Input>,
         fee_sats_per_vbyte: Amount,
         timelock: u64,
         bitcoin_asset_id: AssetId,
@@ -74,8 +74,11 @@ impl Borrower0 {
     ) -> Result<Self>
     where
         R: RngCore + CryptoRng,
+        CS: FnOnce(Amount, AssetId) -> CF,
+        CF: Future<Output = Result<Vec<Input>>>,
     {
         let keypair = make_keypair(rng);
+        let collateral_inputs = coin_selector(collateral_amount, bitcoin_asset_id).await?;
 
         Ok(Self {
             keypair,

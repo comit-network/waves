@@ -69,24 +69,23 @@ mod tests {
 
             client.generatetoaddress(1, &miner_address).await.unwrap();
 
-            let collateral_inputs = wallet
-                .find_inputs(bitcoin_asset_id, collateral_amount)
-                .await
-                .unwrap();
-
             let timelock = 10;
 
             let borrower = Borrower0::new(
                 &mut thread_rng(),
+                {
+                    let wallet = wallet.clone();
+                    |amount, asset| async move { wallet.find_inputs(asset, amount).await }
+                },
                 address.clone(),
                 address_blinding_sk,
                 collateral_amount,
-                collateral_inputs,
                 Amount::ONE_SAT,
                 timelock,
                 bitcoin_asset_id,
                 usdt_asset_id,
             )
+            .await
             .unwrap();
 
             (borrower, wallet)
@@ -224,24 +223,23 @@ mod tests {
 
             client.generatetoaddress(1, &miner_address).await.unwrap();
 
-            let collateral_inputs = wallet
-                .find_inputs(bitcoin_asset_id, collateral_amount)
-                .await
-                .unwrap();
-
             let timelock = 0;
 
             let borrower = Borrower0::new(
                 &mut thread_rng(),
+                {
+                    let wallet = wallet.clone();
+                    |amount, asset| async move { wallet.find_inputs(asset, amount).await }
+                },
                 address.clone(),
                 address_blinding_sk,
                 collateral_amount,
-                collateral_inputs,
                 Amount::ONE_SAT,
                 timelock,
                 bitcoin_asset_id,
                 usdt_asset_id,
             )
+            .await
             .unwrap();
 
             (borrower, wallet)
