@@ -9,7 +9,6 @@ anyhow = "1"
 bitcoin_hashes = "0.9.0"
 coin_selection = { path = "../coin_selection" }
 elements = "0.16"
-elements-harness = { path = "../elements-harness" }
 env_logger = "0.8.3"
 estimate_transaction_size = { path = "../estimate_transaction_size" }
 hex = "0.4"
@@ -20,5 +19,8 @@ log = "0.4"
 secp256k1-zkp = { version = "0.4", features = [ "global-context", "hashes" ] }
 serde = { version = "1", features = [ "derive" ] }
 sha2 = "0.9"
+
+[dev-dependencies]
+elements-harness = { path = "../elements-harness" }
 testcontainers = "0.12"
 tokio = { version = "1", default-features = false, features = [ "macros", "rt", "time" ] }
