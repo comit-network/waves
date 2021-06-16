@@ -25,7 +25,7 @@ pub fn from_anyhow(e: anyhow::Error) -> HttpApiProblem {
                 .set_status(StatusCode::BAD_REQUEST)
         }
         e => {
-            log::error!("unhandled error: {:#}", e);
+            tracing::error!("unhandled error: {:#}", e);
 
             // early return in this branch to avoid double logging the error
             return HttpApiProblem::with_title_and_type_from_status(
@@ -34,7 +34,7 @@ pub fn from_anyhow(e: anyhow::Error) -> HttpApiProblem {
         }
     };
 
-    log::info!("route failed because {:#}", e);
+    tracing::info!("route failed because {:#}", e);
 
     known_error
 }

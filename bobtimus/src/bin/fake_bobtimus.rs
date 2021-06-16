@@ -13,7 +13,7 @@ use warp::{Filter, Rejection, Reply};
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    env_logger::init();
+    tracing_subscriber::fmt::init();
 
     let StartCommand {
         elementsd_url,
@@ -77,7 +77,7 @@ async fn faucet<R, RS>(
             .send_asset_to_address(&address, *amount, Some(*asset_id))
             .await
             .map_err(|e| {
-                log::error!(
+                tracing::error!(
                     "could not fund address {} with asset {}: {}",
                     address,
                     asset_id,
@@ -94,7 +94,7 @@ async fn faucet<R, RS>(
         .reissueasset(bobtimus.usdt_asset_id, 200000.0)
         .await
         .map_err(|e| {
-            log::error!("could not reissue asset: {}", e);
+            tracing::error!("could not reissue asset: {}", e);
             warp::reject::reject()
         })?;
 
@@ -103,7 +103,7 @@ async fn faucet<R, RS>(
         .get_new_address(None)
         .await
         .map_err(|e| {
-            log::error!("could not get new address: {}", e);
+            tracing::error!("could not get new address: {}", e);
             warp::reject::reject()
         })?;
     bobtimus
@@ -111,7 +111,7 @@ async fn faucet<R, RS>(
         .generatetoaddress(1, &address)
         .await
         .map_err(|e| {
-            log::error!("could not generate block: {}", e);
+            tracing::error!("could not generate block: {}", e);
             warp::reject::reject()
         })?;
 

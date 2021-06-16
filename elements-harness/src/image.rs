@@ -226,7 +226,7 @@ impl Image for ElementsCore {
         if let Ok(Ok(sleep_period)) = additional_sleep_period {
             let sleep_period = Duration::from_millis(sleep_period);
 
-            log::trace!(
+            tracing::trace!(
                 "Waiting for an additional {:?} for container {}.",
                 sleep_period,
                 container.id()

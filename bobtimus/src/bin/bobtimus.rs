@@ -8,10 +8,11 @@ use elements_harness::Client;
 use std::sync::Arc;
 use structopt::StructOpt;
 use tokio::sync::Mutex;
+use tracing::Level;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    env_logger::init();
+    tracing_subscriber::fmt::init();
 
     let StartCommand {
         elementsd_url,

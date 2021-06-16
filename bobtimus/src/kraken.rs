@@ -57,7 +57,7 @@ impl RateService {
                 let rate = match Rate::try_from(ticker) {
                     Ok(rate) => rate,
                     Err(e) => {
-                        log::error!("could not get rate from ticker update: {}", e);
+                        tracing::error!("could not get rate from ticker update: {}", e);
                         continue;
                     }
                 };
