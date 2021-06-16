@@ -56,8 +56,8 @@ impl<'c> Elementsd<'c> {
 
 #[derive(Debug, Clone, Copy, thiserror::Error)]
 pub enum Error {
-    #[error("Url Parsing: ")]
+    #[error("Url Parsing: {0}")]
     UrlParseError(#[from] url::ParseError),
-    #[error("Docker port not exposed: ")]
+    #[error("Docker port not exposed: {0}")]
     PortNotExposed(u16),
 }

@@ -31,9 +31,9 @@ function Borrow({ dispatch, state, rate }: BorrowProps) {
         rate,
     );
 
-    let interestAmount = amount * interestRate;
+    let interestAmount = collateralAmount * interestRate;
 
-    function onCollateralAmountChange(newAmount: string) {
+    function onPrincipalAmountChange(newAmount: string) {
         dispatch({
             type: "UpdatePrincipalAmount",
             value: newAmount,
@@ -43,7 +43,10 @@ function Borrow({ dispatch, state, rate }: BorrowProps) {
     let { run: requestNewLoan, isLoading: isRequestingNewLoan } = useAsync({
         deferFn: async () => {
             try {
-                let payload = await makeLoanRequestPayload(state.principalAmount);
+              /* FIXME: There seems to be a bug which causes this
+              payload not to be returned until we refresh the website
+              a couple of times. I have no idea why it's happening */
+                let payload = await makeLoanRequestPayload((collateralAmount + interestAmount).toString());
                 let loanResponse = await postLoanRequest(payload);
                 // TODO: forward response to wallet to sign and publish transaction
                 // TODO: redirect to /trade/swapped/${txid}`
@@ -74,7 +77,7 @@ function Borrow({ dispatch, state, rate }: BorrowProps) {
                         value={state.principalAmount}
                         precision={2}
                         step={0.01}
-                        onAmountChange={onCollateralAmountChange}
+                        onAmountChange={onPrincipalAmountChange}
                         isDisabled={false}
                         data_cy={"principal"}
                     />
@@ -90,7 +93,7 @@ function Borrow({ dispatch, state, rate }: BorrowProps) {
                     />
                     <p>Interest {interestRate}%:</p>
                     <NumberInput
-                        currency="$"
+                        currency="₿"
                         value={interestAmount}
                         precision={7}
                         step={0.01}

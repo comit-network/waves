@@ -73,12 +73,12 @@ pub async fn sign_and_send_swap_transaction(
 pub enum Error {
     #[error("Wallet is not loaded")]
     LoadWallet,
-    #[error("Failed to get transaction outputs: ")]
+    #[error("Failed to get transaction outputs: {0}")]
     GetTxOuts(String),
     #[error("Failed to sign transaction")]
     Sign,
-    #[error("Failed to broadcast transaction: ")]
+    #[error("Failed to broadcast transaction: {0}")]
     Send(String),
-    #[error("Unclassified error: ")]
+    #[error("Unclassified error: {0}")]
     Other(#[from] anyhow::Error),
 }

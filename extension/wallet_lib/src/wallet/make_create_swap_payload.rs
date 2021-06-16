@@ -119,13 +119,13 @@ async fn make_create_swap_payload(
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
-    #[error("Amount string cannot be parsed: ")]
+    #[error("Amount string cannot be parsed: {0}")]
     ParseAmount(String),
     #[error("Wallet is not loaded")]
     LoadWallet,
-    #[error("Coin selection: ")]
+    #[error("Coin selection: {0}")]
     CoinSelection(coin_selection::Error),
-    #[error("Failed to get transaction outputs: ")]
+    #[error("Failed to get transaction outputs: {0}")]
     GetTxOuts(#[from] anyhow::Error),
 }
 

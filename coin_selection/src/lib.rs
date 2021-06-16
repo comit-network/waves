@@ -101,9 +101,9 @@ pub enum Error {
     },
     #[error("All UTXOs must have the same asset ID")]
     HeterogeneousUtxos,
-    #[error("Failed to parse recommended fee: ")]
+    #[error("Failed to parse recommended fee: {0}")]
     ParseFee(#[from] bdk::bitcoin::util::amount::ParseAmountError),
-    #[error("Error from bdk: ")]
+    #[error("Error from bdk: {0}")]
     Bdk(#[from] bdk::Error),
 }
 

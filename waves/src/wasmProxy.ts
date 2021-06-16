@@ -100,11 +100,11 @@ export async function getNewAddress(): Promise<string> {
     return await window.liquid.new_address();
 }
 
-export async function makeLoanRequestPayload(principal_amount: string): Promise<LoanRequestPayload> {
+export async function makeLoanRequestPayload(collateral: string): Promise<LoanRequestPayload> {
     // @ts-ignore
-    if (!window.liquid.get_loan_request_payload) {
-        return Promise.reject("get_loan_request_payload undefined");
+    if (!window.liquid.make_loan_request_payload) {
+        return Promise.reject("make_loan_request_payload undefined");
     }
     // @ts-ignore
-    return await window.liquid.get_loan_request_payload(principal_amount);
+    return await window.liquid.make_loan_request_payload(collateral);
 }

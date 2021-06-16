@@ -6,7 +6,7 @@ use crate::{
 use bdk::bitcoin::{Amount, Denomination};
 use coin_selection::{self, coin_select};
 use covenants::{Borrower0, LoanRequest};
-use elements::{secp256k1_zkp::SECP256K1, OutPoint};
+use elements::{bitcoin::util::amount::ParseAmountError, secp256k1_zkp::SECP256K1, OutPoint};
 use estimate_transaction_size::avg_vbytes;
 use futures::lock::Mutex;
 use input::Input;
@@ -17,19 +17,25 @@ pub async fn make_loan_request(
     current_wallet: &Mutex<Option<Wallet>>,
     collateral_amount: String,
 ) -> Result<LoanRequest, Error> {
-    let collateral_amount = Amount::from_str_in(&collateral_amount, Denomination::Bitcoin)
-        .map_err(|_| Error::ParseAmount(collateral_amount))?;
+    let collateral_amount = Amount::from_str_in(&collateral_amount, Denomination::Bitcoin)?;
 
-    let wallet = current(&name, current_wallet)
-        .await
-        .map_err(|_| Error::LoadWallet)?;
-    let blinding_key = wallet.blinding_key();
+    let (address, blinding_key) = {
+        let wallet = current(&name, current_wallet)
+            .await
+            .map_err(|_| Error::LoadWallet)?;
+
+        let address = wallet.get_address();
+        let blinding_key = wallet.blinding_key();
+
+        (address, blinding_key)
+    };
 
     let coin_selector = {
         |amount, asset| async move {
             let wallet = current(&name, current_wallet)
                 .await
                 .map_err(|_| Error::LoadWallet)?;
+
             let utxos = get_txouts(&wallet, |utxo, txout| {
                 Ok({
                     let unblinded_txout = txout.unblind(SECP256K1, blinding_key)?;
@@ -103,7 +109,7 @@ pub async fn make_loan_request(
     let borrower = Borrower0::new(
         &mut thread_rng(),
         coin_selector,
-        wallet.get_address(),
+        address,
         blinding_key,
         collateral_amount,
         // TODO: Make this dynamic once there is something going on on Liquid
@@ -130,13 +136,13 @@ pub async fn make_loan_request(
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
-    #[error("Amount string cannot be parsed: ")]
-    ParseAmount(String),
+    #[error("Amount string cannot be parsed: {0}")]
+    ParseAmount(#[from] ParseAmountError),
     #[error("Wallet is not loaded")]
     LoadWallet,
-    #[error("Coin selection: ")]
+    #[error("Coin selection: {0}")]
     CoinSelection(coin_selection::Error),
-    #[error("Failed to get transaction outputs: ")]
+    #[error("Failed to get transaction outputs: {0}")]
     GetTxOuts(#[from] anyhow::Error),
     #[error("Failed to store borrower state")]
     Storage,
