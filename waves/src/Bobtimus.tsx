@@ -37,6 +37,24 @@ export async function postLoanRequest(payload: LoanRequestPayload) {
     return await res.text();
 }
 
+export async function postLoanFinalization(txHex: string) {
+    let res = await fetch(`/api/loan/lbtc-lusdt/finalize`, {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json",
+        },
+        body: JSON.stringify({ tx_hex: txHex }),
+    });
+
+    if (res.status !== 200) {
+        debug("failed to create new loan");
+        throw new Error("failed to create new loan");
+    }
+
+    return await res.text();
+}
+
 async function postPayload(payload: CreateSwapPayload, path: string) {
     let res = await fetch(`/api/swap/lbtc-lusdt/${path}`, {
         method: "POST",

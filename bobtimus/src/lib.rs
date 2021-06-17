@@ -7,9 +7,8 @@ extern crate diesel_migrations;
 
 use crate::database::Sqlite;
 use anyhow::{Context, Result};
-use covenants::{Lender0, Lender1, LoanRequest, LoanResponse};
+use covenants::{Lender0, LoanRequest, LoanResponse};
 use elements::{
-    address,
     bitcoin::{
         secp256k1::{All, Secp256k1},
         Amount,
@@ -18,10 +17,10 @@ use elements::{
         rand::{CryptoRng, RngCore},
         SecretKey, SECP256K1,
     },
-    Address, AssetId, OutPoint, Transaction, TxIn,
+    Address, AssetId, OutPoint, Transaction, Txid,
 };
 use elements_harness::{elementd_rpc::ElementsRpc, Client as ElementsdClient};
-use futures::{stream, stream::FuturesUnordered, Stream, TryFutureExt, TryStreamExt};
+use futures::{stream, stream::FuturesUnordered, Stream, TryStreamExt};
 use input::Input;
 use serde::{Deserialize, Serialize};
 use std::ops::Add;
@@ -269,7 +268,7 @@ where
         )
         .unwrap();
 
-        let lender_loan_principal = payload.collateral_amount;
+        let _lender_loan_principal = payload.collateral_amount;
         let elementsd_client = self.elementsd.clone();
         let lender1 = lender0
             .interpret(
@@ -287,6 +286,20 @@ where
 
         // TODO: need to store lender1 in some sense to check for liquidation triggering
         Ok(lender1.loan_response())
+    }
+
+    pub async fn finalize_loan(&mut self, transaction: Transaction) -> Result<Txid> {
+        // TODO: verify that this is the correct transaction.
+        // For that we need lender1 which is not available. This can be done once we have a db.
+        // db.get_lender_by_tx_id(&tx_id);
+        //  if lender1.loan_transaction.txid() != loan_transaction.txid() {
+        //    bail!("wrong loan transaction")
+        //  }
+
+        let transaction = self.elementsd.sign_raw_transaction(&transaction).await?;
+        let txid = self.elementsd.send_raw_transaction(&transaction).await?;
+
+        Ok(txid)
     }
 }
 

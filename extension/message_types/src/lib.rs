@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 pub mod ips_bs {
     use super::*;
     use covenants::LoanRequest;
-    use elements::{Address, Transaction, Txid};
+    use elements::{Address, Txid};
     use wallet::{CreateSwapPayload, WalletStatus};
 
     /// Requests sent from the in-page script to the background script.
@@ -30,7 +30,7 @@ pub mod ips_bs {
         SignResponse(Result<Txid, SignAndSendError>),
         NewAddressResponse(Result<Address, NewAddressError>),
         LoanRequestResponse(Box<Result<LoanRequest, MakePayloadError>>),
-        LoanTransaction(Result<Transaction, SignLoanError>),
+        LoanTransaction(Result<String, SignLoanError>),
     }
 
     #[derive(Debug, Deserialize, Serialize)]

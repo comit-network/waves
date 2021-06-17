@@ -1,7 +1,7 @@
 use crate::{problem, Bobtimus, CreateSwapPayload, LatestRate, RateSubscription};
 use anyhow::Context;
 use elements::{
-    encode::serialize_hex,
+    encode::{deserialize, serialize_hex},
     secp256k1_zkp::rand::{CryptoRng, RngCore},
 };
 use futures::{StreamExt, TryStreamExt};
@@ -66,11 +66,25 @@ where
     let create_loan = warp::post()
         .and(warp::path!("api" / "loan" / "lbtc-lusdt"))
         .and(warp::body::json())
+        .and_then({
+            let bobtimus = bobtimus.clone();
+            move |payload| {
+                let bobtimus = bobtimus.clone();
+                async move {
+                    let mut bobtimus = bobtimus.lock().await;
+                    create_loan(&mut bobtimus, payload).await
+                }
+            }
+        });
+
+    let finalize_loan = warp::post()
+        .and(warp::path!("api" / "loan" / "lbtc-lusdt" / "finalize"))
+        .and(warp::body::json())
         .and_then(move |payload| {
             let bobtimus = bobtimus.clone();
             async move {
                 let mut bobtimus = bobtimus.lock().await;
-                create_loan(&mut bobtimus, payload).await
+                finalize_loan(&mut bobtimus, payload).await
             }
         });
 
@@ -78,6 +92,7 @@ where
         .or(create_sell_swap)
         .or(create_buy_swap)
         .or(create_loan)
+        .or(finalize_loan)
         .or(waves_resources)
         .or(index_html)
         .recover(problem::unpack_problem)
@@ -146,6 +161,41 @@ where
 
     bobtimus
         .handle_loan_request(payload)
+        .await
+        .map(|loan_response| warp::reply::json(&loan_response))
+        .map_err(anyhow::Error::from)
+        .map_err(problem::from_anyhow)
+        .map_err(warp::reject::custom)
+}
+
+#[derive(serde::Deserialize)]
+struct FinalizeLoanPayload {
+    tx_hex: String,
+}
+
+async fn finalize_loan<R, RS>(
+    bobtimus: &mut Bobtimus<R, RS>,
+    payload: serde_json::Value,
+) -> Result<impl Reply, Rejection>
+where
+    R: RngCore + CryptoRng,
+    RS: LatestRate,
+{
+    // TODO: sending as json serialized transaction is ugly, we should serialize to bytes instead.
+    let payload: FinalizeLoanPayload = serde_json::from_value(payload)
+        .map_err(anyhow::Error::from)
+        .map_err(problem::from_anyhow)
+        .map_err(warp::reject::custom)?;
+
+    // TODO: proper error handling
+    let payload =
+        deserialize(&hex::decode(&payload.tx_hex).expect("failed to decode string as hex"))
+            .map_err(anyhow::Error::from)
+            .map_err(problem::from_anyhow)
+            .map_err(warp::reject::custom)?;
+
+    bobtimus
+        .finalize_loan(payload)
         .await
         .map(|loan_response| warp::reply::json(&loan_response))
         .map_err(anyhow::Error::from)

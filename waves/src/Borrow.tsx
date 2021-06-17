@@ -2,8 +2,9 @@ import { Button, Center, useToast, VStack } from "@chakra-ui/react";
 import Debug from "debug";
 import React, { Dispatch } from "react";
 import { useAsync } from "react-async";
+import { useHistory } from "react-router-dom";
 import { Action, Asset, BorrowState, Rate } from "./App";
-import { postLoanRequest } from "./Bobtimus";
+import { postLoanFinalization, postLoanRequest } from "./Bobtimus";
 import calculateBetaAmount from "./calculateBetaAmount";
 import NumberInput from "./components/NumberInput";
 import RateInfo from "./components/RateInfo";
@@ -20,6 +21,7 @@ interface BorrowProps {
 
 function Borrow({ dispatch, state, rate }: BorrowProps) {
     const toast = useToast();
+    const history = useHistory();
 
     // TODO: We should get an up-to-date interest rate from Bobtimus
     let interestRate = 0.10;
@@ -50,10 +52,10 @@ function Borrow({ dispatch, state, rate }: BorrowProps) {
                 let loanResponse = await postLoanRequest(loanRequest);
 
                 let loanTransaction = await signLoan(loanResponse);
-                debug(loanTransaction);
-                /* let txid = await postLoan(loanTransaction);
 
-               * history.push(`/trade/swapped/${txid}`); */
+                let txid = await postLoanFinalization(loanTransaction);
+
+                history.push(`/trade/swapped/${txid}`);
             } catch (e) {
                 let description = JSON.stringify(e);
                 error(e);

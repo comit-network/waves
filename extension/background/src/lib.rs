@@ -1,5 +1,6 @@
 use anyhow::{bail, Context, Result};
 use conquer_once::Lazy;
+use elements::encode::serialize_hex;
 use futures::lock::Mutex;
 use js_sys::Promise;
 use message_types::{
@@ -165,6 +166,7 @@ fn handle_msg_from_ps(msg: bs_ps::ToBackground) -> Promise {
             future_to_promise(async move {
                 let res = wallet::sign_loan(WALLET_NAME.to_string())
                     .await
+                    .map(|tx| serialize_hex(&tx))
                     .map_err(ips_bs::SignLoanError::from);
 
                 let _resp = browser.tabs().send_message(
