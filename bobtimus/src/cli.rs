@@ -18,12 +18,15 @@ pub struct StartCommand {
         long = "usdt"
     )]
     pub usdt_asset_id: AssetId,
+    #[structopt(short, parse(from_os_str))]
+    pub db_file: Option<PathBuf>,
 }
 
 pub struct Config {
     pub elementsd_url: Url,
     pub api_port: u16,
     pub usdt_asset_id: AssetId,
+    pub db_file: PathBuf,
 }
 
 impl Config {
@@ -32,12 +35,26 @@ impl Config {
             elementsd_url,
             api_port,
             usdt_asset_id,
+            db_file,
         } = StartCommand::from_args();
+
+        let db_file = match db_file {
+            None => {
+                let path_buf = system_data_dir()?.join("bobtimus.sql");
+                tracing::info!(
+                    "DB file not provided. Falling back to default path at {}",
+                    path_buf.display()
+                );
+                path_buf
+            }
+            Some(db_file) => db_file,
+        };
 
         Ok(Config {
             elementsd_url,
             api_port,
             usdt_asset_id,
+            db_file,
         })
     }
 }

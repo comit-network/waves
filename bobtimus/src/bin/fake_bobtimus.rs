@@ -1,5 +1,5 @@
 use anyhow::Result;
-use bobtimus::{cli::StartCommand, fixed_rate, http, Bobtimus, LiquidUsdt};
+use bobtimus::{cli::Config, database::Sqlite, fixed_rate, http, Bobtimus, LiquidUsdt};
 use elements::{
     bitcoin::{secp256k1::Secp256k1, Amount},
     secp256k1::rand::{rngs::StdRng, thread_rng, SeedableRng},
@@ -18,7 +18,10 @@ async fn main() -> Result<()> {
         elementsd_url,
         api_port,
         usdt_asset_id,
+        db_file,
     } = Config::parse()?;
+
+    let db = Sqlite::new(db_file.as_path())?;
 
     let elementsd = Client::new(elementsd_url.into())?;
     let btc_asset_id = elementsd.get_bitcoin_asset_id().await?;
@@ -33,6 +36,7 @@ async fn main() -> Result<()> {
         elementsd,
         btc_asset_id,
         usdt_asset_id,
+        db,
     };
     let bobtimus = Arc::new(Mutex::new(bobtimus));
 
