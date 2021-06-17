@@ -1,5 +1,7 @@
 use anyhow::Result;
-use bobtimus::{cli::StartCommand, http, kraken, Bobtimus};
+use bobtimus::cli::Config;
+use bobtimus::database::Sqlite;
+use bobtimus::{http, kraken, Bobtimus};
 use elements::{
     bitcoin::secp256k1::Secp256k1,
     secp256k1::rand::{rngs::StdRng, thread_rng, SeedableRng},
@@ -14,11 +16,11 @@ use tracing::Level;
 async fn main() -> Result<()> {
     tracing_subscriber::fmt::init();
 
-    let StartCommand {
+    let Config {
         elementsd_url,
         api_port,
         usdt_asset_id,
-    } = StartCommand::from_args();
+    } = Config::parse()?;
 
     let elementsd = Client::new(elementsd_url.into())?;
     let btc_asset_id = elementsd.get_bitcoin_asset_id().await?;

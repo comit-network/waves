@@ -7,7 +7,6 @@ use elements::{
 };
 use elements_harness::{elementd_rpc::ElementsRpc, Client};
 use std::sync::Arc;
-use structopt::StructOpt;
 use tokio::sync::Mutex;
 use warp::{Filter, Rejection, Reply};
 
@@ -15,11 +14,11 @@ use warp::{Filter, Rejection, Reply};
 async fn main() -> Result<()> {
     tracing_subscriber::fmt::init();
 
-    let StartCommand {
+    let Config {
         elementsd_url,
         api_port,
         usdt_asset_id,
-    } = StartCommand::from_args();
+    } = Config::parse()?;
 
     let elementsd = Client::new(elementsd_url.into())?;
     let btc_asset_id = elementsd.get_bitcoin_asset_id().await?;

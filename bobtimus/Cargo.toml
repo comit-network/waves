@@ -7,6 +7,7 @@ edition = "2018"
 [dependencies]
 anyhow = "1"
 async-trait = "0.1"
+directories = "3.0"
 elements = { version = "0.15", features = [ "serde-feature" ] }
 elements-harness = { path = "../elements-harness" }
 futures = { version = "0.3", default-features = false }
@@ -22,6 +23,7 @@ serde_json = "1"
 sha2 = "0.9"
 structopt = "0.3"
 swap = { path = "../swap" }
+tempfile = "3.2"
 tokio = { version = "1", features = [ "macros", "rt-multi-thread" ] }
 tokio-tungstenite = { version = "0.13", features = [ "tls" ] }
 tracing = "0.1"
