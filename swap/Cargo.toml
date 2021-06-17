@@ -6,7 +6,7 @@ edition = "2018"
 
 [dependencies]
 anyhow = "1.0"
-elements = "0.16"
+elements = "0.17"
 estimate_transaction_size = { path = "../estimate_transaction_size" }
 input = { path = "../input" }
 secp256k1 = { version = "0.20", features = [ "bitcoin_hashes", "rand" ] }

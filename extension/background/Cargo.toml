@@ -12,7 +12,7 @@ anyhow = "1.0"
 conquer-once = "0.3"
 console_error_panic_hook = "0.1.6"
 covenants = { path = "../../covenants" }
-elements = { version = "0.16", features = [ "serde-feature" ] }
+elements = { version = "0.17", features = [ "serde-feature" ] }
 futures = "0.3"
 js-sys = "0.3"
 log = "0.4"

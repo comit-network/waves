@@ -11,7 +11,7 @@ covenants = { path = "../covenants" }
 diesel = { version = "1.4", features = [ "sqlite" ] }
 diesel_migrations = "1.4"
 directories = "3.0"
-elements = { version = "0.16", features = [ "serde-feature" ] }
+elements = { version = "0.17", features = [ "serde-feature" ] }
 elements-harness = { path = "../elements-harness" }
 futures = { version = "0.3", default-features = false }
 hex = "0.4"

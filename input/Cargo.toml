@@ -7,5 +7,5 @@ edition = "2018"
 
 [dependencies]
 anyhow = "1"
-elements = { version = "0.16", features = [ "serde-feature" ] }
+elements = { version = "0.17", features = [ "serde-feature" ] }
 serde = { version = "1", features = [ "derive" ] }

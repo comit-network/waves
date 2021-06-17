@@ -601,8 +601,9 @@ checksum = "e78d4f1cc4ae33bbfc157ed5d5a5ef3bc29227303d595861deb238fcec4e9457"
 
 [[package]]
 name = "elements"
-version = "0.16.0"
-source = "git+https://github.com/luckysori/rust-elements?branch=waves-changes#2a4c881dbae262e355211d9991fa15dbd4abfe29"
+version = "0.17.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "52bc8e918eb82346053fc6dcac7281066778164bced4cfa40e4b2b2e4b219c8b"
 dependencies = [
  "bitcoin",
  "bitcoin_hashes 0.9.6",

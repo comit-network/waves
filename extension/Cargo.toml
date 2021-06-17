@@ -11,7 +11,7 @@ crate-type = [ "cdylib", "rlib" ]
 anyhow = "1.0"
 conquer-once = "0.3"
 console_error_panic_hook = { version = "0.1.6" }
-elements = { version = "0.16", features = [ "serde-feature" ] }
+elements = { version = "0.17", features = [ "serde-feature" ] }
 futures = "0.3"
 futures-timer = { version = "3", features = [ "wasm-bindgen" ] }
 js-sys = "0.3"
