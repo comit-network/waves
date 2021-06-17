@@ -1,7 +1,7 @@
 use anyhow::Result;
 use conquer_once::Lazy;
 use covenants::LoanRequest;
-use elements::{Address, Txid};
+use elements::{Address, Transaction, Txid};
 use futures::lock::Mutex;
 
 #[macro_use]
@@ -115,11 +115,23 @@ pub async fn make_sell_create_swap_payload(
 /// Constructs a new [`CreateSwapPayload`] with the given Bitcoin amount.
 ///
 /// This will select UTXOs from the wallet to cover the given amount.
+///
+/// Additionally, sets the state of the loan protocol so that we can
+/// continue after the lender sends back a response to our loan
+/// request.
 pub async fn make_loan_request(
     wallet_name: String,
     collateral: String,
 ) -> Result<LoanRequest, MakeLoanRequestError> {
     wallet::make_loan_request(wallet_name, &LOADED_WALLET, collateral).await
+}
+
+/// Sign a loan transaction in the wallet's state, if the state of the
+/// current loan protocol allows it.
+///
+/// Returns the signed transaction.
+pub async fn sign_loan(wallet_name: String) -> Result<Transaction, SignLoanError> {
+    wallet::sign_loan(wallet_name, &LOADED_WALLET).await
 }
 
 /// Sign the given swap transaction and broadcast it to the network.
@@ -142,6 +154,24 @@ pub async fn extract_trade(wallet_name: String, transaction: String) -> Result<T
     let trade = wallet::extract_trade(wallet_name, &LOADED_WALLET, transaction).await?;
 
     Ok(trade)
+}
+
+/// Decomposes a loan into:
+///
+/// - Collateral amount, collateral asset balance before and collateral asset balance after.
+/// - Principal amount, principal asset balance before and principal asset balance after.
+/// - Principal repayment amount.
+/// - Loan term.
+///
+/// To do so we unblind confidential `TxOut`s whenever necessary.
+///
+/// This also updates the state of the current loan protocol
+/// "handshake" so that we can later on sign the loan transaction and
+/// give it back to the lender.
+pub async fn extract_loan(wallet_name: String, loan_response: String) -> Result<LoanDetails> {
+    let details = wallet::extract_loan(wallet_name, &LOADED_WALLET, loan_response).await?;
+
+    Ok(details)
 }
 
 #[cfg(test)]

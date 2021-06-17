@@ -108,3 +108,12 @@ export async function makeLoanRequestPayload(collateral: string): Promise<LoanRe
     // @ts-ignore
     return await window.liquid.make_loan_request_payload(collateral);
 }
+
+export async function signLoan(loanResponse: any): Promise<any> {
+    // @ts-ignore
+    if (!window.liquid.sign_loan) {
+        return Promise.reject("sign_loan undefined");
+    }
+    // @ts-ignore
+    return await window.liquid.sign_loan(loanResponse);
+}

@@ -91,11 +91,11 @@ const initialState = {
         txId: "",
     },
     borrow: {
-      principalAmount: "33766.3",
-      loanTerm: 30,
+        principalAmount: "33766.3",
+        loanTerm: 30,
     },
-  wallet: {
-    balance: {
+    wallet: {
+        balance: {
             usdtBalance: 0,
             btcBalance: 0,
         },

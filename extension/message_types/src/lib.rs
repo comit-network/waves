@@ -6,7 +6,7 @@ use serde::{Deserialize, Serialize};
 pub mod ips_bs {
     use super::*;
     use covenants::LoanRequest;
-    use elements::{Address, Txid};
+    use elements::{Address, Transaction, Txid};
     use wallet::{CreateSwapPayload, WalletStatus};
 
     /// Requests sent from the in-page script to the background script.
@@ -18,6 +18,7 @@ pub mod ips_bs {
         SignRequest(String),
         NewAddress,
         LoanRequest(String),
+        SignLoan(String),
     }
 
     /// Responses sent from the background script to the in-page script.
@@ -29,6 +30,7 @@ pub mod ips_bs {
         SignResponse(Result<Txid, SignAndSendError>),
         NewAddressResponse(Result<Address, NewAddressError>),
         LoanRequestResponse(Box<Result<LoanRequest, MakePayloadError>>),
+        LoanTransaction(Result<Transaction, SignLoanError>),
     }
 
     #[derive(Debug, Deserialize, Serialize)]
@@ -80,13 +82,25 @@ pub mod ips_bs {
     }
 
     #[derive(Debug, Deserialize, Serialize)]
+    pub enum SignLoanError {
+        Rejected,
+        Internal(String),
+    }
+
+    impl From<wallet::SignLoanError> for SignLoanError {
+        fn from(e: wallet::SignLoanError) -> Self {
+            Self::Internal(format!("{:#}", e))
+        }
+    }
+
+    #[derive(Debug, Deserialize, Serialize)]
     pub struct NewAddressError(pub String);
 }
 
 /// Types used for communication between the background script and the pop-up script.
 pub mod bs_ps {
     use super::*;
-    use wallet::{BalanceEntry, Trade};
+    use wallet::{BalanceEntry, LoanDetails, Trade};
 
     #[derive(Debug, Deserialize, Serialize)]
     /// Requests sent from the pop-up script to the background script.
@@ -97,6 +111,8 @@ pub mod bs_ps {
         BalanceRequest,
         SignRequest { tx_hex: String, tab_id: u32 },
         Reject { tx_hex: String, tab_id: u32 },
+        SignLoan { details: LoanDetails, tab_id: u32 },
+        RejectLoan { details: LoanDetails, tab_id: u32 },
         WithdrawAll(String),
     }
 
@@ -110,12 +126,31 @@ pub mod bs_ps {
     #[derive(Clone, Debug, Serialize, Deserialize)]
     pub struct BackgroundStatus {
         pub wallet: WalletStatus,
-        pub sign_tx: Option<TransactionData>,
+        pub sign_state: SignState,
     }
 
     impl BackgroundStatus {
-        pub fn new(wallet: WalletStatus, sign_tx: Option<TransactionData>) -> Self {
-            Self { wallet, sign_tx }
+        pub fn new(wallet: WalletStatus, sign_state: SignState) -> Self {
+            Self { wallet, sign_state }
+        }
+    }
+
+    #[derive(Serialize, Deserialize, Clone, Debug)]
+    pub enum SignState {
+        None,
+        Trade(TransactionData),
+        Loan(LoanData),
+    }
+
+    impl SignState {
+        pub fn unset(&mut self) {
+            *self = Self::None
+        }
+    }
+
+    impl Default for SignState {
+        fn default() -> Self {
+            Self::None
         }
     }
 
@@ -129,10 +164,22 @@ pub mod bs_ps {
         Loaded { address: String },
     }
 
+    impl Default for WalletStatus {
+        fn default() -> Self {
+            Self::None
+        }
+    }
+
     #[derive(Clone, Debug, Serialize, Deserialize)]
     pub struct TransactionData {
         pub hex: String,
         pub decoded: Trade,
+        pub tab_id: u32,
+    }
+
+    #[derive(Clone, Debug, Serialize, Deserialize)]
+    pub struct LoanData {
+        pub details: LoanDetails,
         pub tab_id: u32,
     }
 }

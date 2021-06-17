@@ -1,13 +1,15 @@
 use crate::{
-    components::{CreateWallet, TradeInfo, UnlockWallet, WalletDetails},
+    components::{CreateWallet, LoanInfo, TradeInfo, UnlockWallet, WalletDetails},
     event_bus::{EventBus, Response},
     wallet_updater::WalletUpdater,
 };
 use elements::Txid;
 use js_sys::Promise;
-use message_types::bs_ps::{BackgroundStatus, ToBackground, TransactionData, WalletStatus};
+use message_types::bs_ps::{
+    BackgroundStatus, LoanData, SignState, ToBackground, TransactionData, WalletStatus,
+};
 use serde::{Deserialize, Serialize};
-use wallet::BalanceEntry;
+use wallet::{BalanceEntry, LoanDetails};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen_extension::browser;
 use wasm_bindgen_futures::{spawn_local, JsFuture};
@@ -30,6 +32,8 @@ pub enum Msg {
     BalanceUpdate(Vec<BalanceEntry>),
     SignAndSend { tx_hex: String, tab_id: u32 },
     Reject { tx_hex: String, tab_id: u32 },
+    SignLoan { details: LoanDetails, tab_id: u32 },
+    RejectLoan { details: LoanDetails, tab_id: u32 },
     WithdrawAll(String),
 }
 
@@ -39,7 +43,7 @@ pub struct State {
     wallet_password: String,
     wallet_status: WalletStatus,
     wallet_balances: Vec<BalanceEntry>,
-    sign_tx: Option<TransactionData>,
+    sign_state: SignState,
     is_withdrawing: bool,
 }
 
@@ -76,7 +80,7 @@ impl Component for App {
                 wallet_name: WALLET_NAME.to_string(),
                 wallet_password: "".to_string(),
                 wallet_status: WalletStatus::None,
-                sign_tx: None,
+                sign_state: SignState::None,
                 wallet_balances: vec![],
                 is_withdrawing: false,
             },
@@ -106,16 +110,20 @@ impl Component for App {
             }
             Msg::CreateWallet => {
                 let inner_link = self.link.clone();
+                let background_state =
+                    BackgroundStatus::new(WalletStatus::NotLoaded, self.state.sign_state.clone());
                 send_to_backend(
                     ToBackground::CreateWalletRequest(
                         self.state.wallet_name.clone(),
                         self.state.wallet_password.clone(),
                     ),
-                    Box::new(move |response| {
-                        if response.is_ok() {
-                            inner_link.send_message(Msg::BackgroundStatus(Box::new(
-                                BackgroundStatus::new(WalletStatus::NotLoaded, None),
-                            )));
+                    Box::new({
+                        move |response| {
+                            if response.is_ok() {
+                                inner_link.send_message(Msg::BackgroundStatus(Box::new(
+                                    background_state.clone(),
+                                )));
+                            }
                         }
                     }),
                 );
@@ -123,7 +131,7 @@ impl Component for App {
             }
             Msg::BackgroundStatus(status) => {
                 self.state.wallet_status = status.wallet;
-                self.state.sign_tx = status.sign_tx;
+                self.state.sign_state = status.sign_state;
 
                 true
             }
@@ -145,6 +153,34 @@ impl Component for App {
                 let inner_link = self.link.clone();
                 send_to_backend(
                     ToBackground::Reject { tx_hex, tab_id },
+                    Box::new(move |response| {
+                        if let Ok(response) = response {
+                            if let Ok(status) = response.into_serde() {
+                                inner_link.send_message(Msg::BackgroundStatus(status));
+                            }
+                        }
+                    }),
+                );
+                false
+            }
+            Msg::SignLoan { details, tab_id } => {
+                let inner_link = self.link.clone();
+                send_to_backend(
+                    ToBackground::SignLoan { details, tab_id },
+                    Box::new(move |response| {
+                        if let Ok(response) = response {
+                            if let Ok(status) = response.into_serde() {
+                                inner_link.send_message(Msg::BackgroundStatus(status));
+                            }
+                        }
+                    }),
+                );
+                false
+            }
+            Msg::RejectLoan { details, tab_id } => {
+                let inner_link = self.link.clone();
+                send_to_backend(
+                    ToBackground::RejectLoan { details, tab_id },
                     Box::new(move |response| {
                         if let Ok(response) = response {
                             if let Ok(status) = response.into_serde() {
@@ -200,7 +236,7 @@ impl Component for App {
             }
             State {
                 wallet_status: WalletStatus::Loaded { address },
-                sign_tx: None,
+                sign_state: SignState::None,
                 wallet_balances,
                 ..
             } => {
@@ -215,8 +251,8 @@ impl Component for App {
             }
             State {
                 wallet_status: WalletStatus::Loaded { .. },
-                sign_tx:
-                    Some(TransactionData {
+                sign_state:
+                    SignState::Trade(TransactionData {
                         hex,
                         decoded,
                         tab_id,
@@ -241,6 +277,37 @@ impl Component for App {
                             on_reject=self.link.callback(reject)
                         >
                         </TradeInfo>
+                    </>
+                }
+            }
+            State {
+                wallet_status: WalletStatus::Loaded { .. },
+                sign_state: SignState::Loan(LoanData { details, tab_id }),
+                ..
+            } => {
+                let sign_and_send = {
+                    let details = details.clone();
+                    move |_| Msg::SignLoan {
+                        details: details.clone(),
+                        tab_id,
+                    }
+                };
+
+                let reject = {
+                    let details = details.clone();
+                    move |_| Msg::RejectLoan {
+                        details: details.clone(),
+                        tab_id,
+                    }
+                };
+                html! {
+                    <>
+                        <LoanInfo
+                            loan=details
+                            on_confirm=self.link.callback(sign_and_send)
+                            on_reject=self.link.callback(reject)
+                        >
+                        </LoanInfo>
                     </>
                 }
             }

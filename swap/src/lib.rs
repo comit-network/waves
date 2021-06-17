@@ -124,8 +124,8 @@ where
         &outputs[..],
     )?;
 
-    let alice_inputs_iter = alice.inputs.iter().map(|input| input.txin.clone());
-    let bob_inputs_iter = bob.inputs.iter().map(|input| input.txin.clone());
+    let alice_inputs_iter = alice.inputs.iter().map(|input| input.txin);
+    let bob_inputs_iter = bob.inputs.iter().map(|input| input.txin);
     let inputs = alice_inputs_iter
         .chain(bob_inputs_iter)
         .map(|previous_output| TxIn {

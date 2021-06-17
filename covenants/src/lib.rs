@@ -43,7 +43,7 @@ pub struct LoanResponse {
     repayment_collateral_input: Input,
     repayment_collateral_abf: AssetBlindingFactor,
     repayment_collateral_vbf: ValueBlindingFactor,
-    timelock: u64,
+    pub timelock: u64,
     repayment_principal_output: TxOut,
 }
 
@@ -208,14 +208,18 @@ impl Borrower0 {
     }
 }
 
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct Borrower1 {
     keypair: (SecretKey, PublicKey),
     loan_transaction: Transaction,
-    collateral_amount: Amount,
+    #[serde(with = "::elements::bitcoin::util::amount::serde::as_sat")]
+    pub collateral_amount: Amount,
     collateral_script: Script,
-    principal_tx_out_amount: Amount,
+    #[serde(with = "::elements::bitcoin::util::amount::serde::as_sat")]
+    pub principal_tx_out_amount: Amount,
     address: Address,
-    // TODO: This name sucks. Thanks, Lucas.
+    /// Loan collateral expressed as an input for constructing the
+    /// loan repayment transaction.
     repayment_collateral_input: Input,
     repayment_collateral_abf: AssetBlindingFactor,
     repayment_collateral_vbf: ValueBlindingFactor,
@@ -413,7 +417,7 @@ impl Borrower1 {
                 self.collateral_script.clone(),
             )
             .unwrap()
-            .serialise()
+            .serialize()
             .unwrap();
 
             simulate(self.collateral_script.clone(), script_witness.clone()).unwrap();
@@ -965,7 +969,7 @@ impl RepaymentWitnessStack {
     // Items on the witness stack are limited to 80 bytes, so we have
     // to split things all around the place e.g. the script in the
     // input that we sign and the "other" outputs
-    fn serialise(&self) -> anyhow::Result<Vec<Vec<u8>>> {
+    fn serialize(&self) -> anyhow::Result<Vec<Vec<u8>>> {
         let if_flag = vec![0x01];
 
         let sig = self.sig.serialize_der().to_vec();

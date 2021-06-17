@@ -9,8 +9,7 @@ mod tests {
         script::Builder,
         secp256k1_zkp::{rand::thread_rng, SecretKey, SECP256K1},
         sighash::SigHashCache,
-        Address, AddressParams, AssetId, OutPoint, Script, SigHashType, Transaction, TxIn, TxOut,
-        Txid,
+        Address, AddressParams, AssetId, OutPoint, Script, SigHashType, Transaction, TxOut, Txid,
     };
     use elements_harness::{elementd_rpc::ElementsRpc, Elementsd};
     use testcontainers::clients::Cli;
@@ -318,20 +317,12 @@ mod tests {
 
         let inputs = inputs
             .into_iter()
-            .map(|(outpoint, tx_out)| {
+            .map(|(txin, tx_out)| {
                 let input_blinding_sk =
                     derive_blinding_key(master_blinding_key.clone(), tx_out.script_pubkey.clone())?;
 
                 Result::<_, anyhow::Error>::Ok(crate::Input {
-                    txin: TxIn {
-                        previous_output: outpoint,
-                        is_pegin: false,
-                        has_issuance: false,
-                        script_sig: Default::default(),
-                        sequence: 0,
-                        asset_issuance: Default::default(),
-                        witness: Default::default(),
-                    },
+                    txin,
                     original_txout: tx_out,
                     blinding_key: input_blinding_sk,
                 })
@@ -453,15 +444,7 @@ mod tests {
                         .expect("coin came from utxos");
 
                     crate::Input {
-                        txin: TxIn {
-                            previous_output: coin.outpoint,
-                            is_pegin: false,
-                            has_issuance: false,
-                            script_sig: Default::default(),
-                            sequence: 0,
-                            asset_issuance: Default::default(),
-                            witness: Default::default(),
-                        },
+                        txin: coin.outpoint,
                         original_txout: original_tx_out.clone(),
                         blinding_key: self.blinder_keypair.0,
                     }

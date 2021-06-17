@@ -7,7 +7,7 @@ import { postLoanRequest } from "./Bobtimus";
 import calculateBetaAmount from "./calculateBetaAmount";
 import NumberInput from "./components/NumberInput";
 import RateInfo from "./components/RateInfo";
-import { makeLoanRequestPayload } from "./wasmProxy";
+import { makeLoanRequestPayload, signLoan } from "./wasmProxy";
 
 const debug = Debug("Borrow");
 const error = Debug("Borrow:error");
@@ -21,17 +21,17 @@ interface BorrowProps {
 function Borrow({ dispatch, state, rate }: BorrowProps) {
     const toast = useToast();
 
-    // TODO: we should get interest rate from bobtimus
+    // TODO: We should get an up-to-date interest rate from Bobtimus
     let interestRate = 0.10;
 
-    const amount = Number.parseFloat(state.principalAmount);
+    const principalAmount = Number.parseFloat(state.principalAmount);
     let collateralAmount = calculateBetaAmount(
         Asset.USDT,
-        amount,
+        principalAmount,
         rate,
     );
 
-    let interestAmount = collateralAmount * interestRate;
+    let interestAmount = principalAmount * interestRate;
 
     function onPrincipalAmountChange(newAmount: string) {
         dispatch({
@@ -43,15 +43,17 @@ function Borrow({ dispatch, state, rate }: BorrowProps) {
     let { run: requestNewLoan, isLoading: isRequestingNewLoan } = useAsync({
         deferFn: async () => {
             try {
-              /* FIXME: There seems to be a bug which causes this
+                /* FIXME: There seems to be a bug which causes this
               payload not to be returned until we refresh the website
               a couple of times. I have no idea why it's happening */
-                let payload = await makeLoanRequestPayload((collateralAmount + interestAmount).toString());
-                let loanResponse = await postLoanRequest(payload);
-                // TODO: forward response to wallet to sign and publish transaction
-                // TODO: redirect to /trade/swapped/${txid}`
+                let loanRequest = await makeLoanRequestPayload(collateralAmount.toString());
+                let loanResponse = await postLoanRequest(loanRequest);
 
-                debug(loanResponse);
+                let loanTransaction = await signLoan(loanResponse);
+                debug(loanTransaction);
+                /* let txid = await postLoan(loanTransaction);
+
+               * history.push(`/trade/swapped/${txid}`); */
             } catch (e) {
                 let description = JSON.stringify(e);
                 error(e);

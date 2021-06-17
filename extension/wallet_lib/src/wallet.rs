@@ -1,5 +1,5 @@
 use crate::{
-    assets::lookup,
+    assets::{self, lookup},
     constants::{ADDRESS_PARAMS, DEFAULT_SAT_PER_VBYTE, NATIVE_ASSET_ID, NATIVE_ASSET_TICKER},
     esplora,
     esplora::Utxo,
@@ -25,11 +25,18 @@ use hkdf::Hkdf;
 use itertools::Itertools;
 use rand::{thread_rng, Rng};
 use rust_decimal::Decimal;
+use serde::{Deserialize, Serialize};
 use sha2::{digest::generic_array::GenericArray, Sha256};
-use std::{fmt, str};
+use std::{
+    convert::Infallible,
+    fmt,
+    ops::{Add, Sub},
+    str,
+};
 
 pub use create_new::create_new;
-pub use extract_trade::{extract_trade, Trade, TradeSide};
+pub use extract_loan::{extract_loan, Error as ExtractLoanError, LoanDetails};
+pub use extract_trade::{extract_trade, Trade};
 pub use get_address::get_address;
 pub use get_balances::get_balances;
 pub use get_status::{get_status, WalletStatus};
@@ -41,11 +48,12 @@ pub use make_loan_request::{make_loan_request, Error as MakeLoanRequestError};
 pub use sign_and_send_swap_transaction::{
     sign_and_send_swap_transaction, Error as SignAndSendError,
 };
-use std::convert::Infallible;
+pub use sign_loan::{sign_loan, Error as SignLoanError};
 pub use unload_current::unload_current;
 pub use withdraw_everything_to::withdraw_everything_to;
 
 mod create_new;
+mod extract_loan;
 mod extract_trade;
 mod get_address;
 mod get_balances;
@@ -54,6 +62,7 @@ mod load_existing;
 mod make_create_swap_payload;
 mod make_loan_request;
 mod sign_and_send_swap_transaction;
+mod sign_loan;
 mod unload_current;
 mod withdraw_everything_to;
 
@@ -339,6 +348,46 @@ fn compute_balances(wallet: &Wallet, txouts: &[TxOut]) -> Vec<BalanceEntry> {
             ))
         })
         .collect()
+}
+
+#[derive(Clone, Deserialize, Serialize, Debug, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct TradeSide {
+    pub ticker: String,
+    pub amount: Decimal,
+    pub balance_before: Decimal,
+    pub balance_after: Decimal,
+}
+
+impl TradeSide {
+    fn new_sell(asset: AssetId, amount: u64, current_balance: Decimal) -> Result<Self> {
+        Self::new(asset, amount, current_balance, Decimal::sub)
+    }
+
+    fn new_buy(asset: AssetId, amount: u64, current_balance: Decimal) -> Result<Self> {
+        Self::new(asset, amount, current_balance, Decimal::add)
+    }
+
+    fn new(
+        asset: AssetId,
+        amount: u64,
+        current_balance: Decimal,
+        balance_after: impl Fn(Decimal, Decimal) -> Decimal,
+    ) -> Result<Self> {
+        let (ticker, precision) = assets::lookup(asset).context("asset not found")?;
+
+        let mut amount = Decimal::from(amount);
+        amount
+            .set_scale(precision as u32)
+            .expect("precision must be < 28");
+
+        Ok(Self {
+            ticker: ticker.to_owned(),
+            amount,
+            balance_before: current_balance,
+            balance_after: balance_after(current_balance, amount),
+        })
+    }
 }
 
 #[cfg(all(test, target_arch = "wasm32"))]

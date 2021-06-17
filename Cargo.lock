@@ -2918,6 +2918,7 @@ dependencies = [
  "message_types",
  "qrcode",
  "reqwest",
+ "rust_decimal",
  "serde 1.0.126",
  "url",
  "wallet",

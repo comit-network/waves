@@ -53,6 +53,12 @@ impl Liquid {
         let msg = JsValue::from_serde(&ToBackground::LoanRequest(collateral)).unwrap();
         send_to_cs!(msg, ToPage::LoanRequestResponse)
     }
+
+    #[wasm_bindgen]
+    pub fn sign_loan(&self, loan_response: String) -> Promise {
+        let msg = JsValue::from_serde(&ToBackground::SignLoan(loan_response)).unwrap();
+        send_to_cs!(msg, ToPage::LoanTransaction)
+    }
 }
 
 #[wasm_bindgen(start)]

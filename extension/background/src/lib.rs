@@ -3,8 +3,8 @@ use conquer_once::Lazy;
 use futures::lock::Mutex;
 use js_sys::Promise;
 use message_types::{
-    bs_ps::{self, BackgroundStatus, TransactionData, WalletStatus},
-    ips_bs::{self, SignAndSendError},
+    bs_ps::{self, BackgroundStatus, LoanData, SignState, TransactionData, WalletStatus},
+    ips_bs::{self, SignAndSendError, SignLoanError},
 };
 use serde::Deserialize;
 use wasm_bindgen::{prelude::*, JsCast};
@@ -13,7 +13,7 @@ use wasm_bindgen_futures::{future_to_promise, spawn_local};
 
 pub const WALLET_NAME: &str = "demo-wallet";
 
-static SIGN_TX: Lazy<Mutex<Option<TransactionData>>> = Lazy::new(Mutex::default);
+static SIGN_STATE: Lazy<Mutex<SignState>> = Lazy::new(Mutex::default);
 static BADGE_COUNTER: Lazy<Mutex<Option<u32>>> = Lazy::new(|| Mutex::new(Some(0)));
 
 #[wasm_bindgen(start)]
@@ -57,9 +57,9 @@ fn handle_msg_from_ps(msg: bs_ps::ToBackground) -> Promise {
 
     match msg {
         bs_ps::ToBackground::BackgroundStatusRequest => future_to_promise(async {
-            let sign_tx = SIGN_TX.lock().await.clone();
+            let sign_state = SIGN_STATE.lock().await.clone();
             let status =
-                map_err_from_anyhow!(background_status(WALLET_NAME.to_string(), sign_tx).await)?;
+                map_err_from_anyhow!(background_status(WALLET_NAME.to_string(), sign_state).await)?;
             let msg = JsValue::from_serde(&status).unwrap();
 
             Ok(msg)
@@ -67,9 +67,9 @@ fn handle_msg_from_ps(msg: bs_ps::ToBackground) -> Promise {
         bs_ps::ToBackground::CreateWalletRequest(name, password) => future_to_promise(async move {
             map_err_from_anyhow!(wallet::create_new_wallet(name.clone(), password).await)?;
 
-            let sign_tx = SIGN_TX.lock().await.clone();
+            let sign_state = SIGN_STATE.lock().await.clone();
             let status =
-                map_err_from_anyhow!(background_status(WALLET_NAME.to_string(), sign_tx).await)?;
+                map_err_from_anyhow!(background_status(WALLET_NAME.to_string(), sign_state).await)?;
             let msg = JsValue::from_serde(&status).unwrap();
 
             Ok(msg)
@@ -79,9 +79,9 @@ fn handle_msg_from_ps(msg: bs_ps::ToBackground) -> Promise {
                 wallet::load_existing_wallet(name.clone(), password.clone()).await
             )?;
 
-            let sign_tx = SIGN_TX.lock().await.clone();
+            let sign_state = SIGN_STATE.lock().await.clone();
             let status =
-                map_err_from_anyhow!(background_status(WALLET_NAME.to_string(), sign_tx).await)?;
+                map_err_from_anyhow!(background_status(WALLET_NAME.to_string(), sign_state).await)?;
             let msg = JsValue::from_serde(&status).unwrap();
 
             Ok(msg)
@@ -108,10 +108,10 @@ fn handle_msg_from_ps(msg: bs_ps::ToBackground) -> Promise {
                 );
 
                 // remove TX from the guard after signing
-                let mut guard = SIGN_TX.lock().await;
-                if let Some(TransactionData { hex, .. }) = &*guard {
+                let mut guard = SIGN_STATE.lock().await;
+                if let SignState::Trade(TransactionData { hex, .. }) = &*guard {
                     if hex == &tx_hex {
-                        let _ = guard.take();
+                        guard.unset();
                     }
                 }
 
@@ -120,9 +120,9 @@ fn handle_msg_from_ps(msg: bs_ps::ToBackground) -> Promise {
                 // TODO: We should send back a specific message to the
                 // pop-up after attempting to sign and send the
                 // transaction
-                let sign_tx = guard.clone();
+                let sign_state = guard.clone();
                 let status = map_err_from_anyhow!(
-                    background_status(WALLET_NAME.to_string(), sign_tx).await
+                    background_status(WALLET_NAME.to_string(), sign_state).await
                 )?;
                 let msg = JsValue::from_serde(&status).unwrap();
 
@@ -133,10 +133,10 @@ fn handle_msg_from_ps(msg: bs_ps::ToBackground) -> Promise {
             future_to_promise(async move {
                 // TODO: Extract into helper function
                 // remove TX from the guard
-                let mut guard = SIGN_TX.lock().await;
-                if let Some(TransactionData { hex, .. }) = &*guard {
+                let mut guard = SIGN_STATE.lock().await;
+                if let SignState::Trade(TransactionData { hex, .. }) = &*guard {
                     if hex == &tx_hex {
-                        let _ = guard.take();
+                        guard.unset();
                     }
                 }
 
@@ -152,16 +152,80 @@ fn handle_msg_from_ps(msg: bs_ps::ToBackground) -> Promise {
                     JsValue::null(),
                 );
 
-                let sign_tx = guard.clone();
+                let sign_state = guard.clone();
                 let status = map_err_from_anyhow!(
-                    background_status(WALLET_NAME.to_string(), sign_tx).await
+                    background_status(WALLET_NAME.to_string(), sign_state).await
                 )?;
                 let msg = JsValue::from_serde(&status).unwrap();
 
                 Ok(msg)
             })
         }
+        bs_ps::ToBackground::SignLoan { details, tab_id } => {
+            future_to_promise(async move {
+                let res = wallet::sign_loan(WALLET_NAME.to_string())
+                    .await
+                    .map_err(ips_bs::SignLoanError::from);
 
+                let _resp = browser.tabs().send_message(
+                    tab_id,
+                    JsValue::from_serde(&ips_bs::ToPage::LoanTransaction(res)).unwrap(),
+                    JsValue::null(),
+                );
+
+                // remove TX from the guard after signing
+                let mut guard = SIGN_STATE.lock().await;
+                if let SignState::Loan(LoanData {
+                    details: state_details,
+                    ..
+                }) = &*guard
+                {
+                    if details == *state_details {
+                        guard.unset();
+                    }
+                }
+
+                decrement_badge_counter().await;
+                let sign_state = guard.clone();
+                let status = map_err_from_anyhow!(
+                    background_status(WALLET_NAME.to_string(), sign_state).await
+                )?;
+                let msg = JsValue::from_serde(&status).unwrap();
+
+                Ok(msg)
+            })
+        }
+        bs_ps::ToBackground::RejectLoan { details, tab_id } => future_to_promise(async move {
+            let mut guard = SIGN_STATE.lock().await;
+            if let SignState::Loan(LoanData {
+                details: state_details,
+                ..
+            }) = &*guard
+            {
+                if details == *state_details {
+                    guard.unset();
+                }
+            }
+
+            decrement_badge_counter().await;
+
+            log::debug!("Rejected signing loan {:?}", details);
+            let _resp = browser.tabs().send_message(
+                tab_id,
+                JsValue::from_serde(&ips_bs::ToPage::LoanTransaction(Err(
+                    SignLoanError::Rejected,
+                )))
+                .unwrap(),
+                JsValue::null(),
+            );
+
+            let sign_state = guard.clone();
+            let status =
+                map_err_from_anyhow!(background_status(WALLET_NAME.to_string(), sign_state).await)?;
+            let msg = JsValue::from_serde(&status).unwrap();
+
+            Ok(msg)
+        }),
         bs_ps::ToBackground::WithdrawAll(address) => future_to_promise(async move {
             let txid = map_err_from_anyhow!(
                 wallet::withdraw_everything_to(WALLET_NAME.to_string(), address).await
@@ -235,8 +299,8 @@ fn handle_msg_from_cs(msg: ips_bs::ToBackground, message_sender: MessageSender) 
                         tab_id,
                     };
 
-                    let mut guard = SIGN_TX.lock().await;
-                    guard.replace(tx_data);
+                    let mut guard = SIGN_STATE.lock().await;
+                    *guard = SignState::Trade(tx_data);
 
                     increment_badge_counter().await;
                 }
@@ -282,6 +346,38 @@ fn handle_msg_from_cs(msg: ips_bs::ToBackground, message_sender: MessageSender) 
                 );
             });
         }
+        ips_bs::ToBackground::SignLoan(loan_response) => spawn_local(async move {
+            let tab_id = message_sender.tab.expect("tab id to exist").id;
+
+            let res = wallet::extract_loan(WALLET_NAME.to_string(), loan_response).await;
+
+            match res {
+                Ok(loan_details) => {
+                    log::debug!("Extracted loan details: {:?}", loan_details);
+
+                    let loan_data = LoanData {
+                        details: loan_details,
+                        tab_id,
+                    };
+
+                    let mut guard = SIGN_STATE.lock().await;
+                    *guard = SignState::Loan(loan_data);
+
+                    increment_badge_counter().await;
+                }
+                Err(e) => {
+                    let _resp = browser.tabs().send_message(
+                        tab_id,
+                        JsValue::from_serde(&ips_bs::SignAndSendError::ExtractTrade(format!(
+                            "{:#}",
+                            e
+                        )))
+                        .unwrap(),
+                        JsValue::null(),
+                    );
+                }
+            }
+        }),
     }
 
     Promise::resolve(&JsValue::from("OK"))
@@ -320,10 +416,7 @@ fn set_badge(counter: u32) {
         });
 }
 
-async fn background_status(
-    name: String,
-    sign_tx: Option<TransactionData>,
-) -> Result<BackgroundStatus> {
+async fn background_status(name: String, sign_state: SignState) -> Result<BackgroundStatus> {
     let status = wallet::wallet_status(name).await?;
     if let wallet::WalletStatus {
         exists: false,
@@ -331,7 +424,7 @@ async fn background_status(
     } = status
     {
         log::debug!("Wallet does not exist");
-        return Ok(BackgroundStatus::new(WalletStatus::None, sign_tx));
+        return Ok(BackgroundStatus::new(WalletStatus::default(), sign_state));
     }
 
     if let wallet::WalletStatus {
@@ -340,7 +433,7 @@ async fn background_status(
     } = status
     {
         log::debug!("Wallet exists but not loaded");
-        return Ok(BackgroundStatus::new(WalletStatus::NotLoaded, sign_tx));
+        return Ok(BackgroundStatus::new(WalletStatus::NotLoaded, sign_state));
     }
 
     if let wallet::WalletStatus {
@@ -359,7 +452,7 @@ async fn background_status(
         WalletStatus::Loaded {
             address: address.to_string(),
         },
-        sign_tx,
+        sign_state,
     ))
 }
 

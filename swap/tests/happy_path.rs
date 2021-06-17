@@ -89,15 +89,7 @@ async fn collaborative_create_and_sign() {
     let alice = Actor::new(
         &SECP256K1,
         vec![Input {
-            txin: TxIn {
-                previous_output: input_alice.0,
-                is_pegin: false,
-                has_issuance: false,
-                script_sig: Default::default(),
-                sequence: 0,
-                asset_issuance: Default::default(),
-                witness: Default::default(),
-            },
+            txin: input_alice.0,
             original_txout: input_alice.1.clone(),
             blinding_key: fund_blinding_sk_alice,
         }],
@@ -110,15 +102,7 @@ async fn collaborative_create_and_sign() {
     let bob = Actor::new(
         &SECP256K1,
         vec![Input {
-            txin: TxIn {
-                previous_output: input_bob.0,
-                is_pegin: false,
-                has_issuance: false,
-                script_sig: Default::default(),
-                sequence: 0,
-                asset_issuance: Default::default(),
-                witness: Default::default(),
-            },
+            txin: input_bob.0,
             original_txout: input_bob.1.clone(),
             blinding_key: fund_blinding_sk_bob,
         }],
