@@ -84,7 +84,11 @@ where
             let bobtimus = bobtimus.clone();
             async move {
                 let mut bobtimus = bobtimus.lock().await;
-                finalize_loan(&mut bobtimus, payload).await
+                finalize_loan(&mut bobtimus, payload)
+                    .await
+                    .map_err(anyhow::Error::from)
+                    .map_err(problem::from_anyhow)
+                    .map_err(warp::reject::custom)
             }
         });
 
@@ -176,31 +180,19 @@ struct FinalizeLoanPayload {
 async fn finalize_loan<R, RS>(
     bobtimus: &mut Bobtimus<R, RS>,
     payload: serde_json::Value,
-) -> Result<impl Reply, Rejection>
+) -> anyhow::Result<impl Reply>
 where
     R: RngCore + CryptoRng,
     RS: LatestRate,
 {
-    // TODO: sending as json serialized transaction is ugly, we should serialize to bytes instead.
-    let payload: FinalizeLoanPayload = serde_json::from_value(payload)
-        .map_err(anyhow::Error::from)
-        .map_err(problem::from_anyhow)
-        .map_err(warp::reject::custom)?;
+    let payload: FinalizeLoanPayload = serde_json::from_value(payload)?;
 
-    // TODO: proper error handling
-    let payload =
-        deserialize(&hex::decode(&payload.tx_hex).expect("failed to decode string as hex"))
-            .map_err(anyhow::Error::from)
-            .map_err(problem::from_anyhow)
-            .map_err(warp::reject::custom)?;
+    let payload = deserialize(&hex::decode(&payload.tx_hex)?)?;
 
     bobtimus
         .finalize_loan(payload)
         .await
         .map(|loan_response| warp::reply::json(&loan_response))
-        .map_err(anyhow::Error::from)
-        .map_err(problem::from_anyhow)
-        .map_err(warp::reject::custom)
 }
 
 fn latest_rate(subscription: RateSubscription) -> impl Reply {
