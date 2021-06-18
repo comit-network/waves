@@ -115,7 +115,7 @@ where
         Ok(transaction)
     }
 
-    async fn find_bob_inputs(
+    async fn find_inputs(
         elements_client: &ElementsdClient,
         asset_id: AssetId,
         input_amount: Amount,
@@ -164,10 +164,9 @@ where
         alice_address: Address,
         btc_asset_id: AssetId,
     ) -> Result<Transaction> {
-        let bob_inputs =
-            Self::find_bob_inputs(&self.elementsd, bob_input_asset_id, bob_input_amount)
-                .await
-                .context("problem with bob and his assets")?;
+        let bob_inputs = Self::find_inputs(&self.elementsd, bob_input_asset_id, bob_input_amount)
+            .await
+            .context("could not find transaction inputs for Bob")?;
 
         let bob_address = self
             .elementsd
@@ -279,7 +278,7 @@ where
                 &SECP256K1,
                 {
                     |amount, asset| async move {
-                        Self::find_bob_inputs(&elementsd_client, asset, amount).await
+                        Self::find_inputs(&elementsd_client, asset, amount).await
                     }
                 },
                 payload,
