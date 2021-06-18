@@ -55,6 +55,7 @@ function Borrow({ dispatch, state, rate }: BorrowProps) {
 
                 let txid = await postLoanFinalization(loanTransaction);
 
+              // TODO: Add different page for loaned?
                 history.push(`/trade/swapped/${txid}`);
             } catch (e) {
                 let description = JSON.stringify(e);

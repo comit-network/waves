@@ -292,6 +292,10 @@ where
         Ok(lender1.loan_response())
     }
 
+    // TODO: We should only take into account loan transactions which
+    // are relatively recent e.g. within 1 minute. We expect the
+    // borrower to quickly perform the protocol and let us broadcast
+    // the loan transaction
     pub async fn finalize_loan(&mut self, transaction: Transaction) -> Result<Txid> {
         // TODO: verify that this is the correct transaction.
         // For that we need lender1 which is not available. This can be done once we have a db.
