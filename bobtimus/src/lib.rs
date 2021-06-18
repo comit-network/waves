@@ -1,3 +1,10 @@
+// TODO: remove this allow once we have tables
+#[allow(unused_imports)]
+#[macro_use]
+extern crate diesel;
+#[macro_use]
+extern crate diesel_migrations;
+use crate::database::Sqlite;
 use anyhow::{Context, Result};
 use elements::{
     bitcoin::{
@@ -18,10 +25,13 @@ use tokio::sync::watch::Receiver;
 mod amounts;
 
 pub mod cli;
+pub mod database;
 pub mod fixed_rate;
 pub mod http;
 pub mod kraken;
+pub mod models;
 pub mod problem;
+pub mod schema;
 
 pub use amounts::*;
 
@@ -34,6 +44,7 @@ pub struct Bobtimus<R, RS> {
     pub elementsd: ElementsdClient,
     pub btc_asset_id: AssetId,
     pub usdt_asset_id: AssetId,
+    pub db: Sqlite,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -292,6 +303,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_handle_btc_sell_swap_request() {
+        let db = Sqlite::new_ephemeral_db().expect("A ephemeral db");
+
         let tc_client = Cli::default();
         let (client, _container) = {
             let blockchain = Elementsd::new(&tc_client, "0.18.1.9").unwrap();
@@ -360,6 +373,7 @@ mod tests {
             elementsd: client.clone(),
             btc_asset_id: have_asset_id_alice,
             usdt_asset_id: have_asset_id_bob,
+            db,
         };
 
         let transaction = bob
@@ -425,6 +439,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_handle_btc_buy_swap_request() {
+        let db = Sqlite::new_ephemeral_db().expect("A ephemeral db");
+
         let tc_client = Cli::default();
         let (client, _container) = {
             let blockchain = Elementsd::new(&tc_client, "0.18.1.9").unwrap();
@@ -481,6 +497,7 @@ mod tests {
             elementsd: client.clone(),
             btc_asset_id: have_asset_id_bob,
             usdt_asset_id: have_asset_id_alice,
+            db,
         };
 
         let transaction = bob

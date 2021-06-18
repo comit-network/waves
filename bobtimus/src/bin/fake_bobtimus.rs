@@ -1,5 +1,5 @@
 use anyhow::Result;
-use bobtimus::{cli::StartCommand, fixed_rate, http, Bobtimus, LiquidUsdt};
+use bobtimus::{cli::Config, database::Sqlite, fixed_rate, http, Bobtimus, LiquidUsdt};
 use elements::{
     bitcoin::{secp256k1::Secp256k1, Amount},
     secp256k1::rand::{rngs::StdRng, thread_rng, SeedableRng},
@@ -7,19 +7,21 @@ use elements::{
 };
 use elements_harness::{elementd_rpc::ElementsRpc, Client};
 use std::sync::Arc;
-use structopt::StructOpt;
 use tokio::sync::Mutex;
 use warp::{Filter, Rejection, Reply};
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    env_logger::init();
+    tracing_subscriber::fmt::init();
 
-    let StartCommand {
+    let Config {
         elementsd_url,
         api_port,
         usdt_asset_id,
-    } = StartCommand::from_args();
+        db_file,
+    } = Config::parse()?;
+
+    let db = Sqlite::new(db_file.as_path())?;
 
     let elementsd = Client::new(elementsd_url.into())?;
     let btc_asset_id = elementsd.get_bitcoin_asset_id().await?;
@@ -34,6 +36,7 @@ async fn main() -> Result<()> {
         elementsd,
         btc_asset_id,
         usdt_asset_id,
+        db,
     };
     let bobtimus = Arc::new(Mutex::new(bobtimus));
 
@@ -77,7 +80,7 @@ async fn faucet<R, RS>(
             .send_asset_to_address(&address, *amount, Some(*asset_id))
             .await
             .map_err(|e| {
-                log::error!(
+                tracing::error!(
                     "could not fund address {} with asset {}: {}",
                     address,
                     asset_id,
@@ -94,7 +97,7 @@ async fn faucet<R, RS>(
         .reissueasset(bobtimus.usdt_asset_id, 200000.0)
         .await
         .map_err(|e| {
-            log::error!("could not reissue asset: {}", e);
+            tracing::error!("could not reissue asset: {}", e);
             warp::reject::reject()
         })?;
 
@@ -103,7 +106,7 @@ async fn faucet<R, RS>(
         .get_new_address(None)
         .await
         .map_err(|e| {
-            log::error!("could not get new address: {}", e);
+            tracing::error!("could not get new address: {}", e);
             warp::reject::reject()
         })?;
     bobtimus
@@ -111,7 +114,7 @@ async fn faucet<R, RS>(
         .generatetoaddress(1, &address)
         .await
         .map_err(|e| {
-            log::error!("could not generate block: {}", e);
+            tracing::error!("could not generate block: {}", e);
             warp::reject::reject()
         })?;
 
