@@ -270,6 +270,9 @@ where
 
         let _lender_loan_principal = payload.collateral_amount;
         let elementsd_client = self.elementsd.clone();
+
+        let latest_rate = self.rate_service.latest_rate().ask;
+
         let lender1 = lender0
             .interpret(
                 &mut self.rng,
@@ -280,6 +283,7 @@ where
                     }
                 },
                 payload,
+                latest_rate.as_satodollar(),
             )
             .await
             .unwrap();

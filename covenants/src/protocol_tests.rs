@@ -115,6 +115,7 @@ mod tests {
                     |amount, asset| async move { find_inputs(&client, asset, amount).await }
                 },
                 loan_request,
+                38_000, // value of 1 BTC as of 18.06.2021
             )
             .await
             .unwrap();
@@ -269,6 +270,7 @@ mod tests {
                     |amount, asset| async move { find_inputs(&client, asset, amount).await }
                 },
                 loan_request,
+                38_000, // value of 1 BTC as of 18.06.2021
             )
             .await
             .unwrap();

@@ -464,12 +464,16 @@ impl Lender0 {
         })
     }
 
+    /// Interpret a loan request and performs lender logic.
+    ///
+    /// rate is expressed in usdt sats per btc, i.e. rate = 1 BTC / USDT
     pub async fn interpret<R, C, CS, CF>(
         self,
         rng: &mut R,
         secp: &Secp256k1<C>,
         coin_selector: CS,
         loan_request: LoanRequest,
+        rate: u64,
     ) -> Result<Lender1>
     where
         R: RngCore + CryptoRng,
@@ -477,7 +481,7 @@ impl Lender0 {
         CS: FnOnce(Amount, AssetId) -> CF,
         CF: Future<Output = Result<Vec<Input>>>,
     {
-        let principal_amount = Lender0::calc_principal_amount(&loan_request);
+        let principal_amount = Lender0::calc_principal_amount(&loan_request, rate);
         let collateral_inputs = loan_request
             .collateral_inputs
             .into_iter()
@@ -694,9 +698,8 @@ impl Lender0 {
         })
     }
 
-    // TODO: add some better logic here, or at least make it possible
-    fn calc_principal_amount(loan_request: &LoanRequest) -> Amount {
-        Amount::from_sat(loan_request.collateral_amount.as_sat() / 2)
+    fn calc_principal_amount(loan_request: &LoanRequest, rate: u64) -> Amount {
+        Amount::from_sat(loan_request.collateral_amount.as_sat() / rate)
     }
 }
 
