@@ -23,7 +23,6 @@ use elements_harness::{elementd_rpc::ElementsRpc, Client as ElementsdClient};
 use futures::{stream, stream::FuturesUnordered, Stream, TryStreamExt};
 use input::Input;
 use serde::{Deserialize, Serialize};
-use std::ops::Add;
 use tokio::sync::watch::Receiver;
 
 mod amounts;
