@@ -1,4 +1,5 @@
 import Debug from "debug";
+import { helloWorld } from "../wasmProxy";
 
 Debug.enable("*");
 const debug = Debug("background");
@@ -10,3 +11,5 @@ export function messageInBackground() {
     debug("I can run your javascript like any other code in your project");
     debug("just do not forget, I cannot render anything !");
 }
+
+helloWorld();

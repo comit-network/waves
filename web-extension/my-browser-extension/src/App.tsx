@@ -18,7 +18,7 @@ const App = () => (
                         target="_blank"
                         rel="noopener noreferrer"
                     >
-                        COMIT Waves
+                        COMIT Waves 2.0
                     </Link>
                 </VStack>
             </Grid>
