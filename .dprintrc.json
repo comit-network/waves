@@ -14,7 +14,8 @@
     "waves/build",
     "waves/dist",
     "**/node_modules",
-    "extension/dist"
+    "extension/dist",
+    "web-extension/my-browser-extension/dev"
   ],
   "plugins": [
     "https://plugins.dprint.dev/markdown-0.4.1.wasm",
