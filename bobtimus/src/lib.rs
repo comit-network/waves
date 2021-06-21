@@ -271,7 +271,7 @@ where
         let _lender_loan_principal = payload.collateral_amount;
         let elementsd_client = self.elementsd.clone();
 
-        let latest_rate = self.rate_service.latest_rate().ask;
+        let latest_rate = self.rate_service.latest_rate().bid;
 
         let lender1 = lender0
             .interpret(

@@ -481,7 +481,7 @@ impl Lender0 {
         CS: FnOnce(Amount, AssetId) -> CF,
         CF: Future<Output = Result<Vec<Input>>>,
     {
-        let principal_amount = Lender0::calc_principal_amount(&loan_request, rate);
+        let principal_amount = Lender0::calc_principal_amount(&loan_request, rate)?;
         let collateral_inputs = loan_request
             .collateral_inputs
             .into_iter()
@@ -698,8 +698,21 @@ impl Lender0 {
         })
     }
 
-    fn calc_principal_amount(loan_request: &LoanRequest, rate: u64) -> Amount {
-        Amount::from_sat(loan_request.collateral_amount.as_sat() / rate)
+    fn calc_principal_amount(loan_request: &LoanRequest, rate: u64) -> Result<Amount> {
+        use rust_decimal::{prelude::ToPrimitive, Decimal};
+
+        let sats = loan_request.collateral_amount.as_sat();
+        let btc = Decimal::from(sats)
+            .checked_div(Decimal::from(Amount::ONE_BTC.as_sat()))
+            .ok_or_else(|| anyhow!("division overflow"))?;
+
+        let satodollars_per_btc = Decimal::from(rate);
+        let satodollars = satodollars_per_btc * btc;
+        let satodollars = satodollars
+            .to_u64()
+            .ok_or_else(|| anyhow!("decimal cannot be represented as u64"))?;
+
+        Ok(Amount::from_sat(satodollars))
     }
 }
 

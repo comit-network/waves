@@ -473,6 +473,7 @@ dependencies = [
  "hmac",
  "input",
  "log",
+ "rust_decimal",
  "secp256k1-zkp",
  "serde 1.0.126",
  "sha2",
