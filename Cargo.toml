@@ -14,5 +14,5 @@ members = [
     "coin_selection",
     "estimate_transaction_size",
     "input",
-    "web-extension/my-browser-extension/wallet"
+    "web-extension/wallet"
 ]
