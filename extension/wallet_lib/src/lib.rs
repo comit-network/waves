@@ -174,6 +174,10 @@ pub async fn extract_loan(wallet_name: String, loan_response: String) -> Result<
     Ok(details)
 }
 
+pub async fn repay_loan(wallet_name: String, loan_txid: String) -> Result<Txid, RepayLoanError> {
+    wallet::repay_loan(wallet_name, &LOADED_WALLET, loan_txid).await
+}
+
 #[cfg(test)]
 mod constants_tests {
     use elements::{AddressParams, AssetId};

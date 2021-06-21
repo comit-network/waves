@@ -42,6 +42,12 @@ impl Storage {
 
         Ok(())
     }
+
+    pub fn remove_item(&self, name: &str) -> Result<()> {
+        map_err_to_anyhow!(self.inner.remove_item(name))?;
+
+        Ok(())
+    }
 }
 
 impl From<web_sys::Storage> for Storage {

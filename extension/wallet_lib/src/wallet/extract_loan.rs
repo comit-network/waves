@@ -14,11 +14,15 @@ pub async fn extract_loan(
     current_wallet: &Mutex<Option<Wallet>>,
     loan_response: String,
 ) -> Result<LoanDetails, Error> {
-    let loan_response: LoanResponse = serde_json::from_str(&loan_response)?;
+    let loan_response = serde_json::from_str::<LoanResponse>(&loan_response)?;
 
-    let wallet = current(&name, current_wallet).await?;
+    let wallet = current(&name, current_wallet)
+        .await
+        .map_err(Error::LoadWallet)?;
 
-    let txouts = get_txouts(&wallet, |utxo, txout| Ok(Some((utxo, txout)))).await?;
+    let txouts = get_txouts(&wallet, |utxo, txout| Ok(Some((utxo, txout))))
+        .await
+        .map_err(Error::GetTxOuts)?;
     let balances = compute_balances(
         &wallet,
         &txouts
@@ -28,16 +32,17 @@ pub async fn extract_loan(
             .collect::<Vec<_>>(),
     );
 
-    let storage = Storage::local_storage().map_err(|_| Error::LoadState)?;
+    let storage = Storage::local_storage().map_err(Error::Storage)?;
     let borrower = storage
         .get_item::<String>("borrower_state")
-        .map_err(|_| Error::LoadState)?
-        .ok_or(Error::LoadState)?;
-    let borrower: Borrower0 =
-        serde_json::from_str(&borrower).map_err(|_| Error::DeserializeState)?;
+        .map_err(Error::Load)?
+        .ok_or(Error::EmptyState)?;
+    let borrower = serde_json::from_str::<Borrower0>(&borrower).map_err(Error::Deserialize)?;
 
     let timelock = loan_response.timelock;
-    let borrower = borrower.interpret(SECP256K1, loan_response)?;
+    let borrower = borrower
+        .interpret(SECP256K1, loan_response)
+        .map_err(Error::InterpretLoanResponse)?;
 
     let collateral_balance = balances
         .iter()
@@ -61,13 +66,12 @@ pub async fn extract_loan(
         })
         .unwrap_or_default();
 
-    // TODO: Model separate errors for `borrower_state` storage
     storage
         .set_item(
             "borrower_state",
-            serde_json::to_string(&borrower).map_err(|_| Error::SaveState)?,
+            serde_json::to_string(&borrower).map_err(Error::Deserialize)?,
         )
-        .map_err(|_| Error::SaveState)?;
+        .map_err(Error::Save)?;
 
     let loan_details = LoanDetails::new(
         borrower.collateral_amount,
@@ -76,6 +80,15 @@ pub async fn extract_loan(
         principal_balance,
         timelock,
     )?;
+
+    let loan_txid = borrower.loan_transaction.txid();
+
+    storage
+        .set_item(
+            &format!("loan_details:{}", loan_txid.to_string()),
+            serde_json::to_string(&loan_details).map_err(Error::Serialize)?,
+        )
+        .map_err(Error::Save)?;
 
     Ok(loan_details)
 }
@@ -123,16 +136,26 @@ pub struct TradeSideError(#[from] anyhow::Error);
 pub enum Error {
     #[error("Failed to deserialise loan response: {0}")]
     LoanResponseDeserialization(#[from] serde_json::Error),
-    #[error("Failed to load borrower state")]
-    LoadState,
-    #[error("Failed to save borrower state")]
-    SaveState,
-    #[error("Failed to deserialize borrower state")]
-    DeserializeState,
-    #[error("Failed to interpret loan response")]
-    LoanResponseInterpretation(#[from] anyhow::Error),
+    #[error("Wallet is not loaded: {0}")]
+    LoadWallet(anyhow::Error),
+    #[error("Failed to get transaction outputs: {0}")]
+    GetTxOuts(anyhow::Error),
+    #[error("Storage error: {0}")]
+    Storage(anyhow::Error),
+    #[error("Failed to load item from storage: {0}")]
+    Load(anyhow::Error),
+    #[error("Failed to save item to storage: {0}")]
+    Save(anyhow::Error),
+    #[error("Loaded empty borrower state")]
+    EmptyState,
+    #[error("Deserialization failed: {0}")]
+    Deserialize(serde_json::Error),
+    #[error("Serialization failed: {0}")]
+    Serialize(serde_json::Error),
+    #[error("Failed to interpret loan response: {0}")]
+    InterpretLoanResponse(anyhow::Error),
     #[error("Not enough collateral to put up for loan")]
     InsufficientCollateral,
-    #[error("Failed to build loan details")]
+    #[error("Failed to build loan details: {0}")]
     LoanDetails(#[from] TradeSideError),
 }

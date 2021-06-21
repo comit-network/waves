@@ -45,6 +45,7 @@ pub use make_create_swap_payload::{
     make_buy_create_swap_payload, make_sell_create_swap_payload, Error as MakePayloadError,
 };
 pub use make_loan_request::{make_loan_request, Error as MakeLoanRequestError};
+pub use repay_loan::{repay_loan, Error as RepayLoanError};
 pub use sign_and_send_swap_transaction::{
     sign_and_send_swap_transaction, Error as SignAndSendError,
 };
@@ -61,6 +62,7 @@ mod get_status;
 mod load_existing;
 mod make_create_swap_payload;
 mod make_loan_request;
+mod repay_loan;
 mod sign_and_send_swap_transaction;
 mod sign_loan;
 mod unload_current;

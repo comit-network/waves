@@ -29,7 +29,7 @@ pub mod ips_bs {
         BuyResponse(Result<CreateSwapPayload, MakePayloadError>),
         SignResponse(Result<Txid, SignAndSendError>),
         NewAddressResponse(Result<Address, NewAddressError>),
-        LoanRequestResponse(Box<Result<LoanRequest, MakePayloadError>>),
+        LoanRequestResponse(Box<Result<LoanRequest, MakeLoanRequestError>>),
         LoanTransaction(Result<String, SignLoanError>),
     }
 
@@ -53,14 +53,12 @@ pub mod ips_bs {
         }
     }
 
-    impl From<wallet::MakeLoanRequestError> for MakePayloadError {
+    #[derive(Debug, Deserialize, Serialize)]
+    pub struct MakeLoanRequestError(pub String);
+
+    impl From<wallet::MakeLoanRequestError> for MakeLoanRequestError {
         fn from(e: wallet::MakeLoanRequestError) -> Self {
-            match e {
-                wallet::MakeLoanRequestError::CoinSelection(
-                    coin_selection::Error::InsufficientFunds { needed, available },
-                ) => Self::InsufficientFunds { needed, available },
-                e => Self::Other(format!("{:#}", e)),
-            }
+            Self(format!("{:#}", e))
         }
     }
 
@@ -100,6 +98,7 @@ pub mod ips_bs {
 /// Types used for communication between the background script and the pop-up script.
 pub mod bs_ps {
     use super::*;
+    use elements::Txid;
     use wallet::{BalanceEntry, LoanDetails, Trade};
 
     #[derive(Debug, Deserialize, Serialize)]
@@ -113,6 +112,7 @@ pub mod bs_ps {
         Reject { tx_hex: String, tab_id: u32 },
         SignLoan { details: LoanDetails, tab_id: u32 },
         RejectLoan { details: LoanDetails, tab_id: u32 },
+        RepayLoan(Txid),
         WithdrawAll(String),
     }
 

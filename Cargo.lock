@@ -2922,6 +2922,7 @@ dependencies = [
  "reqwest",
  "rust_decimal",
  "serde 1.0.126",
+ "serde_json 1.0.64",
  "url",
  "wallet",
  "wasm-bindgen",

@@ -35,6 +35,7 @@ pub enum Msg {
     SignLoan { details: LoanDetails, tab_id: u32 },
     RejectLoan { details: LoanDetails, tab_id: u32 },
     WithdrawAll(String),
+    RepayLoan(Txid),
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -209,6 +210,20 @@ impl Component for App {
                 self.state.is_withdrawing = false;
                 true
             }
+            Msg::RepayLoan(txid) => {
+                let inner_link = self.link.clone();
+                send_to_backend(
+                    ToBackground::RepayLoan(txid),
+                    Box::new(move |response| {
+                        if let Ok(response) = response {
+                            if let Ok(status) = response.into_serde() {
+                                inner_link.send_message(Msg::BackgroundStatus(status));
+                            }
+                        }
+                    }),
+                );
+                false
+            }
         }
     }
 
@@ -232,21 +247,6 @@ impl Component for App {
             } => {
                 html! {
                     <CreateWallet on_form_submit=self.link.callback(|_| Msg::CreateWallet)></CreateWallet>
-                }
-            }
-            State {
-                wallet_status: WalletStatus::Loaded { address },
-                sign_state: SignState::None,
-                wallet_balances,
-                ..
-            } => {
-                html! {
-                    <WalletDetails
-                        address=address
-                        balances=wallet_balances
-                        loading=self.state.is_withdrawing
-                        on_withdraw_all=self.link.callback(|address| Msg::WithdrawAll(address))
-                        ></WalletDetails>
                 }
             }
             State {
@@ -311,6 +311,47 @@ impl Component for App {
                     </>
                 }
             }
+            State {
+                wallet_status: WalletStatus::Loaded { address },
+                sign_state: SignState::None,
+                wallet_balances,
+                ..
+            } => {
+                let local_storage = web_sys::window().unwrap().local_storage().unwrap().unwrap();
+                let open_loans = local_storage
+                    .get_item("open_loans")
+                    .unwrap()
+                    .unwrap_or_default();
+                let open_loans: Vec<Txid> = serde_json::from_str(&open_loans).unwrap_or_default();
+
+                let loan_details = open_loans
+                    .iter()
+                    .map(|txid| {
+                        let details = local_storage
+                            .get_item(&format!("loan_details:{}", txid.to_string()))
+                            .unwrap()
+                            .unwrap();
+                        let details = serde_json::from_str(&details).unwrap();
+
+                        (details, *txid)
+                    })
+                    .collect::<Vec<(LoanDetails, Txid)>>();
+
+                html! {
+                    <><WalletDetails
+                        address=address
+                        balances=wallet_balances
+                        loading=self.state.is_withdrawing
+                        on_withdraw_all=self.link.callback(|address| Msg::WithdrawAll(address))
+                     ></WalletDetails>
+                        <ybc::Tile ctx=ybc::TileCtx::Parent vertical=true>
+                    { loan_details.into_iter().map(|loan| {
+                        render_open_loan(loan, self.link.clone())
+                    }).collect::<Html>() }
+                    </ybc::Tile>
+                        </>
+                }
+            }
         };
 
         html! {
@@ -327,6 +368,15 @@ impl Component for App {
     fn rendered(&mut self, _first_render: bool) {}
 
     fn destroy(&mut self) {}
+}
+
+fn render_open_loan(loan: (LoanDetails, Txid), link: ComponentLink<App>) -> Html {
+    html! {
+        <ybc::Button
+         onclick=link.callback(move |_| Msg::RepayLoan(loan.1))
+         classes="is-primary repay-loan-button">{ "Repay loan " }
+        </ybc::Button>
+    }
 }
 
 fn send_to_backend(msg: ToBackground, callback: Box<dyn Fn(Result<JsValue, JsValue>)>) {

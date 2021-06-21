@@ -22,7 +22,7 @@ pub async fn make_loan_request(
     let (address, blinding_key) = {
         let wallet = current(&name, current_wallet)
             .await
-            .map_err(|_| Error::LoadWallet)?;
+            .map_err(Error::LoadWallet)?;
 
         let address = wallet.get_address();
         let blinding_key = wallet.blinding_key();
@@ -32,9 +32,7 @@ pub async fn make_loan_request(
 
     let coin_selector = {
         |amount, asset| async move {
-            let wallet = current(&name, current_wallet)
-                .await
-                .map_err(|_| Error::LoadWallet)?;
+            let wallet = current(&name, current_wallet).await?;
 
             let utxos = get_txouts(&wallet, |utxo, txout| {
                 Ok({
@@ -65,8 +63,7 @@ pub async fn make_loan_request(
                     }
                 })
             })
-            .await
-            .map_err(Error::GetTxOuts)?;
+            .await?;
 
             // Bob currently hardcodes a fee-rate of 1 sat / vbyte, hence
             // there is no need for us to perform fee estimation. Later
@@ -80,8 +77,7 @@ pub async fn make_loan_request(
                 amount,
                 bobs_fee_rate.as_sat() as f32,
                 fee_offset,
-            )
-            .map_err(Error::CoinSelection)?;
+            )?;
             let selection = output
                 .coins
                 .iter()
@@ -104,8 +100,6 @@ pub async fn make_loan_request(
         }
     };
 
-    // TODO: Verify that the internal `anyhow::Error` is being mapped
-    // to `make_loan_request::Error` correctly
     let borrower = Borrower0::new(
         &mut thread_rng(),
         coin_selector,
@@ -114,22 +108,22 @@ pub async fn make_loan_request(
         collateral_amount,
         // TODO: Make this dynamic once there is something going on on Liquid
         Amount::from_sat(1),
-        //TODO: This must be chosen explicitly either by the borrower
+        // TODO: This must be chosen explicitly either by the borrower
         // through the UI or by Bobtimus via configuration
         0,
         *NATIVE_ASSET_ID,
         *USDT_ASSET_ID,
     )
-    .await?;
+    .await
+    .map_err(Error::BuildBorrowerState)?;
 
-    // TODO: Model separate errors for `borrower_state` storage
-    let storage = Storage::local_storage().map_err(|_| Error::Storage)?;
+    let storage = Storage::local_storage().map_err(Error::Storage)?;
     storage
         .set_item(
             "borrower_state",
-            serde_json::to_string(&borrower).map_err(|_| Error::Storage)?,
+            serde_json::to_string(&borrower).map_err(Error::Serialize)?,
         )
-        .map_err(|_| Error::Storage)?;
+        .map_err(Error::Save)?;
 
     Ok(borrower.loan_request())
 }
@@ -138,14 +132,16 @@ pub async fn make_loan_request(
 pub enum Error {
     #[error("Amount string cannot be parsed: {0}")]
     ParseAmount(#[from] ParseAmountError),
-    #[error("Wallet is not loaded")]
-    LoadWallet,
-    #[error("Coin selection: {0}")]
-    CoinSelection(coin_selection::Error),
-    #[error("Failed to get transaction outputs: {0}")]
-    GetTxOuts(#[from] anyhow::Error),
-    #[error("Failed to store borrower state")]
-    Storage,
+    #[error("Wallet is not loaded {0}")]
+    LoadWallet(anyhow::Error),
+    #[error("Failed to construct borrower state: {0}")]
+    BuildBorrowerState(anyhow::Error),
+    #[error("Storage error: {0}")]
+    Storage(anyhow::Error),
+    #[error("Failed to save item to storage: {0}")]
+    Save(anyhow::Error),
+    #[error("Serialization failed: {0}")]
+    Serialize(serde_json::Error),
 }
 
 /// Calculate the fee offset required for the coin selection algorithm.

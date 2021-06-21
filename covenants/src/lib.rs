@@ -211,7 +211,7 @@ impl Borrower0 {
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct Borrower1 {
     keypair: (SecretKey, PublicKey),
-    loan_transaction: Transaction,
+    pub loan_transaction: Transaction,
     #[serde(with = "::elements::bitcoin::util::amount::serde::as_sat")]
     pub collateral_amount: Amount,
     collateral_script: Script,

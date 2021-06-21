@@ -236,6 +236,18 @@ fn handle_msg_from_ps(msg: bs_ps::ToBackground) -> Promise {
 
             Ok(js_value)
         }),
+        bs_ps::ToBackground::RepayLoan(txid) => future_to_promise(async move {
+            let _txid = map_err_from_anyhow!(
+                wallet::repay_loan(WALLET_NAME.to_string(), txid.to_string()).await
+            )?;
+            let sign_state = SIGN_STATE.lock().await;
+            let status = map_err_from_anyhow!(
+                background_status(WALLET_NAME.to_string(), sign_state.clone()).await
+            )?;
+            let msg = JsValue::from_serde(&status).unwrap();
+
+            Ok(msg)
+        }),
     }
 }
 
@@ -338,7 +350,7 @@ fn handle_msg_from_cs(msg: ips_bs::ToBackground, message_sender: MessageSender) 
                 let tab_id = message_sender.tab.expect("tab id to exist").id;
                 let res = wallet::make_loan_request(WALLET_NAME.to_string(), collateral)
                     .await
-                    .map_err(ips_bs::MakePayloadError::from);
+                    .map_err(ips_bs::MakeLoanRequestError::from);
 
                 let _resp = browser.tabs().send_message(
                     tab_id,
