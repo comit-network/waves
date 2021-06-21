@@ -13,7 +13,7 @@ members = [
     "extension/wasm_bindgen_extension",
     "coin_selection",
     "estimate_transaction_size",
-    "web-extension/my-browser-extension/wallet"
+    "web-extension/wallet"
 ]
 
 [patch.crates-io]
