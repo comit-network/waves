@@ -1,6 +1,6 @@
 import Debug from "debug";
-import { helloWorld } from "../wasmProxy";
 import { browser } from "webextension-polyfill-ts";
+import { helloWorld } from "../wasmProxy";
 
 Debug.enable("background");
 const debug = Debug("background");
