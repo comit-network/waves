@@ -10,5 +10,9 @@ debug("Hello world from background script");
 helloWorld();
 
 browser.runtime.onMessage.addListener(async (msg, sender) => {
-    debug("Received message", msg, "from tab ID", sender.tab?.id);
+    debug(
+        "Message from the content script: "
+            + msg.greeting,
+    );
+    return { response: "Response from Background script" };
 });
