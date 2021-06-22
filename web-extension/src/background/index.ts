@@ -1,15 +1,14 @@
 import Debug from "debug";
 import { helloWorld } from "../wasmProxy";
+import { browser } from "webextension-polyfill-ts";
 
 Debug.enable("background");
 const debug = Debug("background");
 
-messageInBackground();
-
-// This needs to be an export due to typescript implementation limitation of needing '--isolatedModules' tsconfig
-export function messageInBackground() {
-    debug("I can run your javascript like any other code in your project");
-    debug("just do not forget, I cannot render anything !");
-}
+debug("Hello world from background script");
 
 helloWorld();
+
+browser.runtime.onMessage.addListener(async (msg, sender) => {
+    debug("Received message", msg, "from tab ID", sender.tab?.id);
+});
