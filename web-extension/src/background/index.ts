@@ -1,7 +1,7 @@
 import Debug from "debug";
 import { helloWorld } from "../wasmProxy";
 
-Debug.enable("*");
+Debug.enable("background");
 const debug = Debug("background");
 
 messageInBackground();
