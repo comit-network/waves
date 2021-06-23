@@ -8,15 +8,17 @@ debug("Hello world from content script");
 
 // browser.runtime.sendMessage(`Hello world from content script on tab: ${window.location.hostname}`);
 
-async function notifyBackgroundPage() {
+async function notifyBackgroundPage(message: string): Promise<string> {
     try {
-        debug("Sending message to background page");
+        debug(`Sending: "${message}"`);
         const response = await browser.runtime.sendMessage({
-            greeting: "Greeting from the content script",
+            message: message,
         });
-        debug(`Response:  ${response.response}`);
+        debug(`Response: "${response.response}"`);
+        return response.response;
     } catch (error) {
         debug(`Error: ${error}`);
+        throw error;
     }
 }
 
@@ -26,10 +28,13 @@ window.addEventListener("message", async function(event) {
         && event.data
         && event.data.direction === "from-page-script"
     ) {
-        debug("Content script received message: \"" + event.data.message + "\"");
+        debug("Received: \"" + event.data.message + "\"");
 
-        await notifyBackgroundPage();
-        return "Success";
+        let response = await notifyBackgroundPage(event.data.message);
+        window.postMessage({
+            direction: "from-content-script",
+            message: response,
+        }, "*");
     }
 });
 

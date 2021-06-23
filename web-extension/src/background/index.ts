@@ -11,8 +11,7 @@ helloWorld();
 
 browser.runtime.onMessage.addListener(async (msg, sender) => {
     debug(
-        "Message from the content script: "
-            + msg.greeting,
+        `Received: "${msg.greeting}"`,
     );
     return { response: "Response from Background script" };
 });
