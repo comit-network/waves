@@ -9,14 +9,16 @@ debug("Hello world from background script");
 
 helloWorld();
 
+let state = "This state";
+
 browser.runtime.onMessage.addListener(async (msg, sender) => {
     debug(
-        `Received: "${msg.message}"`,
+        `Received: "${msg.message}" from ${sender.tab?.id}`,
     );
+    state = msg.message;
+
     return { response: "Response from Background script" };
 });
-
-let state = "This state";
 
 function someMethodInBGPage() {
     return "Hello" + state;
