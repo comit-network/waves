@@ -5,6 +5,6 @@ let debug = Debug("wasm-proxy");
 
 export async function helloWorld() {
     debug("Loading wasm lib");
-    const { setup } = await import("./wallet");
-    setup();
+    const { hello_world } = await import("./wallet");
+    hello_world();
 }
