@@ -38,7 +38,7 @@ pub struct LoanRequest {
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct LoanResponse {
-    transaction: Transaction,
+    pub transaction: Transaction,
     lender_pk: PublicKey,
     repayment_collateral_input: Input,
     repayment_collateral_abf: AssetBlindingFactor,
@@ -719,7 +719,7 @@ impl Lender0 {
 pub struct Lender1 {
     keypair: (SecretKey, PublicKey),
     address: Address,
-    timelock: u64,
+    pub timelock: u64,
     loan_transaction: Transaction,
     collateral_script: Script,
     collateral_amount: Amount,

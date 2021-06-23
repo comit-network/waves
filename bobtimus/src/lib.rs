@@ -5,9 +5,12 @@ extern crate diesel;
 #[macro_use]
 extern crate diesel_migrations;
 
+use std::{collections::HashMap, convert::TryInto};
+
 use crate::database::Sqlite;
 use anyhow::{Context, Result};
-use covenants::{Lender0, LoanRequest, LoanResponse};
+use covenants::{Lender0, Lender1, LoanRequest, LoanResponse};
+use database::LiquidationForm;
 use elements::{
     bitcoin::{
         secp256k1::{All, Secp256k1},
@@ -48,6 +51,7 @@ pub struct Bobtimus<R, RS> {
     pub btc_asset_id: AssetId,
     pub usdt_asset_id: AssetId,
     pub db: Sqlite,
+    pub lender_states: HashMap<Txid, Lender1>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -268,49 +272,71 @@ where
         )
         .unwrap();
 
-        let _lender_loan_principal = payload.collateral_amount;
-        let elementsd_client = self.elementsd.clone();
-
-        let latest_rate = self.rate_service.latest_rate().bid;
-
         let lender1 = lender0
             .interpret(
                 &mut self.rng,
                 &SECP256K1,
                 {
+                    let elementsd_client = self.elementsd.clone();
                     |amount, asset| async move {
                         Self::find_inputs(&elementsd_client, asset, amount).await
                     }
                 },
                 payload,
-                latest_rate.as_satodollar(),
+                self.rate_service.latest_rate().bid.as_satodollar(),
             )
             .await
             .unwrap();
 
-        // TODO: need to store lender1 in some sense to check for liquidation triggering
-        Ok(lender1.loan_response())
+        let loan_response = lender1.loan_response();
+
+        self.lender_states
+            .insert(loan_response.transaction.txid(), lender1);
+
+        Ok(loan_response)
     }
 
     /// Handle Alice's request to finalize a loan.
     ///
     /// If we still agree with the loan transaction sent by Alice, we
     /// will sign and broadcast it.
+    ///
+    /// Additionally, we save the signed liquidation transaction so
+    /// that we can broadcast it when the locktime is reached.
     pub async fn finalize_loan(&mut self, transaction: Transaction) -> Result<Txid> {
         // TODO: We should only take into account loan transactions which
         // are relatively recent e.g. within 1 minute. We expect the
         // borrower to quickly perform the protocol and let us broadcast
         // the loan transaction
 
-        // TODO: verify that this is the correct transaction.
-        // For that we need lender1 which is not available. This can be done once we have a db.
-        // db.get_lender_by_tx_id(&tx_id);
-        //  if lender1.loan_transaction.txid() != loan_transaction.txid() {
-        //    bail!("wrong loan transaction")
-        //  }
+        let lender = self
+            .lender_states
+            .get(&transaction.txid())
+            .context("unknown loan transaction")?;
 
-        let transaction = self.elementsd.sign_raw_transaction(&transaction).await?;
+        let transaction = lender
+            .finalise_loan(transaction, {
+                let elementsd = self.elementsd.clone();
+                |transaction| async move { elementsd.sign_raw_transaction(&transaction).await }
+            })
+            .await?;
+
         let txid = self.elementsd.send_raw_transaction(&transaction).await?;
+
+        let liquidation_tx =
+            lender.liquidation_transaction(&mut self.rng, &self.secp, Amount::ONE_SAT)?;
+        let locktime = lender
+            .timelock
+            .try_into()
+            .expect("TODO: locktimes should be modelled as u32");
+
+        self.db
+            .do_in_transaction(|conn| {
+                LiquidationForm::new(txid, &liquidation_tx, locktime).insert(conn)?;
+
+                Ok(())
+            })
+            .await?;
 
         Ok(txid)
     }
@@ -437,6 +463,7 @@ mod tests {
             btc_asset_id: have_asset_id_alice,
             usdt_asset_id: have_asset_id_bob,
             db,
+            lender_states: HashMap::new(),
         };
 
         let transaction = bob
@@ -556,6 +583,7 @@ mod tests {
             btc_asset_id: have_asset_id_bob,
             usdt_asset_id: have_asset_id_alice,
             db,
+            lender_states: HashMap::new(),
         };
 
         let transaction = bob

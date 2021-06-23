@@ -5,7 +5,7 @@ use elements::{
     secp256k1_zkp::rand::{rngs::StdRng, thread_rng, SeedableRng},
 };
 use elements_harness::Client;
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 use tokio::sync::Mutex;
 
 #[tokio::main]
@@ -34,6 +34,7 @@ async fn main() -> Result<()> {
         btc_asset_id,
         usdt_asset_id,
         db,
+        lender_states: HashMap::new(),
     };
     let bobtimus = Arc::new(Mutex::new(bobtimus));
 

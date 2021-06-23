@@ -6,7 +6,7 @@ use elements::{
     Address,
 };
 use elements_harness::{elementd_rpc::ElementsRpc, Client};
-use std::sync::Arc;
+use std::{collections::HashMap, sync::Arc};
 use tokio::sync::Mutex;
 use warp::{Filter, Rejection, Reply};
 
@@ -37,6 +37,7 @@ async fn main() -> Result<()> {
         btc_asset_id,
         usdt_asset_id,
         db,
+        lender_states: HashMap::new(),
     };
     let bobtimus = Arc::new(Mutex::new(bobtimus));
 

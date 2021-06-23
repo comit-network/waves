@@ -1,7 +1,11 @@
+use std::{convert::TryFrom, path::Path, sync::Arc};
+
 use anyhow::Result;
-use diesel::{Connection, SqliteConnection};
-use std::{path::Path, sync::Arc};
+use diesel::{prelude::*, Connection, SqliteConnection};
+use elements::{encode::serialize_hex, Transaction, Txid};
 use tokio::sync::Mutex;
+
+use crate::schema::liquidations;
 
 embed_migrations!("./migrations");
 
@@ -60,6 +64,63 @@ fn ensure_folder_tree_exists(path: &Path) -> anyhow::Result<()> {
     }
 
     Ok(())
+}
+
+#[derive(Insertable)]
+#[table_name = "liquidations"]
+pub struct LiquidationForm {
+    id: String,
+    tx_hex: String,
+    locktime: i64,
+}
+
+impl LiquidationForm {
+    pub fn new(loan_txid: Txid, liquidation_tx: &Transaction, locktime: u32) -> Self {
+        let id = loan_txid.to_string();
+        let tx_hex = serialize_hex(liquidation_tx);
+        let locktime = i64::try_from(locktime).expect("every u32 fits into a i64");
+
+        Self {
+            id,
+            tx_hex,
+            locktime,
+        }
+    }
+
+    pub fn insert(self, conn: &SqliteConnection) -> Result<()> {
+        diesel::insert_into(liquidations::table)
+            .values(self)
+            .execute(conn)?;
+
+        Ok(())
+    }
+}
+
+mod queries {
+    use super::*;
+
+    use elements::encode::deserialize;
+
+    #[derive(Associations, Clone, Debug, Queryable, PartialEq)]
+    #[table_name = "liquidations"]
+    struct Liquidation {
+        id: String,
+        tx_hex: String,
+        locktime: i64,
+    }
+
+    pub fn get_liquidation_tx_by_loan_txid(
+        conn: &SqliteConnection,
+        loan_txid: Txid,
+    ) -> Result<Transaction> {
+        let liquidation = liquidations::table
+            .filter(liquidations::id.eq(loan_txid.to_string()))
+            .get_result::<Liquidation>(conn)?;
+
+        let liquidation_tx = deserialize(&hex::decode(liquidation.tx_hex)?)?;
+
+        Ok(liquidation_tx)
+    }
 }
 
 #[cfg(test)]
