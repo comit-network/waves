@@ -7,7 +7,7 @@ extern crate diesel_migrations;
 
 use std::{collections::HashMap, convert::TryInto};
 
-use crate::database::Sqlite;
+use crate::database::{queries, Sqlite};
 use anyhow::{Context, Result};
 use covenants::{Lender0, Lender1, LoanRequest, LoanResponse};
 use database::LiquidationForm;
@@ -370,6 +370,25 @@ impl RateSubscription {
             Ok(Some((latest_rate, receiver)))
         })
     }
+}
+
+pub async fn liquidate_loans(elementsd: &ElementsdClient, db: Sqlite) -> Result<()> {
+    let blockcount = elementsd.get_blockcount().await?;
+    let liquidation_txs = db
+        .do_in_transaction(|conn| {
+            let txs = queries::get_publishable_liquidations_txs(conn, blockcount)?;
+            Ok(txs)
+        })
+        .await?;
+
+    for tx in liquidation_txs.iter() {
+        match elementsd.send_raw_transaction(&tx).await {
+            Ok(txid) => log::info!("Broadcast liquidation transaction {}", txid),
+            Err(e) => log::error!("Failed to broadcast liquidation transaction: {}", e),
+        };
+    }
+
+    Ok(())
 }
 
 #[cfg(test)]

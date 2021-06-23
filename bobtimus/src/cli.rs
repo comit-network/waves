@@ -8,55 +8,80 @@ use structopt::StructOpt;
 
 #[derive(structopt::StructOpt, Debug)]
 #[structopt(name = "bobtimus", about = "Auto-trader for L-BTC/L-USDt")]
-pub struct StartCommand {
-    #[structopt(default_value = "http://127.0.0.1:7042", long = "elementsd")]
-    pub elementsd_url: Url,
-    #[structopt(default_value = "3030")]
-    pub api_port: u16,
-    #[structopt(
+pub enum Command {
+    Start {
+        #[structopt(default_value = "http://127.0.0.1:7042", long = "elementsd")]
+        elementsd_url: Url,
+        #[structopt(default_value = "3030")]
+        api_port: u16,
+        #[structopt(
         default_value = USDT_ASSET_ID,
         long = "usdt"
     )]
-    pub usdt_asset_id: AssetId,
-    #[structopt(short, parse(from_os_str))]
-    pub db_file: Option<PathBuf>,
+        usdt_asset_id: AssetId,
+        #[structopt(short, parse(from_os_str))]
+        db_file: Option<PathBuf>,
+    },
+    LiquidateLoans {
+        #[structopt(default_value = "http://127.0.0.1:7042", long = "elementsd")]
+        elementsd_url: Url,
+        #[structopt(short, parse(from_os_str))]
+        db_file: Option<PathBuf>,
+    },
 }
 
-pub struct Config {
-    pub elementsd_url: Url,
-    pub api_port: u16,
-    pub usdt_asset_id: AssetId,
-    pub db_file: PathBuf,
+pub enum Config {
+    Start {
+        elementsd_url: Url,
+        api_port: u16,
+        usdt_asset_id: AssetId,
+        db_file: PathBuf,
+    },
+    LiquidateLoans {
+        elementsd_url: Url,
+        db_file: PathBuf,
+    },
 }
 
 impl Config {
     pub fn parse() -> Result<Self> {
-        let StartCommand {
-            elementsd_url,
-            api_port,
-            usdt_asset_id,
-            db_file,
-        } = StartCommand::from_args();
-
-        let db_file = match db_file {
-            None => {
-                let path_buf = system_data_dir()?.join("bobtimus.sql");
-                tracing::info!(
-                    "DB file not provided. Falling back to default path at {}",
-                    path_buf.display()
-                );
-                path_buf
-            }
-            Some(db_file) => db_file,
+        let config = match Command::from_args() {
+            Command::Start {
+                elementsd_url,
+                api_port,
+                usdt_asset_id,
+                db_file,
+            } => Config::Start {
+                elementsd_url,
+                api_port,
+                usdt_asset_id,
+                db_file: resolve_db_file(db_file)?,
+            },
+            Command::LiquidateLoans {
+                elementsd_url,
+                db_file,
+            } => Config::LiquidateLoans {
+                elementsd_url,
+                db_file: resolve_db_file(db_file)?,
+            },
         };
 
-        Ok(Config {
-            elementsd_url,
-            api_port,
-            usdt_asset_id,
-            db_file,
-        })
+        Ok(config)
     }
+}
+
+fn resolve_db_file(db_file: Option<PathBuf>) -> Result<PathBuf, anyhow::Error> {
+    Ok(match db_file {
+        None => {
+            let path_buf = system_data_dir()?.join("bobtimus.sql");
+            tracing::info!(
+                "DB file not provided. Falling back to default path at {}",
+                path_buf.display()
+            );
+            path_buf
+        }
+        Some(db_file) => db_file,
+    })
 }
 
 /// This is the default location for the overall data-dir specific by system

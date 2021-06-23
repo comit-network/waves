@@ -96,7 +96,7 @@ impl LiquidationForm {
     }
 }
 
-mod queries {
+pub mod queries {
     use super::*;
 
     use elements::encode::deserialize;
@@ -109,17 +109,20 @@ mod queries {
         locktime: i64,
     }
 
-    pub fn get_liquidation_tx_by_loan_txid(
+    pub fn get_publishable_liquidations_txs(
         conn: &SqliteConnection,
-        loan_txid: Txid,
-    ) -> Result<Transaction> {
-        let liquidation = liquidations::table
-            .filter(liquidations::id.eq(loan_txid.to_string()))
-            .get_result::<Liquidation>(conn)?;
+        blockcount: u32,
+    ) -> Result<Vec<Transaction>> {
+        let txs = liquidations::table
+            .filter(liquidations::locktime.le(blockcount as i64))
+            .get_results::<Liquidation>(conn)?;
 
-        let liquidation_tx = deserialize(&hex::decode(liquidation.tx_hex)?)?;
+        let txs = txs
+            .into_iter()
+            .map(|liquidation| Ok(deserialize(&hex::decode(liquidation.tx_hex)?)?))
+            .collect::<Result<Vec<_>>>()?;
 
-        Ok(liquidation_tx)
+        Ok(txs)
     }
 }
 

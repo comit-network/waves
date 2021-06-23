@@ -13,6 +13,7 @@ use std::{collections::HashMap, str::FromStr};
 #[jsonrpc_client::api(version = "1.0")]
 pub trait ElementsRpc {
     async fn getblockchaininfo(&self) -> BlockchainInfo;
+    async fn getblockcount(&self) -> u32;
     async fn getnewaddress(&self, label: &str, address_type: Option<&str>) -> Address;
     #[allow(clippy::too_many_arguments)]
     async fn sendtoaddress(
@@ -343,6 +344,12 @@ impl Client {
 
         Ok(privkey.key)
     }
+
+    pub async fn get_blockcount(&self) -> Result<u32> {
+        let blockcount = self.getblockcount().await?;
+
+        Ok(blockcount)
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -490,5 +497,25 @@ mod test {
             .select_inputs_for(*labels.get("bitcoin").unwrap(), Amount::ONE_BTC, false)
             .await
             .unwrap();
+    }
+
+    #[tokio::test]
+    async fn get_blockcount() {
+        let tc_client = Cli::default();
+        let (client, _container) = {
+            let blockchain = Elementsd::new(&tc_client, "0.18.1.9").unwrap();
+
+            (
+                Client::new(blockchain.node_url.clone().into()).unwrap(),
+                blockchain,
+            )
+        };
+
+        let address = client.get_new_address(None).await.unwrap();
+        let _ = client.generatetoaddress(1, &address).await.unwrap();
+
+        let blockcount = client.get_blockcount().await.unwrap();
+
+        assert_eq!(blockcount, 1)
     }
 }

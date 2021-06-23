@@ -1,5 +1,7 @@
 use anyhow::Result;
-use bobtimus::{cli::Config, database::Sqlite, fixed_rate, http, Bobtimus, LiquidUsdt};
+use bobtimus::{
+    cli::Config, database::Sqlite, fixed_rate, http, liquidate_loans, Bobtimus, LiquidUsdt,
+};
 use elements::{
     bitcoin::{secp256k1::Secp256k1, Amount},
     secp256k1_zkp::rand::{rngs::StdRng, thread_rng, SeedableRng},
@@ -14,50 +16,61 @@ use warp::{Filter, Rejection, Reply};
 async fn main() -> Result<()> {
     tracing_subscriber::fmt::init();
 
-    let Config {
-        elementsd_url,
-        api_port,
-        usdt_asset_id,
-        db_file,
-    } = Config::parse()?;
+    match Config::parse()? {
+        Config::Start {
+            elementsd_url,
+            api_port,
+            usdt_asset_id,
+            db_file,
+        } => {
+            let db = Sqlite::new(db_file.as_path())?;
 
-    let db = Sqlite::new(db_file.as_path())?;
+            let elementsd = Client::new(elementsd_url.into())?;
+            let btc_asset_id = elementsd.get_bitcoin_asset_id().await?;
 
-    let elementsd = Client::new(elementsd_url.into())?;
-    let btc_asset_id = elementsd.get_bitcoin_asset_id().await?;
+            let rate_service = fixed_rate::Service::new();
+            let subscription = rate_service.subscribe();
 
-    let rate_service = fixed_rate::Service::new();
-    let subscription = rate_service.subscribe();
+            let bobtimus = Bobtimus {
+                rng: StdRng::from_rng(&mut thread_rng()).unwrap(),
+                rate_service,
+                secp: Secp256k1::new(),
+                elementsd,
+                btc_asset_id,
+                usdt_asset_id,
+                db,
+                lender_states: HashMap::new(),
+            };
+            let bobtimus = Arc::new(Mutex::new(bobtimus));
 
-    let bobtimus = Bobtimus {
-        rng: StdRng::from_rng(&mut thread_rng()).unwrap(),
-        rate_service,
-        secp: Secp256k1::new(),
-        elementsd,
-        btc_asset_id,
-        usdt_asset_id,
-        db,
-        lender_states: HashMap::new(),
+            let routes = http::routes(bobtimus.clone(), subscription);
+
+            let cors = warp::cors().allow_any_origin();
+
+            let faucet = warp::post()
+                .and(warp::path!("api" / "faucet" / Address))
+                .and_then(move |address| {
+                    let bobtimus = bobtimus.clone();
+                    async move {
+                        let mut bobtimus = bobtimus.lock().await;
+                        faucet(&mut bobtimus, address).await
+                    }
+                });
+
+            warp::serve(routes.or(faucet).with(cors))
+                .run(([127, 0, 0, 1], api_port))
+                .await;
+        }
+        Config::LiquidateLoans {
+            elementsd_url,
+            db_file,
+        } => {
+            let db = Sqlite::new(db_file.as_path())?;
+            let elementsd = Client::new(elementsd_url.into())?;
+
+            liquidate_loans(&elementsd, db).await?;
+        }
     };
-    let bobtimus = Arc::new(Mutex::new(bobtimus));
-
-    let routes = http::routes(bobtimus.clone(), subscription);
-
-    let cors = warp::cors().allow_any_origin();
-
-    let faucet = warp::post()
-        .and(warp::path!("api" / "faucet" / Address))
-        .and_then(move |address| {
-            let bobtimus = bobtimus.clone();
-            async move {
-                let mut bobtimus = bobtimus.lock().await;
-                faucet(&mut bobtimus, address).await
-            }
-        });
-
-    warp::serve(routes.or(faucet).with(cors))
-        .run(([127, 0, 0, 1], api_port))
-        .await;
 
     Ok(())
 }

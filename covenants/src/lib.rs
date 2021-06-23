@@ -763,7 +763,7 @@ impl Lender1 {
         &self,
         rng: &mut R,
         secp: &Secp256k1<C>,
-        tx_fee: Amount,
+        fee_sats_per_vbyte: Amount,
     ) -> Result<Transaction>
     where
         R: RngCore + CryptoRng,
@@ -777,6 +777,10 @@ impl Lender1 {
             .context("could not unblind repayment collateral input")?;
 
         let inputs = [(collateral_input.txout.asset, &collateral_input.secrets)];
+
+        let tx_fee = Amount::from_sat(
+            estimate_virtual_size(inputs.len() as u64, 4) * fee_sats_per_vbyte.as_sat(),
+        );
 
         let (collateral_output, _, _) = TxOut::new_last_confidential(
             rng,

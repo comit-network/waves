@@ -1,7 +1,7 @@
 table! {
-   liquidations {
-       id -> Text,
-       tx_hex -> Text,
-       locktime -> BigInt,
-   }
+    liquidations (id) {
+        id -> Text,
+        tx_hex -> Text,
+        locktime -> BigInt,
+    }
 }
