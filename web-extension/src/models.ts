@@ -1,4 +1,7 @@
-enum Status {
+export const USDT_TICKER = "USDT";
+export const BTC_TICKER = "BTC";
+
+export enum Status {
     None,
     Loaded,
     NotLoaded,
@@ -6,47 +9,46 @@ enum Status {
 
 export type Address = string;
 
-export type WalletStatus = {
+export interface WalletStatus {
     status: Status;
-    address?: Address;
-};
+}
 
-export type BalanceEntry = {
+export interface BalanceEntry {
     assetId: string;
     ticker: string;
     value: number;
-};
+}
 
-export type BalanceUpdate = {
-    balances: BalanceEntry[];
-};
+export interface BalanceUpdate {
+    balances: Array<BalanceEntry>;
+}
 
-export type TradeSide = {
+export interface TradeSide {
     ticker: string;
     amount: number;
     balanceBefore: number;
     balanceAfter: number;
-};
+}
 
-export type Trade = {
+export interface Trade {
     buy: TradeSide;
     sell: TradeSide;
-};
+}
 
-export type SwapToSign = {
+export interface SwapToSign {
     txHex: string;
     decoded: Trade;
     tabId: number;
-};
+}
 
-export type LoanToSign = {
+export interface LoanToSign {
     collateral: TradeSide;
     principal: TradeSide;
     principalRepayment: number;
     term: number;
     tabId: number;
-};
+}
 
-export type SwapsToSign = {
+export interface SwapsToSign {
     swaps: SwapToSign[];
-};
+}
