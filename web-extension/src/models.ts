@@ -49,7 +49,3 @@ export interface LoanToSign {
     term: number;
     tabId: number;
 }
-
-export interface SwapsToSign {
-    swaps: SwapToSign[];
-}
