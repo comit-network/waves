@@ -1,8 +1,8 @@
-import { Box, Center, ChakraProvider, Heading, Text, VStack } from "@chakra-ui/react";
+import { Box, ChakraProvider, Heading } from "@chakra-ui/react";
 import * as React from "react";
-import { Async, useAsync } from "react-async";
-import QRCode from "react-qr-code";
-import { getAddress, getWalletBalance, getWalletStatus } from "./background-proxy";
+import { useAsync } from "react-async";
+import { getWalletBalance, getWalletStatus } from "./background-proxy";
+import AddressQr from "./components/AddressQr";
 import WalletBalances from "./components/Balances";
 import CreateOrUnlockWallet from "./components/CreateOrUnlockWallet";
 import { Status } from "./models";
@@ -20,8 +20,8 @@ const App = () => {
             <Box h={600} w={400}>
                 {walletStatus?.status === Status.Loaded
                     && <>
-                        <AddressQr />
                         {balanceUpdates && <WalletBalances balanceUpdates={balanceUpdates} />}
+                        <AddressQr />
                     </>}
                 {walletStatus?.status === Status.NotLoaded
                     && <>
@@ -50,33 +50,5 @@ const App = () => {
         </ChakraProvider>
     );
 };
-
-const AddressQr = () => (
-    <Center
-        bg="gray.100"
-        h="10em"
-        color="white"
-        borderRadius={"md"}
-    >
-        <Async promiseFn={getAddress}>
-            {({ data, error, isPending }) => {
-                if (isPending) return "Loading...";
-                if (error) return `Something went wrong: ${error.message}`;
-                if (data) {
-                    return (
-                        <VStack>
-                            <Text textStyle="lgGray">Address</Text>
-                            <QRCode value={data} size={100} />
-                            <Text textStyle="mdGray" maxWidth={"15em"} isTruncated data-cy="wallet-address-textfield">
-                                {data}
-                            </Text>
-                        </VStack>
-                    );
-                }
-                return null;
-            }}
-        </Async>
-    </Center>
-);
 
 export default App;

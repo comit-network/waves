@@ -1,4 +1,4 @@
-import { Box, HStack, Image, Text, VStack } from "@chakra-ui/react";
+import { Box, HStack, Image, Text } from "@chakra-ui/react";
 import React from "react";
 import { BalanceEntry, BalanceUpdate, BTC_TICKER, USDT_TICKER } from "../models";
 import Btc from "./bitcoin.svg";
@@ -31,9 +31,9 @@ function WalletBalances({ balanceUpdates }: BalancesProps) {
     let elements = balanceUpdates.balances.map((be) => balanceEntry(be));
 
     return (
-        <VStack align="center">
+        <HStack justify="center">
             {elements}
-        </VStack>
+        </HStack>
     );
 }
 
