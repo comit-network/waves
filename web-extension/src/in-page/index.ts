@@ -12,7 +12,7 @@ export default class WavesProvider {
                 // TODO timeout and reject promise after some time of no response.
                 if (
                     event.data
-                    && event.data.direction !== "from-content-script"
+                    && event.data.direction !== "to-page"
                 ) {
                     // ignored
                     return;
@@ -25,7 +25,7 @@ export default class WavesProvider {
             window.addEventListener("message", listener);
         });
         window.postMessage({
-            direction: "from-page-script",
+            direction: "to-background",
             message: "Message from the page",
         }, "*");
         return promise;

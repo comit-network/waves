@@ -24,13 +24,13 @@ window.addEventListener("message", async function(event) {
     if (
         event.source === window
         && event.data
-        && event.data.direction === "from-page-script"
+        && event.data.direction === "to-background"
     ) {
         debug("Received: \"" + event.data.message + "\"");
 
         let response = await notifyBackgroundPage(event.data.message);
         window.postMessage({
-            direction: "from-content-script",
+            direction: "to-page",
             message: response,
         }, "*");
     }
