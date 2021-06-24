@@ -2,15 +2,18 @@ export const USDT_TICKER = "USDT";
 export const BTC_TICKER = "BTC";
 
 export enum Status {
-    None,
-    Loaded,
-    NotLoaded,
+    None = "None",
+    Loaded = "Loaded",
+    NotLoaded = "NotLoaded",
 }
 
 export type Address = string;
 
+export type WalletStatusRequest = {};
+
 export interface WalletStatus {
     status: Status;
+    address?: Address
 }
 
 export interface BalanceEntry {

@@ -1,27 +1,29 @@
 import Debug from "debug";
 import { browser } from "webextension-polyfill-ts";
-import { helloWorld } from "../wasmProxy";
+import { Direction, Message, MessageKind } from "../messages";
+import { walletStatus } from "../wasmProxy";
 
 Debug.enable("background");
 const debug = Debug("background");
 
 debug("Hello world from background script");
 
-helloWorld();
-
-let state = "This state";
-
-browser.runtime.onMessage.addListener(async (msg, sender) => {
+browser.runtime.onMessage.addListener(async (msg: Message<any>, sender) => {
     debug(
-        `Received: "${msg.message}" from ${sender.tab?.id}`,
+        `Received: "${JSON.stringify(msg)}" from tab ${sender.tab?.id}`,
     );
-    state = msg.message;
 
-    return { response: "Response from Background script" };
+    if (msg.direction === Direction.ToBackground) {
+        switch (msg.kind) {
+            case MessageKind.WalletStatusRequest:
+                const payload = await walletStatus();
+                return { kind: MessageKind.WalletStatusResponse, direction: Direction.ToPage, payload };
+        }
+    }
 });
 
 function someMethodInBGPage() {
-    return "Hello" + state;
+    return "Hello" + walletStatus;
 }
 
 // @ts-ignore

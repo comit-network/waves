@@ -1,38 +1,31 @@
 import Debug from "debug";
 import { browser } from "webextension-polyfill-ts";
+import { Direction, Message } from "../messages";
 
 Debug.enable("content");
 const debug = Debug("content");
 
 debug("Hello world from content script");
 
-async function notifyBackgroundPage(message: string): Promise<string> {
+async function forwardToBackground(message: Message<any>): Promise<Message<any>> {
     try {
-        debug(`Sending: "${message}"`);
-        const response = await browser.runtime.sendMessage({
-            message: message,
-        });
-        debug(`Response: "${response.response}"`);
-        return response.response;
+        return await browser.runtime.sendMessage(message);
     } catch (error) {
-        debug(`Error: ${error}`);
+        debug(`Error: ${JSON.stringify(error)}`);
         throw error;
     }
 }
 
-window.addEventListener("message", async function(event) {
+window.addEventListener("message", async function(event: MessageEvent<Message<any>>) {
     if (
         event.source === window
-        && event.data
-        && event.data.direction === "to-background"
+        && event.data.direction === Direction.ToBackground
     ) {
-        debug("Received: \"" + event.data.message + "\"");
+        debug(`Forwarding request from ips to bs: ${JSON.stringify(event.data)}`);
+        let response = await forwardToBackground(event.data);
 
-        let response = await notifyBackgroundPage(event.data.message);
-        window.postMessage({
-            direction: "to-page",
-            message: response,
-        }, "*");
+        debug(`Forwarding response from bs to ips: ${JSON.stringify(response)}`);
+        window.postMessage(response, "*");
     }
 });
 

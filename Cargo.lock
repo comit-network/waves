@@ -2415,7 +2415,9 @@ dependencies = [
  "console_error_panic_hook",
  "js-sys",
  "log",
+ "wallet",
  "wasm-bindgen",
+ "wasm-bindgen-futures",
  "wasm-logger",
  "web-sys",
 ]

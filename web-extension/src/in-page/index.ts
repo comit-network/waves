@@ -1,32 +1,31 @@
 import Debug from "debug";
+import { Direction, Message, MessageKind } from "../messages";
+import { WalletStatus } from "../models";
 
 Debug.enable("inpage");
 const debug = Debug("inpage");
 
 export default class WavesProvider {
-    public async callBackend(): Promise<string> {
-        debug("sending message...");
-
-        let promise = new Promise<string>((resolve, _reject) => {
-            let listener = async function(event: MessageEvent) {
+    public async wallet_status(): Promise<WalletStatus> {
+        debug("Requesting wallet status");
+        let promise = new Promise<WalletStatus>((resolve, _reject) => {
+            let listener = async function(event: MessageEvent<Message<WalletStatus>>) {
                 // TODO timeout and reject promise after some time of no response.
                 if (
-                    event.data
-                    && event.data.direction !== "to-page"
+                    event.data.direction === Direction.ToPage
+                    && event.data.kind === MessageKind.WalletStatusResponse
                 ) {
-                    // ignored
-                    return;
+                    debug(`Received wallet status: ${JSON.stringify(event.data)}`);
+
+                    window.removeEventListener("message", listener);
+                    resolve(event.data.payload);
                 }
-                debug(`Response: "${event.data.message}"`);
-                // TODO: check if this was the response we were waiting for, if not, do not yet deregister this listener
-                window.removeEventListener("message", listener);
-                resolve(event.data.message);
             };
             window.addEventListener("message", listener);
         });
         window.postMessage({
-            direction: "to-background",
-            message: "Message from the page",
+            kind: MessageKind.WalletStatusRequest,
+            direction: Direction.ToBackground,
         }, "*");
         return promise;
     }

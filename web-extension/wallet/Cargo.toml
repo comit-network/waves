@@ -16,10 +16,12 @@ default = [ "console_error_panic_hook" ]
 console_error_panic_hook = { version = "0.1.6", optional = true }
 js-sys = "0.3"
 log = "0.4"
-wasm-bindgen = "0.2.74"
+wallet = { path = "../../extension/wallet_lib" }
 
 
 # By default wasm-opt is true which makes the build fail.
+wasm-bindgen = "0.2.74"
+wasm-bindgen-futures = "0.4"
 wasm-logger = "0.2"
 web-sys = { version = "0.3", features = [ "Window", "Storage", "Cache", "CacheStorage" ] }
 
