@@ -42,6 +42,7 @@ export interface SwapToSign {
 }
 
 export interface LoanToSign {
+    txHex: string;
     collateral: TradeSide;
     principal: TradeSide;
     principalRepayment: number;

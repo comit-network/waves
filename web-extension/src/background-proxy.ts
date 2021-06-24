@@ -1,5 +1,14 @@
 import Debug from "debug";
-import { Address, BalanceEntry, BalanceUpdate, BTC_TICKER, Status, USDT_TICKER, WalletStatus } from "./models";
+import {
+    Address,
+    BalanceEntry,
+    BalanceUpdate,
+    BTC_TICKER,
+    LoanToSign,
+    Status,
+    USDT_TICKER,
+    WalletStatus,
+} from "./models";
 
 const debug = Debug("bgproxy");
 
@@ -37,6 +46,7 @@ export async function unlockWallet(_password: string): Promise<void> {
     };
     return Promise.resolve();
 }
+
 export async function createWallet(_password: string): Promise<void> {
     debug("Creating wallet");
     walletStatus = {
@@ -53,4 +63,35 @@ export async function getAddress(): Promise<Address> {
 
 export async function signAndSend(tx: string): Promise<string> {
     return Promise.resolve("8ec2ff513cb55b621af73130818c359aef357038905b7954775eff43e92916f9");
+}
+
+export async function getLoanToSign(): Promise<LoanToSign | undefined> {
+    let ran = Math.random();
+    if (ran < 0.5) {
+        return Promise.resolve(undefined);
+    }
+
+    let loanToSign: LoanToSign = {
+        collateral: {
+            ticker: BTC_TICKER,
+            amount: 1,
+            balanceBefore: 1,
+            balanceAfter: 0,
+        },
+        principal: {
+            ticker: USDT_TICKER,
+            amount: 100000,
+            balanceBefore: 0,
+            balanceAfter: 100000,
+        },
+        principalRepayment: 110000,
+        tabId: 0,
+        term: 0,
+        txHex: "0x00",
+    };
+    return Promise.resolve(loanToSign);
+}
+
+export async function cancelLoan(_loanToSign: LoanToSign): Promise<void> {
+    return Promise.resolve();
 }
