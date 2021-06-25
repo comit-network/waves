@@ -5,6 +5,8 @@ export enum MessageKind {
     SellResponse = "SellResponse",
     BuyRequest = "BuyRequest",
     BuyResponse = "BuyResponse",
+    LoanRequest = "LoanRequest",
+    LoanResponse = "LoanResponse",
     AddressRequest = "AddressRequest",
     AddressResponse = "AddressResponse",
 }

@@ -57,6 +57,16 @@ export interface CreateSwapPayload {
     amount: number;
 }
 
+export interface LoanRequestPayload {
+    collateral_amount: number;
+    // TODO: Replace `any` with concrete type or get rid of `original_txout` field
+    collateral_inputs: { txin: OutPoint; original_txout: any; blinding_key: string }[];
+    fee_sats_per_vbyte: number;
+    borrower_pk: string;
+    timelock: number;
+    borrower_address: string;
+}
+
 export interface OutPoint {
     txid: string;
     vout: number;

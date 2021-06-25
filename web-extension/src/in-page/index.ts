@@ -1,6 +1,6 @@
 import Debug from "debug";
 import { Direction, Message, MessageKind } from "../messages";
-import { Address, CreateSwapPayload, WalletStatus } from "../models";
+import { Address, CreateSwapPayload, LoanRequestPayload, WalletStatus } from "../models";
 
 Debug.enable("inpage");
 const debug = Debug("inpage");
@@ -97,6 +97,30 @@ export default class WavesProvider {
         window.postMessage({
             kind: MessageKind.AddressRequest,
             direction: Direction.ToBackground,
+        }, "*");
+        return promise;
+    }
+
+    public async makeLoanRequestPayload(collateral: string): Promise<LoanRequestPayload> {
+        debug("Making loan request payload");
+        let promise = new Promise<LoanRequestPayload>((resolve, _reject) => {
+            let listener = async function(event: MessageEvent<Message<LoanRequestPayload>>) {
+                if (
+                    event.data.direction === Direction.ToPage
+                    && event.data.kind === MessageKind.LoanResponse
+                ) {
+                    debug(`Received loan request payload: ${JSON.stringify(event.data)}`);
+
+                    window.removeEventListener("message", listener);
+                    resolve(event.data.payload);
+                }
+            };
+            window.addEventListener("message", listener);
+        });
+        window.postMessage({
+            kind: MessageKind.LoanRequest,
+            direction: Direction.ToBackground,
+            payload: collateral
         }, "*");
         return promise;
     }

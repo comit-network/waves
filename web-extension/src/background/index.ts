@@ -7,6 +7,7 @@ import {
     getBalances,
     makeBuyCreateSwapPayload,
     makeSellCreateSwapPayload,
+    makeLoanRequestPayload,
     unlockWallet,
     walletStatus,
 } from "../wasmProxy";
@@ -45,7 +46,12 @@ browser.runtime.onMessage.addListener(async (msg: Message<any>, sender) => {
                 payload = await getAddress(walletName);
                 kind = MessageKind.AddressResponse;
                 break;
-        }
+            case MessageKind.LoanRequest:
+                const collateral = msg.payload;
+                payload = await makeLoanRequestPayload(walletName, collateral);
+                kind = MessageKind.LoanResponse;
+                break;
+                        }
         return { kind, direction: Direction.ToPage, payload };
     }
 });
