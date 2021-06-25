@@ -27,9 +27,16 @@ export async function getAddress(name: string): Promise<Address> {
     return await get_address(name);
 }
 
-export async function createNewWallet(name: string, password: string): Promise<null> {
+export async function createWallet(name: string, password: string): Promise<null> {
     const { create_new_wallet } = await import("./wallet");
 
-    debug("createNewWallet");
+    debug("createWallet");
     return await create_new_wallet(name, password);
+}
+
+export async function unlockWallet(name: string, password: string): Promise<null> {
+    const { unlock_wallet } = await import("./wallet");
+
+    debug("unlockWallet");
+    return await unlock_wallet(name, password);
 }

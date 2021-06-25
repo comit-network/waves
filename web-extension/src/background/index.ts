@@ -2,7 +2,7 @@ import Debug from "debug";
 import { browser } from "webextension-polyfill-ts";
 import { Direction, Message, MessageKind } from "../messages";
 import { WalletStatus } from "../models";
-import { createNewWallet, walletStatus } from "../wasmProxy";
+import { walletStatus, createWallet as create, unlockWallet as unlock } from "../wasmProxy";
 
 Debug.enable("background");
 const debug = Debug("background");
@@ -25,19 +25,21 @@ browser.runtime.onMessage.addListener(async (msg: Message<any>, sender) => {
     }
 });
 
-export async function createWallet(password: string): Promise<void> {
-    debug("Create wallet");
-
-    await createNewWallet(walletName, password);
-
-    return;
+export async function getWalletStatus(): Promise<WalletStatus> {
+    return await walletStatus(walletName);
 }
 
-export async function getWalletStatus(): Promise<WalletStatus> {
-    debug("Get wallet status");
+export async function createWallet(password: string): Promise<void> {
+    await create(walletName, password);
+}
 
-    return await walletStatus(walletName);
+export async function unlockWallet(password: string): Promise<void> {
+    await unlock(walletName, password);
 }
 
 // @ts-ignore
 window.createWallet = createWallet;
+// @ts-ignore
+window.getWalletStatus = getWalletStatus;
+// @ts-ignore
+window.unlockWallet = unlockWallet;

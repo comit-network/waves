@@ -35,14 +35,6 @@ export async function getWalletBalance(): Promise<BalanceUpdate> {
     return Promise.resolve({ balances: [usdt, btc] });
 }
 
-export async function unlockWallet(_password: string): Promise<void> {
-    debug("Unlocking wallet");
-    walletStatus = {
-        status: Status.Loaded,
-    };
-    return Promise.resolve();
-}
-
 export async function getAddress(): Promise<Address> {
     return Promise.resolve(
         "el1qqvrd63rn942zrr900nvnd4z37zhzdgtta3fpfzqmrcerht3wjllz0wccjhlrqtl2c8w6aggkek2pwvgcwhf5y2nwzjccu9avz",

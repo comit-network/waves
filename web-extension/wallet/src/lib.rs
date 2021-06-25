@@ -24,6 +24,13 @@ pub async fn create_new_wallet(name: String, password: String) -> Result<(), JsV
     )?)
 }
 
+#[wasm_bindgen]
+pub async fn unlock_wallet(name: String, password: String) -> Result<(), JsValue> {
+    Ok(map_err_from_anyhow!(
+        wallet::load_existing_wallet(name, password).await
+    )?)
+}
+
 #[macro_export]
 macro_rules! map_err_from_anyhow {
     ($e:expr) => {
