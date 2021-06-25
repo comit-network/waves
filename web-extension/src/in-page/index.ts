@@ -34,7 +34,6 @@ export default class WavesProvider {
         debug("Getting sell create-swap payload");
         let promise = new Promise<CreateSwapPayload>((resolve, _reject) => {
             let listener = async function(event: MessageEvent<Message<CreateSwapPayload>>) {
-                // TODO timeout and reject promise after some time of no response.
                 if (
                     event.data.direction === Direction.ToPage
                     && event.data.kind === MessageKind.SellResponse
@@ -51,6 +50,30 @@ export default class WavesProvider {
             kind: MessageKind.SellRequest,
             direction: Direction.ToBackground,
             payload: btc,
+        }, "*");
+        return promise;
+    }
+
+    public async getBuyCreateSwapPayload(usdt: string): Promise<CreateSwapPayload> {
+        debug("Getting buy create-swap payload");
+        let promise = new Promise<CreateSwapPayload>((resolve, _reject) => {
+            let listener = async function(event: MessageEvent<Message<CreateSwapPayload>>) {
+                if (
+                    event.data.direction === Direction.ToPage
+                    && event.data.kind === MessageKind.BuyResponse
+                ) {
+                    debug(`Received buy response: ${JSON.stringify(event.data)}`);
+
+                    window.removeEventListener("message", listener);
+                    resolve(event.data.payload);
+                }
+            };
+            window.addEventListener("message", listener);
+        });
+        window.postMessage({
+            kind: MessageKind.BuyRequest,
+            direction: Direction.ToBackground,
+            payload: usdt,
         }, "*");
         return promise;
     }

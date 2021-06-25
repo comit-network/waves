@@ -47,6 +47,14 @@ pub async fn make_sell_create_swap_payload(name: String, btc: String) -> Result<
     Ok(payload)
 }
 
+#[wasm_bindgen]
+pub async fn make_buy_create_swap_payload(name: String, usdt: String) -> Result<JsValue, JsValue> {
+    let payload = map_err_from_anyhow!(wallet::make_buy_create_swap_payload(name, usdt).await)?;
+    let payload = map_err_from_anyhow!(JsValue::from_serde(&payload))?;
+
+    Ok(payload)
+}
+
 #[macro_export]
 macro_rules! map_err_from_anyhow {
     ($e:expr) => {

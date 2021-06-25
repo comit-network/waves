@@ -54,3 +54,10 @@ export async function makeSellCreateSwapPayload(name: string, btc: string): Prom
     debug("makeSellCreateSwapPayload");
     return await make_sell_create_swap_payload(name, btc);
 }
+
+export async function makeBuyCreateSwapPayload(name: string, usdt: string): Promise<CreateSwapPayload> {
+    const { make_buy_create_swap_payload } = await import("./wallet");
+
+    debug("makeBuyCreateSwapPayload");
+    return await make_buy_create_swap_payload(name, usdt);
+}

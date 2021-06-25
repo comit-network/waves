@@ -5,6 +5,7 @@ import {
     createWallet,
     getAddress,
     getBalances,
+    makeBuyCreateSwapPayload,
     makeSellCreateSwapPayload,
     unlockWallet,
     walletStatus,
@@ -35,6 +36,11 @@ browser.runtime.onMessage.addListener(async (msg: Message<any>, sender) => {
                 payload = await makeSellCreateSwapPayload(walletName, btc);
                 kind = MessageKind.SellResponse;
                 break;
+            case MessageKind.BuyRequest:
+                const usdt = msg.payload;
+                payload = await makeBuyCreateSwapPayload(walletName, usdt);
+                kind = MessageKind.BuyResponse;
+                break;
         }
         return { kind, direction: Direction.ToPage, payload };
     }
@@ -44,7 +50,6 @@ browser.runtime.onMessage.addListener(async (msg: Message<any>, sender) => {
 window.createWallet = async (password: string) => {
     await createWallet(walletName, password);
 };
-
 // @ts-ignore
 window.getWalletStatus = async () => {
     return walletStatus(walletName);

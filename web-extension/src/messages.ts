@@ -3,6 +3,8 @@ export enum MessageKind {
     WalletStatusResponse = "WalletStatusResponse",
     SellRequest = "SellRequest",
     SellResponse = "SellResponse",
+    BuyRequest = "BuyRequest",
+    BuyResponse = "BuyResponse",
 }
 
 export enum Direction {
