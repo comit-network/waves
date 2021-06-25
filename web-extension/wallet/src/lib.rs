@@ -1,10 +1,8 @@
 use wasm_bindgen::prelude::*;
 
-const WALLET_NAME: &str = "demo-wallet";
-
 #[wasm_bindgen]
-pub async fn wallet_status() -> Result<JsValue, JsValue> {
-    let status = map_err_from_anyhow!(wallet::wallet_status(WALLET_NAME.to_string()).await)?;
+pub async fn wallet_status(wallet_name: String) -> Result<JsValue, JsValue> {
+    let status = map_err_from_anyhow!(wallet::wallet_status(wallet_name).await)?;
 
     let status = map_err_from_anyhow!(JsValue::from_serde(&status))?;
 
@@ -12,11 +10,18 @@ pub async fn wallet_status() -> Result<JsValue, JsValue> {
 }
 
 #[wasm_bindgen]
-pub async fn get_address() -> Result<JsValue, JsValue> {
-    let address = map_err_from_anyhow!(wallet::get_address(WALLET_NAME.to_string()).await)?;
+pub async fn get_address(wallet_name: String) -> Result<JsValue, JsValue> {
+    let address = map_err_from_anyhow!(wallet::get_address(wallet_name).await)?;
     let address = map_err_from_anyhow!(JsValue::from_serde(&address))?;
 
     Ok(address)
+}
+
+#[wasm_bindgen]
+pub async fn create_new_wallet(name: String, password: String) -> Result<(), JsValue> {
+    Ok(map_err_from_anyhow!(
+        wallet::create_new_wallet(name, password).await
+    )?)
 }
 
 #[macro_export]

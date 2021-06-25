@@ -17,11 +17,6 @@ let walletStatus: WalletStatus = {
     status: Status.None,
 };
 
-export async function getWalletStatus(): Promise<WalletStatus> {
-    debug("Getting wallet status");
-    return Promise.resolve(walletStatus);
-}
-
 export async function getWalletBalance(): Promise<BalanceUpdate> {
     debug("Getting wallet balance");
     if (walletStatus.status !== Status.Loaded) {
@@ -42,14 +37,6 @@ export async function getWalletBalance(): Promise<BalanceUpdate> {
 
 export async function unlockWallet(_password: string): Promise<void> {
     debug("Unlocking wallet");
-    walletStatus = {
-        status: Status.Loaded,
-    };
-    return Promise.resolve();
-}
-
-export async function createWallet(_password: string): Promise<void> {
-    debug("Creating wallet");
     walletStatus = {
         status: Status.Loaded,
     };

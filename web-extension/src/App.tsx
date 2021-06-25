@@ -1,14 +1,8 @@
 import { Box, ChakraProvider, Heading } from "@chakra-ui/react";
 import * as React from "react";
 import { useAsync } from "react-async";
-import {
-    cancelLoan,
-    cancelSwap,
-    getLoanToSign,
-    getSwapToSign,
-    getWalletBalance,
-    getWalletStatus,
-} from "./background-proxy";
+import { getWalletStatus } from "./background";
+import { cancelLoan, cancelSwap, getLoanToSign, getSwapToSign, getWalletBalance } from "./background-proxy";
 import AddressQr from "./components/AddressQr";
 import WalletBalances from "./components/Balances";
 import ConfirmLoan from "./components/ConfirmLoan";

@@ -3,7 +3,8 @@ import Debug from "debug";
 import * as React from "react";
 import { ChangeEvent, useState } from "react";
 import { useAsync } from "react-async";
-import { createWallet, unlockWallet } from "../background-proxy";
+import { createWallet } from "../background";
+import { unlockWallet } from "../background-proxy";
 import { Status } from "../models";
 
 Debug.enable("*");

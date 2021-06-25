@@ -13,7 +13,7 @@ export type WalletStatusRequest = {};
 
 export interface WalletStatus {
     status: Status;
-    address?: Address
+    address?: Address;
 }
 
 export interface BalanceEntry {
