@@ -1,6 +1,6 @@
 import Debug from "debug";
 import { Direction, Message, MessageKind } from "../messages";
-import { CreateSwapPayload, WalletStatus } from "../models";
+import { Address, CreateSwapPayload, WalletStatus } from "../models";
 
 Debug.enable("inpage");
 const debug = Debug("inpage");
@@ -74,6 +74,29 @@ export default class WavesProvider {
             kind: MessageKind.BuyRequest,
             direction: Direction.ToBackground,
             payload: usdt,
+        }, "*");
+        return promise;
+    }
+
+    public async getNewAddress(): Promise<Address> {
+        debug("Getting address");
+        let promise = new Promise<Address>((resolve, _reject) => {
+            let listener = async function(event: MessageEvent<Message<Address>>) {
+                if (
+                    event.data.direction === Direction.ToPage
+                    && event.data.kind === MessageKind.AddressResponse
+                ) {
+                    debug(`Received address: ${JSON.stringify(event.data)}`);
+
+                    window.removeEventListener("message", listener);
+                    resolve(event.data.payload);
+                }
+            };
+            window.addEventListener("message", listener);
+        });
+        window.postMessage({
+            kind: MessageKind.AddressRequest,
+            direction: Direction.ToBackground,
         }, "*");
         return promise;
     }

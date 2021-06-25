@@ -41,6 +41,10 @@ browser.runtime.onMessage.addListener(async (msg: Message<any>, sender) => {
                 payload = await makeBuyCreateSwapPayload(walletName, usdt);
                 kind = MessageKind.BuyResponse;
                 break;
+            case MessageKind.AddressRequest:
+                payload = await getAddress(walletName);
+                kind = MessageKind.AddressResponse;
+                break;
         }
         return { kind, direction: Direction.ToPage, payload };
     }
