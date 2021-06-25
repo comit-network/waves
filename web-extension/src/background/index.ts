@@ -1,13 +1,12 @@
 import Debug from "debug";
 import { browser } from "webextension-polyfill-ts";
 import { Direction, Message, MessageKind } from "../messages";
-import { Address, BalanceUpdate, WalletStatus } from "../models";
 import {
-    createWallet as create,
-    getAddress as address,
-    getBalances as balances,
+    createWallet,
+    getAddress,
+    getBalances,
     makeSellCreateSwapPayload,
-    unlockWallet as unlock,
+    unlockWallet,
     walletStatus,
 } from "../wasmProxy";
 
@@ -43,7 +42,7 @@ browser.runtime.onMessage.addListener(async (msg: Message<any>, sender) => {
 
 // @ts-ignore
 window.createWallet = async (password: string) => {
-    await create(walletName, password);
+    await createWallet(walletName, password);
 };
 
 // @ts-ignore
@@ -52,13 +51,13 @@ window.getWalletStatus = async () => {
 };
 // @ts-ignore
 window.unlockWallet = async (password: string) => {
-    await unlock(walletName, password);
+    await unlockWallet(walletName, password);
 };
 // @ts-ignore
 window.getBalances = async () => {
-    return balances(walletName);
+    return getBalances(walletName);
 };
 // @ts-ignore
 window.getAddress = async () => {
-    return address(walletName);
+    return getAddress(walletName);
 };
