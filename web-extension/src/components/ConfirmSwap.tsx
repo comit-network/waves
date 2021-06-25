@@ -1,7 +1,7 @@
 import { Box, Button, Heading } from "@chakra-ui/react";
 import React from "react";
 import { useAsync } from "react-async";
-import { signAndSend } from "../background-proxy";
+import { signAndSendSwap } from "../background-proxy";
 import { SwapToSign } from "../models";
 import YouSwapItem from "./SwapItem";
 
@@ -16,7 +16,7 @@ export default function ConfirmSwap(
 ) {
     let { isPending, run } = useAsync({
         deferFn: async () => {
-            let txId = await signAndSend(swapToSign.txHex);
+            const txId = await signAndSendSwap(swapToSign.txHex, swapToSign.tabId);
             onSuccess(txId);
         },
     });

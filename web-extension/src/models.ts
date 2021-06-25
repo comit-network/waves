@@ -9,6 +9,8 @@ export enum Status {
 
 export type Address = string;
 
+export type Txid = string;
+
 export type WalletStatusRequest = {};
 
 export interface WalletStatus {

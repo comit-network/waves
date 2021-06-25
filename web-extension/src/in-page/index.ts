@@ -1,6 +1,6 @@
 import Debug from "debug";
 import { Direction, Message, MessageKind } from "../messages";
-import { Address, CreateSwapPayload, LoanRequestPayload, WalletStatus } from "../models";
+import { Address, CreateSwapPayload, LoanRequestPayload, Txid, WalletStatus } from "../models";
 
 Debug.enable("inpage");
 const debug = Debug("inpage");
@@ -120,7 +120,31 @@ export default class WavesProvider {
         window.postMessage({
             kind: MessageKind.LoanRequest,
             direction: Direction.ToBackground,
-            payload: collateral
+            payload: collateral,
+        }, "*");
+        return promise;
+    }
+
+    public async signAndSendSwap(tx_hex: string): Promise<Txid> {
+        debug("Making loan request payload");
+        let promise = new Promise<Txid>((resolve, _reject) => {
+            let listener = async function(event: MessageEvent<Message<Txid>>) {
+                if (
+                    event.data.direction === Direction.ToPage
+                    && event.data.kind === MessageKind.SwapTxid
+                ) {
+                    debug(`Received swap txid: ${JSON.stringify(event.data)}`);
+
+                    window.removeEventListener("message", listener);
+                    resolve(event.data.payload);
+                }
+            };
+            window.addEventListener("message", listener);
+        });
+        window.postMessage({
+            kind: MessageKind.SignAndSendSwap,
+            direction: Direction.ToBackground,
+            payload: tx_hex,
         }, "*");
         return promise;
     }

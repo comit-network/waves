@@ -7,6 +7,8 @@ export enum MessageKind {
     BuyResponse = "BuyResponse",
     LoanRequest = "LoanRequest",
     LoanResponse = "LoanResponse",
+    SignAndSendSwap = "SignAndSendSwap",
+    SwapTxid = "SwapTxid",
     AddressRequest = "AddressRequest",
     AddressResponse = "AddressResponse",
 }

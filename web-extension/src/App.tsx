@@ -1,7 +1,6 @@
 import { Box, ChakraProvider, Heading } from "@chakra-ui/react";
 import * as React from "react";
 import { useAsync } from "react-async";
-import { browser } from "webextension-polyfill-ts";
 import { cancelLoan, cancelSwap, getBalances, getLoanToSign, getSwapToSign, getWalletStatus } from "./background-proxy";
 import AddressQr from "./components/AddressQr";
 import WalletBalances from "./components/Balances";
@@ -26,8 +25,8 @@ const App = () => {
     const refreshAll = async () => {
         await reloadWalletBalances();
         await reloadWalletStatus();
-        /* await reloadSwapToSign();
-       * await reloadLoanToSign(); */
+        await reloadSwapToSign();
+        await reloadLoanToSign();
     };
 
     // we want to either sign a swap or the loan but not both:

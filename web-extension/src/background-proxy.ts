@@ -1,5 +1,5 @@
 import { browser } from "webextension-polyfill-ts";
-import { Address, BalanceUpdate, BTC_TICKER, LoanToSign, SwapToSign, USDT_TICKER, WalletStatus } from "./models";
+import { Address, BalanceUpdate, LoanToSign, SwapToSign, Txid, WalletStatus } from "./models";
 
 const proxy = browser.extension.getBackgroundPage();
 
@@ -8,8 +8,9 @@ export async function getAddress(): Promise<Address> {
     return proxy.getAddress();
 }
 
-export async function signAndSend(tx: string): Promise<string> {
-    return Promise.resolve("8ec2ff513cb55b621af73130818c359aef357038905b7954775eff43e92916f9");
+export async function signAndSendSwap(txHex: string, tabId: number): Promise<Txid> {
+    // @ts-ignore
+    return proxy.signAndSendSwap(txHex, tabId);
 }
 
 export async function getLoanToSign(): Promise<LoanToSign | undefined> {
@@ -17,7 +18,8 @@ export async function getLoanToSign(): Promise<LoanToSign | undefined> {
 }
 
 export async function getSwapToSign(): Promise<SwapToSign | undefined> {
-    return Promise.resolve(undefined);
+    // @ts-ignore
+    return proxy.getSwapToSign();
 }
 
 export async function cancelLoan(_loanToSign: LoanToSign): Promise<void> {

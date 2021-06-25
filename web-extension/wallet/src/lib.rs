@@ -66,6 +66,22 @@ pub async fn make_loan_request_payload(
     Ok(payload)
 }
 
+#[wasm_bindgen]
+pub async fn sign_and_send(name: String, tx_hex: String) -> Result<JsValue, JsValue> {
+    let txid = map_err_from_anyhow!(wallet::sign_and_send_swap_transaction(name, tx_hex).await)?;
+    let txid = map_err_from_anyhow!(JsValue::from_serde(&txid))?;
+
+    Ok(txid)
+}
+
+#[wasm_bindgen]
+pub async fn extract_trade(name: String, tx_hex: String) -> Result<JsValue, JsValue> {
+    let trade = map_err_from_anyhow!(wallet::extract_trade(name, tx_hex).await)?;
+    let trade = map_err_from_anyhow!(JsValue::from_serde(&trade))?;
+
+    Ok(trade)
+}
+
 #[macro_export]
 macro_rules! map_err_from_anyhow {
     ($e:expr) => {

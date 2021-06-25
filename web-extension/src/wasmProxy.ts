@@ -1,5 +1,5 @@
 import Debug from "debug";
-import { Address, BalanceUpdate, CreateSwapPayload, Status, WalletStatus } from "./models";
+import { Address, BalanceUpdate, CreateSwapPayload, Status, Trade, Txid, WalletStatus } from "./models";
 
 Debug.enable("*");
 let debug = Debug("wasm-proxy");
@@ -67,4 +67,18 @@ export async function makeLoanRequestPayload(name: string, collateral: string): 
 
     debug("makeLoanRequestPayload");
     return await make_loan_request_payload(name, collateral);
+}
+
+export async function signAndSendSwap(name: string, txHex: string): Promise<Txid> {
+    const { sign_and_send } = await import("./wallet");
+
+    debug("signAndSendSwap");
+    return await sign_and_send(name, txHex);
+}
+
+export async function extractTrade(name: string, txHex: string): Promise<Trade> {
+    const { extract_trade } = await import("./wallet");
+
+    debug("extractTrade");
+    return await extract_trade(name, txHex);
 }
