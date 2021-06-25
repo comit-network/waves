@@ -1,5 +1,5 @@
 import Debug from "debug";
-import { Address, Status, WalletStatus } from "./models";
+import { Address, BalanceUpdate, Status, WalletStatus } from "./models";
 
 Debug.enable("*");
 let debug = Debug("wasm-proxy");
@@ -39,4 +39,11 @@ export async function unlockWallet(name: string, password: string): Promise<null
 
     debug("unlockWallet");
     return await unlock_wallet(name, password);
+}
+
+export async function getBalances(name: string): Promise<BalanceUpdate> {
+    const { get_balances } = await import("./wallet");
+
+    debug("getBalances");
+    return await get_balances(name);
 }

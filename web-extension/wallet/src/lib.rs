@@ -31,6 +31,14 @@ pub async fn unlock_wallet(name: String, password: String) -> Result<(), JsValue
     )?)
 }
 
+#[wasm_bindgen]
+pub async fn get_balances(name: String) -> Result<JsValue, JsValue> {
+    let balances = map_err_from_anyhow!(wallet::get_balances(name).await)?;
+    let balances = map_err_from_anyhow!(JsValue::from_serde(&balances))?;
+
+    Ok(balances)
+}
+
 #[macro_export]
 macro_rules! map_err_from_anyhow {
     ($e:expr) => {

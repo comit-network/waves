@@ -28,7 +28,7 @@ function balanceEntry(balance: BalanceEntry) {
 }
 
 function WalletBalances({ balanceUpdates }: BalancesProps) {
-    let elements = balanceUpdates.balances.map((be) => balanceEntry(be));
+    let elements = balanceUpdates.map((be) => balanceEntry(be));
 
     return (
         <HStack justify="center">

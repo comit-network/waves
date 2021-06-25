@@ -1,39 +1,4 @@
-import Debug from "debug";
-import {
-    Address,
-    BalanceEntry,
-    BalanceUpdate,
-    BTC_TICKER,
-    LoanToSign,
-    Status,
-    SwapToSign,
-    USDT_TICKER,
-    WalletStatus,
-} from "./models";
-
-const debug = Debug("bgproxy");
-
-let walletStatus: WalletStatus = {
-    status: Status.None,
-};
-
-export async function getWalletBalance(): Promise<BalanceUpdate> {
-    debug("Getting wallet balance");
-    if (walletStatus.status !== Status.Loaded) {
-        return Promise.resolve({ balances: [] });
-    }
-    let usdt: BalanceEntry = {
-        assetId: "x...USDT",
-        ticker: USDT_TICKER,
-        value: 10,
-    };
-    let btc: BalanceEntry = {
-        assetId: "x...BTC",
-        ticker: BTC_TICKER,
-        value: 1,
-    };
-    return Promise.resolve({ balances: [usdt, btc] });
-}
+import { Address, BTC_TICKER, LoanToSign, SwapToSign, USDT_TICKER } from "./models";
 
 export async function getAddress(): Promise<Address> {
     return Promise.resolve(

@@ -1,8 +1,8 @@
 import Debug from "debug";
 import { browser } from "webextension-polyfill-ts";
 import { Direction, Message, MessageKind } from "../messages";
-import { WalletStatus } from "../models";
-import { walletStatus, createWallet as create, unlockWallet as unlock } from "../wasmProxy";
+import { BalanceUpdate, WalletStatus } from "../models";
+import { createWallet as create, getBalances as balances, unlockWallet as unlock, walletStatus } from "../wasmProxy";
 
 Debug.enable("background");
 const debug = Debug("background");
@@ -35,6 +35,10 @@ export async function createWallet(password: string): Promise<void> {
 
 export async function unlockWallet(password: string): Promise<void> {
     await unlock(walletName, password);
+}
+
+export async function getBalances(): Promise<BalanceUpdate> {
+    return await balances(walletName);
 }
 
 // @ts-ignore

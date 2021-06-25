@@ -22,9 +22,7 @@ export interface BalanceEntry {
     value: number;
 }
 
-export interface BalanceUpdate {
-    balances: Array<BalanceEntry>;
-}
+export type BalanceUpdate = Array<BalanceEntry>;
 
 export interface TradeSide {
     ticker: string;
