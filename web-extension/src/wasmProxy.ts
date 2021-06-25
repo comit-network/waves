@@ -1,5 +1,5 @@
 import Debug from "debug";
-import { Address, BalanceUpdate, Status, WalletStatus } from "./models";
+import { Address, BalanceUpdate, CreateSwapPayload, Status, WalletStatus } from "./models";
 
 Debug.enable("*");
 let debug = Debug("wasm-proxy");
@@ -46,4 +46,11 @@ export async function getBalances(name: string): Promise<BalanceUpdate> {
 
     debug("getBalances");
     return await get_balances(name);
+}
+
+export async function makeSellCreateSwapPayload(name: string, btc: string): Promise<CreateSwapPayload> {
+    const { make_sell_create_swap_payload } = await import("./wallet");
+
+    debug("makeSellCreateSwapPayload");
+    return await make_sell_create_swap_payload(name, btc);
 }

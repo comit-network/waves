@@ -6,6 +6,7 @@ import {
     createWallet as create,
     getAddress as address,
     getBalances as balances,
+    makeSellCreateSwapPayload,
     unlockWallet as unlock,
     walletStatus,
 } from "../wasmProxy";
@@ -23,11 +24,20 @@ browser.runtime.onMessage.addListener(async (msg: Message<any>, sender) => {
     );
 
     if (msg.direction === Direction.ToBackground) {
+        let payload;
+        let kind;
         switch (msg.kind) {
             case MessageKind.WalletStatusRequest:
-                const payload = await walletStatus(walletName);
-                return { kind: MessageKind.WalletStatusResponse, direction: Direction.ToPage, payload };
+                payload = await walletStatus(walletName);
+                kind = MessageKind.WalletStatusResponse;
+                break;
+            case MessageKind.SellRequest:
+                const btc = msg.payload;
+                payload = await makeSellCreateSwapPayload(walletName, btc);
+                kind = MessageKind.SellResponse;
+                break;
         }
+        return { kind, direction: Direction.ToPage, payload };
     }
 });
 

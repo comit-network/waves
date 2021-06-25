@@ -1,6 +1,6 @@
 import Debug from "debug";
 import { Direction, Message, MessageKind } from "../messages";
-import { WalletStatus } from "../models";
+import { CreateSwapPayload, WalletStatus } from "../models";
 
 Debug.enable("inpage");
 const debug = Debug("inpage");
@@ -26,6 +26,31 @@ export default class WavesProvider {
         window.postMessage({
             kind: MessageKind.WalletStatusRequest,
             direction: Direction.ToBackground,
+        }, "*");
+        return promise;
+    }
+
+    public async getSellCreateSwapPayload(btc: string): Promise<CreateSwapPayload> {
+        debug("Getting sell create-swap payload");
+        let promise = new Promise<CreateSwapPayload>((resolve, _reject) => {
+            let listener = async function(event: MessageEvent<Message<CreateSwapPayload>>) {
+                // TODO timeout and reject promise after some time of no response.
+                if (
+                    event.data.direction === Direction.ToPage
+                    && event.data.kind === MessageKind.SellResponse
+                ) {
+                    debug(`Received sell response: ${JSON.stringify(event.data)}`);
+
+                    window.removeEventListener("message", listener);
+                    resolve(event.data.payload);
+                }
+            };
+            window.addEventListener("message", listener);
+        });
+        window.postMessage({
+            kind: MessageKind.SellRequest,
+            direction: Direction.ToBackground,
+            payload: btc,
         }, "*");
         return promise;
     }

@@ -50,3 +50,14 @@ export interface LoanToSign {
     term: number;
     tabId: number;
 }
+
+export interface CreateSwapPayload {
+    alice_inputs: { outpoint: OutPoint; blinding_key: string }[];
+    address: string;
+    amount: number;
+}
+
+export interface OutPoint {
+    txid: string;
+    vout: number;
+}

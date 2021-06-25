@@ -39,6 +39,14 @@ pub async fn get_balances(name: String) -> Result<JsValue, JsValue> {
     Ok(balances)
 }
 
+#[wasm_bindgen]
+pub async fn make_sell_create_swap_payload(name: String, btc: String) -> Result<JsValue, JsValue> {
+    let payload = map_err_from_anyhow!(wallet::make_sell_create_swap_payload(name, btc).await)?;
+    let payload = map_err_from_anyhow!(JsValue::from_serde(&payload))?;
+
+    Ok(payload)
+}
+
 #[macro_export]
 macro_rules! map_err_from_anyhow {
     ($e:expr) => {
