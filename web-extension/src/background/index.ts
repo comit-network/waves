@@ -1,8 +1,14 @@
 import Debug from "debug";
 import { browser } from "webextension-polyfill-ts";
 import { Direction, Message, MessageKind } from "../messages";
-import { BalanceUpdate, WalletStatus } from "../models";
-import { createWallet as create, getBalances as balances, unlockWallet as unlock, walletStatus } from "../wasmProxy";
+import { Address, BalanceUpdate, WalletStatus } from "../models";
+import {
+    createWallet as create,
+    getAddress as address,
+    getBalances as balances,
+    unlockWallet as unlock,
+    walletStatus,
+} from "../wasmProxy";
 
 Debug.enable("background");
 const debug = Debug("background");
@@ -25,25 +31,24 @@ browser.runtime.onMessage.addListener(async (msg: Message<any>, sender) => {
     }
 });
 
-export async function getWalletStatus(): Promise<WalletStatus> {
-    return await walletStatus(walletName);
-}
-
-export async function createWallet(password: string): Promise<void> {
+// @ts-ignore
+window.createWallet = async (password: string) => {
     await create(walletName, password);
-}
+};
 
-export async function unlockWallet(password: string): Promise<void> {
+// @ts-ignore
+window.getWalletStatus = async () => {
+    return walletStatus(walletName);
+};
+// @ts-ignore
+window.unlockWallet = async (password: string) => {
     await unlock(walletName, password);
-}
-
-export async function getBalances(): Promise<BalanceUpdate> {
-    return await balances(walletName);
-}
-
+};
 // @ts-ignore
-window.createWallet = createWallet;
+window.getBalances = async () => {
+    return balances(walletName);
+};
 // @ts-ignore
-window.getWalletStatus = getWalletStatus;
-// @ts-ignore
-window.unlockWallet = unlockWallet;
+window.getAddress = async () => {
+    return address(walletName);
+};
