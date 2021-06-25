@@ -7,15 +7,16 @@ import {
     getLoanToSign,
     getSwapToSign,
     getWalletBalance,
-    getWalletStatus
+    getWalletStatus,
 } from "./background-proxy";
 import AddressQr from "./components/AddressQr";
 import WalletBalances from "./components/Balances";
 import ConfirmLoan from "./components/ConfirmLoan";
+import ConfirmSwap from "./components/ConfirmSwap";
 import CreateOrUnlockWallet from "./components/CreateOrUnlockWallet";
+import WithdrawAll from "./components/WithdrawAll";
 import { Status } from "./models";
 import theme from "./theme";
-import ConfirmSwap from "./components/ConfirmSwap";
 
 const App = () => {
     const walletStatusHook = useAsync({ promiseFn: getWalletStatus });
@@ -47,7 +48,9 @@ const App = () => {
                 {walletStatus?.status === Status.Loaded
                     && <>
                         {balanceUpdates && <WalletBalances balanceUpdates={balanceUpdates} />}
-                        <AddressQr />
+                        {!signLoan && !swapToSign && <AddressQr />}
+                        {!signLoan && !swapToSign && <WithdrawAll />}
+
                         {swapToSign && <ConfirmSwap
                             onCancel={async () => {
                                 await cancelSwap(swapToSign!);

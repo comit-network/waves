@@ -1,8 +1,8 @@
-import {Box, Button, Heading} from "@chakra-ui/react";
+import { Box, Button, Heading } from "@chakra-ui/react";
 import React from "react";
-import {useAsync} from "react-async";
-import {signAndSend} from "../background-proxy";
-import {SwapToSign} from "../models";
+import { useAsync } from "react-async";
+import { signAndSend } from "../background-proxy";
+import { SwapToSign } from "../models";
 import YouSwapItem from "./SwapItem";
 
 interface ConfirmSwapProps {

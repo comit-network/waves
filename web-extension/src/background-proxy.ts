@@ -126,3 +126,7 @@ export async function cancelLoan(_loanToSign: LoanToSign): Promise<void> {
 export async function cancelSwap(_swapToSign: SwapToSign): Promise<void> {
     return Promise.resolve();
 }
+
+export async function withdrawAll(_address: string): Promise<void> {
+    return Promise.resolve();
+}
