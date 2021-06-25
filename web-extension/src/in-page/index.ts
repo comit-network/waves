@@ -6,7 +6,7 @@ Debug.enable("inpage");
 const debug = Debug("inpage");
 
 export default class WavesProvider {
-    public async wallet_status(): Promise<WalletStatus> {
+    public async walletStatus(): Promise<WalletStatus> {
         debug("Requesting wallet status");
         let promise = new Promise<WalletStatus>((resolve, _reject) => {
             let listener = async function(event: MessageEvent<Message<WalletStatus>>) {
@@ -31,10 +31,10 @@ export default class WavesProvider {
     }
 }
 
-const initialize_provider = () => {
+const initializeProvider = () => {
     debug("I was injected 🥳");
     // @ts-ignore `provider` is not known on `window`. That's why we are defining it ;)
     window.wavesProvider = new WavesProvider();
 };
 
-initialize_provider();
+initializeProvider();
