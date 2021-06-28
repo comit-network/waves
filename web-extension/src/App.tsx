@@ -1,7 +1,7 @@
 import { Box, ChakraProvider, Heading } from "@chakra-ui/react";
 import * as React from "react";
 import { useAsync } from "react-async";
-import { cancelLoan, cancelSwap, getBalances, getLoanToSign, getSwapToSign, getWalletStatus } from "./background-proxy";
+import { getBalances, getLoanToSign, getSwapToSign, getWalletStatus, rejectLoan, rejectSwap } from "./background-proxy";
 import AddressQr from "./components/AddressQr";
 import WalletBalances from "./components/Balances";
 import ConfirmLoan from "./components/ConfirmLoan";
@@ -45,8 +45,8 @@ const App = () => {
                         {!signLoan && !swapToSign && <WithdrawAll />}
 
                         {swapToSign && <ConfirmSwap
-                            onCancel={async () => {
-                                await cancelSwap(swapToSign!);
+                            onCancel={async (tabId: number) => {
+                                await rejectSwap(tabId);
                                 await refreshAll();
                             }}
                             onSuccess={refreshAll}
@@ -54,8 +54,8 @@ const App = () => {
                         />}
                         {signLoan
                             && <ConfirmLoan
-                                onCancel={async () => {
-                                    await cancelLoan(loanToSign!);
+                                onCancel={async (tabId: number) => {
+                                    await rejectLoan(tabId);
                                     await refreshAll();
                                 }}
                                 onSuccess={refreshAll}

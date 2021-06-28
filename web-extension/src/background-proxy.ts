@@ -28,12 +28,14 @@ export async function getSwapToSign(): Promise<SwapToSign | undefined> {
     return proxy.getSwapToSign();
 }
 
-export async function cancelLoan(_loanToSign: LoanToSign): Promise<void> {
-    return Promise.resolve();
+export async function rejectLoan(tabId: number): Promise<void> {
+    // @ts-ignore
+    return proxy.rejectLoan(tabId);
 }
 
-export async function cancelSwap(_swapToSign: SwapToSign): Promise<void> {
-    return Promise.resolve();
+export async function rejectSwap(tabId: number): Promise<void> {
+    // @ts-ignore
+    return proxy.rejectSwap(tabId);
 }
 
 export async function withdrawAll(_address: string): Promise<void> {

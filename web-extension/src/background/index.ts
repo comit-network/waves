@@ -108,6 +108,11 @@ window.signAndSendSwap = async (txHex: string, tabId: number) => {
     return txid;
 };
 // @ts-ignore
+window.rejectSwap = async (tabId: number) => {
+    browser.tabs.sendMessage(tabId, { direction: Direction.ToPage, kind: MessageKind.SwapRejected });
+    swapToSign = undefined;
+};
+// @ts-ignore
 window.getLoanToSign = async () => {
     return loanToSign;
 };
@@ -120,5 +125,10 @@ window.signLoan = async (tabId: number) => {
 
     const loan = await signLoan(walletName);
     browser.tabs.sendMessage(tabId, { direction: Direction.ToPage, kind: MessageKind.SignedLoan, payload: loan });
+    loanToSign = undefined;
+};
+// @ts-ignore
+window.rejectLoan = async (tabId: number) => {
+    browser.tabs.sendMessage(tabId, { direction: Direction.ToPage, kind: MessageKind.LoanRejected });
     loanToSign = undefined;
 };

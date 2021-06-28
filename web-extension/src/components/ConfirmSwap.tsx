@@ -6,7 +6,7 @@ import { SwapToSign } from "../models";
 import YouSwapItem from "./SwapItem";
 
 interface ConfirmSwapProps {
-    onCancel: () => void;
+    onCancel: (tabId: number) => void;
     onSuccess: (txId: string) => void;
     swapToSign: SwapToSign;
 }
@@ -48,7 +48,7 @@ export default function ConfirmSwap(
             <Button
                 variant="secondary"
                 mr={3}
-                onClick={onCancel}
+                onClick={() => onCancel(swapToSign.tabId)}
             >
                 Cancel
             </Button>

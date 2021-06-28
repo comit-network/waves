@@ -7,7 +7,7 @@ import YouSwapItem from "./SwapItem";
 import Usdt from "./tether.svg";
 
 interface ConfirmLoanProps {
-    onCancel: () => void;
+    onCancel: (tabId: number) => void;
     onSuccess: () => void;
     loanToSign: LoanToSign;
 }
@@ -72,7 +72,7 @@ export default function ConfirmLoan(
             <Button
                 variant="secondary"
                 mr={3}
-                onClick={onCancel}
+                onClick={() => onCancel(loanToSign.tabId)}
             >
                 Cancel
             </Button>

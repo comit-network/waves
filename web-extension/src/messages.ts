@@ -13,6 +13,8 @@ export enum MessageKind {
     AddressResponse = "AddressResponse",
     SignLoan = "SignLoan",
     SignedLoan = "SignedLoan",
+    LoanRejected = "LoanRejected",
+    SwapRejected = "SwapRejected",
 }
 
 export enum Direction {

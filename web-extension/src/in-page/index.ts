@@ -127,16 +127,22 @@ export default class WavesProvider {
 
     public async signAndSendSwap(tx_hex: string): Promise<Txid> {
         debug("Making loan request payload");
-        let promise = new Promise<Txid>((resolve, _reject) => {
+        let promise = new Promise<Txid>((resolve, reject) => {
             let listener = async function(event: MessageEvent<Message<Txid>>) {
                 if (
                     event.data.direction === Direction.ToPage
-                    && event.data.kind === MessageKind.SwapTxid
                 ) {
-                    debug(`Received swap txid: ${JSON.stringify(event.data)}`);
+                    if (event.data.kind === MessageKind.SwapTxid) {
+                        debug(`Received swap txid: ${JSON.stringify(event.data)}`);
 
-                    window.removeEventListener("message", listener);
-                    resolve(event.data.payload);
+                        window.removeEventListener("message", listener);
+                        resolve(event.data.payload);
+                    } else if (event.data.kind === MessageKind.SwapRejected) {
+                        debug(`Swap rejected: ${JSON.stringify(event.data)}`);
+
+                        window.removeEventListener("message", listener);
+                        reject();
+                    }
                 }
             };
             window.addEventListener("message", listener);
@@ -151,16 +157,22 @@ export default class WavesProvider {
 
     public async signLoan(loan_response: string): Promise<LoanTx> {
         debug("Signing loan after user confirmation");
-        let promise = new Promise<LoanTx>((resolve, _reject) => {
+        let promise = new Promise<LoanTx>((resolve, reject) => {
             let listener = async function(event: MessageEvent<Message<LoanTx>>) {
                 if (
                     event.data.direction === Direction.ToPage
-                    && event.data.kind === MessageKind.SignedLoan
                 ) {
-                    debug(`Received loan transaction: ${JSON.stringify(event.data)}`);
+                    if (event.data.kind === MessageKind.SignedLoan) {
+                        debug(`Received signed loan: ${JSON.stringify(event.data)}`);
 
-                    window.removeEventListener("message", listener);
-                    resolve(event.data.payload);
+                        window.removeEventListener("message", listener);
+                        resolve(event.data.payload);
+                    } else if (event.data.kind === MessageKind.LoanRejected) {
+                        debug(`Loan rejected: ${JSON.stringify(event.data)}`);
+
+                        window.removeEventListener("message", listener);
+                        reject();
+                    }
                 }
             };
             window.addEventListener("message", listener);
