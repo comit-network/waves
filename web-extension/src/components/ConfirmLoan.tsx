@@ -1,14 +1,14 @@
 import { Box, Button, Flex, Heading, Image, Spacer, Text } from "@chakra-ui/react";
 import React from "react";
 import { useAsync } from "react-async";
-import { signAndSendSwap } from "../background-proxy";
+import { signLoan } from "../background-proxy";
 import { LoanToSign, USDT_TICKER } from "../models";
 import YouSwapItem from "./SwapItem";
 import Usdt from "./tether.svg";
 
 interface ConfirmLoanProps {
     onCancel: () => void;
-    onSuccess: (txId: string) => void;
+    onSuccess: () => void;
     loanToSign: LoanToSign;
 }
 
@@ -17,12 +17,12 @@ export default function ConfirmLoan(
 ) {
     let { isPending, run } = useAsync({
         deferFn: async () => {
-            const txId = await signAndSendSwap(loanToSign.txHex, loanToSign.tabId);
-            onSuccess(txId);
+            await signLoan(loanToSign.tabId);
+            onSuccess();
         },
     });
 
-    let { collateral, principal, principalRepayment, term } = loanToSign;
+    let { details: { collateral, principal, principalRepayment, term } } = loanToSign;
 
     return (<Box>
         <form

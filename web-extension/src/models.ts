@@ -44,14 +44,19 @@ export interface SwapToSign {
     tabId: number;
 }
 
-export interface LoanToSign {
-    txHex: string;
+export interface LoanDetails {
     collateral: TradeSide;
     principal: TradeSide;
     principalRepayment: number;
     term: number;
+}
+
+export interface LoanToSign {
+    details: LoanDetails;
     tabId: number;
 }
+
+export type LoanTx = string;
 
 export interface CreateSwapPayload {
     alice_inputs: { outpoint: OutPoint; blinding_key: string }[];

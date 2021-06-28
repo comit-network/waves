@@ -1,5 +1,5 @@
 import Debug from "debug";
-import { Address, BalanceUpdate, CreateSwapPayload, Status, Trade, Txid, WalletStatus } from "./models";
+import { Address, BalanceUpdate, CreateSwapPayload, LoanDetails, LoanTx, Status, Trade, Txid, WalletStatus } from "./models";
 
 Debug.enable("*");
 let debug = Debug("wasm-proxy");
@@ -27,14 +27,14 @@ export async function getAddress(name: string): Promise<Address> {
     return await get_address(name);
 }
 
-export async function createWallet(name: string, password: string): Promise<null> {
+export async function createWallet(name: string, password: string): Promise<void> {
     const { create_new_wallet } = await import("./wallet");
 
     debug("createWallet");
     return await create_new_wallet(name, password);
 }
 
-export async function unlockWallet(name: string, password: string): Promise<null> {
+export async function unlockWallet(name: string, password: string): Promise<void> {
     const { unlock_wallet } = await import("./wallet");
 
     debug("unlockWallet");
@@ -81,4 +81,19 @@ export async function extractTrade(name: string, txHex: string): Promise<Trade> 
 
     debug("extractTrade");
     return await extract_trade(name, txHex);
+}
+
+// TODO: Replace any with actual LoanResponse interface
+export async function extractLoan(name: string, loanResponse: any): Promise<LoanDetails> {
+    const { extract_loan } = await import("./wallet");
+
+    debug("extractLoan");
+    return await extract_loan(name, loanResponse);
+}
+
+export async function signLoan(name: string): Promise<LoanTx> {
+    const { sign_loan } = await import("./wallet");
+
+    debug("signLoan");
+    return await sign_loan(name);
 }

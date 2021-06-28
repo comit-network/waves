@@ -6,11 +6,13 @@ export enum MessageKind {
     BuyRequest = "BuyRequest",
     BuyResponse = "BuyResponse",
     LoanRequest = "LoanRequest",
-    LoanResponse = "LoanResponse",
+    LoanResponse = "LoanResponse", // TODO: Choose a better name
     SignAndSendSwap = "SignAndSendSwap",
     SwapTxid = "SwapTxid",
     AddressRequest = "AddressRequest",
     AddressResponse = "AddressResponse",
+    SignLoan = "SignLoan",
+    SignedLoan = "SignedLoan",
 }
 
 export enum Direction {

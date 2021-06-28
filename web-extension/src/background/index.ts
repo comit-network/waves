@@ -1,9 +1,10 @@
 import Debug from "debug";
 import { browser } from "webextension-polyfill-ts";
 import { Direction, Message, MessageKind } from "../messages";
-import { SwapToSign } from "../models";
+import { LoanToSign, SwapToSign } from "../models";
 import {
     createWallet,
+    extractLoan,
     extractTrade,
     getAddress,
     getBalances,
@@ -11,6 +12,7 @@ import {
     makeLoanRequestPayload,
     makeSellCreateSwapPayload,
     signAndSendSwap,
+    signLoan,
     unlockWallet,
     walletStatus,
 } from "../wasmProxy";
@@ -22,6 +24,7 @@ debug("Hello world from background script");
 
 const walletName = "demo";
 var swapToSign: SwapToSign | undefined;
+var loanToSign: LoanToSign | undefined;
 
 browser.runtime.onMessage.addListener(async (msg: Message<any>, sender) => {
     debug(
@@ -58,9 +61,14 @@ browser.runtime.onMessage.addListener(async (msg: Message<any>, sender) => {
             case MessageKind.SignAndSendSwap:
                 const txHex = msg.payload;
                 const decoded = await extractTrade(walletName, txHex);
-                const tabId = sender.tab!.id!;
 
-                swapToSign = { txHex, decoded, tabId };
+                swapToSign = { txHex, decoded, tabId: sender.tab!.id! };
+                break;
+            case MessageKind.SignLoan:
+                const loanResponse = msg.payload;
+                const details = await extractLoan(walletName, loanResponse);
+
+                loanToSign = { details, tabId: sender.tab!.id! };
                 break;
         }
         return { kind, direction: Direction.ToPage, payload };
@@ -98,4 +106,19 @@ window.signAndSendSwap = async (txHex: string, tabId: number) => {
     swapToSign = undefined;
 
     return txid;
+};
+// @ts-ignore
+window.getLoanToSign = async () => {
+    return loanToSign;
+};
+// @ts-ignore
+window.signLoan = async (tabId: number) => {
+    // TODO: Currently, we assume that whatever the user has verified
+    // on the pop-up matches what is stored in the extension's
+    // storage. It would be better to send around the swap ID to check
+    // that the wallet is signing the same transaction the user has authorised
+
+    const loan = await signLoan(walletName);
+    browser.tabs.sendMessage(tabId, { direction: Direction.ToPage, kind: MessageKind.SignedLoan, payload: loan });
+    loanToSign = undefined;
 };

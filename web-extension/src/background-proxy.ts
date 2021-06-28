@@ -13,8 +13,14 @@ export async function signAndSendSwap(txHex: string, tabId: number): Promise<Txi
     return proxy.signAndSendSwap(txHex, tabId);
 }
 
+export async function signLoan(tabId: number): Promise<void> {
+    // @ts-ignore
+    return proxy.signLoan(tabId);
+}
+
 export async function getLoanToSign(): Promise<LoanToSign | undefined> {
-    return Promise.resolve(undefined);
+    // @ts-ignore
+    return proxy.getLoanToSign();
 }
 
 export async function getSwapToSign(): Promise<SwapToSign | undefined> {

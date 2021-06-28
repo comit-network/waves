@@ -82,6 +82,22 @@ pub async fn extract_trade(name: String, tx_hex: String) -> Result<JsValue, JsVa
     Ok(trade)
 }
 
+#[wasm_bindgen]
+pub async fn extract_loan(name: String, loan_response: String) -> Result<JsValue, JsValue> {
+    let details = map_err_from_anyhow!(wallet::extract_loan(name, loan_response).await)?;
+    let details = map_err_from_anyhow!(JsValue::from_serde(&details))?;
+
+    Ok(details)
+}
+
+#[wasm_bindgen]
+pub async fn sign_loan(name: String) -> Result<JsValue, JsValue> {
+    let signed_loan = map_err_from_anyhow!(wallet::sign_loan(name).await)?;
+    let signed_loan = map_err_from_anyhow!(JsValue::from_serde(&signed_loan))?;
+
+    Ok(signed_loan)
+}
+
 #[macro_export]
 macro_rules! map_err_from_anyhow {
     ($e:expr) => {
