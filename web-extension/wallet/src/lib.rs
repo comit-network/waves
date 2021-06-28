@@ -3,7 +3,6 @@ use wasm_bindgen::prelude::*;
 #[wasm_bindgen]
 pub async fn wallet_status(wallet_name: String) -> Result<JsValue, JsValue> {
     let status = map_err_from_anyhow!(wallet::wallet_status(wallet_name).await)?;
-
     let status = map_err_from_anyhow!(JsValue::from_serde(&status))?;
 
     Ok(status)
@@ -96,6 +95,14 @@ pub async fn sign_loan(name: String) -> Result<JsValue, JsValue> {
     let signed_loan = map_err_from_anyhow!(JsValue::from_serde(&signed_loan))?;
 
     Ok(signed_loan)
+}
+
+#[wasm_bindgen]
+pub async fn withdraw_all(name: String, address: String) -> Result<JsValue, JsValue> {
+    let txid = map_err_from_anyhow!(wallet::withdraw_everything_to(name, address).await)?;
+    let txid = map_err_from_anyhow!(JsValue::from_serde(&txid))?;
+
+    Ok(txid)
 }
 
 #[macro_export]

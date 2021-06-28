@@ -1,5 +1,15 @@
 import Debug from "debug";
-import { Address, BalanceUpdate, CreateSwapPayload, LoanDetails, LoanTx, Status, Trade, Txid, WalletStatus } from "./models";
+import {
+    Address,
+    BalanceUpdate,
+    CreateSwapPayload,
+    LoanDetails,
+    LoanTx,
+    Status,
+    Trade,
+    Txid,
+    WalletStatus,
+} from "./models";
 
 Debug.enable("*");
 let debug = Debug("wasm-proxy");
@@ -96,4 +106,11 @@ export async function signLoan(name: string): Promise<LoanTx> {
 
     debug("signLoan");
     return await sign_loan(name);
+}
+
+export async function withdrawAll(name: string, address: string): Promise<Txid> {
+    const { withdraw_all } = await import("./wallet");
+
+    debug("withdrawAll");
+    return await withdraw_all(name, address);
 }

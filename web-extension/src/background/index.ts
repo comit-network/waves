@@ -15,6 +15,7 @@ import {
     signLoan,
     unlockWallet,
     walletStatus,
+    withdrawAll,
 } from "../wasmProxy";
 
 Debug.enable("background");
@@ -131,4 +132,8 @@ window.signLoan = async (tabId: number) => {
 window.rejectLoan = async (tabId: number) => {
     browser.tabs.sendMessage(tabId, { direction: Direction.ToPage, kind: MessageKind.LoanRejected });
     loanToSign = undefined;
+};
+// @ts-ignore
+window.withdrawAll = async (address: string) => {
+    return withdrawAll(walletName, address);
 };

@@ -38,8 +38,9 @@ export async function rejectSwap(tabId: number): Promise<void> {
     return proxy.rejectSwap(tabId);
 }
 
-export async function withdrawAll(_address: string): Promise<void> {
-    return Promise.resolve();
+export async function withdrawAll(address: string): Promise<Txid> {
+    // @ts-ignore
+    return proxy.withdrawAll(address);
 }
 
 export async function getWalletStatus(): Promise<WalletStatus> {
