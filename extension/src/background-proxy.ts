@@ -1,5 +1,5 @@
 import { browser } from "webextension-polyfill-ts";
-import { Address, BalanceUpdate, LoanToSign, SwapToSign, Txid, WalletStatus } from "./models";
+import { Address, BalanceUpdate, LoanDetails, LoanToSign, SwapToSign, Txid, WalletStatus } from "./models";
 
 const proxy = browser.extension.getBackgroundPage();
 
@@ -61,4 +61,39 @@ export async function unlockWallet(password: string): Promise<void> {
 export async function getBalances(): Promise<BalanceUpdate> {
     // @ts-ignore
     return proxy.getBalances();
+}
+
+export async function getOpenLoans(): Promise<LoanDetails[]> {
+    let loanDetail: LoanDetails = {
+        collateral: {
+            ticker: "BTC",
+            amount: 1,
+            balanceBefore: 0,
+            balanceAfter: 0,
+        },
+        principal: {
+            ticker: "USDT",
+            amount: 10,
+            balanceBefore: 0,
+            balanceAfter: 0,
+        },
+        principalRepayment: 11,
+        term: 0,
+        txId: "0x01",
+    };
+
+    return Promise.resolve([loanDetail]);
+}
+
+export async function repayLoan(_txId: String): Promise<void> {
+    return;
+}
+
+export async function getPastTransactions(): Promise<Txid[]> {
+    return Promise.resolve(
+        [
+            "590b5979a7273d70a481ffe016da98a67826008c6364b56d24bb49399e3c274a",
+            "8f88e92d0ec41347b5f10d5665983093b777bc4026f703935e639598ad8d2237",
+        ],
+    );
 }
