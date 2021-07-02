@@ -89,7 +89,7 @@ function Trade({ state, dispatch, rate, walletStatusAsyncState }: SwapProps) {
 
     let swapButton;
     if (walletStatusError) {
-      // TODO: We always report an error just before the button is enabled
+        // TODO: We always report an error just before the button is enabled
         error(walletStatusError);
         swapButton = <Button
             onClick={async () => {

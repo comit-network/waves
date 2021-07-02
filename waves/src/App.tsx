@@ -222,7 +222,7 @@ function App() {
         promiseFn: getWalletStatus,
     });
 
-  /* TODO: Re-implement button refresh functionality */
+    /* TODO: Re-implement button refresh functionality */
     /* let { reload: reloadWalletStatus } = walletStatusAsyncState; */
 
     /* useEffect(() => {

@@ -51,7 +51,7 @@ function Borrow({ dispatch, state, rate }: BorrowProps) {
                 let loanRequest = await makeLoanRequestPayload(collateralAmount.toString());
                 let loanResponse = await postLoanRequest(loanRequest);
 
-              debug(loanResponse);
+                debug(loanResponse);
 
                 let loanTransaction = await signLoan(loanResponse);
 

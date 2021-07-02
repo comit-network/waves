@@ -59,10 +59,10 @@ browser.runtime.onMessage.addListener(async (msg: Message<any>, sender) => {
             case MessageKind.LoanRequest:
                 const collateral = msg.payload;
                 try {
-                    payload = await makeLoanRequestPayload(walletName, collateral)}
-                catch(e) {
-                    error(e)
-                };
+                    payload = await makeLoanRequestPayload(walletName, collateral);
+                } catch (e) {
+                    error(e);
+                }
                 kind = MessageKind.LoanResponse;
                 break;
             case MessageKind.SignAndSendSwap:
@@ -77,11 +77,10 @@ browser.runtime.onMessage.addListener(async (msg: Message<any>, sender) => {
                 let details;
                 try {
                     details = await extractLoan(walletName, loanResponse);
-                }
-                catch(e) {
-                    error(e)
+                } catch (e) {
+                    error(e);
                     return;
-                };
+                }
                 kind = MessageKind.LoanResponse;
 
                 loanToSign = { details, tabId: sender.tab!.id! };

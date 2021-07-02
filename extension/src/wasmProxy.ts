@@ -98,7 +98,7 @@ export async function extractLoan(name: string, loanResponse: any): Promise<Loan
     const { extract_loan } = await import("./wallet");
 
     debug("extractLoan");
-    return await extract_loan(name, loanResponse)
+    return await extract_loan(name, loanResponse);
 }
 
 export async function signLoan(name: string): Promise<LoanTx> {
