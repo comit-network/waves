@@ -52,7 +52,7 @@ export async function postLoanFinalization(txHex: string) {
         throw new Error("failed to create new loan");
     }
 
-    return await res.text();
+    return await res.json();
 }
 
 async function postPayload(payload: CreateSwapPayload, path: string) {

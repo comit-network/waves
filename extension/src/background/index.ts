@@ -21,6 +21,7 @@ import {
 // TODO: Is this global or do we need one per file?
 Debug.enable("*");
 const debug = Debug("background");
+const error = Debug("background:error");
 
 debug("Hello world from background script");
 
@@ -57,7 +58,11 @@ browser.runtime.onMessage.addListener(async (msg: Message<any>, sender) => {
                 break;
             case MessageKind.LoanRequest:
                 const collateral = msg.payload;
-                payload = await makeLoanRequestPayload(walletName, collateral);
+                try {
+                    payload = await makeLoanRequestPayload(walletName, collateral)}
+                catch(e) {
+                    error(e)
+                };
                 kind = MessageKind.LoanResponse;
                 break;
             case MessageKind.SignAndSendSwap:
@@ -68,7 +73,16 @@ browser.runtime.onMessage.addListener(async (msg: Message<any>, sender) => {
                 return;
             case MessageKind.SignLoan:
                 const loanResponse = msg.payload;
-                const details = await extractLoan(walletName, loanResponse);
+
+                let details;
+                try {
+                    details = await extractLoan(walletName, loanResponse);
+                }
+                catch(e) {
+                    error(e)
+                    return;
+                };
+                kind = MessageKind.LoanResponse;
 
                 loanToSign = { details, tabId: sender.tab!.id! };
                 return;

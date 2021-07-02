@@ -10,6 +10,7 @@ import NumberInput from "./components/NumberInput";
 import RateInfo from "./components/RateInfo";
 import { makeLoanRequestPayload, signLoan } from "./wasmProxy";
 
+const debug = Debug("Borrow");
 const error = Debug("Borrow:error");
 
 interface BorrowProps {
@@ -49,6 +50,9 @@ function Borrow({ dispatch, state, rate }: BorrowProps) {
               a couple of times. I have no idea why it's happening */
                 let loanRequest = await makeLoanRequestPayload(collateralAmount.toString());
                 let loanResponse = await postLoanRequest(loanRequest);
+
+              debug(loanResponse);
+
                 let loanTransaction = await signLoan(loanResponse);
 
                 let txid = await postLoanFinalization(loanTransaction);

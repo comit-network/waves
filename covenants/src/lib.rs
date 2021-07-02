@@ -39,7 +39,7 @@ pub struct LoanRequest {
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct LoanResponse {
     // TODO: Use this where needed!
-    // #[serde(with = "transaction_as_string")]
+    #[serde(with = "transaction_as_string")]
     pub transaction: Transaction,
     lender_pk: PublicKey,
     repayment_collateral_input: Input,

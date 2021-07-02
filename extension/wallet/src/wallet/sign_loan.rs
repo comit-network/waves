@@ -12,7 +12,7 @@ use crate::{
 pub async fn sign_loan(
     name: String,
     current_wallet: &Mutex<Option<Wallet>>,
-) -> Result<Transaction, Error> {
+) -> Result<LoanTx, Error> {
     let storage = Storage::local_storage().map_err(Error::Storage)?;
     let borrower = storage
         .get_item::<String>("borrower_state")
@@ -95,7 +95,16 @@ pub async fn sign_loan(
         )
         .map_err(Error::Save)?;
 
-    Ok(loan_transaction)
+    Ok(loan_transaction.into())
+}
+
+#[derive(serde::Serialize)]
+pub struct LoanTx(#[serde(with = "covenants::transaction_as_string")] Transaction);
+
+impl From<Transaction> for LoanTx {
+    fn from(tx: Transaction) -> Self {
+        Self(tx)
+    }
 }
 
 #[derive(Debug, thiserror::Error)]

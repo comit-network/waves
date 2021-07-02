@@ -144,7 +144,7 @@ build_webapp () {
 start_extension () {
     set -e
 
-    cd web-extension
+    cd extension
     yarn run dev
 }
 

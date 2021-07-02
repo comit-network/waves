@@ -1,18 +1,11 @@
 [workspace]
 members = [
-    "elements-harness",
-    "swap",
     "bobtimus",
-    "covenants",
-    "extension",
-    "extension/message_types",
-    "extension/wallet_lib",
-    "extension/background",
-    "extension/content",
-    "extension/in_page",
-    "extension/wasm_bindgen_extension",
     "coin_selection",
+    "covenants",
+    "elements-harness",
     "estimate_transaction_size",
+    "extension/wallet",
     "input",
-    "web-extension/wallet"
+    "swap"
 ]

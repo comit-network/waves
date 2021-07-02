@@ -1,8 +1,6 @@
-use anyhow::Result;
 use conquer_once::Lazy;
-use covenants::{LoanRequest, LoanResponse};
-use elements::{Address, Transaction, Txid};
 use futures::lock::Mutex;
+use wasm_bindgen::prelude::*;
 
 #[macro_use]
 mod macros;
@@ -22,6 +20,7 @@ mod constants {
 
 static LOADED_WALLET: Lazy<Mutex<Option<Wallet>>> = Lazy::new(Mutex::default);
 
+#[wasm_bindgen(start)]
 pub fn setup() {
     #[cfg(feature = "console_error_panic_hook")]
     console_error_panic_hook::set_once();
@@ -35,8 +34,11 @@ pub fn setup() {
 ///
 /// Fails if a wallet with this name already exists.
 /// The created wallet will be automatically loaded.
-pub async fn create_new_wallet(name: String, password: String) -> Result<()> {
-    wallet::create_new(name, password, &LOADED_WALLET).await
+#[wasm_bindgen]
+pub async fn create_new_wallet(name: String, password: String) -> Result<JsValue, JsValue> {
+    map_err_from_anyhow!(wallet::create_new(name, password, &LOADED_WALLET).await)?;
+
+    Ok(JsValue::null())
 }
 
 /// Load an existing wallet.
@@ -45,20 +47,26 @@ pub async fn create_new_wallet(name: String, password: String) -> Result<()> {
 ///
 /// - the wallet does not exist
 /// - the password is wrong
-pub async fn load_existing_wallet(name: String, password: String) -> Result<()> {
-    wallet::load_existing(name, password, &LOADED_WALLET).await
+#[wasm_bindgen]
+pub async fn load_existing_wallet(name: String, password: String) -> Result<JsValue, JsValue> {
+    map_err_from_anyhow!(wallet::load_existing(name, password, &LOADED_WALLET).await)?;
+
+    Ok(JsValue::null())
 }
 
 /// Unload the currently loaded wallet.
 ///
 /// Does nothing if currently no wallet is loaded.
+#[wasm_bindgen]
 pub async fn unload_current_wallet() {
     wallet::unload_current(&LOADED_WALLET).await
 }
 
 /// Retrieve the status of the wallet with the given name.
-pub async fn wallet_status(name: String) -> Result<WalletStatus> {
-    let status = wallet::get_status(name, &LOADED_WALLET).await?;
+#[wasm_bindgen]
+pub async fn wallet_status(name: String) -> Result<JsValue, JsValue> {
+    let status = map_err_from_anyhow!(wallet::get_status(name, &LOADED_WALLET).await)?;
+    let status = map_err_from_anyhow!(JsValue::from_serde(&status))?;
 
     Ok(status)
 }
@@ -66,8 +74,10 @@ pub async fn wallet_status(name: String) -> Result<WalletStatus> {
 /// Get an address for the wallet with the given name.
 ///
 /// Fails if the wallet is currently not loaded.
-pub async fn get_address(name: String) -> Result<Address> {
-    let address = wallet::get_address(name, &LOADED_WALLET).await?;
+#[wasm_bindgen]
+pub async fn get_address(name: String) -> Result<JsValue, JsValue> {
+    let address = map_err_from_anyhow!(wallet::get_address(name, &LOADED_WALLET).await)?;
+    let address = map_err_from_anyhow!(JsValue::from_serde(&address))?;
 
     Ok(address)
 }
@@ -77,8 +87,10 @@ pub async fn get_address(name: String) -> Result<Address> {
 /// Returns an array of [`BalanceEntry`]s.
 ///
 /// Fails if the wallet is currently not loaded or we cannot reach the block explorer for some reason.
-pub async fn get_balances(name: String) -> Result<Vec<BalanceEntry>> {
-    let balance_entries = wallet::get_balances(&name, &LOADED_WALLET).await?;
+#[wasm_bindgen]
+pub async fn get_balances(name: String) -> Result<JsValue, JsValue> {
+    let balance_entries = map_err_from_anyhow!(wallet::get_balances(&name, &LOADED_WALLET).await)?;
+    let balance_entries = map_err_from_anyhow!(JsValue::from_serde(&balance_entries))?;
 
     Ok(balance_entries)
 }
@@ -86,8 +98,11 @@ pub async fn get_balances(name: String) -> Result<Vec<BalanceEntry>> {
 /// Withdraw all funds to the given address.
 ///
 /// Returns the transaction ID of the transaction that was broadcasted.
-pub async fn withdraw_everything_to(name: String, address: String) -> Result<Txid> {
-    let txid = wallet::withdraw_everything_to(name, &LOADED_WALLET, address).await?;
+#[wasm_bindgen]
+pub async fn withdraw_everything_to(name: String, address: String) -> Result<JsValue, JsValue> {
+    let txid =
+        map_err_from_anyhow!(wallet::withdraw_everything_to(name, &LOADED_WALLET, address).await)?;
+    let txid = map_err_from_anyhow!(JsValue::from_serde(&txid))?;
 
     Ok(txid)
 }
@@ -95,21 +110,33 @@ pub async fn withdraw_everything_to(name: String, address: String) -> Result<Txi
 /// Constructs a new [`CreateSwapPayload`] with the given USDt amount.
 ///
 /// This will select UTXOs from the wallet to cover the given amount.
+#[wasm_bindgen]
 pub async fn make_buy_create_swap_payload(
     wallet_name: String,
     usdt: String,
-) -> Result<CreateSwapPayload, MakePayloadError> {
-    wallet::make_buy_create_swap_payload(wallet_name, &LOADED_WALLET, usdt).await
+) -> Result<JsValue, JsValue> {
+    let payload = map_err_from_anyhow!(
+        wallet::make_buy_create_swap_payload(wallet_name, &LOADED_WALLET, usdt).await
+    )?;
+    let payload = map_err_from_anyhow!(JsValue::from_serde(&payload))?;
+
+    Ok(payload)
 }
 
 /// Constructs a new [`CreateSwapPayload`] with the given Bitcoin amount.
 ///
 /// This will select UTXOs from the wallet to cover the given amount.
+#[wasm_bindgen]
 pub async fn make_sell_create_swap_payload(
     wallet_name: String,
     btc: String,
-) -> Result<CreateSwapPayload, MakePayloadError> {
-    wallet::make_sell_create_swap_payload(wallet_name, &LOADED_WALLET, btc).await
+) -> Result<JsValue, JsValue> {
+    let payload = map_err_from_anyhow!(
+        wallet::make_sell_create_swap_payload(wallet_name, &LOADED_WALLET, btc).await
+    )?;
+    let payload = map_err_from_anyhow!(JsValue::from_serde(&payload))?;
+
+    Ok(payload)
 }
 
 /// Constructs a new [`CreateSwapPayload`] with the given Bitcoin amount.
@@ -119,29 +146,45 @@ pub async fn make_sell_create_swap_payload(
 /// Additionally, sets the state of the loan protocol so that we can
 /// continue after the lender sends back a response to our loan
 /// request.
+#[wasm_bindgen]
 pub async fn make_loan_request(
     wallet_name: String,
     collateral: String,
-) -> Result<LoanRequest, MakeLoanRequestError> {
-    wallet::make_loan_request(wallet_name, &LOADED_WALLET, collateral).await
+) -> Result<JsValue, JsValue> {
+    let loan_request = map_err_from_anyhow!(
+        wallet::make_loan_request(wallet_name, &LOADED_WALLET, collateral).await
+    )?;
+    let loan_request = map_err_from_anyhow!(JsValue::from_serde(&loan_request))?;
+
+    Ok(loan_request)
 }
 
 /// Sign a loan transaction in the wallet's state, if the state of the
 /// current loan protocol allows it.
 ///
 /// Returns the signed transaction.
-pub async fn sign_loan(wallet_name: String) -> Result<Transaction, SignLoanError> {
-    wallet::sign_loan(wallet_name, &LOADED_WALLET).await
+#[wasm_bindgen]
+pub async fn sign_loan(wallet_name: String) -> Result<JsValue, JsValue> {
+    let loan_tx = map_err_from_anyhow!(wallet::sign_loan(wallet_name, &LOADED_WALLET).await)?;
+    let loan_tx = map_err_from_anyhow!(JsValue::from_serde(&loan_tx))?;
+
+    Ok(loan_tx)
 }
 
 /// Sign the given swap transaction and broadcast it to the network.
 ///
 /// Returns the transaction ID.
+#[wasm_bindgen]
 pub async fn sign_and_send_swap_transaction(
     wallet_name: String,
     tx_hex: String,
-) -> Result<Txid, SignAndSendError> {
-    wallet::sign_and_send_swap_transaction(wallet_name, &LOADED_WALLET, tx_hex).await
+) -> Result<JsValue, JsValue> {
+    let txid = map_err_from_anyhow!(
+        wallet::sign_and_send_swap_transaction(wallet_name, &LOADED_WALLET, tx_hex).await
+    )?;
+    let txid = map_err_from_anyhow!(JsValue::from_serde(&txid))?;
+
+    Ok(txid)
 }
 
 /// Decomposes a transaction into:
@@ -150,8 +193,12 @@ pub async fn sign_and_send_swap_transaction(
 /// - Buy amount, buy balance before and buy balance after.
 ///
 /// To do so we unblind confidential `TxOut`s whenever necessary.
-pub async fn extract_trade(wallet_name: String, transaction: String) -> Result<Trade> {
-    let trade = wallet::extract_trade(wallet_name, &LOADED_WALLET, transaction).await?;
+#[wasm_bindgen]
+pub async fn extract_trade(wallet_name: String, transaction: String) -> Result<JsValue, JsValue> {
+    let trade = map_err_from_anyhow!(
+        wallet::extract_trade(wallet_name, &LOADED_WALLET, transaction).await
+    )?;
+    let trade = map_err_from_anyhow!(JsValue::from_serde(&trade))?;
 
     Ok(trade)
 }
@@ -168,14 +215,24 @@ pub async fn extract_trade(wallet_name: String, transaction: String) -> Result<T
 /// This also updates the state of the current loan protocol
 /// "handshake" so that we can later on sign the loan transaction and
 /// give it back to the lender.
-pub async fn extract_loan(wallet_name: String, loan_response: LoanResponse) -> Result<LoanDetails> {
-    let details = wallet::extract_loan(wallet_name, &LOADED_WALLET, loan_response).await?;
+#[wasm_bindgen]
+pub async fn extract_loan(wallet_name: String, loan_response: JsValue) -> Result<JsValue, JsValue> {
+    let loan_response = map_err_from_anyhow!(loan_response.into_serde())?;
+    let details = map_err_from_anyhow!(
+        wallet::extract_loan(wallet_name, &LOADED_WALLET, loan_response).await
+    )?;
+    let details = map_err_from_anyhow!(JsValue::from_serde(&details))?;
 
     Ok(details)
 }
 
-pub async fn repay_loan(wallet_name: String, loan_txid: String) -> Result<Txid, RepayLoanError> {
-    wallet::repay_loan(wallet_name, &LOADED_WALLET, loan_txid).await
+#[wasm_bindgen]
+pub async fn repay_loan(wallet_name: String, loan_txid: String) -> Result<JsValue, JsValue> {
+    let txid =
+        map_err_from_anyhow!(wallet::repay_loan(wallet_name, &LOADED_WALLET, loan_txid).await)?;
+    let txid = map_err_from_anyhow!(JsValue::from_serde(&txid))?;
+
+    Ok(txid)
 }
 
 #[cfg(test)]

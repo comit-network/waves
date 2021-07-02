@@ -11,7 +11,6 @@ import COMIT from "./components/comit_logo_spellout_opacity_50.svg";
 import Trade from "./Trade";
 import { getNewAddress, getWalletStatus } from "./wasmProxy";
 
-const debug = Debug("App");
 const error = Debug("App:error");
 
 export enum Asset {

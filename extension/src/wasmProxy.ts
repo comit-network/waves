@@ -45,10 +45,10 @@ export async function createWallet(name: string, password: string): Promise<void
 }
 
 export async function unlockWallet(name: string, password: string): Promise<void> {
-    const { unlock_wallet } = await import("./wallet");
+    const { load_existing_wallet } = await import("./wallet");
 
     debug("unlockWallet");
-    return await unlock_wallet(name, password);
+    return await load_existing_wallet(name, password);
 }
 
 export async function getBalances(name: string): Promise<BalanceUpdate> {
@@ -73,17 +73,17 @@ export async function makeBuyCreateSwapPayload(name: string, usdt: string): Prom
 }
 
 export async function makeLoanRequestPayload(name: string, collateral: string): Promise<CreateSwapPayload> {
-    const { make_loan_request_payload } = await import("./wallet");
+    const { make_loan_request } = await import("./wallet");
 
     debug("makeLoanRequestPayload");
-    return await make_loan_request_payload(name, collateral);
+    return await make_loan_request(name, collateral);
 }
 
 export async function signAndSendSwap(name: string, txHex: string): Promise<Txid> {
-    const { sign_and_send } = await import("./wallet");
+    const { sign_and_send_swap_transaction } = await import("./wallet");
 
     debug("signAndSendSwap");
-    return await sign_and_send(name, txHex);
+    return await sign_and_send_swap_transaction(name, txHex);
 }
 
 export async function extractTrade(name: string, txHex: string): Promise<Trade> {
@@ -109,8 +109,8 @@ export async function signLoan(name: string): Promise<LoanTx> {
 }
 
 export async function withdrawAll(name: string, address: string): Promise<Txid> {
-    const { withdraw_all } = await import("./wallet");
+    const { withdraw_everything_to } = await import("./wallet");
 
     debug("withdrawAll");
-    return await withdraw_all(name, address);
+    return await withdraw_everything_to(name, address);
 }

@@ -9,24 +9,24 @@ fn main() -> Result<()> {
     let native_asset_ticker = option_env!("NATIVE_ASSET_TICKER").unwrap_or("L-BTC");
 
     let native_asset_id = option_env!("NATIVE_ASSET_ID")
-        .unwrap_or("6f0279e9ed041c3d710a9f57d0c02928416460c4b722ae3457a11eec381c526d");
+        .unwrap_or("5ac9f65c0efcc4775e0baec4ec03abdde22473cd3cf33c0419ca290e0751b225");
     let native_asset_id = native_asset_id
         .parse::<AssetId>()
         .with_context(|| format!("failed to parse {} as asset id", native_asset_id))?;
 
     let usdt_asset_id = option_env!("USDT_ASSET_ID")
-        .unwrap_or("ce091c998b83c78bb71a632313ba3760f1763d9cfcffae02258ffa9865a37bd2");
+        .unwrap_or("2dcf5a8834645654911964ec3602426fd3b9b4017554d3f9c19403e7fc1411d3");
     let usdt_asset_id = usdt_asset_id
         .parse::<AssetId>()
         .with_context(|| format!("failed to parse {} as asset id", usdt_asset_id))?;
 
     let esplora_api_url = option_env!("ESPLORA_API_URL")
         .as_deref()
-        .unwrap_or("https://blockstream.info/liquid/api");
+        .unwrap_or("http://localhost:3001");
 
     let address_params = match option_env!("CHAIN") {
-        None | Some("LIQUID") => "&elements::AddressParams::LIQUID",
-        Some("ELEMENTS") => "&elements::AddressParams::ELEMENTS",
+        Some("LIQUID") => "&elements::AddressParams::LIQUID",
+        None | Some("ELEMENTS") => "&elements::AddressParams::ELEMENTS",
         Some(chain) => bail!("unsupported elements chain {}", chain),
     };
 

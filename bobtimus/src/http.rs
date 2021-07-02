@@ -1,8 +1,9 @@
 use crate::{problem, Bobtimus, CreateSwapPayload, LatestRate, RateSubscription};
 use anyhow::Context;
 use elements::{
-    encode::{deserialize, serialize_hex},
+    encode::serialize_hex,
     secp256k1_zkp::rand::{CryptoRng, RngCore},
+    Transaction,
 };
 use futures::{StreamExt, TryStreamExt};
 use rust_embed::RustEmbed;
@@ -174,7 +175,8 @@ where
 
 #[derive(serde::Deserialize)]
 struct FinalizeLoanPayload {
-    tx_hex: String,
+    #[serde(with = "covenants::transaction_as_string")]
+    tx_hex: Transaction,
 }
 
 async fn finalize_loan<R, RS>(
@@ -186,11 +188,8 @@ where
     RS: LatestRate,
 {
     let payload: FinalizeLoanPayload = serde_json::from_value(payload)?;
-
-    let payload = deserialize(&hex::decode(&payload.tx_hex)?)?;
-
     bobtimus
-        .finalize_loan(payload)
+        .finalize_loan(payload.tx_hex)
         .await
         .map(|loan_response| warp::reply::json(&loan_response))
 }
