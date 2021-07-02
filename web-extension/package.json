@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "start": "web-ext run -s dev/",
+    "start": "web-ext run -s dev/ --browser-console --start-url localhost:3030",
     "watch": "react-app-rewired start --scripts-version react-browser-extension-scripts",
     "build": "react-app-rewired build",
     "test": "react-app-rewired test",
