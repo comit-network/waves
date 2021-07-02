@@ -2,7 +2,7 @@ import Debug from "debug";
 import { Direction, Message, MessageKind } from "../messages";
 import { Address, CreateSwapPayload, LoanRequestPayload, LoanTx, Txid, WalletStatus } from "../models";
 
-Debug.enable("inpage");
+Debug.enable("*");
 const debug = Debug("inpage");
 
 export default class WavesProvider {
@@ -126,7 +126,7 @@ export default class WavesProvider {
     }
 
     public async signAndSendSwap(tx_hex: string): Promise<Txid> {
-        debug("Making loan request payload");
+        debug("Signing and sending swap");
         let promise = new Promise<Txid>((resolve, reject) => {
             let listener = async function(event: MessageEvent<Message<Txid>>) {
                 if (
@@ -155,7 +155,7 @@ export default class WavesProvider {
         return promise;
     }
 
-    public async signLoan(loan_response: string): Promise<LoanTx> {
+    public async signLoan(loan_response: any): Promise<LoanTx> {
         debug("Signing loan after user confirmation");
         let promise = new Promise<LoanTx>((resolve, reject) => {
             let listener = async function(event: MessageEvent<Message<LoanTx>>) {

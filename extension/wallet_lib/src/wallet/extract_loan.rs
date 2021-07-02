@@ -12,10 +12,8 @@ use rust_decimal::Decimal;
 pub async fn extract_loan(
     name: String,
     current_wallet: &Mutex<Option<Wallet>>,
-    loan_response: String,
+    loan_response: LoanResponse,
 ) -> Result<LoanDetails, Error> {
-    let loan_response = serde_json::from_str::<LoanResponse>(&loan_response)?;
-
     let wallet = current(&name, current_wallet)
         .await
         .map_err(Error::LoadWallet)?;

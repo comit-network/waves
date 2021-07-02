@@ -34,7 +34,7 @@ export async function postLoanRequest(payload: LoanRequestPayload) {
         throw new Error("failed to create new loan");
     }
 
-    return await res.text();
+    return await res.json();
 }
 
 export async function postLoanFinalization(txHex: string) {

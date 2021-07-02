@@ -1,6 +1,6 @@
 use anyhow::Result;
 use conquer_once::Lazy;
-use covenants::LoanRequest;
+use covenants::{LoanRequest, LoanResponse};
 use elements::{Address, Transaction, Txid};
 use futures::lock::Mutex;
 
@@ -168,7 +168,7 @@ pub async fn extract_trade(wallet_name: String, transaction: String) -> Result<T
 /// This also updates the state of the current loan protocol
 /// "handshake" so that we can later on sign the loan transaction and
 /// give it back to the lender.
-pub async fn extract_loan(wallet_name: String, loan_response: String) -> Result<LoanDetails> {
+pub async fn extract_loan(wallet_name: String, loan_response: LoanResponse) -> Result<LoanDetails> {
     let details = wallet::extract_loan(wallet_name, &LOADED_WALLET, loan_response).await?;
 
     Ok(details)

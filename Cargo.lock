@@ -2412,7 +2412,7 @@ checksum = "cda74da7e1a664f795bb1f8a87ec406fb89a02522cf6e50620d016add6dbbf5c"
 name = "tmp-wallet"
 version = "0.1.0"
 dependencies = [
- "console_error_panic_hook",
+ "covenants",
  "js-sys",
  "log",
  "wallet",

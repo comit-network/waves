@@ -49,7 +49,6 @@ function Borrow({ dispatch, state, rate }: BorrowProps) {
               a couple of times. I have no idea why it's happening */
                 let loanRequest = await makeLoanRequestPayload(collateralAmount.toString());
                 let loanResponse = await postLoanRequest(loanRequest);
-
                 let loanTransaction = await signLoan(loanResponse);
 
                 let txid = await postLoanFinalization(loanTransaction);

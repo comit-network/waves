@@ -1,6 +1,9 @@
+// TODO: Try to delete this layer or at least rename the file
+
 import Debug from "debug";
 import { Asset } from "./App";
-const debug = Debug("wasm-proxy");
+const debug = Debug("wavesProviderProxy");
+const error = Debug("wavesProviderProxy:error");
 
 export interface BalanceEntry {
     asset: string;
@@ -9,8 +12,14 @@ export interface BalanceEntry {
 }
 
 export interface WalletStatus {
-    loaded: boolean;
-    exists: boolean;
+    status: Status;
+    address?: string;
+}
+
+export enum Status {
+    None = "None",
+    Loaded = "Loaded",
+    NotLoaded = "NotLoaded",
 }
 
 export interface CreateSwapPayload {
@@ -48,72 +57,72 @@ export interface TradeSide {
 
 export async function getWalletStatus(): Promise<WalletStatus> {
     // @ts-ignore
-    if (typeof window.liquid === "undefined") {
-        debug("wallet_status not found. CS not yet defined? ");
-        return Promise.reject("wallet_status undefined");
+    if (!window.wavesProvider.walletStatus) {
+        error("walletStatus undefined");
+        return Promise.reject("walletStatus undefined");
     }
     // @ts-ignore
-    return await window.liquid.wallet_status();
+    return window.wavesProvider.walletStatus();
 }
 
 export async function makeSellCreateSwapPayload(
     btc: string,
 ): Promise<CreateSwapPayload> {
     // @ts-ignore
-    if (!window.liquid.get_sell_create_swap_payload) {
-        return Promise.reject("get_sell_create_swap_payload undefined");
+    if (!window.wavesProvider.getSellCreateSwapPayload) {
+        return Promise.reject("getSellCreateSwapPayload undefined");
     }
     // @ts-ignore
-    return await window.liquid.get_sell_create_swap_payload(btc);
+    return await window.wavesProvider.getSellCreateSwapPayload(btc);
 }
 
 export async function makeBuyCreateSwapPayload(
     usdt: string,
 ): Promise<CreateSwapPayload> {
     // @ts-ignore
-    if (!window.liquid.get_buy_create_swap_payload) {
-        return Promise.reject("get_buy_create_swap_payload undefined");
+    if (!window.wavesProvider.getBuyCreateSwapPayload) {
+        return Promise.reject("getBuyCreateSwapPayload undefined");
     }
     // @ts-ignore
-    return await window.liquid.get_buy_create_swap_payload(usdt);
+    return await window.wavesProvider.getBuyCreateSwapPayload(usdt);
 }
 
 export async function signAndSend(
     transaction: string,
 ): Promise<string> {
     // @ts-ignore
-    if (!window.liquid.sign_and_send) {
-        return Promise.reject("sign_and_send undefined");
+    if (!window.wavesProvider.signAndSendSwap) {
+        return Promise.reject("signAndSendSwap undefined");
     }
 
     // @ts-ignore
-    return await window.liquid.sign_and_send(transaction);
+    return await window.wavesProvider.signAndSendSwap(transaction);
 }
 
 export async function getNewAddress(): Promise<string> {
     // @ts-ignore
-    if (!window.liquid.new_address) {
-        return Promise.reject("new_address undefined");
+    if (!window.wavesProvider.getNewAddress) {
+        return Promise.reject("getNewAddress undefined");
     }
 
     // @ts-ignore
-    return await window.liquid.new_address();
+    return await window.wavesProvider.getNewAddress();
 }
 
 export async function makeLoanRequestPayload(collateral: string): Promise<LoanRequestPayload> {
     // @ts-ignore
-    if (!window.liquid.make_loan_request_payload) {
-        return Promise.reject("make_loan_request_payload undefined");
+    if (!window.wavesProvider.makeLoanRequestPayload) {
+        return Promise.reject("makeLoanRequestPayload undefined");
     }
     // @ts-ignore
-    return await window.liquid.make_loan_request_payload(collateral);
+    return await window.wavesProvider.makeLoanRequestPayload(collateral);
 }
 
 export async function signLoan(loanResponse: any): Promise<any> {
     // @ts-ignore
-    if (!window.liquid.sign_loan) {
-        return Promise.reject("sign_loan undefined");
+    if (!window.wavesProvider.signLoan) {
+        return Promise.reject("signLoan undefined");
     }
     // @ts-ignore
-    return await window.liquid.sign_loan(loanResponse);
+    return await window.wavesProvider.signLoan(loanResponse);
 }

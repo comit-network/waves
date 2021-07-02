@@ -1,5 +1,10 @@
 use wasm_bindgen::prelude::*;
 
+#[wasm_bindgen(start)]
+pub fn setup() {
+    wallet::setup()
+}
+
 #[wasm_bindgen]
 pub async fn wallet_status(wallet_name: String) -> Result<JsValue, JsValue> {
     let status = map_err_from_anyhow!(wallet::wallet_status(wallet_name).await)?;
@@ -82,7 +87,9 @@ pub async fn extract_trade(name: String, tx_hex: String) -> Result<JsValue, JsVa
 }
 
 #[wasm_bindgen]
-pub async fn extract_loan(name: String, loan_response: String) -> Result<JsValue, JsValue> {
+pub async fn extract_loan(name: String, loan_response: JsValue) -> Result<JsValue, JsValue> {
+    let loan_response = map_err_from_anyhow!(loan_response.into_serde())?;
+
     let details = map_err_from_anyhow!(wallet::extract_loan(name, loan_response).await)?;
     let details = map_err_from_anyhow!(JsValue::from_serde(&details))?;
 

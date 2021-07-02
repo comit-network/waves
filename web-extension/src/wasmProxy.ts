@@ -12,7 +12,7 @@ import {
 } from "./models";
 
 Debug.enable("*");
-let debug = Debug("wasm-proxy");
+const debug = Debug("wasmProxy");
 
 export async function walletStatus(name: string): Promise<WalletStatus> {
     const { wallet_status } = await import("./wallet");
@@ -98,7 +98,7 @@ export async function extractLoan(name: string, loanResponse: any): Promise<Loan
     const { extract_loan } = await import("./wallet");
 
     debug("extractLoan");
-    return await extract_loan(name, loanResponse);
+    return await extract_loan(name, loanResponse)
 }
 
 export async function signLoan(name: string): Promise<LoanTx> {

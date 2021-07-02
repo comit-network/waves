@@ -223,21 +223,22 @@ function App() {
         promiseFn: getWalletStatus,
     });
 
-    let { reload: reloadWalletStatus } = walletStatusAsyncState;
+  /* TODO: Re-implement button refresh functionality */
+    /* let { reload: reloadWalletStatus } = walletStatusAsyncState; */
 
-    useEffect(() => {
-        let callback = (_message: MessageEvent) => {};
-        // @ts-ignore
-        if (!window.liquid) {
-            callback = async (message: MessageEvent) => {
-                debug("Received message: %s", message.data);
-                await reloadWalletStatus();
-            };
-        }
-        window.addEventListener("message", callback);
+    /* useEffect(() => {
+   *     let callback = (_message: MessageEvent) => {};
+   *     // @ts-ignore
+   *     if (!window.wavesProvider) {
+   *         callback = async (message: MessageEvent) => {
+   *             debug("Received message: %s", message.data);
+   *             await reloadWalletStatus();
+   *         };
+   *     }
+   *     window.addEventListener("message", callback);
 
-        return () => window.removeEventListener("message", callback);
-    });
+   *     return () => window.removeEventListener("message", callback);
+   * }); */
 
     let { run: callFaucet, isLoading: isFaucetLoading } = useAsync({
         deferFn: async () => {

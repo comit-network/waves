@@ -18,7 +18,8 @@ import {
     withdrawAll,
 } from "../wasmProxy";
 
-Debug.enable("background");
+// TODO: Is this global or do we need one per file?
+Debug.enable("*");
 const debug = Debug("background");
 
 debug("Hello world from background script");
@@ -64,13 +65,13 @@ browser.runtime.onMessage.addListener(async (msg: Message<any>, sender) => {
                 const decoded = await extractTrade(walletName, txHex);
 
                 swapToSign = { txHex, decoded, tabId: sender.tab!.id! };
-                break;
+                return;
             case MessageKind.SignLoan:
                 const loanResponse = msg.payload;
                 const details = await extractLoan(walletName, loanResponse);
 
                 loanToSign = { details, tabId: sender.tab!.id! };
-                break;
+                return;
         }
         return { kind, direction: Direction.ToPage, payload };
     }

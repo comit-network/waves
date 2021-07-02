@@ -10,7 +10,7 @@ import calculateBetaAmount, { getDirection } from "./calculateBetaAmount";
 import AssetSelector from "./components/AssetSelector";
 import ExchangeIcon from "./components/ExchangeIcon";
 import RateInfo from "./components/RateInfo";
-import { makeBuyCreateSwapPayload, makeSellCreateSwapPayload, signAndSend, WalletStatus } from "./wasmProxy";
+import { makeBuyCreateSwapPayload, makeSellCreateSwapPayload, signAndSend, Status, WalletStatus } from "./wasmProxy";
 
 const debug = Debug("Swap");
 const error = Debug("Swap:error");
@@ -78,17 +78,18 @@ function Trade({ state, dispatch, rate, walletStatusAsyncState }: SwapProps) {
     async function get_extension() {
         // TODO forward to firefox app store
         debug("Download our awesome extension from...");
-        await reloadWalletStatus();
+        reloadWalletStatus();
     }
 
     async function unlock_wallet() {
         // TODO send request to open popup to unlock wallet
         debug("For now open popup manually...");
-        await reloadWalletStatus();
+        reloadWalletStatus();
     }
 
     let swapButton;
     if (walletStatusError) {
+      // TODO: We always report an error just before the button is enabled
         error(walletStatusError);
         swapButton = <Button
             onClick={async () => {
@@ -100,27 +101,33 @@ function Trade({ state, dispatch, rate, walletStatusAsyncState }: SwapProps) {
         >
             Get Extension
         </Button>;
-    } else if (walletStatus && (!walletStatus.exists || !walletStatus.loaded)) {
-        swapButton = <Button
-            onClick={async () => {
-                await unlock_wallet();
-            }}
-            variant="primary"
-            w="15rem"
-            data-cy="unlock-wallet-button"
-        >
-            Unlock Wallet
-        </Button>;
     } else {
-        swapButton = <Button
-            onClick={makeNewSwap}
-            variant="primary"
-            w="15rem"
-            isLoading={isCreatingNewSwap}
-            data-cy="swap-button"
-        >
-            Swap
-        </Button>;
+        switch (walletStatus?.status) {
+            case Status.None:
+            case Status.NotLoaded:
+                swapButton = <Button
+                    onClick={async () => {
+                        await unlock_wallet();
+                    }}
+                    variant="primary"
+                    w="15rem"
+                    data-cy="unlock-wallet-button"
+                >
+                    Unlock Wallet
+                </Button>;
+                break;
+            case Status.Loaded:
+                swapButton = <Button
+                    onClick={makeNewSwap}
+                    variant="primary"
+                    w="15rem"
+                    isLoading={isCreatingNewSwap}
+                    data-cy="swap-button"
+                >
+                    Swap
+                </Button>;
+                break;
+        }
     }
 
     return (
