@@ -38,6 +38,8 @@ pub struct LoanRequest {
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct LoanResponse {
+    // TODO: Use this where needed!
+    // #[serde(with = "transaction_as_string")]
     pub transaction: Transaction,
     lender_pk: PublicKey,
     repayment_collateral_input: Input,
@@ -45,6 +47,23 @@ pub struct LoanResponse {
     repayment_collateral_vbf: ValueBlindingFactor,
     pub timelock: u64,
     repayment_principal_output: TxOut,
+}
+
+pub mod transaction_as_string {
+    use elements::{encode::serialize_hex, Transaction};
+    use serde::{de::Error, Deserialize, Deserializer, Serializer};
+
+    pub fn serialize<S: Serializer>(a: &Transaction, s: S) -> Result<S::Ok, S::Error> {
+        s.serialize_str(&serialize_hex(a))
+    }
+
+    pub fn deserialize<'d, D: Deserializer<'d>>(d: D) -> Result<Transaction, D::Error> {
+        let string = String::deserialize(d)?;
+        let bytes = hex::decode(string).map_err(D::Error::custom)?;
+        let tx = elements::encode::deserialize(&bytes).map_err(D::Error::custom)?;
+
+        Ok(tx)
+    }
 }
 
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
