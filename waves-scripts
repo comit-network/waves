@@ -23,8 +23,6 @@ start_extension_dev_env () {
 
     build_webapp
     start_bobtimus
-
-    start_extension
 }
 
 stop_dev_env () {
@@ -146,10 +144,8 @@ build_webapp () {
 start_extension () {
     set -e
 
-    build_extension
-
-    cd extension
-    yarn run start-dev
+    cd web-extension
+    yarn run dev
 }
 
 build_extension () {
