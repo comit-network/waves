@@ -1,4 +1,6 @@
-import { Box, ChakraProvider, Heading } from "@chakra-ui/react";
+import { Box, Center, ChakraProvider, Heading } from "@chakra-ui/react";
+import { faBug } from "@fortawesome/free-solid-svg-icons";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import * as React from "react";
 import { useAsync } from "react-async";
 import { getBalances, getLoanToSign, getSwapToSign, getWalletStatus, rejectLoan, rejectSwap } from "./background-proxy";
@@ -79,6 +81,10 @@ const App = () => {
                             status={Status.None}
                         />
                     </>}
+                {!walletStatus
+                    && <Center>
+                        Something is wrong. Can you catch the <FontAwesomeIcon size="7x" icon={faBug} />?
+                    </Center>}
             </Box>
         </ChakraProvider>
     );
