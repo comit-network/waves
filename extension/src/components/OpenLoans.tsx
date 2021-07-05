@@ -21,7 +21,7 @@ export default function OpenLoans({ openLoans, onRepayed }: OpenLoansProps) {
         {openLoans && openLoans.sort((a, b) => a.term - b.term)
             .map(function(loanDetails, index) {
                 return <OpenLoan
-                    key={loanDetails.txId}
+                    key={loanDetails.txid}
                     loanDetails={loanDetails}
                     onRepayed={onRepayed}
                     index={index}
@@ -75,7 +75,7 @@ function OpenLoan({ loanDetails, onRepayed, index }: OpenLoanProps) {
             <form
                 onSubmit={e => {
                     e.preventDefault();
-                    repay(loanDetails.txId);
+                    repay(loanDetails.txid);
                 }}
             >
                 <VStack>
