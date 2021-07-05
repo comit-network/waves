@@ -4,7 +4,6 @@ import {
     BalanceUpdate,
     CreateSwapPayload,
     LoanDetails,
-    LoanTx,
     Status,
     Trade,
     Txid,
@@ -79,18 +78,21 @@ export async function makeLoanRequestPayload(name: string, collateral: string): 
     return make_loan_request(name, collateral);
 }
 
-export async function signAndSendSwap(name: string, txHex: string): Promise<Txid> {
+export async function signAndSendSwap(name: string, hex: string): Promise<Txid> {
     const { sign_and_send_swap_transaction } = await import("./wallet");
 
     debug("signAndSendSwap");
-    return sign_and_send_swap_transaction(name, txHex);
+
+    const tx = { inner: hex };
+    return sign_and_send_swap_transaction(name, tx);
 }
 
-export async function extractTrade(name: string, txHex: string): Promise<Trade> {
+export async function extractTrade(name: string, hex: string): Promise<Trade> {
     const { extract_trade } = await import("./wallet");
 
     debug("extractTrade");
-    return extract_trade(name, txHex);
+    const tx = { inner: hex };
+    return extract_trade(name, tx);
 }
 
 // TODO: Replace any with actual LoanResponse interface
@@ -101,11 +103,11 @@ export async function extractLoan(name: string, loanResponse: any): Promise<Loan
     return extract_loan(name, loanResponse);
 }
 
-export async function signLoan(name: string): Promise<LoanTx> {
+export async function signLoan(name: string): Promise<string> {
     const { sign_loan } = await import("./wallet");
 
     debug("signLoan");
-    return sign_loan(name);
+    return (await sign_loan(name)).inner;
 }
 
 export async function withdrawAll(name: string, address: string): Promise<Txid> {

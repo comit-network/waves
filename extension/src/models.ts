@@ -59,7 +59,7 @@ export interface LoanToSign {
     tabId: number;
 }
 
-export type LoanTx = string;
+export type Tx = string;
 
 export interface CreateSwapPayload {
     alice_inputs: { outpoint: OutPoint; blinding_key: string }[];

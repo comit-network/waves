@@ -38,6 +38,7 @@ browser.runtime.onMessage.addListener(async (msg: Message<any>, sender) => {
     );
 
     if (msg.direction === Direction.ToBackground) {
+        try {
         let payload;
         let kind;
         switch (msg.kind) {
@@ -61,11 +62,7 @@ browser.runtime.onMessage.addListener(async (msg: Message<any>, sender) => {
                 break;
             case MessageKind.LoanRequest:
                 const collateral = msg.payload;
-                try {
-                    payload = await makeLoanRequestPayload(walletName, collateral);
-                } catch (e) {
-                    error(e);
-                }
+                payload = await makeLoanRequestPayload(walletName, collateral);
                 kind = MessageKind.LoanResponse;
                 break;
             case MessageKind.SignAndSendSwap:
@@ -78,18 +75,17 @@ browser.runtime.onMessage.addListener(async (msg: Message<any>, sender) => {
                 const loanResponse = msg.payload;
 
                 let details;
-                try {
-                    details = await extractLoan(walletName, loanResponse);
-                } catch (e) {
-                    error(e);
-                    return;
-                }
+                details = await extractLoan(walletName, loanResponse);
                 kind = MessageKind.LoanResponse;
 
                 loanToSign = { details, tabId: sender.tab!.id! };
                 return;
         }
-        return { kind, direction: Direction.ToPage, payload };
+            return { kind, direction: Direction.ToPage, payload };
+        } catch (e) {
+            error(e);
+            return
+        }
     }
 });
 

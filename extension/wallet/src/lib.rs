@@ -176,8 +176,7 @@ pub async fn make_loan_request(
 #[wasm_bindgen]
 pub async fn sign_loan(wallet_name: String) -> Result<JsValue, JsValue> {
     let loan_tx = map_err_from_anyhow!(wallet::sign_loan(wallet_name, &LOADED_WALLET).await)?;
-    let loan_tx = Transaction(loan_tx);
-    let loan_tx = map_err_from_anyhow!(JsValue::from_serde(&loan_tx))?;
+    let loan_tx = map_err_from_anyhow!(JsValue::from_serde(&Transaction::from(loan_tx)))?;
 
     Ok(loan_tx)
 }
@@ -188,9 +187,9 @@ pub async fn sign_loan(wallet_name: String) -> Result<JsValue, JsValue> {
 #[wasm_bindgen]
 pub async fn sign_and_send_swap_transaction(
     wallet_name: String,
-    transaction: String,
+    transaction: JsValue,
 ) -> Result<JsValue, JsValue> {
-    let transaction: Transaction = map_err_from_anyhow!(serde_json::from_str(&transaction))?;
+    let transaction: Transaction = map_err_from_anyhow!(transaction.into_serde())?;
     let txid = map_err_from_anyhow!(
         wallet::sign_and_send_swap_transaction(wallet_name, &LOADED_WALLET, transaction.into())
             .await
@@ -207,8 +206,8 @@ pub async fn sign_and_send_swap_transaction(
 ///
 /// To do so we unblind confidential `TxOut`s whenever necessary.
 #[wasm_bindgen]
-pub async fn extract_trade(wallet_name: String, transaction: String) -> Result<JsValue, JsValue> {
-    let transaction: Transaction = map_err_from_anyhow!(serde_json::from_str(&transaction))?;
+pub async fn extract_trade(wallet_name: String, transaction: JsValue) -> Result<JsValue, JsValue> {
+    let transaction: Transaction = map_err_from_anyhow!(transaction.into_serde())?;
     let trade = map_err_from_anyhow!(
         wallet::extract_trade(wallet_name, &LOADED_WALLET, transaction.into()).await
     )?;
@@ -270,17 +269,20 @@ pub async fn get_past_transactions(wallet_name: String) -> Result<JsValue, JsVal
 }
 
 #[derive(serde::Serialize, serde::Deserialize)]
-struct Transaction(#[serde(with = "covenants::transaction_as_string")] pub elements::Transaction);
+struct Transaction {
+    #[serde(with = "covenants::transaction_as_string")]
+    inner: elements::Transaction,
+}
 
 impl From<elements::Transaction> for Transaction {
     fn from(from: elements::Transaction) -> Self {
-        Self(from)
+        Self { inner: from }
     }
 }
 
 impl From<Transaction> for elements::Transaction {
     fn from(from: Transaction) -> Self {
-        from.0
+        from.inner
     }
 }
 

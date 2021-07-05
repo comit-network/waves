@@ -2,6 +2,7 @@ use anyhow::{bail, Context, Result};
 use elements::AssetId;
 use std::{env, fs, path::Path};
 
+// TODO: undo changes used in development mode
 fn main() -> Result<()> {
     let out_dir = env::var_os("OUT_DIR").context("unable to access OUT_DIR")?;
     let constants_rs = Path::new(&out_dir).join("constants.rs");
