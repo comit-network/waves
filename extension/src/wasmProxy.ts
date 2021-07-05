@@ -121,3 +121,10 @@ export async function getOpenLoans(): Promise<LoanDetails[]> {
     debug("getOpenLoans");
     return await get_open_loans();
 }
+
+export async function repayLoan(name: string, txid: string): Promise<void> {
+    const { repay_loan } = await import("./wallet");
+
+    debug("repayLoan");
+    await repay_loan(name, txid);
+}

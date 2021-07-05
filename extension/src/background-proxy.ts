@@ -68,8 +68,9 @@ export async function getOpenLoans(): Promise<LoanDetails[]> {
     return proxy.getOpenLoans();
 }
 
-export async function repayLoan(_txId: String): Promise<void> {
-    return;
+export async function repayLoan(txid: string): Promise<void> {
+    // @ts-ignore
+    return proxy.repayLoan(txid);
 }
 
 export async function getPastTransactions(): Promise<Txid[]> {

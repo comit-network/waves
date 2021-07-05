@@ -12,6 +12,7 @@ import {
     makeBuyCreateSwapPayload,
     makeLoanRequestPayload,
     makeSellCreateSwapPayload,
+    repayLoan,
     signAndSendSwap,
     signLoan,
     unlockWallet,
@@ -155,4 +156,8 @@ window.withdrawAll = async (address: string) => {
 // @ts-ignore
 window.getOpenLoans = async (): LoanDetails[] => {
     return getOpenLoans();
-}
+};
+// @ts-ignore
+window.repayLoan = async (txid: string): void => {
+    return repayLoan(walletName, txid);
+};
