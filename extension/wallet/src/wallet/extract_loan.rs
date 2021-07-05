@@ -92,6 +92,7 @@ pub async fn extract_loan(
 }
 
 #[derive(Clone, Debug, serde::Serialize, serde::Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
 pub struct LoanDetails {
     pub collateral: TradeSide,
     pub principal: TradeSide,
