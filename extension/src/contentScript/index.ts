@@ -1,6 +1,6 @@
 import Debug from "debug";
 import { browser } from "webextension-polyfill-ts";
-import { Direction, Message, MessageKind } from "../messages";
+import { Direction, Message } from "../messages";
 
 Debug.enable("*");
 const debug = Debug("content");
