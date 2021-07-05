@@ -29,7 +29,7 @@ const App = () => {
     const loanToSignHook = useAsync({ promiseFn: getLoanToSign });
     const openLoansHook = useAsync({ promiseFn: getOpenLoans });
 
-    let { data: walletStatus, reload: reloadWalletStatus } = walletStatusHook;
+    let { data: walletStatus, reload: reloadWalletStatus, error } = walletStatusHook;
     let { data: balanceUpdates, reload: reloadWalletBalances } = walletBalanceHook;
     let { data: swapToSign, reload: reloadSwapToSign } = swapToSignHook;
     let { data: loanToSign, reload: reloadLoanToSign } = loanToSignHook;
@@ -94,9 +94,10 @@ const App = () => {
                             status={Status.None}
                         />
                     </>}
-                {!walletStatus
+                {!walletStatus && error
                     && <Center>
                         Something is wrong. Can you catch the <FontAwesomeIcon size="7x" icon={faBug} />?
+                        {error}
                     </Center>}
             </Box>
         </ChakraProvider>

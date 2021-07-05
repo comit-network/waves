@@ -1,5 +1,5 @@
 import { ExternalLinkIcon } from "@chakra-ui/icons";
-import { Box, Button, Center, Flex, Link, StackDivider, Text, useToast, VStack } from "@chakra-ui/react";
+import { Box, Button, Center, Flex, HStack, Link, StackDivider, Text, useToast, VStack } from "@chakra-ui/react";
 import Debug from "debug";
 import React, { Dispatch } from "react";
 import { AsyncState, useAsync } from "react-async";
@@ -179,10 +179,14 @@ function Trade({ state, dispatch, rate, walletStatusAsyncState }: SwapProps) {
                             spacing={4}
                             align="stretch"
                         >
-                            <>
-                                Check in{" "}
-                                <BlockExplorerLink />
-                            </>
+                            <HStack>
+                                <Box>
+                                    Check in{" "}
+                                </Box>
+                                <Box>
+                                    <BlockExplorerLink />
+                                </Box>
+                            </HStack>
                             <Button
                                 variant="primary"
                                 onClick={() => {
