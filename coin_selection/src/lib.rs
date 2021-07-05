@@ -1,5 +1,3 @@
-#![allow(dead_code)]
-
 use bdk::{
     bitcoin::{Amount, Denomination},
     database::{BatchOperations, Database},
