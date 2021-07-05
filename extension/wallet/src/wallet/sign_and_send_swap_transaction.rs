@@ -14,11 +14,11 @@ pub(crate) async fn sign_and_send_swap_transaction(
 ) -> Result<Txid, Error> {
     let wallet = current(&name, current_wallet)
         .await
-        .map_err(|_| Error::LoadWallet)?;
+        .map_err(Error::LoadWallet)?;
 
     let txouts = get_txouts(&wallet, |utxo, txout| Ok(Some((utxo, txout))))
         .await
-        .map_err(|e| Error::GetTxOuts(format!("{:#}", e)))?;
+        .map_err(Error::GetTxOuts)?;
 
     let transaction = alice_finalize_transaction(transaction, |mut transaction| async {
         let mut cache = SigHashCache::new(&transaction);
@@ -57,25 +57,21 @@ pub(crate) async fn sign_and_send_swap_transaction(
         Ok(transaction)
     })
     .await
-    .map_err(|_| Error::Sign)?;
+    .map_err(Error::Sign)?;
 
-    let txid = broadcast(transaction)
-        .await
-        .map_err(|e| Error::Send(format!("{:#}", e)))?;
+    let txid = broadcast(transaction).await.map_err(Error::Send)?;
 
     Ok(txid)
 }
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
-    #[error("Wallet is not loaded")]
-    LoadWallet,
+    #[error("Wallet is not loaded: {0}")]
+    LoadWallet(anyhow::Error),
     #[error("Failed to get transaction outputs: {0}")]
-    GetTxOuts(String),
-    #[error("Failed to sign transaction")]
-    Sign,
+    GetTxOuts(anyhow::Error),
+    #[error("Failed to sign transaction: {0}")]
+    Sign(anyhow::Error),
     #[error("Failed to broadcast transaction: {0}")]
-    Send(String),
-    #[error("Unclassified error: {0}")]
-    Other(#[from] anyhow::Error),
+    Send(anyhow::Error),
 }

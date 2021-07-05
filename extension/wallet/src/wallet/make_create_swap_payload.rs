@@ -47,7 +47,7 @@ async fn make_create_swap_payload(
 ) -> Result<CreateSwapPayload, Error> {
     let wallet = current(&name, current_wallet)
         .await
-        .map_err(|_| Error::LoadWallet)?;
+        .map_err(Error::LoadWallet)?;
     let blinding_key = wallet.blinding_key();
 
     let utxos = get_txouts(&wallet, |utxo, txout| {
@@ -116,12 +116,12 @@ async fn make_create_swap_payload(
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
-    #[error("Wallet is not loaded")]
-    LoadWallet,
+    #[error("Wallet is not loaded: {0}")]
+    LoadWallet(anyhow::Error),
     #[error("Coin selection: {0}")]
     CoinSelection(coin_selection::Error),
     #[error("Failed to get transaction outputs: {0}")]
-    GetTxOuts(#[from] anyhow::Error),
+    GetTxOuts(anyhow::Error),
 }
 
 /// Calculate the fee offset required for the coin selection algorithm.
