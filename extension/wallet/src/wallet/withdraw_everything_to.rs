@@ -22,12 +22,8 @@ use std::{collections::HashMap, iter};
 pub async fn withdraw_everything_to(
     name: String,
     current_wallet: &Mutex<Option<Wallet>>,
-    address: String,
+    address: Address,
 ) -> Result<Txid> {
-    let address = address
-        .parse::<Address>()
-        .context("failed to parse address from string")?;
-
     if !address.is_blinded() {
         bail!("can only withdraw to blinded addresses")
     }

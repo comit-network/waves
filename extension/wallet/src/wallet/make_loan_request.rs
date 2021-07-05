@@ -3,10 +3,9 @@ use crate::{
     storage::Storage,
     wallet::{current, get_txouts, Wallet},
 };
-use bdk::bitcoin::{Amount, Denomination};
 use coin_selection::{self, coin_select};
 use covenants::{Borrower0, LoanRequest};
-use elements::{bitcoin::util::amount::ParseAmountError, secp256k1_zkp::SECP256K1, OutPoint};
+use elements::{bitcoin::util::amount::Amount, secp256k1_zkp::SECP256K1, OutPoint};
 use estimate_transaction_size::avg_vbytes;
 use futures::lock::Mutex;
 use input::Input;
@@ -15,10 +14,8 @@ use rand::thread_rng;
 pub async fn make_loan_request(
     name: String,
     current_wallet: &Mutex<Option<Wallet>>,
-    collateral_amount: String,
+    collateral_amount: Amount,
 ) -> Result<LoanRequest, Error> {
-    let collateral_amount = Amount::from_str_in(&collateral_amount, Denomination::Bitcoin)?;
-
     let (address, blinding_key) = {
         let wallet = current(&name, current_wallet)
             .await
@@ -130,8 +127,6 @@ pub async fn make_loan_request(
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
-    #[error("Amount string cannot be parsed: {0}")]
-    ParseAmount(#[from] ParseAmountError),
     #[error("Wallet is not loaded {0}")]
     LoadWallet(anyhow::Error),
     #[error("Failed to construct borrower state: {0}")]

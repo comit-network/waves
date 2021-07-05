@@ -1,5 +1,3 @@
-use std::str::FromStr;
-
 use coin_selection::coin_select;
 use covenants::Borrower1;
 use elements::{
@@ -23,11 +21,10 @@ use crate::{
 pub async fn repay_loan(
     name: String,
     current_wallet: &Mutex<Option<Wallet>>,
-    loan_txid_string: String,
+    loan_txid: Txid,
 ) -> Result<Txid, Error> {
     // TODO: Only abort early if this fails because the transaction
     // hasn't been mined
-    let loan_txid = Txid::from_str(&loan_txid_string)?;
     if fetch_transaction(loan_txid).await.is_err() {
         return Err(Error::NoLoan);
     }
@@ -35,7 +32,7 @@ pub async fn repay_loan(
     let storage = Storage::local_storage().map_err(Error::Storage)?;
 
     let borrower = storage
-        .get_item::<String>(&format!("loan_state:{}", loan_txid_string))
+        .get_item::<String>(&format!("loan_state:{}", loan_txid))
         .map_err(Error::Load)?
         .ok_or(Error::EmptyState)?;
     let borrower = serde_json::from_str::<Borrower1>(&borrower).map_err(Error::Deserialize)?;
@@ -180,7 +177,7 @@ pub async fn repay_loan(
     // TODO: Make sure that we can safely forget this i.e. sufficient
     // confirmations
     storage
-        .remove_item(&format!("loan_state:{}", loan_txid_string))
+        .remove_item(&format!("loan_state:{}", loan_txid))
         .map_err(Error::Delete)?;
 
     let open_loans = match storage
@@ -206,8 +203,6 @@ pub async fn repay_loan(
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
-    #[error("Failed to deserialize TXID: {0}")]
-    TxidDeserialization(#[from] elements::hashes::hex::Error),
     #[error("Loan transaction not found in the blockchain")]
     NoLoan,
     #[error("Storage error: {0}")]

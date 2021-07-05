@@ -47,10 +47,8 @@ pub use make_create_swap_payload::{
 };
 pub use make_loan_request::{make_loan_request, Error as MakeLoanRequestError};
 pub use repay_loan::{repay_loan, Error as RepayLoanError};
-pub use sign_and_send_swap_transaction::{
-    sign_and_send_swap_transaction, Error as SignAndSendError,
-};
-pub use sign_loan::{sign_loan, Error as SignLoanError};
+pub(crate) use sign_and_send_swap_transaction::sign_and_send_swap_transaction;
+pub(crate) use sign_loan::sign_loan;
 pub use unload_current::unload_current;
 pub use withdraw_everything_to::withdraw_everything_to;
 

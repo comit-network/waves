@@ -3,7 +3,7 @@ use crate::{
     TradeSide,
 };
 use anyhow::{bail, Context, Result};
-use elements::{confidential, encode::deserialize, secp256k1_zkp::SECP256K1, Transaction, TxOut};
+use elements::{confidential, secp256k1_zkp::SECP256K1, Transaction, TxOut};
 use futures::lock::Mutex;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
@@ -12,12 +12,8 @@ use serde::{Deserialize, Serialize};
 pub async fn extract_trade(
     name: String,
     current_wallet: &Mutex<Option<Wallet>>,
-    transaction: String,
+    transaction: Transaction,
 ) -> Result<Trade> {
-    let bytes = hex::decode(transaction).context("failed to decode hex into bytes")?;
-    let transaction = deserialize::<Transaction>(&bytes)
-        .context("failed to deserialize bytes into transaction")?;
-
     let wallet = current(&name, current_wallet).await?;
 
     let txouts = get_txouts(&wallet, |utxo, txout| Ok(Some((utxo, txout)))).await?;

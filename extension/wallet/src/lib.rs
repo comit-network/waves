@@ -1,4 +1,10 @@
+use std::str::FromStr;
+
 use conquer_once::Lazy;
+use elements::{
+    bitcoin::util::amount::{Amount, Denomination},
+    Address, Txid,
+};
 use futures::lock::Mutex;
 use wasm_bindgen::prelude::*;
 
@@ -12,8 +18,7 @@ mod logger;
 mod storage;
 mod wallet;
 
-use crate::storage::Storage;
-pub use crate::wallet::*;
+use crate::{storage::Storage, wallet::*};
 
 mod constants {
     include!(concat!(env!("OUT_DIR"), "/", "constants.rs"));
@@ -101,6 +106,7 @@ pub async fn get_balances(name: String) -> Result<JsValue, JsValue> {
 /// Returns the transaction ID of the transaction that was broadcasted.
 #[wasm_bindgen]
 pub async fn withdraw_everything_to(name: String, address: String) -> Result<JsValue, JsValue> {
+    let address = map_err_from_anyhow!(address.parse::<Address>())?;
     let txid =
         map_err_from_anyhow!(wallet::withdraw_everything_to(name, &LOADED_WALLET, address).await)?;
     let txid = map_err_from_anyhow!(JsValue::from_serde(&txid))?;
@@ -116,6 +122,7 @@ pub async fn make_buy_create_swap_payload(
     wallet_name: String,
     usdt: String,
 ) -> Result<JsValue, JsValue> {
+    let usdt = map_err_from_anyhow!(Amount::from_str_in(&usdt, Denomination::Bitcoin))?;
     let payload = map_err_from_anyhow!(
         wallet::make_buy_create_swap_payload(wallet_name, &LOADED_WALLET, usdt).await
     )?;
@@ -132,6 +139,7 @@ pub async fn make_sell_create_swap_payload(
     wallet_name: String,
     btc: String,
 ) -> Result<JsValue, JsValue> {
+    let btc = map_err_from_anyhow!(Amount::from_str_in(&btc, Denomination::Bitcoin))?;
     let payload = map_err_from_anyhow!(
         wallet::make_sell_create_swap_payload(wallet_name, &LOADED_WALLET, btc).await
     )?;
@@ -152,6 +160,7 @@ pub async fn make_loan_request(
     wallet_name: String,
     collateral: String,
 ) -> Result<JsValue, JsValue> {
+    let collateral = map_err_from_anyhow!(Amount::from_str_in(&collateral, Denomination::Bitcoin))?;
     let loan_request = map_err_from_anyhow!(
         wallet::make_loan_request(wallet_name, &LOADED_WALLET, collateral).await
     )?;
@@ -167,6 +176,7 @@ pub async fn make_loan_request(
 #[wasm_bindgen]
 pub async fn sign_loan(wallet_name: String) -> Result<JsValue, JsValue> {
     let loan_tx = map_err_from_anyhow!(wallet::sign_loan(wallet_name, &LOADED_WALLET).await)?;
+    let loan_tx = Transaction(loan_tx);
     let loan_tx = map_err_from_anyhow!(JsValue::from_serde(&loan_tx))?;
 
     Ok(loan_tx)
@@ -178,10 +188,12 @@ pub async fn sign_loan(wallet_name: String) -> Result<JsValue, JsValue> {
 #[wasm_bindgen]
 pub async fn sign_and_send_swap_transaction(
     wallet_name: String,
-    tx_hex: String,
+    transaction: String,
 ) -> Result<JsValue, JsValue> {
+    let transaction: Transaction = map_err_from_anyhow!(serde_json::from_str(&transaction))?;
     let txid = map_err_from_anyhow!(
-        wallet::sign_and_send_swap_transaction(wallet_name, &LOADED_WALLET, tx_hex).await
+        wallet::sign_and_send_swap_transaction(wallet_name, &LOADED_WALLET, transaction.into())
+            .await
     )?;
     let txid = map_err_from_anyhow!(JsValue::from_serde(&txid))?;
 
@@ -196,8 +208,9 @@ pub async fn sign_and_send_swap_transaction(
 /// To do so we unblind confidential `TxOut`s whenever necessary.
 #[wasm_bindgen]
 pub async fn extract_trade(wallet_name: String, transaction: String) -> Result<JsValue, JsValue> {
+    let transaction: Transaction = map_err_from_anyhow!(serde_json::from_str(&transaction))?;
     let trade = map_err_from_anyhow!(
-        wallet::extract_trade(wallet_name, &LOADED_WALLET, transaction).await
+        wallet::extract_trade(wallet_name, &LOADED_WALLET, transaction.into()).await
     )?;
     let trade = map_err_from_anyhow!(JsValue::from_serde(&trade))?;
 
@@ -239,6 +252,7 @@ pub async fn get_open_loans() -> Result<JsValue, JsValue> {
 
 #[wasm_bindgen]
 pub async fn repay_loan(wallet_name: String, loan_txid: String) -> Result<JsValue, JsValue> {
+    let loan_txid = map_err_from_anyhow!(Txid::from_str(&loan_txid))?;
     let txid =
         map_err_from_anyhow!(wallet::repay_loan(wallet_name, &LOADED_WALLET, loan_txid).await)?;
     let txid = map_err_from_anyhow!(JsValue::from_serde(&txid))?;
@@ -253,6 +267,21 @@ pub async fn get_past_transactions(wallet_name: String) -> Result<JsValue, JsVal
     let history = map_err_from_anyhow!(JsValue::from_serde(&history))?;
 
     Ok(history)
+}
+
+#[derive(serde::Serialize, serde::Deserialize)]
+struct Transaction(#[serde(with = "covenants::transaction_as_string")] pub elements::Transaction);
+
+impl From<elements::Transaction> for Transaction {
+    fn from(from: elements::Transaction) -> Self {
+        Self(from)
+    }
+}
+
+impl From<Transaction> for elements::Transaction {
+    fn from(from: Transaction) -> Self {
+        from.0
+    }
 }
 
 #[cfg(test)]

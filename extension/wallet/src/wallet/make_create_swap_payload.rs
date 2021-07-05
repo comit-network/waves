@@ -2,7 +2,7 @@ use crate::{
     constants::{NATIVE_ASSET_ID, USDT_ASSET_ID},
     wallet::{current, get_txouts, CreateSwapPayload, SwapUtxo, Wallet},
 };
-use bdk::bitcoin::{Amount, Denomination};
+use bdk::bitcoin::Amount;
 use coin_selection::{self, coin_select};
 use elements::{secp256k1_zkp::SECP256K1, AssetId, OutPoint};
 use estimate_transaction_size::avg_vbytes;
@@ -11,7 +11,7 @@ use futures::lock::Mutex;
 pub async fn make_buy_create_swap_payload(
     name: String,
     current_wallet: &Mutex<Option<Wallet>>,
-    sell_amount: String,
+    sell_amount: Amount,
 ) -> Result<CreateSwapPayload, Error> {
     make_create_swap_payload(
         name,
@@ -26,7 +26,7 @@ pub async fn make_buy_create_swap_payload(
 pub async fn make_sell_create_swap_payload(
     name: String,
     current_wallet: &Mutex<Option<Wallet>>,
-    sell_amount: String,
+    sell_amount: Amount,
 ) -> Result<CreateSwapPayload, Error> {
     make_create_swap_payload(
         name,
@@ -41,13 +41,10 @@ pub async fn make_sell_create_swap_payload(
 async fn make_create_swap_payload(
     name: String,
     current_wallet: &Mutex<Option<Wallet>>,
-    sell_amount: String,
+    sell_amount: Amount,
     sell_asset: AssetId,
     fee_asset: AssetId,
 ) -> Result<CreateSwapPayload, Error> {
-    let sell_amount = Amount::from_str_in(&sell_amount, Denomination::Bitcoin)
-        .map_err(|_| Error::ParseAmount(sell_amount))?;
-
     let wallet = current(&name, current_wallet)
         .await
         .map_err(|_| Error::LoadWallet)?;
@@ -119,8 +116,6 @@ async fn make_create_swap_payload(
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
-    #[error("Amount string cannot be parsed: {0}")]
-    ParseAmount(String),
     #[error("Wallet is not loaded")]
     LoadWallet,
     #[error("Coin selection: {0}")]
