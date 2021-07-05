@@ -74,10 +74,6 @@ export async function repayLoan(txid: string): Promise<void> {
 }
 
 export async function getPastTransactions(): Promise<Txid[]> {
-    return Promise.resolve(
-        [
-            "590b5979a7273d70a481ffe016da98a67826008c6364b56d24bb49399e3c274a",
-            "8f88e92d0ec41347b5f10d5665983093b777bc4026f703935e639598ad8d2237",
-        ],
-    );
+    // @ts-ignore
+    return proxy.getPastTransactions();
 }

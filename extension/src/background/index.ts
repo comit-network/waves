@@ -9,6 +9,7 @@ import {
     getAddress,
     getBalances,
     getOpenLoans,
+    getPastTransactions,
     makeBuyCreateSwapPayload,
     makeLoanRequestPayload,
     makeSellCreateSwapPayload,
@@ -160,4 +161,8 @@ window.getOpenLoans = async (): LoanDetails[] => {
 // @ts-ignore
 window.repayLoan = async (txid: string): void => {
     return repayLoan(walletName, txid);
+};
+// @ts-ignore
+window.getPastTransactions = async (): Txid[] => {
+    return getPastTransactions(walletName);
 };

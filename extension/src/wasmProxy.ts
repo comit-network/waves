@@ -128,3 +128,10 @@ export async function repayLoan(name: string, txid: string): Promise<void> {
     debug("repayLoan");
     return repay_loan(name, txid);
 }
+
+export async function getPastTransactions(name: string): Promise<Txid[]> {
+    const { get_past_transactions } = await import("./wallet");
+
+    debug("getPastTransactions");
+    return get_past_transactions(name);
+}

@@ -246,6 +246,15 @@ pub async fn repay_loan(wallet_name: String, loan_txid: String) -> Result<JsValu
     Ok(txid)
 }
 
+#[wasm_bindgen]
+pub async fn get_past_transactions(wallet_name: String) -> Result<JsValue, JsValue> {
+    let history =
+        map_err_from_anyhow!(wallet::get_transaction_history(wallet_name, &LOADED_WALLET).await)?;
+    let history = map_err_from_anyhow!(JsValue::from_serde(&history))?;
+
+    Ok(history)
+}
+
 #[cfg(test)]
 mod constants_tests {
     use elements::{AddressParams, AssetId};
