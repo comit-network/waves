@@ -5,7 +5,7 @@ use crate::{
     TradeSide,
 };
 use covenants::{Borrower0, LoanResponse};
-use elements::{bitcoin::util::amount::Amount, secp256k1_zkp::SECP256K1};
+use elements::{bitcoin::util::amount::Amount, secp256k1_zkp::SECP256K1, Txid};
 use futures::lock::Mutex;
 use rust_decimal::Decimal;
 
@@ -71,15 +71,15 @@ pub async fn extract_loan(
         )
         .map_err(Error::Save)?;
 
+    let loan_txid = borrower.loan_transaction.txid();
     let loan_details = LoanDetails::new(
         borrower.collateral_amount,
         collateral_balance,
         borrower.principal_tx_out_amount,
         principal_balance,
         timelock,
+        loan_txid,
     )?;
-
-    let loan_txid = borrower.loan_transaction.txid();
 
     storage
         .set_item(
@@ -98,6 +98,7 @@ pub struct LoanDetails {
     pub principal_repayment: Decimal,
     // TODO: Express as target date or number of days instead?
     pub term: u64,
+    pub txid: Txid,
 }
 
 impl LoanDetails {
@@ -107,6 +108,7 @@ impl LoanDetails {
         principal_amount: Amount,
         principal_balance: Decimal,
         timelock: u64,
+        txid: Txid,
     ) -> Result<Self, TradeSideError> {
         let collateral = TradeSide::new_sell(
             *NATIVE_ASSET_ID,
@@ -122,6 +124,7 @@ impl LoanDetails {
             principal_repayment: principal.amount,
             principal,
             term: timelock,
+            txid,
         })
     }
 }
