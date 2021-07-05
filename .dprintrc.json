@@ -14,7 +14,6 @@
     "waves/build",
     "waves/dist",
     "**/node_modules",
-    "extension/dist",
     "extension/dev",
     "extension/dist"
   ],
