@@ -49,7 +49,7 @@ export interface LoanDetails {
     principal: TradeSide;
     principalRepayment: number;
     term: number;
-    txId: Txid;
+    txid: Txid;
 }
 
 export interface LoanToSign {
