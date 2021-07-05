@@ -3,12 +3,21 @@ import { faBug } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import * as React from "react";
 import { useAsync } from "react-async";
-import { getBalances, getLoanToSign, getSwapToSign, getWalletStatus, rejectLoan, rejectSwap } from "./background-proxy";
+import {
+    getBalances,
+    getLoanToSign,
+    getOpenLoans,
+    getSwapToSign,
+    getWalletStatus,
+    rejectLoan,
+    rejectSwap,
+} from "./background-proxy";
 import AddressQr from "./components/AddressQr";
 import WalletBalances from "./components/Balances";
 import ConfirmLoan from "./components/ConfirmLoan";
 import ConfirmSwap from "./components/ConfirmSwap";
 import CreateOrUnlockWallet from "./components/CreateOrUnlockWallet";
+import OpenLoans from "./components/OpenLoans";
 import WithdrawAll from "./components/WithdrawAll";
 import { Status } from "./models";
 import theme from "./theme";
@@ -18,17 +27,20 @@ const App = () => {
     const walletBalanceHook = useAsync({ promiseFn: getBalances });
     const swapToSignHook = useAsync({ promiseFn: getSwapToSign });
     const loanToSignHook = useAsync({ promiseFn: getLoanToSign });
+    const openLoansHook = useAsync({ promiseFn: getOpenLoans });
 
     let { data: walletStatus, reload: reloadWalletStatus } = walletStatusHook;
     let { data: balanceUpdates, reload: reloadWalletBalances } = walletBalanceHook;
     let { data: swapToSign, reload: reloadSwapToSign } = swapToSignHook;
     let { data: loanToSign, reload: reloadLoanToSign } = loanToSignHook;
+    let { data: openLoans, reload: reloadOpenLoans } = openLoansHook;
 
     const refreshAll = async () => {
         await reloadWalletBalances();
         await reloadWalletStatus();
         await reloadSwapToSign();
         await reloadLoanToSign();
+        await reloadOpenLoans();
     };
 
     // we want to either sign a swap or the loan but not both:
@@ -45,6 +57,7 @@ const App = () => {
                         {balanceUpdates && <WalletBalances balanceUpdates={balanceUpdates} />}
                         {!signLoan && !swapToSign && <AddressQr />}
                         {!signLoan && !swapToSign && <WithdrawAll />}
+                        {!signLoan && !swapToSign && <OpenLoans openLoans={openLoans} onRepayed={refreshAll} />}
 
                         {swapToSign && <ConfirmSwap
                             onCancel={async (tabId: number) => {

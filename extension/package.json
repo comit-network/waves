@@ -45,6 +45,7 @@
     "@types/react-dom": "^16.9.0",
     "debug": "^4.3.1",
     "framer-motion": "^4.0.0",
+    "moment": "^2.29.1",
     "react": "^17.0.2",
     "react-async": "^10.0.1",
     "react-browser-extension-scripts": "4.0.10",
