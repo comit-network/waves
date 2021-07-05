@@ -1,13 +1,14 @@
 import Debug from "debug";
 import { browser } from "webextension-polyfill-ts";
 import { Direction, Message, MessageKind } from "../messages";
-import { LoanToSign, SwapToSign } from "../models";
+import { LoanDetails, LoanToSign, SwapToSign } from "../models";
 import {
     createWallet,
     extractLoan,
     extractTrade,
     getAddress,
     getBalances,
+    getOpenLoans,
     makeBuyCreateSwapPayload,
     makeLoanRequestPayload,
     makeSellCreateSwapPayload,
@@ -151,3 +152,7 @@ window.rejectLoan = async (tabId: number) => {
 window.withdrawAll = async (address: string) => {
     return withdrawAll(walletName, address);
 };
+// @ts-ignore
+window.getOpenLoans = async (): LoanDetails[] => {
+    return getOpenLoans();
+}

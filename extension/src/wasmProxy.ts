@@ -114,3 +114,10 @@ export async function withdrawAll(name: string, address: string): Promise<Txid> 
     debug("withdrawAll");
     return await withdraw_everything_to(name, address);
 }
+
+export async function getOpenLoans(): Promise<LoanDetails[]> {
+    const { get_open_loans } = await import("./wallet");
+
+    debug("getOpenLoans");
+    return await get_open_loans();
+}

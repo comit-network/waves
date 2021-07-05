@@ -64,25 +64,8 @@ export async function getBalances(): Promise<BalanceUpdate> {
 }
 
 export async function getOpenLoans(): Promise<LoanDetails[]> {
-    let loanDetail: LoanDetails = {
-        collateral: {
-            ticker: "BTC",
-            amount: 1,
-            balanceBefore: 0,
-            balanceAfter: 0,
-        },
-        principal: {
-            ticker: "USDT",
-            amount: 10,
-            balanceBefore: 0,
-            balanceAfter: 0,
-        },
-        principalRepayment: 11,
-        term: 0,
-        txId: "0x01",
-    };
-
-    return Promise.resolve([loanDetail]);
+    // @ts-ignore
+    return proxy.getOpenLoans();
 }
 
 export async function repayLoan(_txId: String): Promise<void> {

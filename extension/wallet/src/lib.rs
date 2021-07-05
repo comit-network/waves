@@ -12,6 +12,7 @@ mod logger;
 mod storage;
 mod wallet;
 
+use crate::storage::Storage;
 pub use crate::wallet::*;
 
 mod constants {
@@ -224,6 +225,16 @@ pub async fn extract_loan(wallet_name: String, loan_response: JsValue) -> Result
     let details = map_err_from_anyhow!(JsValue::from_serde(&details))?;
 
     Ok(details)
+}
+
+/// Returns all the active loans stored in the browser's local storage.
+#[wasm_bindgen]
+pub async fn get_open_loans() -> Result<JsValue, JsValue> {
+    let storage = map_err_from_anyhow!(Storage::local_storage())?;
+    let loans = map_err_from_anyhow!(storage.get_open_loans().await)?;
+    let loans = map_err_from_anyhow!(JsValue::from_serde(&loans))?;
+
+    Ok(loans)
 }
 
 #[wasm_bindgen]

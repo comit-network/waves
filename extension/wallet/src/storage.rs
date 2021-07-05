@@ -2,12 +2,26 @@ use anyhow::{Context, Result};
 use std::{error::Error as StdError, str::FromStr};
 use web_sys::window;
 
+use crate::LoanDetails;
+
 /// A wrapper type around the cache storage.
 pub struct Storage {
     inner: web_sys::Storage,
 }
 
 impl Storage {
+    pub async fn get_open_loans(&self) -> Result<Vec<LoanDetails>> {
+        let loans = match self
+            .get_item::<String>("open_loans")
+            .context("no key \"open_loans\" in local storage")?
+        {
+            Some(loans) => serde_json::from_str(&loans)?,
+            None => Vec::<LoanDetails>::new(),
+        };
+
+        Ok(loans)
+    }
+
     pub fn local_storage() -> Result<Self> {
         let storage = map_err_to_anyhow!(window()
             .context("failed to access window object")?
