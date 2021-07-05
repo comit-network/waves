@@ -1,5 +1,5 @@
-export const USDT_TICKER = "USDT";
-export const BTC_TICKER = "BTC";
+export const USDT_TICKER = "USDt";
+export const BTC_TICKER = "L-BTC";
 
 export enum Status {
     None = "None",

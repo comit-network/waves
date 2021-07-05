@@ -59,7 +59,8 @@ function OpenLoan({ loanDetails, onRepayed, index }: OpenLoanProps) {
                         {index + 1}:
                     </Box>
                     <Box>
-                        {loanDetails.principalRepayment}{" "}
+                        {loanDetails.principalRepayment}
+                        {" "}
                         {loanDetails.principal.ticker}
                     </Box>
                     <Box w="32px" h="32px">
