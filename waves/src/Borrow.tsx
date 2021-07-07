@@ -1,14 +1,15 @@
 import { Button, Center, useToast, VStack } from "@chakra-ui/react";
 import Debug from "debug";
 import React, { Dispatch } from "react";
-import { useAsync } from "react-async";
+import { AsyncState, useAsync } from "react-async";
 import { useHistory } from "react-router-dom";
 import { Action, Asset, BorrowState, Rate } from "./App";
 import { postLoanFinalization, postLoanRequest } from "./Bobtimus";
 import calculateBetaAmount from "./calculateBetaAmount";
 import NumberInput from "./components/NumberInput";
 import RateInfo from "./components/RateInfo";
-import { makeLoanRequestPayload, signLoan } from "./wasmProxy";
+import WavesProvider from "./waves-provider";
+import { Status, WalletStatus } from "./waves-provider/wavesProvider";
 
 const debug = Debug("Borrow");
 const error = Debug("Borrow:error");
@@ -17,11 +18,15 @@ interface BorrowProps {
     dispatch: Dispatch<Action>;
     rate: Rate;
     state: BorrowState;
+    walletStatusAsyncState: AsyncState<WalletStatus>;
+    wavesProvider: WavesProvider | undefined;
 }
 
-function Borrow({ dispatch, state, rate }: BorrowProps) {
+function Borrow({ dispatch, state, rate, wavesProvider, walletStatusAsyncState }: BorrowProps) {
     const toast = useToast();
     const history = useHistory();
+
+    let { data: walletStatus, reload: reloadWalletStatus, error: walletStatusError } = walletStatusAsyncState;
 
     // TODO: We should get an up-to-date interest rate from Bobtimus
     let interestRate = 0.10;
@@ -44,16 +49,21 @@ function Borrow({ dispatch, state, rate }: BorrowProps) {
 
     let { run: requestNewLoan, isLoading: isRequestingNewLoan } = useAsync({
         deferFn: async () => {
+            if (!wavesProvider) {
+                error("Cannot create loan. Waves provider not found.");
+                return;
+            }
+
             try {
                 /* FIXME: There seems to be a bug which causes this
               payload not to be returned until we refresh the website
               a couple of times. I have no idea why it's happening */
-                let loanRequest = await makeLoanRequestPayload(collateralAmount.toString());
+                let loanRequest = await wavesProvider.makeLoanRequestPayload(collateralAmount.toString());
                 let loanResponse = await postLoanRequest(loanRequest);
 
                 debug(loanResponse);
 
-                let loanTransaction = await signLoan(loanResponse);
+                let loanTransaction = await wavesProvider.signLoan(loanResponse);
 
                 let txid = await postLoanFinalization(loanTransaction);
 
@@ -73,6 +83,60 @@ function Borrow({ dispatch, state, rate }: BorrowProps) {
             }
         },
     });
+
+    async function get_extension() {
+        // TODO forward to firefox app store
+        debug("Download our awesome extension from...");
+        reloadWalletStatus();
+    }
+
+    async function unlock_wallet() {
+        // TODO send request to open popup to unlock wallet
+        debug("For now open popup manually...");
+        reloadWalletStatus();
+    }
+
+    let loanButton;
+    if (!wavesProvider || walletStatusError) {
+        // TODO: We always report an error just before the button is enabled
+        error(walletStatusError);
+        loanButton = <Button
+            onClick={async () => {
+                await get_extension();
+            }}
+            variant="primary"
+            w="15rem"
+            data-cy="get-extension-button"
+        >
+            Get Extension
+        </Button>;
+    } else {
+        switch (walletStatus?.status) {
+            case Status.None:
+            case Status.NotLoaded:
+                loanButton = <Button
+                    onClick={async () => {
+                        await unlock_wallet();
+                    }}
+                    variant="primary"
+                    w="15rem"
+                    data-cy="unlock-wallet-button"
+                >
+                    Unlock Wallet
+                </Button>;
+                break;
+            case Status.Loaded:
+                loanButton = <Button
+                    variant="primary"
+                    w="15rem"
+                    isLoading={isRequestingNewLoan}
+                    onClick={requestNewLoan}
+                >
+                    Take loan
+                </Button>;
+                break;
+        }
+    }
 
     return (
         <VStack spacing={4} align="stretch">
@@ -115,14 +179,7 @@ function Borrow({ dispatch, state, rate }: BorrowProps) {
             <RateInfo rate={rate} direction={"ask"} />
 
             <Center>
-                <Button
-                    variant="primary"
-                    w="15rem"
-                    isLoading={isRequestingNewLoan}
-                    onClick={requestNewLoan}
-                >
-                    Take loan
-                </Button>
+                {loanButton}
             </Center>
         </VStack>
     );

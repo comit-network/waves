@@ -1,14 +1,5 @@
 import Debug from "debug";
-import {
-    Address,
-    BalanceUpdate,
-    CreateSwapPayload,
-    LoanDetails,
-    Status,
-    Trade,
-    Txid,
-    WalletStatus,
-} from "./models";
+import { Address, BalanceUpdate, CreateSwapPayload, LoanDetails, Status, Trade, Txid, WalletStatus } from "./models";
 
 Debug.enable("*");
 const debug = Debug("wasmProxy");

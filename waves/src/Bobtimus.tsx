@@ -1,7 +1,7 @@
 import Debug from "debug";
 import React, { ReactElement } from "react";
 import { SSEProvider } from "react-hooks-sse";
-import { CreateSwapPayload, LoanRequestPayload } from "./wasmProxy";
+import { CreateSwapPayload, LoanRequestPayload } from "./waves-provider/wavesProvider";
 
 const debug = Debug("bobtimus");
 

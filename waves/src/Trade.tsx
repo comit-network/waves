@@ -10,7 +10,8 @@ import calculateBetaAmount, { getDirection } from "./calculateBetaAmount";
 import AssetSelector from "./components/AssetSelector";
 import ExchangeIcon from "./components/ExchangeIcon";
 import RateInfo from "./components/RateInfo";
-import { makeBuyCreateSwapPayload, makeSellCreateSwapPayload, signAndSend, Status, WalletStatus } from "./wasmProxy";
+import WavesProvider from "./waves-provider";
+import { Status, WalletStatus } from "./waves-provider/wavesProvider";
 
 const debug = Debug("Swap");
 const error = Debug("Swap:error");
@@ -20,9 +21,10 @@ interface SwapProps {
     dispatch: Dispatch<Action>;
     rate: Rate;
     walletStatusAsyncState: AsyncState<WalletStatus>;
+    wavesProvider: WavesProvider | undefined;
 }
 
-function Trade({ state, dispatch, rate, walletStatusAsyncState }: SwapProps) {
+function Trade({ state, dispatch, rate, walletStatusAsyncState, wavesProvider }: SwapProps) {
     const history = useHistory();
     const toast = useToast();
 
@@ -37,18 +39,22 @@ function Trade({ state, dispatch, rate, walletStatusAsyncState }: SwapProps) {
 
     let { run: makeNewSwap, isLoading: isCreatingNewSwap } = useAsync({
         deferFn: async () => {
+            if (!wavesProvider) {
+                error("Cannot craete swap request. Waves provider is undefined.");
+                return;
+            }
             let payload;
             let tx;
             try {
                 if (state.alpha.type === Asset.LBTC) {
-                    payload = await makeSellCreateSwapPayload(state.alpha.amount.toString());
+                    payload = await wavesProvider.getSellCreateSwapPayload(state.alpha.amount.toString());
                     tx = await postSellPayload(payload);
                 } else {
-                    payload = await makeBuyCreateSwapPayload(state.alpha.amount.toString());
+                    payload = await wavesProvider.getBuyCreateSwapPayload(state.alpha.amount.toString());
                     tx = await postBuyPayload(payload);
                 }
 
-                let txid = await signAndSend(tx);
+                let txid = await wavesProvider.signAndSendSwap(tx);
 
                 history.push(`/trade/swapped/${txid}`);
             } catch (e) {
@@ -88,7 +94,8 @@ function Trade({ state, dispatch, rate, walletStatusAsyncState }: SwapProps) {
     }
 
     let swapButton;
-    if (walletStatusError) {
+
+    if (!wavesProvider || walletStatusError) {
         // TODO: We always report an error just before the button is enabled
         error(walletStatusError);
         swapButton = <Button
@@ -173,30 +180,30 @@ function Trade({ state, dispatch, rate, walletStatusAsyncState }: SwapProps) {
 
             <Route exact path="/trade/swapped/:txId">
                 <VStack>
-                    <Text textStyle="smGray">
-                        <VStack
-                            divider={<StackDivider borderColor="gray.200" />}
-                            spacing={4}
-                            align="stretch"
-                        >
-                            <HStack>
-                                <Box>
+                    <VStack
+                        divider={<StackDivider borderColor="gray.200" />}
+                        spacing={4}
+                        align="stretch"
+                    >
+                        <HStack>
+                            <Box>
+                                <Text textStyle="smGray">
                                     Check in{" "}
-                                </Box>
-                                <Box>
-                                    <BlockExplorerLink />
-                                </Box>
-                            </HStack>
-                            <Button
-                                variant="primary"
-                                onClick={() => {
-                                    history.push(`/trade`);
-                                }}
-                            >
-                                Home
-                            </Button>
-                        </VStack>
-                    </Text>
+                                </Text>
+                            </Box>
+                            <Box>
+                                <BlockExplorerLink />
+                            </Box>
+                        </HStack>
+                        <Button
+                            variant="primary"
+                            onClick={() => {
+                                history.push(`/trade`);
+                            }}
+                        >
+                            Home
+                        </Button>
+                    </VStack>
                 </VStack>
             </Route>
         </Switch>

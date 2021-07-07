@@ -9,8 +9,9 @@ import { fundAddress } from "./Bobtimus";
 import Borrow from "./Borrow";
 import COMIT from "./components/comit_logo_spellout_opacity_50.svg";
 import Trade from "./Trade";
-import { getNewAddress, getWalletStatus } from "./wasmProxy";
 
+Debug.enable("*");
+const debug = Debug("App");
 const error = Debug("App:error");
 
 export enum Asset {
@@ -205,6 +206,8 @@ function App() {
     const toast = useToast();
     const path = history.location.pathname;
 
+    const wavesProvider = window.wavesProvider;
+
     useEffect(() => {
         if (path === "/app") {
             history.replace("/");
@@ -219,31 +222,18 @@ function App() {
     });
 
     let walletStatusAsyncState = useAsync({
-        promiseFn: getWalletStatus,
+        promiseFn: wavesProvider?.walletStatus,
     });
-
-    /* TODO: Re-implement button refresh functionality */
-    /* let { reload: reloadWalletStatus } = walletStatusAsyncState; */
-
-    /* useEffect(() => {
-   *     let callback = (_message: MessageEvent) => {};
-   *     // @ts-ignore
-   *     if (!window.wavesProvider) {
-   *         callback = async (message: MessageEvent) => {
-   *             debug("Received message: %s", message.data);
-   *             await reloadWalletStatus();
-   *         };
-   *     }
-   *     window.addEventListener("message", callback);
-
-   *     return () => window.removeEventListener("message", callback);
-   * }); */
 
     let { run: callFaucet, isLoading: isFaucetLoading } = useAsync({
         deferFn: async () => {
             try {
-                let address = await getNewAddress();
-                await fundAddress(address);
+                if (wavesProvider) {
+                    let address = await wavesProvider.getNewAddress();
+                    await fundAddress(address);
+                } else {
+                    debug("Waves provider undefined. Cannot call faucet without an address");
+                }
             } catch (e) {
                 error("Could not call faucet: {}", e);
                 toast({
@@ -285,10 +275,17 @@ function App() {
                                 dispatch={dispatch}
                                 rate={rate}
                                 walletStatusAsyncState={walletStatusAsyncState}
+                                wavesProvider={wavesProvider}
                             />
                         </Route>
                         <Route path="/borrow">
-                            <Borrow dispatch={dispatch} state={state.borrow} rate={rate} />
+                            <Borrow
+                                dispatch={dispatch}
+                                state={state.borrow}
+                                rate={rate}
+                                walletStatusAsyncState={walletStatusAsyncState}
+                                wavesProvider={wavesProvider}
+                            />
                         </Route>
                     </Switch>
                 </VStack>

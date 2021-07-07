@@ -39,52 +39,52 @@ browser.runtime.onMessage.addListener(async (msg: Message<any>, sender) => {
 
     if (msg.direction === Direction.ToBackground) {
         try {
-        let payload;
-        let kind;
-        switch (msg.kind) {
-            case MessageKind.WalletStatusRequest:
-                payload = await walletStatus(walletName);
-                kind = MessageKind.WalletStatusResponse;
-                break;
-            case MessageKind.SellRequest:
-                const btc = msg.payload;
-                payload = await makeSellCreateSwapPayload(walletName, btc);
-                kind = MessageKind.SellResponse;
-                break;
-            case MessageKind.BuyRequest:
-                const usdt = msg.payload;
-                payload = await makeBuyCreateSwapPayload(walletName, usdt);
-                kind = MessageKind.BuyResponse;
-                break;
-            case MessageKind.AddressRequest:
-                payload = await getAddress(walletName);
-                kind = MessageKind.AddressResponse;
-                break;
-            case MessageKind.LoanRequest:
-                const collateral = msg.payload;
-                payload = await makeLoanRequestPayload(walletName, collateral);
-                kind = MessageKind.LoanResponse;
-                break;
-            case MessageKind.SignAndSendSwap:
-                const txHex = msg.payload;
-                const decoded = await extractTrade(walletName, txHex);
+            let payload;
+            let kind;
+            switch (msg.kind) {
+                case MessageKind.WalletStatusRequest:
+                    payload = await walletStatus(walletName);
+                    kind = MessageKind.WalletStatusResponse;
+                    break;
+                case MessageKind.SellRequest:
+                    const btc = msg.payload;
+                    payload = await makeSellCreateSwapPayload(walletName, btc);
+                    kind = MessageKind.SellResponse;
+                    break;
+                case MessageKind.BuyRequest:
+                    const usdt = msg.payload;
+                    payload = await makeBuyCreateSwapPayload(walletName, usdt);
+                    kind = MessageKind.BuyResponse;
+                    break;
+                case MessageKind.AddressRequest:
+                    payload = await getAddress(walletName);
+                    kind = MessageKind.AddressResponse;
+                    break;
+                case MessageKind.LoanRequest:
+                    const collateral = msg.payload;
+                    payload = await makeLoanRequestPayload(walletName, collateral);
+                    kind = MessageKind.LoanResponse;
+                    break;
+                case MessageKind.SignAndSendSwap:
+                    const txHex = msg.payload;
+                    const decoded = await extractTrade(walletName, txHex);
 
-                swapToSign = { txHex, decoded, tabId: sender.tab!.id! };
-                return;
-            case MessageKind.SignLoan:
-                const loanResponse = msg.payload;
+                    swapToSign = { txHex, decoded, tabId: sender.tab!.id! };
+                    return;
+                case MessageKind.SignLoan:
+                    const loanResponse = msg.payload;
 
-                let details;
-                details = await extractLoan(walletName, loanResponse);
-                kind = MessageKind.LoanResponse;
+                    let details;
+                    details = await extractLoan(walletName, loanResponse);
+                    kind = MessageKind.LoanResponse;
 
-                loanToSign = { details, tabId: sender.tab!.id! };
-                return;
-        }
+                    loanToSign = { details, tabId: sender.tab!.id! };
+                    return;
+            }
             return { kind, direction: Direction.ToPage, payload };
         } catch (e) {
             error(e);
-            return
+            return;
         }
     }
 });
