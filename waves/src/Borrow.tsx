@@ -55,9 +55,6 @@ function Borrow({ dispatch, state, rate, wavesProvider, walletStatusAsyncState }
             }
 
             try {
-                /* FIXME: There seems to be a bug which causes this
-              payload not to be returned until we refresh the website
-              a couple of times. I have no idea why it's happening */
                 let loanRequest = await wavesProvider.makeLoanRequestPayload(collateralAmount.toString());
                 let loanResponse = await postLoanRequest(loanRequest);
 
@@ -70,8 +67,7 @@ function Borrow({ dispatch, state, rate, wavesProvider, walletStatusAsyncState }
                 // TODO: Add different page for loaned?
                 history.push(`/trade/swapped/${txid}`);
             } catch (e) {
-                let description = JSON.stringify(e);
-                error(e);
+                const description = typeof e === "string" ? e : JSON.stringify(e);
 
                 toast({
                     title: "Error",

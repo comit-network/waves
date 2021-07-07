@@ -58,17 +58,7 @@ function Trade({ state, dispatch, rate, walletStatusAsyncState, wavesProvider }:
 
                 history.push(`/trade/swapped/${txid}`);
             } catch (e) {
-                let description: string;
-                if (e.InsufficientFunds) {
-                    // TODO: Include alpha asset type in message
-                    description = `Insufficient funds in wallet: expected ${e.InsufficientFunds.needed},
-                         got ${e.InsufficientFunds.available}`;
-                } else if (e === "Rejected") {
-                    description = "Swap not authorised by wallet extension";
-                } else {
-                    description = JSON.stringify(e);
-                    error(e);
-                }
+                const description = typeof e === "string" ? e : JSON.stringify(e);
 
                 toast({
                     title: "Error",

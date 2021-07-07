@@ -164,7 +164,7 @@ export default class WavesProvider {
                         debug(`Swap rejected: ${JSON.stringify(event.data)}`);
 
                         window.removeEventListener("message", listener);
-                        reject();
+                        reject("User rejected swap");
                     }
                 }
             };
@@ -198,7 +198,7 @@ export default class WavesProvider {
                         debug(`Loan rejected: ${JSON.stringify(event.data)}`);
 
                         window.removeEventListener("message", listener);
-                        reject();
+                        reject("User rejected loan");
                     }
                 }
             };
