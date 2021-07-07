@@ -40,17 +40,16 @@ function Trade({ state, dispatch, rate, walletStatusAsyncState, wavesProvider }:
     let { run: makeNewSwap, isLoading: isCreatingNewSwap } = useAsync({
         deferFn: async () => {
             if (!wavesProvider) {
-                error("Cannot craete swap request. Waves provider is undefined.");
+                error("Cannot swap. Waves provider not found.");
                 return;
             }
-            let payload;
             let tx;
             try {
                 if (state.alpha.type === Asset.LBTC) {
-                    payload = await wavesProvider.getSellCreateSwapPayload(state.alpha.amount.toString());
+                    const payload = await wavesProvider.getSellCreateSwapPayload(state.alpha.amount.toString());
                     tx = await postSellPayload(payload);
                 } else {
-                    payload = await wavesProvider.getBuyCreateSwapPayload(state.alpha.amount.toString());
+                    const payload = await wavesProvider.getBuyCreateSwapPayload(state.alpha.amount.toString());
                     tx = await postBuyPayload(payload);
                 }
 

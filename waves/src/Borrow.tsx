@@ -50,18 +50,14 @@ function Borrow({ dispatch, state, rate, wavesProvider, walletStatusAsyncState }
     let { run: requestNewLoan, isLoading: isRequestingNewLoan } = useAsync({
         deferFn: async () => {
             if (!wavesProvider) {
-                error("Cannot create loan. Waves provider not found.");
+                error("Cannot borrow. Waves provider not found.");
                 return;
             }
 
             try {
                 let loanRequest = await wavesProvider.makeLoanRequestPayload(collateralAmount.toString());
                 let loanResponse = await postLoanRequest(loanRequest);
-
-                debug(loanResponse);
-
                 let loanTransaction = await wavesProvider.signLoan(loanResponse);
-
                 let txid = await postLoanFinalization(loanTransaction);
 
                 // TODO: Add different page for loaned?
