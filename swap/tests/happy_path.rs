@@ -179,7 +179,6 @@ async fn collaborative_create_and_sign() {
     .unwrap();
 }
 
-// TODO: Only works with Bitcoin. Support other assets
 async fn move_output_to_wallet(
     client: &Client,
     previous_output: OutPoint,
