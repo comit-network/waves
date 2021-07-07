@@ -26,4 +26,5 @@ export interface Message<T> {
     kind: MessageKind;
     direction: Direction;
     payload: T;
+    error: string | undefined;
 }

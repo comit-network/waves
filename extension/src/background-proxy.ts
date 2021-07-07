@@ -8,7 +8,7 @@ export async function getAddress(): Promise<Address> {
     return proxy.getAddress();
 }
 
-export async function signAndSendSwap(txHex: string, tabId: number): Promise<Txid> {
+export async function signAndSendSwap(txHex: string, tabId: number): Promise<void> {
     // @ts-ignore
     return proxy.signAndSendSwap(txHex, tabId);
 }

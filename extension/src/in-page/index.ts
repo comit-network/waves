@@ -8,17 +8,20 @@ const debug = Debug("inpage");
 export default class WavesProvider {
     public async walletStatus(): Promise<WalletStatus> {
         debug("Requesting wallet status");
-        let promise = new Promise<WalletStatus>((resolve, _reject) => {
+        let promise = new Promise<WalletStatus>((resolve, reject) => {
             let listener = async function(event: MessageEvent<Message<WalletStatus>>) {
-                // TODO timeout and reject promise after some time of no response.
                 if (
                     event.data.direction === Direction.ToPage
                     && event.data.kind === MessageKind.WalletStatusResponse
                 ) {
-                    debug(`Received wallet status: ${JSON.stringify(event.data)}`);
+                    if (event.data.error) {
+                        reject(event.data.error);
+                    } else {
+                        debug(`Received wallet status: ${JSON.stringify(event.data)}`);
 
-                    window.removeEventListener("message", listener);
-                    resolve(event.data.payload);
+                        window.removeEventListener("message", listener);
+                        resolve(event.data.payload);
+                    }
                 }
             };
             window.addEventListener("message", listener);
@@ -32,16 +35,20 @@ export default class WavesProvider {
 
     public async getSellCreateSwapPayload(btc: string): Promise<CreateSwapPayload> {
         debug("Getting sell create-swap payload");
-        let promise = new Promise<CreateSwapPayload>((resolve, _reject) => {
+        let promise = new Promise<CreateSwapPayload>((resolve, reject) => {
             let listener = async function(event: MessageEvent<Message<CreateSwapPayload>>) {
                 if (
                     event.data.direction === Direction.ToPage
                     && event.data.kind === MessageKind.SellResponse
                 ) {
-                    debug(`Received sell response: ${JSON.stringify(event.data)}`);
+                    if (event.data.error) {
+                        reject(event.data.error);
+                    } else {
+                        debug(`Received sell response: ${JSON.stringify(event.data)}`);
 
-                    window.removeEventListener("message", listener);
-                    resolve(event.data.payload);
+                        window.removeEventListener("message", listener);
+                        resolve(event.data.payload);
+                    }
                 }
             };
             window.addEventListener("message", listener);
@@ -56,16 +63,20 @@ export default class WavesProvider {
 
     public async getBuyCreateSwapPayload(usdt: string): Promise<CreateSwapPayload> {
         debug("Getting buy create-swap payload");
-        let promise = new Promise<CreateSwapPayload>((resolve, _reject) => {
+        let promise = new Promise<CreateSwapPayload>((resolve, reject) => {
             let listener = async function(event: MessageEvent<Message<CreateSwapPayload>>) {
                 if (
                     event.data.direction === Direction.ToPage
                     && event.data.kind === MessageKind.BuyResponse
                 ) {
-                    debug(`Received buy response: ${JSON.stringify(event.data)}`);
+                    if (event.data.error) {
+                        reject(event.data.error);
+                    } else {
+                        debug(`Received buy response: ${JSON.stringify(event.data)}`);
 
-                    window.removeEventListener("message", listener);
-                    resolve(event.data.payload);
+                        window.removeEventListener("message", listener);
+                        resolve(event.data.payload);
+                    }
                 }
             };
             window.addEventListener("message", listener);
@@ -80,16 +91,20 @@ export default class WavesProvider {
 
     public async getNewAddress(): Promise<Address> {
         debug("Getting address");
-        let promise = new Promise<Address>((resolve, _reject) => {
+        let promise = new Promise<Address>((resolve, reject) => {
             let listener = async function(event: MessageEvent<Message<Address>>) {
                 if (
                     event.data.direction === Direction.ToPage
                     && event.data.kind === MessageKind.AddressResponse
                 ) {
-                    debug(`Received address: ${JSON.stringify(event.data)}`);
+                    if (event.data.error) {
+                        reject(event.data.kind);
+                    } else {
+                        debug(`Received address: ${JSON.stringify(event.data)}`);
 
-                    window.removeEventListener("message", listener);
-                    resolve(event.data.payload);
+                        window.removeEventListener("message", listener);
+                        resolve(event.data.payload);
+                    }
                 }
             };
             window.addEventListener("message", listener);
@@ -103,16 +118,20 @@ export default class WavesProvider {
 
     public async makeLoanRequestPayload(collateral: string): Promise<LoanRequestPayload> {
         debug("Making loan request payload");
-        let promise = new Promise<LoanRequestPayload>((resolve, _reject) => {
+        let promise = new Promise<LoanRequestPayload>((resolve, reject) => {
             let listener = async function(event: MessageEvent<Message<LoanRequestPayload>>) {
                 if (
                     event.data.direction === Direction.ToPage
                     && event.data.kind === MessageKind.LoanResponse
                 ) {
-                    debug(`Received loan request payload: ${JSON.stringify(event.data)}`);
+                    if (event.data.error) {
+                        reject(event.data.error);
+                    } else {
+                        debug(`Received loan request payload: ${JSON.stringify(event.data)}`);
 
-                    window.removeEventListener("message", listener);
-                    resolve(event.data.payload);
+                        window.removeEventListener("message", listener);
+                        resolve(event.data.payload);
+                    }
                 }
             };
             window.addEventListener("message", listener);
@@ -133,10 +152,14 @@ export default class WavesProvider {
                     event.data.direction === Direction.ToPage
                 ) {
                     if (event.data.kind === MessageKind.SwapTxid) {
-                        debug(`Received swap txid: ${JSON.stringify(event.data)}`);
+                        if (event.data.error) {
+                            reject(event.data.error);
+                        } else {
+                            debug(`Received swap txid: ${JSON.stringify(event.data)}`);
 
-                        window.removeEventListener("message", listener);
-                        resolve(event.data.payload);
+                            window.removeEventListener("message", listener);
+                            resolve(event.data.payload);
+                        }
                     } else if (event.data.kind === MessageKind.SwapRejected) {
                         debug(`Swap rejected: ${JSON.stringify(event.data)}`);
 
@@ -163,10 +186,14 @@ export default class WavesProvider {
                     event.data.direction === Direction.ToPage
                 ) {
                     if (event.data.kind === MessageKind.SignedLoan) {
-                        debug(`Received signed loan: ${JSON.stringify(event.data)}`);
+                        if (event.data.error) {
+                            reject(event.data.error);
+                        } else {
+                            debug(`Received signed loan: ${JSON.stringify(event.data)}`);
 
-                        window.removeEventListener("message", listener);
-                        resolve(event.data.payload);
+                            window.removeEventListener("message", listener);
+                            resolve(event.data.payload);
+                        }
                     } else if (event.data.kind === MessageKind.LoanRejected) {
                         debug(`Loan rejected: ${JSON.stringify(event.data)}`);
 

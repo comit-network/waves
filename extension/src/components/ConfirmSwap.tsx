@@ -7,7 +7,7 @@ import YouSwapItem from "./SwapItem";
 
 interface ConfirmSwapProps {
     onCancel: (tabId: number) => void;
-    onSuccess: (txId: string) => void;
+    onSuccess: () => void;
     swapToSign: SwapToSign;
 }
 
@@ -16,8 +16,8 @@ export default function ConfirmSwap(
 ) {
     let { isPending, run } = useAsync({
         deferFn: async () => {
-            const txId = await signAndSendSwap(swapToSign.txHex, swapToSign.tabId);
-            onSuccess(txId);
+            await signAndSendSwap(swapToSign.txHex, swapToSign.tabId);
+            onSuccess();
         },
     });
 

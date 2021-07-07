@@ -96,8 +96,10 @@ function Trade({ state, dispatch, rate, walletStatusAsyncState, wavesProvider }:
     let swapButton;
 
     if (!wavesProvider || walletStatusError) {
-        // TODO: We always report an error just before the button is enabled
-        error(walletStatusError);
+        if (walletStatusError) {
+            error(walletStatusError);
+        }
+
         swapButton = <Button
             onClick={async () => {
                 await get_extension();

@@ -38,60 +38,75 @@ browser.runtime.onMessage.addListener(async (msg: Message<any>, sender) => {
     );
 
     if (msg.direction === Direction.ToBackground) {
-        try {
-            let payload;
-            let kind;
-            switch (msg.kind) {
-                case MessageKind.WalletStatusRequest:
-                    payload = await walletStatus(walletName);
-                    kind = MessageKind.WalletStatusResponse;
-                    break;
-                case MessageKind.SellRequest:
-                    const btc = msg.payload;
-                    payload = await makeSellCreateSwapPayload(walletName, btc);
-                    kind = MessageKind.SellResponse;
-                    break;
-                case MessageKind.BuyRequest:
-                    const usdt = msg.payload;
-                    payload = await makeBuyCreateSwapPayload(walletName, usdt);
-                    kind = MessageKind.BuyResponse;
-                    break;
-                case MessageKind.AddressRequest:
-                    payload = await getAddress(walletName);
-                    kind = MessageKind.AddressResponse;
-                    break;
-                case MessageKind.LoanRequest:
-                    const collateral = msg.payload;
-                    payload = await makeLoanRequestPayload(walletName, collateral);
-                    kind = MessageKind.LoanResponse;
-                    break;
-                case MessageKind.SignAndSendSwap:
+        let message;
+        switch (msg.kind) {
+            case MessageKind.WalletStatusRequest:
+                message = await call_wallet(() => walletStatus(walletName), MessageKind.WalletStatusResponse);
+                break;
+            case MessageKind.SellRequest:
+                message = await call_wallet(
+                    async () => await makeSellCreateSwapPayload(walletName, msg.payload),
+                    MessageKind.SellResponse,
+                );
+                break;
+            case MessageKind.BuyRequest:
+                message = await call_wallet(
+                    async () => await makeBuyCreateSwapPayload(walletName, msg.payload),
+                    MessageKind.BuyResponse,
+                );
+                break;
+            case MessageKind.AddressRequest:
+                message = await call_wallet(
+                    async () => await getAddress(walletName),
+                    MessageKind.AddressResponse,
+                );
+                break;
+            case MessageKind.LoanRequest:
+                message = await call_wallet(
+                    async () => await makeLoanRequestPayload(walletName, msg.payload),
+                    MessageKind.LoanResponse,
+                );
+                break;
+            case MessageKind.SignAndSendSwap:
+                try {
                     const txHex = msg.payload;
                     const decoded = await extractTrade(walletName, txHex);
-
                     swapToSign = { txHex, decoded, tabId: sender.tab!.id! };
-                    return;
-                case MessageKind.SignLoan:
-                    const loanResponse = msg.payload;
-
-                    let details;
-                    details = await extractLoan(walletName, loanResponse);
-                    kind = MessageKind.LoanResponse;
-
+                } catch (e) {
+                    error(e);
+                    message = { kind: MessageKind.SwapTxid, direction: Direction.ToPage, error: e };
+                }
+                break;
+            case MessageKind.SignLoan:
+                try {
+                    const details = await extractLoan(walletName, msg.payload);
                     loanToSign = { details, tabId: sender.tab!.id! };
-                    return;
-            }
-            return { kind, direction: Direction.ToPage, payload };
-        } catch (e) {
-            error(e);
-            return;
+                } catch (e) {
+                    error(e);
+                    message = { kind: MessageKind.SignedLoan, direction: Direction.ToPage, error: e };
+                }
+                break;
         }
+        return message;
     }
 });
 
+async function call_wallet<T>(wallet_fn: () => Promise<T>, kind: MessageKind): Promise<Message<T | undefined>> {
+    let payload;
+    let err;
+    try {
+        payload = await wallet_fn();
+    } catch (e) {
+        error(e);
+        err = e;
+    }
+
+    return { kind, direction: Direction.ToPage, payload, error: err };
+}
+
 // @ts-ignore
 window.createWallet = async (password: string) => {
-    await createWallet(walletName, password);
+    return createWallet(walletName, password);
 };
 // @ts-ignore
 window.getWalletStatus = async () => {
@@ -99,7 +114,7 @@ window.getWalletStatus = async () => {
 };
 // @ts-ignore
 window.unlockWallet = async (password: string) => {
-    await unlockWallet(walletName, password);
+    return unlockWallet(walletName, password);
 };
 // @ts-ignore
 window.getBalances = async () => {
@@ -115,19 +130,26 @@ window.getSwapToSign = async () => {
 };
 // @ts-ignore
 window.signAndSendSwap = async (txHex: string, tabId: number) => {
-    const txid = await signAndSendSwap(walletName, txHex);
-    browser.tabs.sendMessage(tabId, { direction: Direction.ToPage, kind: MessageKind.SwapTxid, payload: txid });
-    swapToSign = undefined;
+    let payload;
+    let err;
 
-    return txid;
+    try {
+        payload = await signAndSendSwap(walletName, txHex);
+    } catch (e) {
+        error(e);
+        err = e;
+    }
+
+    browser.tabs.sendMessage(tabId, { direction: Direction.ToPage, kind: MessageKind.SwapTxid, payload, error: err });
+    swapToSign = undefined;
 };
 // @ts-ignore
-window.rejectSwap = async (tabId: number) => {
+window.rejectSwap = (tabId: number) => {
     browser.tabs.sendMessage(tabId, { direction: Direction.ToPage, kind: MessageKind.SwapRejected });
     swapToSign = undefined;
 };
 // @ts-ignore
-window.getLoanToSign = async () => {
+window.getLoanToSign = () => {
     return loanToSign;
 };
 // @ts-ignore
@@ -137,12 +159,21 @@ window.signLoan = async (tabId: number) => {
     // storage. It would be better to send around the swap ID to check
     // that the wallet is signing the same transaction the user has authorised
 
-    const loan = await signLoan(walletName);
-    browser.tabs.sendMessage(tabId, { direction: Direction.ToPage, kind: MessageKind.SignedLoan, payload: loan });
+    let payload;
+    let err;
+
+    try {
+        payload = await signLoan(walletName);
+    } catch (e) {
+        error(e);
+        err = e;
+    }
+
+    browser.tabs.sendMessage(tabId, { direction: Direction.ToPage, kind: MessageKind.SignedLoan, payload, error: err });
     loanToSign = undefined;
 };
 // @ts-ignore
-window.rejectLoan = async (tabId: number) => {
+window.rejectLoan = (tabId: number) => {
     browser.tabs.sendMessage(tabId, { direction: Direction.ToPage, kind: MessageKind.LoanRejected });
     loanToSign = undefined;
 };
