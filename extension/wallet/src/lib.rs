@@ -31,7 +31,7 @@ pub fn setup() {
     #[cfg(feature = "console_error_panic_hook")]
     console_error_panic_hook::set_once();
 
-    let _ = logger::try_init();
+    logger::try_init();
 
     log::info!("wallet initialized");
 }
