@@ -94,7 +94,8 @@ start_bobtimus () {
 
     local -r elementsd_rpc_user="admin1"
     local -r elementsd_rpc_password="123"
-    RUST_LOG=debug cargo run --bin fake_bobtimus -- \
+
+    RUST_LOG=debug,hyper=info,reqwest=info cargo run --bin fake_bobtimus -- \
             start \
             --elementsd http://$elementsd_rpc_user:$elementsd_rpc_password@127.0.0.1:$LIQUID_NODE_PORT \
             --usdt $usdt_asset_id > $log_dir/bobtimus 2>&1 &
