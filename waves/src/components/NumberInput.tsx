@@ -4,7 +4,7 @@ import React from "react";
 
 type StringOrNumber = string | number;
 
-function NumberInput({ currency, value, onAmountChange, precision, step, isDisabled, data_cy }: CustomInputProps) {
+function NumberInput({ currency, value, onAmountChange, precision, step, isDisabled, dataCy }: CustomInputProps) {
     const inputProps = isDisabled ? ASSET_INPUT_DISABLED_PROPS : ASSET_INPUT_PROPS;
     return (
         <InputGroup>
@@ -20,7 +20,7 @@ function NumberInput({ currency, value, onAmountChange, precision, step, isDisab
                 step={step}
                 isDisabled={isDisabled}
                 min={0}
-                data-cy={`${data_cy}-amount-input`}
+                data-cy={`${dataCy}-amount-input`}
             >
                 <NumberInputField />
                 <NumberInputStepper />
@@ -36,7 +36,7 @@ interface CustomInputProps {
     step: number;
     onAmountChange: (val: string) => void;
     isDisabled: boolean;
-    data_cy: string;
+    dataCy: string;
 }
 
 const ASSET_INPUT_LEFT_ADDON_PROPS = {

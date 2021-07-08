@@ -19,13 +19,8 @@ echo "Native Asset ID: "$native_asset_id
 (
     cd ../extension
     yarn install
-    export NATIVE_ASSET_ID=$native_asset_id
-    export USDT_ASSET_ID=$usdt_asset_id
-    export CHAIN="ELEMENTS"
-    export ESPLORA_API_URL="http://localhost:3012"
-
     yarn build
-    yarn package:extension
+    yarn package
 )
 
 (
@@ -37,9 +32,9 @@ echo "Native Asset ID: "$native_asset_id
 
     cd ../
 
-    RUST_LOG=info,bobtimus=debug cargo build --bin fake_bobtimus
-
-    RUST_LOG=info,bobtimus=debug cargo run --bin fake_bobtimus -- \
-        --elementsd http://admin1:123@127.0.0.1:7041 \
-        --usdt $usdt_asset_id > bobtimus.log 2>&1 &
+    cargo build --bin fake_bobtimus
+    RUST_LOG=debug,hyper=info,reqwest=info cargo run --bin fake_bobtimus -- \
+            start \
+            --elementsd http://admin1:123@127.0.0.1:7041 \
+            --usdt $usdt_asset_id > e2e_tests/bobtimus.log 2>&1 &
 )

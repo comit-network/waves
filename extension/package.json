@@ -5,7 +5,8 @@
   "scripts": {
     "start": "web-ext run -s dev/ --browser-console --start-url localhost:3030",
     "watch": "react-app-rewired start --scripts-version react-browser-extension-scripts",
-    "build": "react-app-rewired build",
+    "build": "react-app-rewired build --scripts-version react-browser-extension-scripts",
+    "package": "web-ext build -s build -a zip --overwrite-dest",
     "test": "react-app-rewired test",
     "eject": "react-scripts eject",
     "dev": "concurrently \"yarn:start\" \"yarn:watch\""

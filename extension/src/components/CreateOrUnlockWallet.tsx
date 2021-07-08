@@ -48,6 +48,7 @@ function CreateOrUnlockWallet({ onUnlock, status }: CreateOrUnlockWalletProps) {
                             placeholder="Enter password"
                             value={password}
                             onChange={onPasswordChange}
+                            data-cy={"data-cy-create-wallet-password-input"}
                         />
                         <InputRightElement width="4.5rem">
                             <Button h="1.75rem" size="sm" onClick={handleClick}>
@@ -61,6 +62,7 @@ function CreateOrUnlockWallet({ onUnlock, status }: CreateOrUnlockWalletProps) {
                     type="submit"
                     variant="solid"
                     isLoading={isPending}
+                    data-cy={"data-cy-create-or-unlock-wallet-button"}
                 >
                     {status === Status.None && "Create"}
                     {status === Status.NotLoaded && "Unlock"}

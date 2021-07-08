@@ -63,7 +63,7 @@ function AssetSelector({ assetSide, type, amount, placement, dispatch }: AssetSe
                         step={0.000001}
                         onAmountChange={onAmountChange}
                         isDisabled={assetSide === "Beta"}
-                        data_cy={assetSide}
+                        dataCy="data-cy-L-BTC"
                     />}
                 {/* asset is USDT: render USDT input*/}
                 {type === Asset.USDT
@@ -74,7 +74,7 @@ function AssetSelector({ assetSide, type, amount, placement, dispatch }: AssetSe
                         step={0.01}
                         onAmountChange={onAmountChange}
                         isDisabled={assetSide === "Beta"}
-                        data_cy={assetSide}
+                        dataCy="data-cy-USDt"
                     />}
             </VStack>
         </Center>

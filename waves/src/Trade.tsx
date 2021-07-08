@@ -120,7 +120,7 @@ function Trade({ state, dispatch, rate, walletStatusAsyncState, wavesProvider }:
                     variant="primary"
                     w="15rem"
                     isLoading={isCreatingNewSwap}
-                    data-cy="swap-button"
+                    data-cy="data-cy-swap-button"
                 >
                     Swap
                 </Button>;
@@ -150,7 +150,7 @@ function Trade({ state, dispatch, rate, walletStatusAsyncState, wavesProvider }:
                                                 betaAmount,
                                             },
                                         })}
-                                    dataCy="exchange-asset-types-button"
+                                    dataCy="data-cy-exchange-asset-types-button"
                                 />
                             </Box>
                         </Center>

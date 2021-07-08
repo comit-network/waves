@@ -23,7 +23,7 @@ fn main() -> Result<()> {
 
     let esplora_api_url = option_env!("ESPLORA_API_URL")
         .as_deref()
-        .unwrap_or("http://localhost:3001");
+        .unwrap_or("http://localhost:3012");
 
     let address_params = match option_env!("CHAIN") {
         Some("LIQUID") => "&elements::AddressParams::LIQUID",

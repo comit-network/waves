@@ -20,7 +20,12 @@ export default function AddressQr() {
                         <VStack>
                             <Text textStyle="lgGray">Address</Text>
                             <QRCode value={data} size={100} />
-                            <Text textStyle="mdGray" maxWidth={"15em"} isTruncated data-cy="wallet-address-textfield">
+                            <Text
+                                textStyle="mdGray"
+                                maxWidth={"15em"}
+                                isTruncated
+                                data-cy="data-cy-wallet-address-text-field"
+                            >
                                 {data}
                             </Text>
                         </VStack>

@@ -29,7 +29,6 @@ export default function ConfirmSwap(
                 e.preventDefault();
                 run();
             }}
-            data-cy="confirm-swap-form"
         >
             <Heading>Confirm Swap</Heading>
             <Box>
@@ -56,7 +55,7 @@ export default function ConfirmSwap(
                 type="submit"
                 variant="primary"
                 isLoading={isPending}
-                data-cy="sign-and-send-button"
+                data-cy="data-cy-sign-and-send-button"
             >
                 Sign and send
             </Button>

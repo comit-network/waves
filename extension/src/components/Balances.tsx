@@ -30,7 +30,9 @@ function balanceEntry(balance: BalanceEntry) {
         <HStack>
             {image}
             <Box>
-                <Text textStyle="smGray" data-cy={`usdt-${balance.ticker}`}>{balance.ticker}: {balance.value}</Text>
+                <Text textStyle="smGray" data-cy={`data-cy-${balance.ticker}-balance-text-field`}>
+                    {balance.ticker}: {balance.value}
+                </Text>
             </Box>
         </HStack>
     </Box>;
