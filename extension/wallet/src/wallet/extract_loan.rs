@@ -2,12 +2,11 @@ use crate::{
     constants::{NATIVE_ASSET_ID, USDT_ASSET_ID},
     storage::Storage,
     wallet::{compute_balances, current, get_txouts, Wallet},
-    TradeSide,
+    LoanDetails,
 };
 use covenants::{Borrower0, LoanResponse};
-use elements::{bitcoin::util::amount::Amount, secp256k1_zkp::SECP256K1, Txid};
+use elements::secp256k1_zkp::SECP256K1;
 use futures::lock::Mutex;
-use rust_decimal::Decimal;
 
 pub async fn extract_loan(
     name: String,
@@ -64,13 +63,6 @@ pub async fn extract_loan(
         })
         .unwrap_or_default();
 
-    storage
-        .set_item(
-            "borrower_state",
-            serde_json::to_string(&borrower).map_err(Error::Deserialize)?,
-        )
-        .map_err(Error::Save)?;
-
     let loan_txid = borrower.loan_transaction.txid();
     let loan_details = LoanDetails::new(
         borrower.collateral_amount,
@@ -79,60 +71,18 @@ pub async fn extract_loan(
         principal_balance,
         timelock,
         loan_txid,
-    )?;
+    )
+    .map_err(Error::LoanDetails)?;
 
     storage
         .set_item(
-            &format!("loan_details:{}", loan_txid.to_string()),
-            serde_json::to_string(&loan_details).map_err(Error::Serialize)?,
+            "borrower_state",
+            serde_json::to_string(&(borrower, loan_details.clone())).map_err(Error::Serialize)?,
         )
         .map_err(Error::Save)?;
 
     Ok(loan_details)
 }
-
-#[derive(Clone, Debug, serde::Serialize, serde::Deserialize, PartialEq)]
-#[serde(rename_all = "camelCase")]
-pub struct LoanDetails {
-    pub collateral: TradeSide,
-    pub principal: TradeSide,
-    pub principal_repayment: Decimal,
-    // TODO: Express as target date or number of days instead?
-    pub term: u64,
-    pub txid: Txid,
-}
-
-impl LoanDetails {
-    fn new(
-        collateral_amount: Amount,
-        collateral_balance: Decimal,
-        principal_amount: Amount,
-        principal_balance: Decimal,
-        timelock: u64,
-        txid: Txid,
-    ) -> Result<Self, TradeSideError> {
-        let collateral = TradeSide::new_sell(
-            *NATIVE_ASSET_ID,
-            collateral_amount.as_sat(),
-            collateral_balance,
-        )?;
-
-        let principal =
-            TradeSide::new_buy(*USDT_ASSET_ID, principal_amount.as_sat(), principal_balance)?;
-
-        Ok(Self {
-            collateral,
-            principal_repayment: principal.amount,
-            principal,
-            term: timelock,
-            txid,
-        })
-    }
-}
-
-#[derive(Debug, thiserror::Error)]
-#[error("Failed to build trade side: {0}")]
-pub struct TradeSideError(#[from] anyhow::Error);
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -159,5 +109,5 @@ pub enum Error {
     #[error("Not enough collateral to put up for loan")]
     InsufficientCollateral,
     #[error("Failed to build loan details: {0}")]
-    LoanDetails(#[from] TradeSideError),
+    LoanDetails(anyhow::Error),
 }

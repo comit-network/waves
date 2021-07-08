@@ -35,12 +35,12 @@ const App = () => {
     let { data: loanToSign, reload: reloadLoanToSign } = loanToSignHook;
     let { data: openLoans, reload: reloadOpenLoans } = openLoansHook;
 
-    const refreshAll = async () => {
-        await reloadWalletBalances();
-        await reloadWalletStatus();
-        await reloadSwapToSign();
-        await reloadLoanToSign();
-        await reloadOpenLoans();
+    const refreshAll = () => {
+        reloadWalletBalances();
+        reloadWalletStatus();
+        reloadSwapToSign();
+        reloadLoanToSign();
+        reloadOpenLoans();
     };
 
     // we want to either sign a swap or the loan but not both:
@@ -62,7 +62,7 @@ const App = () => {
                         {swapToSign && <ConfirmSwap
                             onCancel={async (tabId: number) => {
                                 await rejectSwap(tabId);
-                                await refreshAll();
+                                refreshAll();
                             }}
                             onSuccess={refreshAll}
                             swapToSign={swapToSign!}
@@ -71,7 +71,7 @@ const App = () => {
                             && <ConfirmLoan
                                 onCancel={async (tabId: number) => {
                                     await rejectLoan(tabId);
-                                    await refreshAll();
+                                    refreshAll();
                                 }}
                                 onSuccess={refreshAll}
                                 loanToSign={loanToSign!}

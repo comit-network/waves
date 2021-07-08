@@ -1,6 +1,8 @@
 use crate::{
     assets::{self, lookup},
-    constants::{ADDRESS_PARAMS, DEFAULT_SAT_PER_VBYTE, NATIVE_ASSET_ID, NATIVE_ASSET_TICKER},
+    constants::{
+        ADDRESS_PARAMS, DEFAULT_SAT_PER_VBYTE, NATIVE_ASSET_ID, NATIVE_ASSET_TICKER, USDT_ASSET_ID,
+    },
     esplora,
     esplora::Utxo,
 };
@@ -10,11 +12,14 @@ use aes_gcm_siv::{
 };
 use anyhow::{bail, Context, Result};
 use elements::{
-    bitcoin,
-    bitcoin::secp256k1::{SecretKey, SECP256K1},
+    bitcoin::{
+        self,
+        secp256k1::{SecretKey, SECP256K1},
+        util::amount::Amount,
+    },
     confidential,
     secp256k1_zkp::{rand, PublicKey},
-    Address, AssetId, OutPoint, TxOut,
+    Address, AssetId, OutPoint, TxOut, Txid,
 };
 use futures::{
     lock::{MappedMutexGuard, Mutex, MutexGuard},
@@ -35,7 +40,7 @@ use std::{
 };
 
 pub use create_new::create_new;
-pub use extract_loan::{extract_loan, Error as ExtractLoanError, LoanDetails};
+pub use extract_loan::{extract_loan, Error as ExtractLoanError};
 pub use extract_trade::{extract_trade, Trade};
 pub use get_address::get_address;
 pub use get_balances::get_balances;
@@ -388,6 +393,45 @@ impl TradeSide {
             amount,
             balance_before: current_balance,
             balance_after: balance_after(current_balance, amount),
+        })
+    }
+}
+
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct LoanDetails {
+    pub collateral: TradeSide,
+    pub principal: TradeSide,
+    pub principal_repayment: Decimal,
+    // TODO: Express as target date or number of days instead?
+    pub term: u64,
+    pub txid: Txid,
+}
+
+impl LoanDetails {
+    pub fn new(
+        collateral_amount: Amount,
+        collateral_balance: Decimal,
+        principal_amount: Amount,
+        principal_balance: Decimal,
+        timelock: u64,
+        txid: Txid,
+    ) -> Result<Self> {
+        let collateral = TradeSide::new_sell(
+            *NATIVE_ASSET_ID,
+            collateral_amount.as_sat(),
+            collateral_balance,
+        )?;
+
+        let principal =
+            TradeSide::new_buy(*USDT_ASSET_ID, principal_amount.as_sat(), principal_balance)?;
+
+        Ok(Self {
+            collateral,
+            principal_repayment: principal.amount,
+            principal,
+            term: timelock,
+            txid,
         })
     }
 }

@@ -13,7 +13,7 @@ const error = Debug("openloans:error");
 
 interface OpenLoansProps {
     openLoans: LoanDetails[] | undefined;
-    onRepayed: () => Promise<void>;
+    onRepayed: () => void;
 }
 
 export default function OpenLoans({ openLoans, onRepayed }: OpenLoansProps) {
@@ -32,7 +32,7 @@ export default function OpenLoans({ openLoans, onRepayed }: OpenLoansProps) {
 
 interface OpenLoanProps {
     loanDetails: LoanDetails;
-    onRepayed: () => Promise<void>;
+    onRepayed: () => void;
     index: number;
 }
 

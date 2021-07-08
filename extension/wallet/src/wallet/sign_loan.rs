@@ -1,11 +1,11 @@
 use covenants::Borrower1;
-use elements::{secp256k1_zkp::SECP256K1, sighash::SigHashCache, Transaction, Txid};
+use elements::{secp256k1_zkp::SECP256K1, sighash::SigHashCache, Transaction};
 use futures::lock::Mutex;
 use swap::sign_with_key;
 
 use crate::{
     storage::Storage,
-    wallet::{current, get_txouts},
+    wallet::{current, get_txouts, LoanDetails},
     Wallet,
 };
 
@@ -18,7 +18,8 @@ pub(crate) async fn sign_loan(
         .get_item::<String>("borrower_state")
         .map_err(Error::Load)?
         .ok_or(Error::EmptyState)?;
-    let borrower = serde_json::from_str::<Borrower1>(&borrower).map_err(Error::Deserialize)?;
+    let (borrower, loan_details) =
+        serde_json::from_str::<(Borrower1, LoanDetails)>(&borrower).map_err(Error::Deserialize)?;
 
     let loan_transaction = borrower
         .sign(|mut transaction| async {
@@ -71,16 +72,16 @@ pub(crate) async fn sign_loan(
     // the lender to do so very soon. We therefore save the borrower
     // state so that we can later on build, sign and broadcast the
     // repayment transaction
-    let loan_txid = loan_transaction.txid();
     let mut open_loans = match storage
         .get_item::<String>("open_loans")
         .map_err(Error::Load)?
     {
         Some(open_loans) => serde_json::from_str(&open_loans).map_err(Error::Deserialize)?,
-        None => Vec::<Txid>::new(),
+        None => Vec::<LoanDetails>::new(),
     };
 
-    open_loans.push(loan_txid);
+    let loan_txid = loan_details.txid;
+    open_loans.push(loan_details);
     storage
         .set_item(
             "open_loans",
@@ -90,7 +91,7 @@ pub(crate) async fn sign_loan(
 
     storage
         .set_item(
-            &format!("loan_state:{}", loan_txid.to_string()),
+            &format!("loan_state:{}", loan_txid),
             serde_json::to_string(&borrower).map_err(Error::Serialize)?,
         )
         .map_err(Error::Save)?;

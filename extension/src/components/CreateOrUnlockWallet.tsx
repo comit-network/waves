@@ -10,7 +10,7 @@ Debug.enable("*");
 const debug = Debug("unlock-wallet");
 
 type CreateOrUnlockWalletProps = {
-    onUnlock: () => Promise<void>;
+    onUnlock: () => void;
     status: Status;
 };
 
@@ -27,7 +27,7 @@ function CreateOrUnlockWallet({ onUnlock, status }: CreateOrUnlockWalletProps) {
             } else if (status === Status.NotLoaded) {
                 await unlockWallet(password);
             }
-            await onUnlock();
+            onUnlock();
         },
         onReject: (e) => debug("Failed to unlock wallet: %s", e),
     });
