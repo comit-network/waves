@@ -171,7 +171,7 @@ where
 
         let bob_address = self
             .elementsd
-            .get_new_address(None)
+            .get_new_segwit_confidential_address()
             .await
             .context("failed to get redeem address")?;
 
@@ -258,7 +258,7 @@ where
     pub async fn handle_loan_request(&mut self, payload: LoanRequest) -> Result<LoanResponse> {
         let lender_address = self
             .elementsd
-            .get_new_address(None)
+            .get_new_segwit_confidential_address()
             .await
             .context("failed to get lender address")?;
 
@@ -420,7 +420,7 @@ mod tests {
                 blockchain,
             )
         };
-        let mining_address = client.get_new_address(None).await.unwrap();
+        let mining_address = client.get_new_segwit_confidential_address().await.unwrap();
 
         let have_asset_id_alice = client.get_bitcoin_asset_id().await.unwrap();
         let have_asset_id_bob = client.issueasset(100_000.0, 0.0, true).await.unwrap().asset;
@@ -461,7 +461,7 @@ mod tests {
         ) = make_confidential_address();
 
         // move issued asset to wallet address
-        let address = client.get_new_address(None).await.unwrap();
+        let address = client.get_new_segwit_confidential_address().await.unwrap();
         let _txid = client
             .send_asset_to_address(
                 &address,
@@ -552,7 +552,7 @@ mod tests {
                 blockchain,
             )
         };
-        let mining_address = client.get_new_address(None).await.unwrap();
+        let mining_address = client.get_new_segwit_confidential_address().await.unwrap();
 
         let have_asset_id_alice = client.issueasset(100_000.0, 0.0, true).await.unwrap().asset;
         let have_asset_id_bob = client.get_bitcoin_asset_id().await.unwrap();

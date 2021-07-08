@@ -72,6 +72,7 @@ pub(crate) async fn sign_loan(
     // the lender to do so very soon. We therefore save the borrower
     // state so that we can later on build, sign and broadcast the
     // repayment transaction
+
     let mut open_loans = match storage
         .get_item::<String>("open_loans")
         .map_err(Error::Load)?
@@ -80,7 +81,6 @@ pub(crate) async fn sign_loan(
         None => Vec::<LoanDetails>::new(),
     };
 
-    let loan_txid = loan_details.txid;
     open_loans.push(loan_details);
     storage
         .set_item(
@@ -91,7 +91,7 @@ pub(crate) async fn sign_loan(
 
     storage
         .set_item(
-            &format!("loan_state:{}", loan_txid),
+            &format!("loan_state:{}", loan_transaction.txid()),
             serde_json::to_string(&borrower).map_err(Error::Serialize)?,
         )
         .map_err(Error::Save)?;

@@ -11,7 +11,7 @@ use swap::sign_with_key;
 use crate::{
     esplora::{broadcast, fetch_transaction},
     storage::Storage,
-    wallet::{current, get_txouts},
+    wallet::{current, get_txouts, LoanDetails},
     Wallet,
 };
 
@@ -170,7 +170,7 @@ pub async fn repay_loan(
         .await
         .map_err(Error::BuildTransaction)?;
 
-    let txid = broadcast(loan_repayment_tx)
+    let repayment_txid = broadcast(loan_repayment_tx)
         .await
         .map_err(Error::SendTransaction)?;
 
@@ -185,11 +185,11 @@ pub async fn repay_loan(
         .map_err(Error::Load)?
     {
         Some(open_loans) => serde_json::from_str(&open_loans).map_err(Error::Deserialize)?,
-        None => Vec::<Txid>::new(),
+        None => Vec::<LoanDetails>::new(),
     };
     let open_loans = open_loans
         .iter()
-        .take_while(|txid| *txid != &loan_txid)
+        .take_while(|details| loan_txid != details.txid)
         .collect::<Vec<_>>();
     storage
         .set_item(
@@ -198,7 +198,7 @@ pub async fn repay_loan(
         )
         .map_err(Error::Save)?;
 
-    Ok(txid)
+    Ok(repayment_txid)
 }
 
 #[derive(Debug, thiserror::Error)]

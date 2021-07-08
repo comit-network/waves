@@ -155,7 +155,7 @@ impl Client {
         })
     }
 
-    pub async fn get_new_address(&self, address_type: Option<&str>) -> Result<Address> {
+    async fn get_new_address(&self, address_type: Option<&str>) -> Result<Address> {
         let address = self.getnewaddress("", address_type).await?;
 
         Ok(address)
@@ -233,7 +233,7 @@ impl Client {
         amount: Amount,
         should_lock: bool,
     ) -> Result<Vec<(OutPoint, TxOut)>> {
-        let placeholder_address = self.get_new_address(None).await.unwrap();
+        let placeholder_address = self.get_new_segwit_confidential_address().await.unwrap();
         let tx = Transaction {
             output: vec![TxOut {
                 asset: Asset::Explicit(asset),

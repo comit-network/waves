@@ -206,7 +206,7 @@ async fn move_output_to_wallet(
     let fee = 900_000;
     let amount_out = Amount::from_sat(amount_in - fee);
 
-    let move_address = client.get_new_address(None).await?;
+    let move_address = client.get_new_segwit_confidential_address().await?;
 
     let inputs = [(previous_output.asset, &previous_output_secrets)];
 

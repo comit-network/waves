@@ -38,11 +38,11 @@ interface OpenLoanProps {
 
 function OpenLoan({ loanDetails, onRepayed, index }: OpenLoanProps) {
     let { isLoading: isRepaying, isRejected: repayFailed, run: repay } = useAsync({
-        deferFn: async ([txid]) => {
-            await repayLoan(txid);
-            await onRepayed();
+        deferFn: async () => {
+            await repayLoan(loanDetails.txid);
+            onRepayed();
         },
-        onReject: (e) => error("Failed to repay loan: %s", e),
+        onReject: (e) => error("Failed to repay loan %s: %s", loanDetails.txid, e),
     });
 
     // TODO: get current block height from explorer
@@ -75,7 +75,7 @@ function OpenLoan({ loanDetails, onRepayed, index }: OpenLoanProps) {
             <form
                 onSubmit={e => {
                     e.preventDefault();
-                    repay(loanDetails.txid);
+                    repay();
                 }}
             >
                 <VStack>

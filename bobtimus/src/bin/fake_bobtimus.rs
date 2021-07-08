@@ -117,7 +117,7 @@ async fn faucet<R, RS>(
 
     let address = bobtimus
         .elementsd
-        .get_new_address(None)
+        .get_new_segwit_confidential_address()
         .await
         .map_err(|e| {
             tracing::error!("could not get new address: {}", e);
