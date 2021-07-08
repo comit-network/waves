@@ -32,7 +32,7 @@ tempfile = "3.2"
 tokio = { version = "1", features = [ "macros", "rt-multi-thread" ] }
 tokio-tungstenite = { version = "0.13", features = [ "tls" ] }
 tracing = "0.1"
-tracing-subscriber = "0.2"
+tracing-subscriber = { version = "0.2", default-features = false, features = [ "env-filter", "fmt", "json" ] }
 warp = { version = "0.3", default-features = false }
 
 [dev-dependencies]
