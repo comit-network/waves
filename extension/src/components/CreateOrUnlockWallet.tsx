@@ -33,40 +33,41 @@ function CreateOrUnlockWallet({ onUnlock, status }: CreateOrUnlockWalletProps) {
     });
 
     return (
-        <>
-            <form
-                onSubmit={async e => {
-                    e.preventDefault();
-                    run();
-                }}
-            >
-                <FormControl id="password" isInvalid={isRejected}>
-                    <InputGroup size="md">
-                        <Input
-                            pr="4.5rem"
-                            type={show ? "text" : "password"}
-                            placeholder="Enter password"
-                            value={password}
-                            onChange={onPasswordChange}
-                        />
-                        <InputRightElement width="4.5rem">
-                            <Button h="1.75rem" size="sm" onClick={handleClick}>
-                                {show ? "Hide" : "Show"}
-                            </Button>
-                        </InputRightElement>
-                    </InputGroup>
-                    <FormErrorMessage>Failed to unlock wallet. Wrong password?</FormErrorMessage>
-                </FormControl>
-                <Button
-                    type="submit"
-                    variant="solid"
-                    isLoading={isPending}
-                >
-                    {status === Status.None && "Create"}
-                    {status === Status.NotLoaded && "Unlock"}
+      <>
+        <form
+          onSubmit={async e => {
+            e.preventDefault();
+            run();
+          }}
+        >
+          <FormControl id="password" isInvalid={isRejected}>
+            <InputGroup size="md">
+              <Input
+                pr="4.5rem"
+                type={show ? "text" : "password"}
+                placeholder="Enter password"
+                value={password}
+                onChange={onPasswordChange}
+                data-cy={"data-cy-create-wallet-password-input"}
+              />
+              <InputRightElement width="4.5rem">
+                <Button h="1.75rem" size="sm" onClick={handleClick} data-cy={"data-cy-create-wallet-button"}>
+                  {show ? "Hide" : "Show"}
                 </Button>
-            </form>
-        </>
+              </InputRightElement>
+            </InputGroup>
+            <FormErrorMessage>Failed to unlock wallet. Wrong password?</FormErrorMessage>
+          </FormControl>
+          <Button
+            type="submit"
+            variant="solid"
+            isLoading={isPending}
+          >
+            {status === Status.None && "Create"}
+            {status === Status.NotLoaded && "Unlock"}
+          </Button>
+        </form>
+      </>
     );
 }
 

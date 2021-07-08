@@ -26,7 +26,7 @@ describe("webdriver", () => {
 
     beforeAll(async () => {
         const service = new firefox.ServiceBuilder(firefoxPath);
-        const options = new firefox.Options().headless();
+        const options = new firefox.Options();
 
         driver = new Builder()
             .setFirefoxService(service)
@@ -34,7 +34,9 @@ describe("webdriver", () => {
             .setFirefoxOptions(options)
             .build();
 
-        await driver.installAddon("../extension/web-ext-artifacts/waves_wallet-0.0.1.zip", true);
+        await driver.get(webAppUrl);
+
+        await driver.installAddon("../extension/zip/waves_wallet-0.0.1.zip", true);
 
         // this probably works forever unless we change something and then it won't work anymore
         await driver.get("about:debugging#/runtime/this-firefox");
@@ -84,6 +86,9 @@ describe("webdriver", () => {
 
         debug("Choosing password");
         let password = "foo";
+
+        await new Promise(r => setTimeout(r, 50000));
+
         let passwordInput = await getElementByClass(driver, "data-cy-create-wallet-password-input");
         await passwordInput.sendKeys(password);
 
@@ -110,69 +115,69 @@ describe("webdriver", () => {
         debug("Found L-BTC amount: %s", await btcAmount.getText());
     }, 30000);
 
-    test("sell swap", async () => {
-        const debug = Debug("e2e-sell");
+    // test("sell swap", async () => {
+    //     const debug = Debug("e2e-sell");
 
-        await switchToWindow(webAppTitle);
-        await driver.navigate().refresh();
-        await driver.sleep(2000);
+    //     await switchToWindow(webAppTitle);
+    //     await driver.navigate().refresh();
+    //     await driver.sleep(2000);
 
-        debug("Setting L-BTC amount");
-        let alphaAmountInput = await getElementById(driver, "//div[@data-cy='Alpha-amount-input']//input");
-        await alphaAmountInput.clear();
-        await alphaAmountInput.sendKeys("0.4");
+    //     debug("Setting L-BTC amount");
+    //     let alphaAmountInput = await getElementById(driver, "//div[@data-cy='Alpha-amount-input']//input");
+    //     await alphaAmountInput.clear();
+    //     await alphaAmountInput.sendKeys("0.4");
 
-        debug("Clicking on swap button");
-        let swapButton = await getElementById(driver, "//button[@data-cy='swap-button']");
-        await driver.wait(until.elementIsEnabled(swapButton), 20000);
-        await swapButton.click();
+    //     debug("Clicking on swap button");
+    //     let swapButton = await getElementById(driver, "//button[@data-cy='swap-button']");
+    //     await driver.wait(until.elementIsEnabled(swapButton), 20000);
+    //     await swapButton.click();
 
-        await switchToWindow(extensionTitle);
+    //     await switchToWindow(extensionTitle);
 
-        debug("Signing and sending transaction");
-        let signTransactionButton = await getElementByClass(driver, "data-cy-sign-tx-button", 20_000);
-        await signTransactionButton.click();
+    //     debug("Signing and sending transaction");
+    //     let signTransactionButton = await getElementByClass(driver, "data-cy-sign-tx-button", 20_000);
+    //     await signTransactionButton.click();
 
-        await switchToWindow(webAppTitle);
+    //     await switchToWindow(webAppTitle);
 
-        await driver.sleep(2000);
-        let url = await driver.getCurrentUrl();
-        assert(url.includes("/swapped/"));
-        debug("Swap successful");
-    }, 40000);
+    //     await driver.sleep(2000);
+    //     let url = await driver.getCurrentUrl();
+    //     assert(url.includes("/swapped/"));
+    //     debug("Swap successful");
+    // }, 40000);
 
-    test("buy swap", async () => {
-        const debug = Debug("e2e-buy");
+    // test("buy swap", async () => {
+    //     const debug = Debug("e2e-buy");
 
-        await switchToWindow(webAppTitle);
-        await driver.get(webAppUrl);
-        await driver.sleep(2000);
+    //     await switchToWindow(webAppTitle);
+    //     await driver.get(webAppUrl);
+    //     await driver.sleep(2000);
 
-        debug("Switching assets");
-        let switchAssetTypesButton = await getElementById(driver, "//button[@data-cy='exchange-asset-types-button']");
-        await switchAssetTypesButton.click();
+    //     debug("Switching assets");
+    //     let switchAssetTypesButton = await getElementById(driver, "//button[@data-cy='exchange-asset-types-button']");
+    //     await switchAssetTypesButton.click();
 
-        debug("Setting L-USDt amount");
-        let alphaAmountInput = await getElementById(driver, "//div[@data-cy='Alpha-amount-input']//input");
-        await alphaAmountInput.clear();
-        await alphaAmountInput.sendKeys("10000.0");
+    //     debug("Setting L-USDt amount");
+    //     let alphaAmountInput = await getElementById(driver, "//div[@data-cy='Alpha-amount-input']//input");
+    //     await alphaAmountInput.clear();
+    //     await alphaAmountInput.sendKeys("10000.0");
 
-        debug("Clicking on swap button");
-        let swapButton = await getElementById(driver, "//button[@data-cy='swap-button']");
-        await driver.wait(until.elementIsEnabled(swapButton), 20000);
-        await swapButton.click();
+    //     debug("Clicking on swap button");
+    //     let swapButton = await getElementById(driver, "//button[@data-cy='swap-button']");
+    //     await driver.wait(until.elementIsEnabled(swapButton), 20000);
+    //     await swapButton.click();
 
-        await switchToWindow(extensionTitle);
+    //     await switchToWindow(extensionTitle);
 
-        debug("Signing and sending transaction");
-        let signTransactionButton = await getElementByClass(driver, "data-cy-sign-tx-button", 20_000);
-        await signTransactionButton.click();
+    //     debug("Signing and sending transaction");
+    //     let signTransactionButton = await getElementByClass(driver, "data-cy-sign-tx-button", 20_000);
+    //     await signTransactionButton.click();
 
-        await switchToWindow(webAppTitle);
+    //     await switchToWindow(webAppTitle);
 
-        await driver.sleep(2000);
-        let url = await driver.getCurrentUrl();
-        assert(url.includes("/swapped/"));
-        debug("Swap successful");
-    }, 40000);
+    //     await driver.sleep(2000);
+    //     let url = await driver.getCurrentUrl();
+    //     assert(url.includes("/swapped/"));
+    //     debug("Swap successful");
+    // }, 40000);
 });
