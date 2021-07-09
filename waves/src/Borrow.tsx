@@ -124,6 +124,7 @@ function Borrow({ dispatch, state, rate, wavesProvider, walletStatusAsyncState }
                     w="15rem"
                     isLoading={isRequestingNewLoan}
                     onClick={requestNewLoan}
+                    data-cy="data-cy-take-loan-button"
                 >
                     Take loan
                 </Button>;
@@ -143,7 +144,7 @@ function Borrow({ dispatch, state, rate, wavesProvider, walletStatusAsyncState }
                         step={0.01}
                         onAmountChange={onPrincipalAmountChange}
                         isDisabled={false}
-                        dataCy={"principal"}
+                        dataCy={"data-cy-principal"}
                     />
                     <p>Collateral:</p>
                     <NumberInput
@@ -153,7 +154,7 @@ function Borrow({ dispatch, state, rate, wavesProvider, walletStatusAsyncState }
                         step={0.000001}
                         onAmountChange={() => {}}
                         isDisabled={true}
-                        dataCy={"collateral"}
+                        dataCy={"data-cy-collateral"}
                     />
                     <p>Interest {interestRate}%:</p>
                     <NumberInput
@@ -163,7 +164,7 @@ function Borrow({ dispatch, state, rate, wavesProvider, walletStatusAsyncState }
                         step={0.01}
                         onAmountChange={() => {}}
                         isDisabled={true}
-                        dataCy={"interest"}
+                        dataCy={"data-cy-interest"}
                     />
                     <p>Loan term (in days): {state.loanTerm}</p>
                 </VStack>

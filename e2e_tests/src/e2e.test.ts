@@ -197,4 +197,48 @@ describe("webdriver", () => {
         assert(url.includes("/swapped/"));
         debug("Swap successful");
     }, 40000);
+
+    test("borrow", async () => {
+        const debug = Debug("e2e-borrow");
+
+        debug("Navigating to borrow page");
+        await switchToWindow(webAppTitle);
+        await driver.get(`${webAppUrl}/borrow`);
+
+        debug("Setting collateral amount");
+        let principalAmountInput = await getElementById(
+            driver,
+            "//div[@data-cy='data-cy-principal-amount-input']//input",
+        );
+        await principalAmountInput.clear();
+
+        // TODO: Careful changing this value until we fix a bug with the
+        // computed collateral amount having too many decimal places
+        await principalAmountInput.sendKeys("3000");
+
+        debug("Clicking on take loan button");
+        let takeLoanButton = await getElementById(driver, "//button[@data-cy='data-cy-take-loan-button']");
+        await driver.wait(until.elementIsEnabled(takeLoanButton), 20000);
+        await takeLoanButton.click();
+
+        await switchToWindow(extensionTitle);
+
+        // TODO: Remove when automatic pop-up refresh
+        // happens based on signing state
+        await new Promise(r => setTimeout(r, 10_000));
+        await driver.navigate().refresh();
+
+        debug("Signing loan");
+        let signLoanButton = await getElementById(driver, "//button[@data-cy='data-cy-sign-loan-button']");
+        await signLoanButton.click();
+
+        await switchToWindow(webAppTitle);
+
+        await driver.sleep(2000);
+        let url = await driver.getCurrentUrl();
+
+        // TODO: Change when we have dedicated success page for loans
+        assert(url.includes("/swapped/"));
+        debug("Loan successful");
+    }, 40000);
 });

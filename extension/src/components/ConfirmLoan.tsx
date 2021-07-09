@@ -80,9 +80,9 @@ export default function ConfirmLoan(
                 type="submit"
                 variant="primary"
                 isLoading={isPending}
-                data-cy="sign-and-send-button"
+                data-cy="data-cy-sign-loan-button"
             >
-                Sign and send
+                Sign
             </Button>
         </form>
     </Box>);

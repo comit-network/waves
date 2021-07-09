@@ -84,14 +84,16 @@ const initialState = {
             amount: "0.01",
         },
         beta: Asset.USDT,
+        // TODO: These default values are shown briefly after every
+        // refresh
         rate: {
-            ask: 33766.30,
-            bid: 33670.10,
+            ask: 20000.0,
+            bid: 19000.0,
         },
         txId: "",
     },
     borrow: {
-        principalAmount: "33766.3",
+        principalAmount: "20000.0",
         loanTerm: 30,
     },
     wallet: {
