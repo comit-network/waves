@@ -72,6 +72,7 @@ browser.runtime.onMessage.addListener(async (msg: Message<any>, sender) => {
                     const txHex = msg.payload;
                     const decoded = await extractTrade(walletName, txHex);
                     swapToSign = { txHex, decoded, tabId: sender.tab!.id! };
+                    updateBadge();
                 } catch (e) {
                     error(e);
                     message = { kind: MessageKind.SwapTxid, direction: Direction.ToPage, error: e };
@@ -81,6 +82,7 @@ browser.runtime.onMessage.addListener(async (msg: Message<any>, sender) => {
                 try {
                     const details = await extractLoan(walletName, msg.payload);
                     loanToSign = { details, tabId: sender.tab!.id! };
+                    updateBadge();
                 } catch (e) {
                     error(e);
                     message = { kind: MessageKind.SignedLoan, direction: Direction.ToPage, error: e };
@@ -142,11 +144,13 @@ window.signAndSendSwap = async (txHex: string, tabId: number) => {
 
     browser.tabs.sendMessage(tabId, { direction: Direction.ToPage, kind: MessageKind.SwapTxid, payload, error: err });
     swapToSign = undefined;
+    updateBadge();
 };
 // @ts-ignore
 window.rejectSwap = (tabId: number) => {
     browser.tabs.sendMessage(tabId, { direction: Direction.ToPage, kind: MessageKind.SwapRejected });
     swapToSign = undefined;
+    updateBadge();
 };
 // @ts-ignore
 window.getLoanToSign = () => {
@@ -171,11 +175,13 @@ window.signLoan = async (tabId: number) => {
 
     browser.tabs.sendMessage(tabId, { direction: Direction.ToPage, kind: MessageKind.SignedLoan, payload, error: err });
     loanToSign = undefined;
+    updateBadge();
 };
 // @ts-ignore
 window.rejectLoan = (tabId: number) => {
     browser.tabs.sendMessage(tabId, { direction: Direction.ToPage, kind: MessageKind.LoanRejected });
     loanToSign = undefined;
+    updateBadge();
 };
 // @ts-ignore
 window.withdrawAll = async (address: string) => {
@@ -193,3 +199,12 @@ window.repayLoan = async (txid: string): void => {
 window.getPastTransactions = async (): Txid[] => {
     return getPastTransactions(walletName);
 };
+
+function updateBadge() {
+    let count = 0;
+    if (loanToSign) count++;
+    if (swapToSign) count++;
+    browser.browserAction.setBadgeText(
+        { text: (count === 0 ? null : count.toString()) },
+    );
+}
