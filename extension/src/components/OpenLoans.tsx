@@ -52,7 +52,7 @@ function OpenLoan({ loanDetails, onRepayed, index }: OpenLoanProps) {
 
     return <AccordionItem>
         <h2>
-            <AccordionButton>
+            <AccordionButton data-cy={`data-cy-open-loan-${index}-button`}>
                 <HStack spacing="24px">
                     <Box>
                         {"#"}
@@ -108,7 +108,7 @@ function OpenLoan({ loanDetails, onRepayed, index }: OpenLoanProps) {
                     </Box>
                     <FormControl id="repayment" isInvalid={repayFailed}>
                         <Box>
-                            <Button type="submit" isLoading={isRepaying}>
+                            <Button type="submit" isLoading={isRepaying} data-cy={`data-cy-repay-loan-${index}-button`}>
                                 Repay
                             </Button>
                             <FormErrorMessage>Failed to repay loan.</FormErrorMessage>

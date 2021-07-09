@@ -240,5 +240,37 @@ describe("webdriver", () => {
         // TODO: Change when we have dedicated success page for loans
         assert(url.includes("/swapped/"));
         debug("Loan successful");
+
+        debug("Checking open loans");
+        await driver.sleep(10000);
+        await switchToWindow(extensionTitle);
+
+        await driver.navigate().refresh();
+
+        debug("Recording BTC balance before repayment");
+        let btcBalanceBefore = await (await getElementById(driver, "//p[@data-cy='data-cy-L-BTC-balance-text-field']"))
+            .getText();
+
+        debug("Opening first open loan details");
+        let openLoanButton = await getElementById(driver, "//button[@data-cy='data-cy-open-loan-0-button']");
+        await openLoanButton.click();
+
+        debug("Repaying first loan");
+        let repayButton = await getElementById(driver, "//button[@data-cy='data-cy-repay-loan-0-button']");
+        await repayButton.click();
+
+        debug("Waiting for balance update");
+        // TODO: Remove when automatic balance refreshing is
+        // implemented
+        await new Promise(r => setTimeout(r, 10_000));
+        await driver.navigate().refresh();
+
+        let btcBalanceAfter = await (await getElementById(driver, "//p[@data-cy='data-cy-L-BTC-balance-text-field']"))
+            .getText();
+
+        debug(`BTC balance before ${btcBalanceBefore}; BTC balance after ${btcBalanceAfter}`);
+        assert((btcBalanceBefore < btcBalanceAfter));
+
+        debug("Repayment successful");
     }, 40000);
 });
