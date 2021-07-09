@@ -2,13 +2,14 @@ use crate::{problem, Bobtimus, CreateSwapPayload, LatestRate, RateSubscription};
 use anyhow::Context;
 use elements::{
     encode::serialize_hex,
-    secp256k1_zkp::rand::{CryptoRng, RngCore},
+    secp256k1_zkp::rand::{thread_rng, CryptoRng, RngCore},
     Transaction,
 };
 use futures::{StreamExt, TryStreamExt};
 use rust_embed::RustEmbed;
 use std::{error::Error, fmt, sync::Arc};
 use tokio::sync::Mutex;
+use warp::http::HeaderMap;
 use warp::{
     filters::BoxedFilter, http::header::HeaderValue, path::Tail, reply::Response, Filter,
     Rejection, Reply,
@@ -32,9 +33,14 @@ where
         .and(warp::path::tail())
         .and_then(serve_waves_resources);
 
+    // This header is needed so that SSE works through a proxy
+    let mut sse_headers = HeaderMap::new();
+    sse_headers.insert("Cache-Control", HeaderValue::from_static("no-transform"));
+
     let latest_rate = warp::get()
         .and(warp::path!("api" / "rate" / "lbtc-lusdt"))
-        .map(move || latest_rate(latest_rate_subscription.clone()));
+        .map(move || latest_rate(latest_rate_subscription.clone()))
+        .with(warp::reply::with::headers(sse_headers));
 
     let create_buy_swap = warp::post()
         .and(warp::path!("api" / "swap" / "lbtc-lusdt" / "buy"))
@@ -199,7 +205,8 @@ fn latest_rate(subscription: RateSubscription) -> impl Reply {
         .into_stream()
         .map_ok(|data| {
             let event = warp::sse::Event::default()
-                .id("rate")
+                .id(thread_rng().next_u32().to_string())
+                .event("rate")
                 .json_data(data)
                 .context("failed to attach json data to sse event")?;
 
