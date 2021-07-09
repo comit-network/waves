@@ -175,7 +175,6 @@ jobs:
         env:
           NATIVE_ASSET_TICKER: FOO-BTC
           NATIVE_ASSET_ID: 2dcf5a8834645654911964ec3602426fd3b9b4017554d3f9c19403e7fc1411d3
-          ESPLORA_API_URL: http://localhost:3000/
           CHAIN: ELEMENTS
           DEFAULT_FEE_PER_VBYTE: 13.37
 

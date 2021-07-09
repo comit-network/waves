@@ -9,10 +9,12 @@ use futures::{StreamExt, TryStreamExt};
 use rust_embed::RustEmbed;
 use std::{error::Error, fmt, sync::Arc};
 use tokio::sync::Mutex;
-use warp::http::HeaderMap;
 use warp::{
-    filters::BoxedFilter, http::header::HeaderValue, path::Tail, reply::Response, Filter,
-    Rejection, Reply,
+    filters::BoxedFilter,
+    http::{header::HeaderValue, HeaderMap},
+    path::Tail,
+    reply::Response,
+    Filter, Rejection, Reply,
 };
 
 #[derive(RustEmbed)]

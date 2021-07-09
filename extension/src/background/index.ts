@@ -26,6 +26,9 @@ Debug.enable("*");
 const debug = Debug("background");
 const error = Debug("background:error");
 
+// First thing we load settings
+loadSettings();
+
 debug("Hello world from background script");
 
 const walletName = "demo";
@@ -207,4 +210,25 @@ function updateBadge() {
     browser.browserAction.setBadgeText(
         { text: (count === 0 ? null : count.toString()) },
     );
+}
+
+function loadSettings() {
+    debug("Loading settings");
+    ensureVarSet("ESPLORA_API_URL");
+    ensureVarSet("CHAIN");
+    ensureVarSet("LBTC_ASSET_ID");
+    ensureVarSet("LUSDT_ASSET_ID");
+}
+
+// First we check environment variable. If set, we honor it and overwrite settings in local storage.
+// For the environment variable we add the prefix `REACT_APP_`.
+// Else we check browser storage. If set, we honor it, if not, we throw an error as we cannot work
+// without this value.
+function ensureVarSet(name: string) {
+    const uppercase = name.toUpperCase();
+    const value = process.env[`REACT_APP_${uppercase}`];
+    if (value) {
+        debug(`Environment variable provided, overwriting storage: ${name}:${value}`);
+        localStorage.setItem(name, value);
+    }
 }

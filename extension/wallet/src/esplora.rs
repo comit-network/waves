@@ -1,4 +1,4 @@
-use crate::{cache_storage::CacheStorage, constants::ESPLORA_API_URL};
+use crate::{cache_storage::CacheStorage, ESPLORA_API_URL};
 use anyhow::{anyhow, bail, Context, Result};
 use elements::{
     encode::{deserialize, serialize_hex},
@@ -10,11 +10,18 @@ use reqwest::StatusCode;
 ///
 /// UTXOs change over time and as such, this function never uses a cache.
 pub async fn fetch_utxos(address: &Address) -> Result<Vec<Utxo>> {
-    let url = format!("{}/address/{}/utxo", ESPLORA_API_URL, address);
-    let response = reqwest::get(&url).await.context("failed to fetch UTXOs")?;
+    let esplora_url = ESPLORA_API_URL.lock().expect("To retrieve lock").clone();
+    let path = format!("/address/{}/utxo", address);
+    let esplora_url = esplora_url.join(path.as_str())?;
+    let response = reqwest::get(esplora_url.clone())
+        .await
+        .context("failed to fetch UTXOs")?;
 
     if response.status() == StatusCode::NOT_FOUND {
-        log::debug!("GET {} returned 404, defaulting to empty UTXO set", url);
+        log::debug!(
+            "GET {} returned 404, defaulting to empty UTXO set",
+            esplora_url
+        );
 
         return Ok(Vec::new());
     }
@@ -40,16 +47,19 @@ pub async fn fetch_utxos(address: &Address) -> Result<Vec<Utxo>> {
 /// https://github.com/blockstream/esplora/blob/master/API.md#get-addressaddresstxs
 /// for more information.
 pub async fn fetch_transaction_history(address: &Address) -> Result<Vec<Txid>> {
-    let url = format!("{}/address/{}/txs", ESPLORA_API_URL, address);
-    let response = reqwest::get(&url)
+    let url = ESPLORA_API_URL.lock().expect("To retrieve lock").clone();
+    let path = format!("/address/{}/txs", address);
+    let url = url.join(path.as_str())?;
+    let response = reqwest::get(url.clone())
         .await
         .context("failed to fetch transaction history")?;
 
     if !response.status().is_success() {
         let error_body = response.text().await?;
         return Err(anyhow!(
-            "failed to fetch transaction history, esplora returned '{}'",
-            error_body
+            "failed to fetch transaction history, esplora returned '{}' from '{}'",
+            error_body,
+            url
         ));
     }
 
@@ -71,9 +81,10 @@ pub async fn fetch_transaction_history(address: &Address) -> Result<Vec<Txid>> {
 /// This function makes use of the browsers local storage to avoid spamming the underlying source.
 /// Transaction never change after they've been mined, hence we can cache those indefinitely.
 pub async fn fetch_transaction(txid: Txid) -> Result<Transaction> {
+    let esplora_url = ESPLORA_API_URL.lock().expect("To retrieve lock").clone();
     let cache = CacheStorage::new()?;
     let body = cache
-        .match_or_add(&format!("{}/tx/{}/hex", ESPLORA_API_URL, txid))
+        .match_or_add(&format!("{}/tx/{}/hex", esplora_url, txid))
         .await?
         .text()
         .await?;
@@ -82,10 +93,12 @@ pub async fn fetch_transaction(txid: Txid) -> Result<Transaction> {
 }
 
 pub async fn broadcast(tx: Transaction) -> Result<Txid> {
+    let esplora_url = ESPLORA_API_URL.lock().expect("To retrieve lock").clone();
+    let esplora_url = esplora_url.join("tx")?;
     let client = reqwest::Client::new();
 
     let response = client
-        .post(&format!("{}/tx", ESPLORA_API_URL))
+        .post(esplora_url.clone())
         .body(serialize_hex(&tx))
         .send()
         .await?;
@@ -106,11 +119,12 @@ pub async fn broadcast(tx: Transaction) -> Result<Txid> {
 }
 
 pub async fn get_fee_estimates() -> Result<FeeEstimatesResponse> {
-    let url = &format!("{}/fee-estimates", ESPLORA_API_URL);
+    let esplora_url = ESPLORA_API_URL.lock().expect("To retrieve lock").clone();
+    let esplora_url = esplora_url.join("/fee-estimates")?;
 
-    let fee_estimates = reqwest::get(url)
+    let fee_estimates = reqwest::get(esplora_url.clone())
         .await
-        .with_context(|| format!("failed to GET {}", url))?
+        .with_context(|| format!("failed to GET {}", esplora_url))?
         .json()
         .await
         .context("failed to deserialize fee estimates")?;

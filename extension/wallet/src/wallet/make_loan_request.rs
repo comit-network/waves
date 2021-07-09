@@ -1,7 +1,7 @@
 use crate::{
-    constants::{NATIVE_ASSET_ID, USDT_ASSET_ID},
     storage::Storage,
     wallet::{current, get_txouts, Wallet},
+    BTC_ASSET_ID, USDT_ASSET_ID,
 };
 use coin_selection::{self, coin_select};
 use covenants::{Borrower0, LoanRequest};
@@ -10,6 +10,7 @@ use estimate_transaction_size::avg_vbytes;
 use futures::lock::Mutex;
 use input::Input;
 use rand::thread_rng;
+use wasm_bindgen::UnwrapThrowExt;
 
 pub async fn make_loan_request(
     name: String,
@@ -108,8 +109,8 @@ pub async fn make_loan_request(
         // TODO: This must be chosen explicitly either by the borrower
         // through the UI or by Bobtimus via configuration
         0,
-        *NATIVE_ASSET_ID,
-        *USDT_ASSET_ID,
+        *BTC_ASSET_ID.lock().expect_throw("can get lock"),
+        *USDT_ASSET_ID.lock().expect_throw("can get lock"),
     )
     .await
     .map_err(Error::BuildBorrowerState)?;

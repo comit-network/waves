@@ -18,7 +18,7 @@ body {
 }
 
 .App-header {
-  background-color: #282c34;
+  background-color: rgba(40, 44, 52, 0);
   min-height: 100vh;
   padding: 30px;
   display: flex;
