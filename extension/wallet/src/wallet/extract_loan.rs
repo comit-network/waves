@@ -1,18 +1,27 @@
 use crate::{
-    constants::{NATIVE_ASSET_ID, USDT_ASSET_ID},
     storage::Storage,
     wallet::{compute_balances, current, get_txouts, Wallet},
-    LoanDetails,
+    LoanDetails, BTC_ASSET_ID, USDT_ASSET_ID,
 };
 use covenants::{Borrower0, LoanResponse};
 use elements::secp256k1_zkp::SECP256K1;
 use futures::lock::Mutex;
+use wasm_bindgen::UnwrapThrowExt;
 
 pub async fn extract_loan(
     name: String,
     current_wallet: &Mutex<Option<Wallet>>,
     loan_response: LoanResponse,
 ) -> Result<LoanDetails, Error> {
+    let btc_asset_id = {
+        let guard = BTC_ASSET_ID.lock().expect_throw("can get lock");
+        *guard
+    };
+    let usdt_asset_id = {
+        let guard = USDT_ASSET_ID.lock().expect_throw("can get lock");
+        *guard
+    };
+
     let wallet = current(&name, current_wallet)
         .await
         .map_err(Error::LoadWallet)?;
@@ -44,7 +53,7 @@ pub async fn extract_loan(
     let collateral_balance = balances
         .iter()
         .find_map(|entry| {
-            if entry.asset == *NATIVE_ASSET_ID {
+            if entry.asset == btc_asset_id {
                 Some(entry.value)
             } else {
                 None
@@ -55,7 +64,7 @@ pub async fn extract_loan(
     let principal_balance = balances
         .iter()
         .find_map(|entry| {
-            if entry.asset == *USDT_ASSET_ID {
+            if entry.asset == usdt_asset_id {
                 Some(entry.value)
             } else {
                 None
@@ -65,8 +74,10 @@ pub async fn extract_loan(
 
     let loan_txid = borrower.loan_transaction.txid();
     let loan_details = LoanDetails::new(
+        btc_asset_id,
         borrower.collateral_amount,
         collateral_balance,
+        usdt_asset_id,
         borrower.principal_tx_out_amount,
         principal_balance,
         timelock,

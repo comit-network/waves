@@ -3,10 +3,12 @@ use std::str::FromStr;
 use conquer_once::Lazy;
 use elements::{
     bitcoin::util::amount::{Amount, Denomination},
-    Address, Txid,
+    Address, AddressParams, Txid,
 };
 use futures::lock::Mutex;
-use wasm_bindgen::prelude::*;
+use js_sys::Promise;
+use wasm_bindgen::{prelude::*, JsCast};
+use web_sys::window;
 
 #[macro_use]
 mod macros;
@@ -19,12 +21,51 @@ mod storage;
 mod wallet;
 
 use crate::{storage::Storage, wallet::*};
+use reqwest::Url;
 
-mod constants {
-    include!(concat!(env!("OUT_DIR"), "/", "constants.rs"));
-}
+// TODO: make this configurable through extension option UI
+const DEFAULT_SAT_PER_VBYTE: u64 = 1;
 
 static LOADED_WALLET: Lazy<Mutex<Option<Wallet>>> = Lazy::new(Mutex::default);
+
+// TODO: I was unable to use `futures::lock::Mutex` for these, but
+// someone else should be able to do it
+static CHAIN: Lazy<std::sync::Mutex<Chain>> = Lazy::new(|| {
+    std::sync::Mutex::new(
+        Storage::local_storage()
+            .expect_throw("local storage to be available")
+            .get_item::<Chain>("CHAIN")
+            .expect_throw("failed to get 'CHAIN'")
+            .expect_throw("empty 'CHAIN'"),
+    )
+});
+static ESPLORA_API_URL: Lazy<std::sync::Mutex<Url>> = Lazy::new(|| {
+    std::sync::Mutex::new(
+        Storage::local_storage()
+            .expect_throw("local storage to be available")
+            .get_item::<Url>("ESPLORA_API_URL")
+            .expect_throw("failed to get 'ESPLORA_API_URL'")
+            .expect_throw("empty 'ESPLORA_API_URL'"),
+    )
+});
+static BTC_ASSET_ID: Lazy<std::sync::Mutex<elements::AssetId>> = Lazy::new(|| {
+    std::sync::Mutex::new(
+        Storage::local_storage()
+            .expect_throw("local storage to be available")
+            .get_item::<elements::AssetId>("LBTC_ASSET_ID")
+            .expect_throw("failed to get 'LBTC_ASSET_ID'")
+            .expect_throw("empty 'LBTC_ASSET_ID'"),
+    )
+});
+static USDT_ASSET_ID: Lazy<std::sync::Mutex<elements::AssetId>> = Lazy::new(|| {
+    std::sync::Mutex::new(
+        Storage::local_storage()
+            .expect_throw("local storage to be available")
+            .get_item::<elements::AssetId>("LUSDT_ASSET_ID")
+            .expect_throw("failed to get 'LUSDT_ASSET_ID'")
+            .expect_throw("empty 'LUSDT_ASSET_ID'"),
+    )
+});
 
 #[wasm_bindgen(start)]
 pub fn setup() {
@@ -32,8 +73,16 @@ pub fn setup() {
     console_error_panic_hook::set_once();
 
     logger::try_init();
-
     log::info!("wallet initialized");
+
+    let handler = Closure::wrap(
+        Box::new(handle_storage_update) as Box<dyn Fn(web_sys::StorageEvent) -> Promise>
+    );
+    let window = window().unwrap();
+    window
+        .add_event_listener_with_callback("storage", handler.as_ref().unchecked_ref())
+        .unwrap();
+    handler.forget();
 }
 
 /// Create a new wallet with the given name and password.
@@ -268,6 +317,76 @@ pub async fn get_past_transactions(wallet_name: String) -> Result<JsValue, JsVal
     Ok(history)
 }
 
+fn handle_storage_update(event: web_sys::StorageEvent) -> Promise {
+    match (event.key().as_deref(), event.new_value().as_deref()) {
+        (Some("CHAIN"), Some(new_value)) => {
+            let mut guard = CHAIN.lock().expect_throw("could not acquire lock");
+            *guard = Chain::from_str(&new_value)
+                .expect_throw(&format!("could not parse item: {}", new_value));
+        }
+        (Some("ESPLORA_API_URL"), Some(new_value)) => {
+            let esplora_api_url = match Url::parse(new_value) {
+                Ok(esplora_api_url) => esplora_api_url,
+                Err(e) => {
+                    let error_msg = format!("Could not get item 'ESPLORA_API_URL' {}", e);
+                    return Promise::reject(&JsValue::from_str(error_msg.as_str()));
+                }
+            };
+
+            let mut guard = ESPLORA_API_URL
+                .lock()
+                .expect_throw("could not acquire lock.");
+            *guard = esplora_api_url;
+        }
+        (Some("LBTC_ASSET_ID"), Some(new_value)) => {
+            let mut guard = BTC_ASSET_ID.lock().expect_throw("could not acquire lock");
+            *guard = elements::AssetId::from_str(new_value)
+                .expect_throw(&format!("could not parse item: {}", new_value));
+        }
+        (Some("LUSDT_ASSET_ID"), Some(new_value)) => {
+            let mut guard = USDT_ASSET_ID.lock().expect_throw("could not acquire lock");
+            *guard = elements::AssetId::from_str(new_value)
+                .expect_throw(&format!("could not parse item: {}", new_value));
+        }
+        _ => {
+            log::trace!("Storage event not handled! {:?}", event.key());
+        }
+    };
+    Promise::resolve(&JsValue::null())
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+enum Chain {
+    Elements,
+    Liquid,
+}
+
+impl From<Chain> for &AddressParams {
+    fn from(from: Chain) -> Self {
+        match from {
+            Chain::Elements => &AddressParams::ELEMENTS,
+            Chain::Liquid => &AddressParams::LIQUID,
+        }
+    }
+}
+
+impl FromStr for Chain {
+    type Err = WrongChain;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let lowercase = s.to_ascii_lowercase();
+        match lowercase.as_str() {
+            "elements" => Ok(Chain::Elements),
+            "liquid" => Ok(Chain::Liquid),
+            _ => Err(WrongChain(lowercase)),
+        }
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
+#[error("Unsupported chain: {0}")]
+struct WrongChain(String);
+
 #[derive(serde::Serialize, serde::Deserialize)]
 struct Transaction {
     #[serde(with = "covenants::transaction_as_string")]
@@ -283,92 +402,5 @@ impl From<elements::Transaction> for Transaction {
 impl From<Transaction> for elements::Transaction {
     fn from(from: Transaction) -> Self {
         from.inner
-    }
-}
-
-#[cfg(test)]
-mod constants_tests {
-    use elements::{AddressParams, AssetId};
-    use std::str::FromStr;
-
-    #[test]
-    fn assert_native_asset_ticker_constant() {
-        match option_env!("NATIVE_ASSET_TICKER") {
-            Some(native_asset_ticker) => {
-                assert_eq!(crate::constants::NATIVE_ASSET_TICKER, native_asset_ticker)
-            }
-            None => assert_eq!(crate::constants::NATIVE_ASSET_TICKER, "L-BTC"),
-        }
-    }
-
-    #[test]
-    fn assert_native_asset_id_constant() {
-        match option_env!("NATIVE_ASSET_ID") {
-            Some(native_asset_id) => assert_eq!(
-                *crate::constants::NATIVE_ASSET_ID,
-                AssetId::from_str(native_asset_id).unwrap()
-            ),
-            None => assert_eq!(
-                *crate::constants::NATIVE_ASSET_ID,
-                AssetId::from_str(
-                    "6f0279e9ed041c3d710a9f57d0c02928416460c4b722ae3457a11eec381c526d"
-                )
-                .unwrap()
-            ),
-        }
-    }
-
-    #[test]
-    fn assert_usdt_asset_id_constant() {
-        match option_env!("USDT_ASSET_ID") {
-            Some(usdt_asset_id) => assert_eq!(
-                *crate::constants::USDT_ASSET_ID,
-                AssetId::from_str(usdt_asset_id).unwrap()
-            ),
-            None => assert_eq!(
-                *crate::constants::USDT_ASSET_ID,
-                AssetId::from_str(
-                    "ce091c998b83c78bb71a632313ba3760f1763d9cfcffae02258ffa9865a37bd2"
-                )
-                .unwrap()
-            ),
-        }
-    }
-
-    #[test]
-    fn assert_esplora_api_url_constant() {
-        match option_env!("ESPLORA_API_URL") {
-            Some(esplora_api_url) => assert_eq!(crate::constants::ESPLORA_API_URL, esplora_api_url),
-            None => assert_eq!(
-                crate::constants::ESPLORA_API_URL,
-                "https://blockstream.info/liquid/api"
-            ),
-        }
-    }
-
-    #[test]
-    fn assert_address_params_constant() {
-        match option_env!("CHAIN") {
-            None | Some("LIQUID") => {
-                assert_eq!(crate::constants::ADDRESS_PARAMS, &AddressParams::LIQUID)
-            }
-            Some("ELEMENTS") => {
-                assert_eq!(crate::constants::ADDRESS_PARAMS, &AddressParams::ELEMENTS)
-            }
-            Some(chain) => panic!("unsupported chain {}", chain),
-        }
-    }
-
-    #[test]
-    fn assert_default_fee_constant() {
-        let error_margin = f32::EPSILON;
-
-        match option_env!("DEFAULT_SAT_PER_VBYTE") {
-            Some(rate) => assert!(
-                crate::constants::DEFAULT_SAT_PER_VBYTE - f32::from_str(rate).unwrap()
-                    < error_margin
-            ),
-            None => assert!(crate::constants::DEFAULT_SAT_PER_VBYTE - 1.0f32 < error_margin),
-        }
     }
 }

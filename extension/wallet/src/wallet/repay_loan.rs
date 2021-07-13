@@ -12,7 +12,7 @@ use crate::{
     esplora::{broadcast, fetch_transaction},
     storage::Storage,
     wallet::{current, get_txouts, LoanDetails},
-    Wallet,
+    Wallet, DEFAULT_SAT_PER_VBYTE,
 };
 
 // TODO: Parts of the implementation are very similar to what we do in
@@ -23,6 +23,10 @@ pub async fn repay_loan(
     current_wallet: &Mutex<Option<Wallet>>,
     loan_txid: Txid,
 ) -> Result<Txid, Error> {
+    let wallet = current(&name, current_wallet)
+        .await
+        .map_err(Error::LoadWallet)?;
+
     // TODO: Only abort early if this fails because the transaction
     // hasn't been mined
     if fetch_transaction(loan_txid).await.is_err() {
@@ -37,13 +41,7 @@ pub async fn repay_loan(
         .ok_or(Error::EmptyState)?;
     let borrower = serde_json::from_str::<Borrower1>(&borrower).map_err(Error::Deserialize)?;
 
-    let blinding_key = {
-        let wallet = current(&name, current_wallet)
-            .await
-            .map_err(Error::LoadWallet)?;
-
-        wallet.blinding_key()
-    };
+    let blinding_key = wallet.blinding_key();
 
     let coin_selector = {
         let name = name.clone();
@@ -165,7 +163,7 @@ pub async fn repay_loan(
             SECP256K1,
             coin_selector,
             signer,
-            Amount::from_sat(1), // TODO: Make this dynamic once there is something going on on Liquid
+            Amount::from_sat(DEFAULT_SAT_PER_VBYTE),
         )
         .await
         .map_err(Error::BuildTransaction)?;

@@ -1,10 +1,8 @@
 use crate::{
     assets::{self, lookup},
-    constants::{
-        ADDRESS_PARAMS, DEFAULT_SAT_PER_VBYTE, NATIVE_ASSET_ID, NATIVE_ASSET_TICKER, USDT_ASSET_ID,
-    },
     esplora,
     esplora::Utxo,
+    CHAIN, DEFAULT_SAT_PER_VBYTE,
 };
 use aes_gcm_siv::{
     aead::{Aead, NewAead},
@@ -38,6 +36,7 @@ use std::{
     ops::{Add, Sub},
     str,
 };
+use wasm_bindgen::UnwrapThrowExt;
 
 pub use create_new::create_new;
 pub use extract_loan::{extract_loan, Error as ExtractLoanError};
@@ -174,6 +173,10 @@ impl Wallet {
     }
 
     pub fn get_address(&self) -> Address {
+        let chain = {
+            let guard = CHAIN.lock().expect_throw("can get lock");
+            *guard
+        };
         let public_key = self.get_public_key();
         let blinding_key = PublicKey::from_secret_key(SECP256K1, &self.blinding_key());
 
@@ -183,7 +186,7 @@ impl Wallet {
                 key: public_key,
             },
             Some(blinding_key),
-            &ADDRESS_PARAMS,
+            chain.into(),
         )
     }
 
@@ -409,22 +412,28 @@ pub struct LoanDetails {
 }
 
 impl LoanDetails {
+    #[allow(clippy::clippy::too_many_arguments)]
     pub fn new(
+        collateral_asset: AssetId,
         collateral_amount: Amount,
         collateral_balance: Decimal,
+        principal_asset: AssetId,
         principal_amount: Amount,
         principal_balance: Decimal,
         timelock: u64,
         txid: Txid,
     ) -> Result<Self> {
         let collateral = TradeSide::new_sell(
-            *NATIVE_ASSET_ID,
+            collateral_asset,
             collateral_amount.as_sat(),
             collateral_balance,
         )?;
 
-        let principal =
-            TradeSide::new_buy(*USDT_ASSET_ID, principal_amount.as_sat(), principal_balance)?;
+        let principal = TradeSide::new_buy(
+            principal_asset,
+            principal_amount.as_sat(),
+            principal_balance,
+        )?;
 
         Ok(Self {
             collateral,
@@ -494,12 +503,22 @@ mod browser_tests {
     pub async fn cannot_create_two_wallets_with_same_name() {
         let current_wallet = Mutex::default();
 
-        create_new("wallet-3".to_owned(), "foo".to_owned(), &current_wallet)
-            .await
-            .unwrap();
-        let error = create_new("wallet-3".to_owned(), "foo".to_owned(), &current_wallet)
-            .await
-            .unwrap_err();
+        create_new(
+            "wallet-3".to_owned(),
+            "foo".to_owned(),
+            "http://localhost".to_owned(),
+            &current_wallet,
+        )
+        .await
+        .unwrap();
+        let error = create_new(
+            "wallet-3".to_owned(),
+            "foo".to_owned(),
+            "http://localhost".to_owned(),
+            &current_wallet,
+        )
+        .await
+        .unwrap_err();
 
         assert_eq!(
             error.to_string(),
@@ -518,9 +537,14 @@ mod browser_tests {
             .await
             .unwrap();
 
-        let error = load_existing("wallet-4".to_owned(), "foo".to_owned(), &current_wallet)
-            .await
-            .unwrap_err();
+        let error = load_existing(
+            "wallet-4".to_owned(),
+            "foo".to_owned(),
+            "http://localhost".to_owned(),
+            &current_wallet,
+        )
+        .await
+        .unwrap_err();
 
         assert_eq!(
             error.to_string(),
@@ -537,9 +561,14 @@ mod browser_tests {
             .unwrap();
         unload_current(&current_wallet).await;
 
-        let error = load_existing("wallet-6".to_owned(), "bar".to_owned(), &current_wallet)
-            .await
-            .unwrap_err();
+        let error = load_existing(
+            "wallet-6".to_owned(),
+            "bar".to_owned(),
+            "http://localhost".to_owned(),
+            &current_wallet,
+        )
+        .await
+        .unwrap_err();
 
         assert_eq!(error.to_string(), "bad password for wallet 'wallet-6'");
     }
@@ -548,9 +577,14 @@ mod browser_tests {
     pub async fn cannot_load_wallet_that_doesnt_exist() {
         let current_wallet = Mutex::default();
 
-        let error = load_existing("foobar".to_owned(), "bar".to_owned(), &current_wallet)
-            .await
-            .unwrap_err();
+        let error = load_existing(
+            "foobar".to_owned(),
+            "bar".to_owned(),
+            "http://localhost".to_owned(),
+            &current_wallet,
+        )
+        .await
+        .unwrap_err();
 
         assert_eq!(error.to_string(), "wallet 'foobar' does not exist");
     }
@@ -559,12 +593,21 @@ mod browser_tests {
     pub async fn new_wallet_is_automatically_loaded() {
         let current_wallet = Mutex::default();
 
-        create_new("wallet-7".to_owned(), "foo".to_owned(), &current_wallet)
-            .await
-            .unwrap();
-        let status = get_status("wallet-7".to_owned(), &current_wallet)
-            .await
-            .unwrap();
+        create_new(
+            "wallet-7".to_owned(),
+            "foo".to_owned(),
+            "http://localhost".to_owned(),
+            &current_wallet,
+        )
+        .await
+        .unwrap();
+        let status = get_status(
+            "wallet-7".to_owned(),
+            "http://localhost".to_owned(),
+            &current_wallet,
+        )
+        .await
+        .unwrap();
 
         assert_eq!(status.loaded, true);
     }
@@ -584,9 +627,14 @@ mod browser_tests {
     pub async fn secret_key_can_be_successfully_decrypted() {
         let current_wallet = Mutex::default();
 
-        create_new("wallet-9".to_owned(), "foo".to_owned(), &current_wallet)
-            .await
-            .unwrap();
+        create_new(
+            "wallet-9".to_owned(),
+            "foo".to_owned(),
+            "http://localhost".to_owned(),
+            &current_wallet,
+        )
+        .await
+        .unwrap();
         let initial_sk = {
             let guard = current_wallet.lock().await;
             let wallet = guard.as_ref().unwrap();
@@ -596,9 +644,14 @@ mod browser_tests {
 
         unload_current(&current_wallet).await;
 
-        load_existing("wallet-9".to_owned(), "foo".to_owned(), &current_wallet)
-            .await
-            .unwrap();
+        load_existing(
+            "wallet-9".to_owned(),
+            "foo".to_owned(),
+            "http://localhost".to_owned(),
+            &current_wallet,
+        )
+        .await
+        .unwrap();
         let loaded_sk = {
             let guard = current_wallet.lock().await;
             let wallet = guard.as_ref().unwrap();

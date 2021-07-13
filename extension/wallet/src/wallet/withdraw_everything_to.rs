@@ -1,8 +1,7 @@
 use crate::{
     esplora,
-    wallet::{
-        current, get_txouts, Wallet, DEFAULT_SAT_PER_VBYTE, NATIVE_ASSET_ID, NATIVE_ASSET_TICKER,
-    },
+    wallet::{current, get_txouts, Wallet, DEFAULT_SAT_PER_VBYTE},
+    BTC_ASSET_ID,
 };
 use anyhow::{bail, Context, Result};
 use elements::{
@@ -18,12 +17,18 @@ use futures::lock::Mutex;
 use itertools::Itertools;
 use rand::thread_rng;
 use std::{collections::HashMap, iter};
+use wasm_bindgen::UnwrapThrowExt;
 
 pub async fn withdraw_everything_to(
     name: String,
     current_wallet: &Mutex<Option<Wallet>>,
     address: Address,
 ) -> Result<Txid> {
+    let btc_asset_id = {
+        let guard = BTC_ASSET_ID.lock().expect_throw("can get lock");
+        *guard
+    };
+
     if !address.is_blinded() {
         bail!("can only withdraw to blinded addresses")
     }
@@ -63,7 +68,7 @@ pub async fn withdraw_everything_to(
                 default_fee_rate
             );
 
-            default_fee_rate
+            default_fee_rate as f32
         })) as u64; // try to get into the next 6 blocks
 
     let txout_inputs = txouts
@@ -80,7 +85,7 @@ pub async fn withdraw_everything_to(
             // calculate the total amount we want to spend for this asset
             // if this is the native asset, subtract the fee
             let total_input = txouts.iter().map(|(_, txout)| txout.value).sum::<u64>();
-            let to_spend = if asset == *NATIVE_ASSET_ID {
+            let to_spend = if asset == btc_asset_id {
                 log::debug!(
                     "{} is the native asset, subtracting a fee of {} from it",
                     asset,
@@ -106,10 +111,9 @@ pub async fn withdraw_everything_to(
     // build transaction from grouped txouts
     let mut transaction = match txouts_grouped_by_asset.as_slice() {
         [] => bail!("no balances in wallet"),
-        [(asset, _)] if *asset != *NATIVE_ASSET_ID => bail!(
-            "cannot spend from wallet without native asset {} because we cannot pay a fee",
-            NATIVE_ASSET_TICKER
-        ),
+        [(asset, _)] if *asset != btc_asset_id => {
+            bail!("cannot spend from wallet without native asset L-BTC because we cannot pay a fee",)
+        }
         // handle last group separately because we need to create it is as the `last_confidential` output
         [other @ .., (last_asset, to_spend_last_txout)] => {
             // first, build all "non-last" outputs
@@ -187,7 +191,7 @@ pub async fn withdraw_everything_to(
                 .iter()
                 .map(|(txout, _, _, _, _)| txout)
                 .chain(iter::once(&last_txout))
-                .chain(iter::once(&TxOut::new_fee(fee, *NATIVE_ASSET_ID)))
+                .chain(iter::once(&TxOut::new_fee(fee, btc_asset_id)))
                 .cloned()
                 .collect::<Vec<_>>();
 

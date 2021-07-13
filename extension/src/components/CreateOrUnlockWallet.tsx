@@ -51,7 +51,12 @@ function CreateOrUnlockWallet({ onUnlock, status }: CreateOrUnlockWalletProps) {
                             data-cy={"data-cy-create-wallet-password-input"}
                         />
                         <InputRightElement width="4.5rem">
-                            <Button h="1.75rem" size="sm" onClick={handleClick}>
+                            <Button
+                                h="1.75rem"
+                                size="sm"
+                                onClick={handleClick}
+                                data-cy={"data-cy-create-wallet-button"}
+                            >
                                 {show ? "Hide" : "Show"}
                             </Button>
                         </InputRightElement>

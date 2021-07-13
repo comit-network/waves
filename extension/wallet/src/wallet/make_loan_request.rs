@@ -1,7 +1,7 @@
 use crate::{
-    constants::{NATIVE_ASSET_ID, USDT_ASSET_ID},
     storage::Storage,
     wallet::{current, get_txouts, Wallet},
+    BTC_ASSET_ID, DEFAULT_SAT_PER_VBYTE, USDT_ASSET_ID,
 };
 use coin_selection::{self, coin_select};
 use covenants::{Borrower0, LoanRequest};
@@ -10,12 +10,22 @@ use estimate_transaction_size::avg_vbytes;
 use futures::lock::Mutex;
 use input::Input;
 use rand::thread_rng;
+use wasm_bindgen::UnwrapThrowExt;
 
 pub async fn make_loan_request(
     name: String,
     current_wallet: &Mutex<Option<Wallet>>,
     collateral_amount: Amount,
 ) -> Result<LoanRequest, Error> {
+    let btc_asset_id = {
+        let guard = BTC_ASSET_ID.lock().expect_throw("can get lock");
+        *guard
+    };
+    let usdt_asset_id = {
+        let guard = USDT_ASSET_ID.lock().expect_throw("can get lock");
+        *guard
+    };
+
     let (address, blinding_key) = {
         let wallet = current(&name, current_wallet)
             .await
@@ -103,13 +113,12 @@ pub async fn make_loan_request(
         address,
         blinding_key,
         collateral_amount,
-        // TODO: Make this dynamic once there is something going on on Liquid
-        Amount::from_sat(1),
+        Amount::from_sat(DEFAULT_SAT_PER_VBYTE),
         // TODO: This must be chosen explicitly either by the borrower
         // through the UI or by Bobtimus via configuration
         0,
-        *NATIVE_ASSET_ID,
-        *USDT_ASSET_ID,
+        btc_asset_id,
+        usdt_asset_id,
     )
     .await
     .map_err(Error::BuildBorrowerState)?;

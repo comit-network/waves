@@ -1,8 +1,10 @@
-import { Box, Center, ChakraProvider, Heading } from "@chakra-ui/react";
+import { SettingsIcon } from "@chakra-ui/icons";
+import { Box, Center, ChakraProvider, Heading, IconButton } from "@chakra-ui/react";
 import { faBug } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import * as React from "react";
 import { useAsync } from "react-async";
+import { browser } from "webextension-polyfill-ts";
 import {
     getBalances,
     getLoanToSign,
@@ -52,6 +54,11 @@ const App = () => {
     return (
         <ChakraProvider theme={theme}>
             <Box h={600} w={400}>
+                <IconButton
+                    aria-label="Settings"
+                    icon={<SettingsIcon />}
+                    onClick={() => browser.runtime.openOptionsPage()}
+                />
                 {walletStatus?.status === Status.Loaded
                     && <>
                         {balanceUpdates && <WalletBalances balanceUpdates={balanceUpdates} />}

@@ -2,18 +2,10 @@
 
 ## Customization
 
-This wallet can be customized through the following **build-time** environment variables:
+This wallet can be customized through the browser local storage (`window.localStorage`).
+In particular, the library requires the following values to be there
 
 - `ESPLORA_API_URL`: The base url to use for the Esplora instance of the Elements instance we are targeting.
-  Defaults to `https://blockstream.info/liquid/api`.
-- `NATIVE_ASSET_TICKER`: The ticker symbol of the native asset of the Elements chain this wallet will be used on.
-  Defaults to `L-BTC`.
-- `NATIVE_ASSET_ID`: The asset ID of the native asset of the Elements chain this wallet will be used on.
-  Defaults to `6f0279e9ed041c3d710a9f57d0c02928416460c4b722ae3457a11eec381c526d`.
-- `CHAIN`: The name of the Elements chain we are targeting.
-  Defaults to `LIQUID`.
+- `BITCOIN_ASSET_ID`: The asset ID of the native asset of the Elements chain this wallet will be used on.
+- `LUSDT_ASSET_ID`: The asset ID of the native asset of the Elements chain this wallet will be used on.
   Supported values are: `LIQUID` and `ELEMENTS`.
-- `DEFAULT_SAT_PER_VBYTE`: The default fee rate in case fee estimation using Esplora fails.
-  Defaults to 1sat / vbyte.
-
-At runtime, you can set the `wallet_log` localStorage key to any log level supports by the `log` crate to receive log message in the browser console.

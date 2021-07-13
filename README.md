@@ -11,7 +11,6 @@ This project includes:
 
 ## Try it out on _regtest_
 
-
 # How to get started
 
 Install nigiri from https://github.com/vulpemventures/nigiri
@@ -29,6 +28,7 @@ Start nodes:
 ```
 
 For our tools to work we need to know which asset ID is the native asset (i.e. Bitcoin).
+
 ```bash
 ./waves-scripts load_native_asset
 ```
@@ -84,4 +84,3 @@ With atomic swaps serving as the foundation, financial products such as borrowin
 ## Where to reach us
 
 If you have any questions about this project or want to keep up with its development, join the [COMIT-Liquid Matrix channel](https://matrix.to/#/#comit-liquid:matrix.org).
-
