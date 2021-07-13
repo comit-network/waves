@@ -121,82 +121,82 @@ describe("webdriver", () => {
         debug("Found L-BTC amount: %s", await btcAmount.getText());
     }, 30_000);
 
-    test("sell swap", async () => {
-        const debug = Debug("e2e-sell");
+    // test("sell swap", async () => {
+    //     const debug = Debug("e2e-sell");
 
-        await switchToWindow(webAppTitle);
-        await driver.navigate().refresh();
+    //     await switchToWindow(webAppTitle);
+    //     await driver.navigate().refresh();
 
-        debug("Setting L-BTC amount");
-        let btcAmountInput = await getElementById(driver, "//div[@data-cy='data-cy-L-BTC-amount-input']//input");
-        await btcAmountInput.clear();
-        await btcAmountInput.sendKeys("0.4");
+    //     debug("Setting L-BTC amount");
+    //     let btcAmountInput = await getElementById(driver, "//div[@data-cy='data-cy-L-BTC-amount-input']//input");
+    //     await btcAmountInput.clear();
+    //     await btcAmountInput.sendKeys("0.4");
 
-        debug("Clicking on swap button");
-        let swapButton = await getElementById(driver, "//button[@data-cy='data-cy-swap-button']");
-        await driver.wait(until.elementIsEnabled(swapButton), 20000);
-        await swapButton.click();
+    //     debug("Clicking on swap button");
+    //     let swapButton = await getElementById(driver, "//button[@data-cy='data-cy-swap-button']");
+    //     await driver.wait(until.elementIsEnabled(swapButton), 20000);
+    //     await swapButton.click();
 
-        await switchToWindow(extensionTitle);
+    //     await switchToWindow(extensionTitle);
 
-        // TODO: Remove when automatic pop-up refresh
-        // happens based on signing state
-        await new Promise(r => setTimeout(r, 10_000));
-        await driver.navigate().refresh();
+    //     // TODO: Remove when automatic pop-up refresh
+    //     // happens based on signing state
+    //     await new Promise(r => setTimeout(r, 10_000));
+    //     await driver.navigate().refresh();
 
-        debug("Signing and sending transaction");
-        let signTransactionButton = await getElementById(driver, "//button[@data-cy='data-cy-sign-and-send-button']");
-        await signTransactionButton.click();
+    //     debug("Signing and sending transaction");
+    //     let signTransactionButton = await getElementById(driver, "//button[@data-cy='data-cy-sign-and-send-button']");
+    //     await signTransactionButton.click();
 
-        await switchToWindow(webAppTitle);
+    //     await switchToWindow(webAppTitle);
 
-        await driver.sleep(2000);
-        let url = await driver.getCurrentUrl();
-        assert(url.includes("/swapped/"));
-        debug("Swap successful");
-    }, 40000);
+    //     await driver.sleep(2000);
+    //     let url = await driver.getCurrentUrl();
+    //     assert(url.includes("/swapped/"));
+    //     debug("Swap successful");
+    // }, 40000);
 
-    test("buy swap", async () => {
-        const debug = Debug("e2e-buy");
+    // test("buy swap", async () => {
+    //     const debug = Debug("e2e-buy");
 
-        await switchToWindow(webAppTitle);
-        await driver.get(webAppUrl);
+    //     await switchToWindow(webAppTitle);
+    //     await driver.get(webAppUrl);
 
-        debug("Switching assets");
-        let switchAssetTypesButton = await getElementById(
-            driver,
-            "//button[@data-cy='data-cy-exchange-asset-types-button']",
-        );
-        await switchAssetTypesButton.click();
+    //     debug("Switching assets");
+    //     let switchAssetTypesButton = await getElementById(
+    //         driver,
+    //         "//button[@data-cy='data-cy-exchange-asset-types-button']",
+    //     );
+    //     await switchAssetTypesButton.click();
 
-        debug("Setting L-USDt amount");
-        let usdtAmountInput = await getElementById(driver, "//div[@data-cy='data-cy-USDt-amount-input']//input");
-        await usdtAmountInput.clear();
-        await usdtAmountInput.sendKeys("10000.0");
+    //     debug("Setting L-USDt amount");
+    //     let usdtAmountInput = await getElementById(driver, "//div[@data-cy='data-cy-USDt-amount-input']//input");
+    //     await usdtAmountInput.clear();
+    //     await usdtAmountInput.sendKeys("10000.0");
 
-        debug("Clicking on swap button");
-        let swapButton = await getElementById(driver, "//button[@data-cy='data-cy-swap-button']");
-        await driver.wait(until.elementIsEnabled(swapButton), 20000);
-        await swapButton.click();
+    //     debug("Clicking on swap button");
+    //     let swapButton = await getElementById(driver, "//button[@data-cy='data-cy-swap-button']");
+    //     await driver.wait(until.elementIsEnabled(swapButton), 20000);
+    //     await swapButton.click();
 
-        await switchToWindow(extensionTitle);
+    //     await switchToWindow(extensionTitle);
 
-        // TODO: Remove when automatic pop-up refresh
-        // happens based on signing state
-        await new Promise(r => setTimeout(r, 10_000));
-        await driver.navigate().refresh();
+    //     // TODO: Remove when automatic pop-up refresh
+    //     // happens based on signing state
+    //     await new Promise(r => setTimeout(r, 10_000));
+    //     await driver.navigate().refresh();
 
-        debug("Signing and sending transaction");
-        let signTransactionButton = await getElementById(driver, "//button[@data-cy='data-cy-sign-and-send-button']");
-        await signTransactionButton.click();
+    //     debug("Signing and sending transaction");
+    //     let signTransactionButton = await getElementById(driver, "//button[@data-cy='data-cy-sign-and-send-button']");
+    //     await signTransactionButton.click();
 
-        await switchToWindow(webAppTitle);
+    //     await switchToWindow(webAppTitle);
 
-        await driver.sleep(2000);
-        let url = await driver.getCurrentUrl();
-        assert(url.includes("/swapped/"));
-        debug("Swap successful");
-    }, 40000);
+    //     await driver.sleep(2000);
+    //     let url = await driver.getCurrentUrl();
+    //     assert(url.includes("/swapped/"));
+    //     debug("Swap successful");
+    // }, 40000);
 
     test("borrow", async () => {
         const debug = Debug("e2e-borrow");
@@ -229,7 +229,7 @@ describe("webdriver", () => {
         await driver.navigate().refresh();
 
         debug("Signing loan");
-        let signLoanButton = await getElementById(driver, "//button[@data-cy='data-cy-sign-loan-button']");
+        let signLoanButton = await getElementById(driver, "//button[@data-cy='data-cy-sign-loan-button']", 20_000);
         await signLoanButton.click();
 
         await switchToWindow(webAppTitle);

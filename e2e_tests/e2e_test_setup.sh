@@ -4,7 +4,7 @@ docker-compose up -d
 
 sleep 5
 
-native_asset_id=$(docker exec liquid elements-cli -rpcport=18884 -rpcuser=admin1 -rpcpassword=123 dumpassetlabels | jq -r '.bitcoin')
+btc_asset_id=$(docker exec liquid elements-cli -rpcport=18884 -rpcuser=admin1 -rpcpassword=123 dumpassetlabels | jq -r '.bitcoin')
 
 # We need to mine some blocks so that electrs API calls work
 address=$(docker exec liquid elements-cli -rpcport=18884 -rpcuser=admin1 -rpcpassword=123 getnewaddress)
@@ -14,12 +14,18 @@ response=$(docker exec liquid elements-cli -rpcport=18884 -rpcuser=admin1 -rpcpa
 usdt_asset_id=$(echo $response | jq -r '.asset')
 
 echo "USDT Asset ID: "$usdt_asset_id
-echo "Native Asset ID: "$native_asset_id
+echo "Bitcoin Asset ID: "$btc_asset_id
 
 (
     cd ../extension
     yarn install
+
+    export REACT_APP_CHAIN="ELEMENTS"
+    export REACT_APP_ESPLORA_API_URL="http://127.0.0.1:3012"
+    export REACT_APP_LBTC_ASSET_ID=$btc_asset_id
+    export REACT_APP_LUSDT_ASSET_ID=$usdt_asset_id
     yarn build
+
     yarn package
 )
 
