@@ -1,8 +1,15 @@
 set -e
 
-# This script is for CI purposes only. If you want to run the e2e tests locally make sure to setup your environment accordingly using:
-#          curl https://travis.nigiri.network | bash
-#          docker-compose -f ./docker-compose.yml up -d
+# This script is primarily for CI purposes. If you want to run the e2e tests locally use the -L flag:
+#    ./e22_test_setup.sh -L
+
+if getopts ":L" arg; then
+  mkdir nigiri
+  cd nigiri
+  curl https://travis.nigiri.network | bash
+  docker-compose -f ./docker-compose.yml up -d
+  cd ../
+fi
 
 btc_asset_id=$(docker exec nigiri_liquid_1 elements-cli -rpcport=18884 -rpcuser=admin1 -rpcpassword=123 dumpassetlabels | jq -r '.bitcoin')
 
