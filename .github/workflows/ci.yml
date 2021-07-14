@@ -45,7 +45,6 @@ jobs:
       - name: Install nigiri
         run: |
           echo $PATH
-          curl -L "https://github.com/vulpemventures/nigiri/releases/download/v0.0.12/nigiri-linux-amd64" -o /usr/local/nigiri && chmod 776 /usr/local/nigiri
       - name: Checkout sources
         uses: actions/checkout@v2
 
