@@ -47,12 +47,10 @@ jobs:
 
       - name: Install nigiri
         run: |
-          curl -L "https://github.com/vulpemventures/nigiri/releases/download/v0.0.12/nigiri-linux-amd64" -o /home/runner/nigiri && chmod 776 /home/runner/nigiri
+          curl -L "https://github.com/vulpemventures/nigiri/releases/download/v0.0.12/nigiri-linux-amd64" -o /home/runner/.local/bin/nigiri && chmod 776 /home/runner/.local/bin/nigiri
 
       - name: Set up environment and build binaries
         run: |
-          echo $PATH &&\
-          ls /home/runner &&\
           ./e2e_test_setup.sh
 
       - name: Run test
