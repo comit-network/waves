@@ -8,14 +8,20 @@ edition = "2018"
 anyhow = "1"
 bitcoin_hashes = "0.9.0"
 coin_selection = { path = "../coin_selection" }
-elements = "0.15"
-elements-harness = { path = "../elements-harness" }
+elements = "0.17"
 env_logger = "0.8.3"
 estimate_transaction_size = { path = "../estimate_transaction_size" }
 hex = "0.4"
 hmac = "0.10"
+input = { path = "../input" }
 log = "0.4"
-secp256k1-zkp = { version = "0.2", features = [ "global-context", "hashes" ] }
+rust_decimal = "1"
+# TODO: See if we can remove this direct dependency
+secp256k1-zkp = { version = "0.4", features = [ "global-context", "hashes" ] }
+serde = { version = "1", features = [ "derive" ] }
 sha2 = "0.9"
+
+[dev-dependencies]
+elements-harness = { path = "../elements-harness" }
 testcontainers = "0.12"
 tokio = { version = "1", default-features = false, features = [ "macros", "rt", "time" ] }

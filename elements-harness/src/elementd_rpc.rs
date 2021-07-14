@@ -4,7 +4,7 @@ use elements::{
     bitcoin::{Amount, PrivateKey},
     confidential::{Asset, Nonce, Value},
     encode::serialize_hex,
-    secp256k1::{SecretKey, Signature},
+    secp256k1_zkp::{SecretKey, Signature},
     Address, AssetId, OutPoint, Transaction, TxOut, TxOutWitness, Txid,
 };
 use serde::{Deserialize, Serialize};
@@ -13,6 +13,7 @@ use std::{collections::HashMap, str::FromStr};
 #[jsonrpc_client::api(version = "1.0")]
 pub trait ElementsRpc {
     async fn getblockchaininfo(&self) -> BlockchainInfo;
+    async fn getblockcount(&self) -> u32;
     async fn getnewaddress(&self, label: &str, address_type: Option<&str>) -> Address;
     #[allow(clippy::too_many_arguments)]
     async fn sendtoaddress(
@@ -154,7 +155,7 @@ impl Client {
         })
     }
 
-    pub async fn get_new_address(&self, address_type: Option<&str>) -> Result<Address> {
+    async fn get_new_address(&self, address_type: Option<&str>) -> Result<Address> {
         let address = self.getnewaddress("", address_type).await?;
 
         Ok(address)
@@ -232,7 +233,7 @@ impl Client {
         amount: Amount,
         should_lock: bool,
     ) -> Result<Vec<(OutPoint, TxOut)>> {
-        let placeholder_address = self.get_new_address(None).await.unwrap();
+        let placeholder_address = self.get_new_segwit_confidential_address().await.unwrap();
         let tx = Transaction {
             output: vec![TxOut {
                 asset: Asset::Explicit(asset),
@@ -268,9 +269,9 @@ impl Client {
                 .await
                 .context("cannot unblind raw source transaction")?;
             if unblinded_raw_tx.output[source_vout as usize]
-                .to_explicit()
-                .expect("explicit output")
                 .asset
+                .explicit()
+                .expect("explicit output")
                 == asset
             {
                 let source_txout = source_tx.output[input.previous_output.vout as usize].clone();
@@ -342,6 +343,12 @@ impl Client {
         let privkey = PrivateKey::from_wif(&privkey)?;
 
         Ok(privkey.key)
+    }
+
+    pub async fn get_blockcount(&self) -> Result<u32> {
+        let blockcount = self.getblockcount().await?;
+
+        Ok(blockcount)
     }
 }
 
@@ -490,5 +497,25 @@ mod test {
             .select_inputs_for(*labels.get("bitcoin").unwrap(), Amount::ONE_BTC, false)
             .await
             .unwrap();
+    }
+
+    #[tokio::test]
+    async fn get_blockcount() {
+        let tc_client = Cli::default();
+        let (client, _container) = {
+            let blockchain = Elementsd::new(&tc_client, "0.18.1.9").unwrap();
+
+            (
+                Client::new(blockchain.node_url.clone().into()).unwrap(),
+                blockchain,
+            )
+        };
+
+        let address = client.get_new_address(None).await.unwrap();
+        let _ = client.generatetoaddress(1, &address).await.unwrap();
+
+        let blockcount = client.get_blockcount().await.unwrap();
+
+        assert_eq!(blockcount, 1)
     }
 }

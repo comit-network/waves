@@ -7,10 +7,9 @@ mod tests {
         bitcoin::{util::psbt::serialize::Serialize, Amount, PublicKey},
         opcodes,
         script::Builder,
-        secp256k1::{rand::thread_rng, SecretKey, SECP256K1},
+        secp256k1_zkp::{rand::thread_rng, SecretKey, SECP256K1},
         sighash::SigHashCache,
-        Address, AddressParams, AssetId, OutPoint, Script, SigHashType, Transaction, TxIn, TxOut,
-        Txid,
+        Address, AddressParams, AssetId, OutPoint, Script, SigHashType, Transaction, TxOut, Txid,
     };
     use elements_harness::{elementd_rpc::ElementsRpc, Elementsd};
     use testcontainers::clients::Cli;
@@ -69,24 +68,23 @@ mod tests {
 
             client.generatetoaddress(1, &miner_address).await.unwrap();
 
-            let collateral_inputs = wallet
-                .find_inputs(bitcoin_asset_id, collateral_amount)
-                .await
-                .unwrap();
-
             let timelock = 10;
 
             let borrower = Borrower0::new(
                 &mut thread_rng(),
+                {
+                    let wallet = wallet.clone();
+                    |amount, asset| async move { wallet.find_inputs(asset, amount).await }
+                },
                 address.clone(),
                 address_blinding_sk,
                 collateral_amount,
-                collateral_inputs,
                 Amount::ONE_SAT,
                 timelock,
                 bitcoin_asset_id,
                 usdt_asset_id,
             )
+            .await
             .unwrap();
 
             (borrower, wallet)
@@ -117,6 +115,7 @@ mod tests {
                     |amount, asset| async move { find_inputs(&client, asset, amount).await }
                 },
                 loan_request,
+                38_000, // value of 1 BTC as of 18.06.2021
             )
             .await
             .unwrap();
@@ -224,24 +223,23 @@ mod tests {
 
             client.generatetoaddress(1, &miner_address).await.unwrap();
 
-            let collateral_inputs = wallet
-                .find_inputs(bitcoin_asset_id, collateral_amount)
-                .await
-                .unwrap();
-
             let timelock = 0;
 
             let borrower = Borrower0::new(
                 &mut thread_rng(),
+                {
+                    let wallet = wallet.clone();
+                    |amount, asset| async move { wallet.find_inputs(asset, amount).await }
+                },
                 address.clone(),
                 address_blinding_sk,
                 collateral_amount,
-                collateral_inputs,
                 Amount::ONE_SAT,
                 timelock,
                 bitcoin_asset_id,
                 usdt_asset_id,
             )
+            .await
             .unwrap();
 
             (borrower, wallet)
@@ -272,6 +270,7 @@ mod tests {
                     |amount, asset| async move { find_inputs(&client, asset, amount).await }
                 },
                 loan_request,
+                38_000, // value of 1 BTC as of 18.06.2021
             )
             .await
             .unwrap();
@@ -299,7 +298,7 @@ mod tests {
         client.generatetoaddress(1, &miner_address).await.unwrap();
 
         let liquidation_transaction = lender
-            .liquidation_transaction(&mut thread_rng(), &SECP256K1, Amount::from_sat(10_000))
+            .liquidation_transaction(&mut thread_rng(), &SECP256K1, Amount::from_sat(1))
             .unwrap();
 
         client
@@ -320,21 +319,13 @@ mod tests {
 
         let inputs = inputs
             .into_iter()
-            .map(|(outpoint, tx_out)| {
+            .map(|(txin, tx_out)| {
                 let input_blinding_sk =
                     derive_blinding_key(master_blinding_key.clone(), tx_out.script_pubkey.clone())?;
 
                 Result::<_, anyhow::Error>::Ok(crate::Input {
-                    tx_in: TxIn {
-                        previous_output: outpoint,
-                        is_pegin: false,
-                        has_issuance: false,
-                        script_sig: Default::default(),
-                        sequence: 0,
-                        asset_issuance: Default::default(),
-                        witness: Default::default(),
-                    },
-                    original_tx_out: tx_out,
+                    txin,
+                    original_txout: tx_out,
                     blinding_key: input_blinding_sk,
                 })
             })
@@ -410,40 +401,32 @@ mod tests {
 
             let asset_utxos = utxos
                 .iter()
-                .filter_map(
-                    |(txid, vout, tx_out)| match tx_out.clone().into_confidential() {
-                        Some(confidential) => {
-                            let unblinded_txout = confidential
-                                .unblind(SECP256K1, self.blinder_keypair.0)
-                                .expect("all utxos have the same blinding key");
-                            let outpoint = OutPoint {
-                                txid: *txid,
-                                vout: *vout as u32,
-                            };
-                            let candidate_asset = unblinded_txout.asset;
+                .filter_map(|(txid, vout, tx_out)| {
+                    let unblinded_txout = tx_out
+                        .unblind(SECP256K1, self.blinder_keypair.0)
+                        .expect("all utxos have the same blinding key");
+                    let outpoint = OutPoint {
+                        txid: *txid,
+                        vout: *vout as u32,
+                    };
+                    let candidate_asset = unblinded_txout.asset;
 
-                            if candidate_asset == asset {
-                                Some(coin_selection::Utxo {
-                                    outpoint,
-                                    value: unblinded_txout.value,
-                                    script_pubkey: confidential.script_pubkey,
-                                    asset: candidate_asset,
-                                })
-                            } else {
-                                log::debug!(
-                                    "utxo {} with asset id {} is not the sell asset, ignoring",
-                                    outpoint,
-                                    candidate_asset
-                                );
-                                None
-                            }
-                        }
-                        None => {
-                            log::warn!("swapping explicit txouts is unsupported");
-                            None
-                        }
-                    },
-                )
+                    if candidate_asset == asset {
+                        Some(coin_selection::Utxo {
+                            outpoint,
+                            value: unblinded_txout.value,
+                            script_pubkey: tx_out.script_pubkey.clone(),
+                            asset: candidate_asset,
+                        })
+                    } else {
+                        log::debug!(
+                            "utxo {} with asset id {} is not the sell asset, ignoring",
+                            outpoint,
+                            candidate_asset
+                        );
+                        None
+                    }
+                })
                 .collect();
 
             let coin_selection::Output {
@@ -463,16 +446,8 @@ mod tests {
                         .expect("coin came from utxos");
 
                     crate::Input {
-                        tx_in: TxIn {
-                            previous_output: coin.outpoint,
-                            is_pegin: false,
-                            has_issuance: false,
-                            script_sig: Default::default(),
-                            sequence: 0,
-                            asset_issuance: Default::default(),
-                            witness: Default::default(),
-                        },
-                        original_tx_out: original_tx_out.clone(),
+                        txin: coin.outpoint,
+                        original_txout: original_tx_out.clone(),
                         blinding_key: self.blinder_keypair.0,
                     }
                 })

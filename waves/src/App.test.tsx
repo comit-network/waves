@@ -6,12 +6,18 @@ import App, { Asset, reducer } from "./App";
 import calculateBetaAmount from "./calculateBetaAmount";
 
 const defaultState = {
-    alpha: {
-        type: Asset.LBTC,
-        amount: "0",
+    trade: {
+        alpha: {
+            type: Asset.LBTC,
+            amount: "0",
+        },
+        beta: Asset.USDT,
+        txId: "",
     },
-    beta: Asset.USDT,
-    txId: "",
+    borrow: {
+        principalAmount: "1000",
+        loanTerm: 30,
+    },
     wallet: {
         balance: {
             usdtBalance: 0,
@@ -27,11 +33,14 @@ const defaultState = {
 test("update alpha amount logic", () => {
     const initialState = {
         ...defaultState,
-        alpha: {
-            type: Asset.LBTC,
-            amount: "0.01",
+        trade: {
+            ...defaultState.trade,
+            alpha: {
+                type: Asset.LBTC,
+                amount: "0.01",
+            },
+            beta: Asset.USDT,
         },
-        beta: Asset.USDT,
     };
 
     let newValue = "42";
@@ -39,18 +48,21 @@ test("update alpha amount logic", () => {
         reducer(initialState, {
             type: "UpdateAlphaAmount",
             value: newValue,
-        }).alpha.amount,
+        }).trade.alpha.amount,
     ).toBe(newValue);
 });
 
 test("update alpha asset logic - should flip asset types", () => {
     const initialState = {
         ...defaultState,
-        alpha: {
-            type: Asset.LBTC,
-            amount: "0.01",
+        trade: {
+            ...defaultState.trade,
+            alpha: {
+                type: Asset.LBTC,
+                amount: "0.01",
+            },
+            beta: Asset.USDT,
         },
-        beta: Asset.USDT,
     };
 
     let newValue = Asset.USDT;
@@ -58,33 +70,36 @@ test("update alpha asset logic - should flip asset types", () => {
         reducer(initialState, {
             type: "UpdateAlphaAssetType",
             value: newValue,
-        }).alpha.type,
+        }).trade.alpha.type,
     ).toBe(newValue);
 
     expect(
         reducer(initialState, {
             type: "UpdateAlphaAssetType",
             value: newValue,
-        }).beta,
-    ).toBe(initialState.alpha.type);
+        }).trade.beta,
+    ).toBe(initialState.trade.alpha.type);
 
     // amounts should be unchanged
     expect(
         reducer(initialState, {
             type: "UpdateAlphaAssetType",
             value: newValue,
-        }).alpha.amount,
-    ).toBe(initialState.alpha.amount);
+        }).trade.alpha.amount,
+    ).toBe(initialState.trade.alpha.amount);
 });
 
 test("update beta asset logic - should flip asset types", () => {
     const initialState = {
         ...defaultState,
-        alpha: {
-            type: Asset.LBTC,
-            amount: "0.01",
+        trade: {
+            ...defaultState.trade,
+            alpha: {
+                type: Asset.LBTC,
+                amount: "0.01",
+            },
+            beta: Asset.USDT,
         },
-        beta: Asset.USDT,
     };
 
     let newValue = Asset.LBTC;
@@ -92,33 +107,36 @@ test("update beta asset logic - should flip asset types", () => {
         reducer(initialState, {
             type: "UpdateBetaAssetType",
             value: newValue,
-        }).beta,
+        }).trade.beta,
     ).toBe(newValue);
 
     expect(
         reducer(initialState, {
             type: "UpdateBetaAssetType",
             value: newValue,
-        }).alpha.type,
-    ).toBe(initialState.beta);
+        }).trade.alpha.type,
+    ).toBe(initialState.trade.beta);
 
     // amounts should be unchanged
     expect(
         reducer(initialState, {
             type: "UpdateBetaAssetType",
             value: newValue,
-        }).alpha.amount,
-    ).toBe(initialState.alpha.amount);
+        }).trade.alpha.amount,
+    ).toBe(initialState.trade.alpha.amount);
 });
 
 test("Swap asset types", () => {
     const initialState = {
         ...defaultState,
-        alpha: {
-            type: Asset.LBTC,
-            amount: "0.01",
+        trade: {
+            ...defaultState.trade,
+            alpha: {
+                type: Asset.LBTC,
+                amount: "0.01",
+            },
+            beta: Asset.USDT,
         },
-        beta: Asset.USDT,
     };
 
     const rate = {
@@ -127,8 +145,8 @@ test("Swap asset types", () => {
     };
     // This is just showing how the beta amount is calculated in "reality". The actual amounts and rates don't matter
     // in this test.
-    let amountAsNumber = Number.parseFloat(initialState.alpha.amount);
-    let betaAmount = calculateBetaAmount(initialState.alpha.type, amountAsNumber, rate);
+    let amountAsNumber = Number.parseFloat(initialState.trade.alpha.amount);
+    let betaAmount = calculateBetaAmount(initialState.trade.alpha.type, amountAsNumber, rate);
 
     expect(
         reducer(initialState, {
@@ -136,8 +154,8 @@ test("Swap asset types", () => {
             value: {
                 betaAmount: betaAmount,
             },
-        }).alpha.type,
-    ).toBe(initialState.beta);
+        }).trade.alpha.type,
+    ).toBe(initialState.trade.beta);
 
     expect(
         reducer(initialState, {
@@ -145,8 +163,8 @@ test("Swap asset types", () => {
             value: {
                 betaAmount: betaAmount,
             },
-        }).beta,
-    ).toBe(initialState.alpha.type);
+        }).trade.beta,
+    ).toBe(initialState.trade.alpha.type);
 
     // amounts should not be flipped.
     expect(
@@ -155,8 +173,26 @@ test("Swap asset types", () => {
             value: {
                 betaAmount: betaAmount,
             },
-        }).alpha.amount,
+        }).trade.alpha.amount,
     ).toBe(
-        initialState.alpha.amount.toString(),
+        initialState.trade.alpha.amount.toString(),
     );
+});
+
+test("update principal amount logic", () => {
+    const initialState = {
+        ...defaultState,
+        borrow: {
+            loanTerm: 30,
+            principalAmount: "10000",
+        },
+    };
+
+    let newValue = "42";
+    expect(
+        reducer(initialState, {
+            type: "UpdatePrincipalAmount",
+            value: newValue,
+        }).borrow.principalAmount,
+    ).toBe(newValue);
 });

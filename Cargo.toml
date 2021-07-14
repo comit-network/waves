@@ -1,20 +1,11 @@
 [workspace]
 members = [
-    "elements-harness",
-    "swap",
     "bobtimus",
-    "covenants",
-    "extension",
-    "extension/message_types",
-    "extension/wallet_lib",
-    "extension/background",
-    "extension/content",
-    "extension/in_page",
-    "extension/wasm_bindgen_extension",
     "coin_selection",
-    "estimate_transaction_size"
+    "covenants",
+    "elements-harness",
+    "estimate_transaction_size",
+    "extension/wallet",
+    "input",
+    "swap"
 ]
-
-[patch.crates-io]
-# Until https://github.com/ElementsProject/rust-elements/pull/70/ is merged
-elements = { git = "https://github.com/luckysori/rust-elements", branch = "upstreaming-fun" }

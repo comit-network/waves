@@ -6,6 +6,6 @@ edition = "2018"
 
 [dependencies]
 bdk = { version = "0.4", default-features = false }
-elements = "0.15"
+elements = "0.17"
 estimate_transaction_size = { path = "../estimate_transaction_size" }
 thiserror = "1"
