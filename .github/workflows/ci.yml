@@ -67,7 +67,7 @@ jobs:
         with:
           name: Logfiles
           path: |
-            ./bobtimus.log
+            ./e2e_tests/bobtimus.log
             ./e2e_tests/liquid.log
             ./e2e_tests/electrs.log
             ./e2e_tests/esplora.log
