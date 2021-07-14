@@ -44,7 +44,7 @@ jobs:
     steps:
       - name: Install nigiri
         run: |
-          curl https://getnigiri.vulpem.com | bash
+          curl https://getnigiri.vulpem.com | sh
       - name: Checkout sources
         uses: actions/checkout@v2
 
