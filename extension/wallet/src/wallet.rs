@@ -470,6 +470,10 @@ mod browser_tests {
     #[wasm_bindgen_test]
     pub async fn given_a_wallet_can_get_an_address() {
         let current_wallet = Mutex::default();
+        {
+            let mut guard = CHAIN.lock().expect("to acquire lock");
+            *guard = crate::Chain::Elements;
+        };
 
         create_new("wallet-1".to_owned(), "foo".to_owned(), &current_wallet)
             .await
@@ -483,6 +487,10 @@ mod browser_tests {
     #[wasm_bindgen_test]
     pub async fn given_a_wallet_when_unloaded_cannot_get_address() {
         let current_wallet = Mutex::default();
+        {
+            let mut guard = CHAIN.lock().expect("to acquire lock");
+            *guard = crate::Chain::Elements;
+        };
 
         create_new("wallet-2".to_owned(), "foo".to_owned(), &current_wallet)
             .await
@@ -503,22 +511,12 @@ mod browser_tests {
     pub async fn cannot_create_two_wallets_with_same_name() {
         let current_wallet = Mutex::default();
 
-        create_new(
-            "wallet-3".to_owned(),
-            "foo".to_owned(),
-            "http://localhost".to_owned(),
-            &current_wallet,
-        )
-        .await
-        .unwrap();
-        let error = create_new(
-            "wallet-3".to_owned(),
-            "foo".to_owned(),
-            "http://localhost".to_owned(),
-            &current_wallet,
-        )
-        .await
-        .unwrap_err();
+        create_new("wallet-3".to_owned(), "foo".to_owned(), &current_wallet)
+            .await
+            .unwrap();
+        let error = create_new("wallet-3".to_owned(), "foo".to_owned(), &current_wallet)
+            .await
+            .unwrap_err();
 
         assert_eq!(
             error.to_string(),
@@ -537,14 +535,9 @@ mod browser_tests {
             .await
             .unwrap();
 
-        let error = load_existing(
-            "wallet-4".to_owned(),
-            "foo".to_owned(),
-            "http://localhost".to_owned(),
-            &current_wallet,
-        )
-        .await
-        .unwrap_err();
+        let error = load_existing("wallet-4".to_owned(), "foo".to_owned(), &current_wallet)
+            .await
+            .unwrap_err();
 
         assert_eq!(
             error.to_string(),
@@ -561,14 +554,9 @@ mod browser_tests {
             .unwrap();
         unload_current(&current_wallet).await;
 
-        let error = load_existing(
-            "wallet-6".to_owned(),
-            "bar".to_owned(),
-            "http://localhost".to_owned(),
-            &current_wallet,
-        )
-        .await
-        .unwrap_err();
+        let error = load_existing("wallet-6".to_owned(), "bar".to_owned(), &current_wallet)
+            .await
+            .unwrap_err();
 
         assert_eq!(error.to_string(), "bad password for wallet 'wallet-6'");
     }
@@ -577,14 +565,9 @@ mod browser_tests {
     pub async fn cannot_load_wallet_that_doesnt_exist() {
         let current_wallet = Mutex::default();
 
-        let error = load_existing(
-            "foobar".to_owned(),
-            "bar".to_owned(),
-            "http://localhost".to_owned(),
-            &current_wallet,
-        )
-        .await
-        .unwrap_err();
+        let error = load_existing("foobar".to_owned(), "bar".to_owned(), &current_wallet)
+            .await
+            .unwrap_err();
 
         assert_eq!(error.to_string(), "wallet 'foobar' does not exist");
     }
@@ -593,21 +576,12 @@ mod browser_tests {
     pub async fn new_wallet_is_automatically_loaded() {
         let current_wallet = Mutex::default();
 
-        create_new(
-            "wallet-7".to_owned(),
-            "foo".to_owned(),
-            "http://localhost".to_owned(),
-            &current_wallet,
-        )
-        .await
-        .unwrap();
-        let status = get_status(
-            "wallet-7".to_owned(),
-            "http://localhost".to_owned(),
-            &current_wallet,
-        )
-        .await
-        .unwrap();
+        create_new("wallet-7".to_owned(), "foo".to_owned(), &current_wallet)
+            .await
+            .unwrap();
+        let status = get_status("wallet-7".to_owned(), &current_wallet)
+            .await
+            .unwrap();
 
         assert_eq!(status.loaded, true);
     }
@@ -627,14 +601,9 @@ mod browser_tests {
     pub async fn secret_key_can_be_successfully_decrypted() {
         let current_wallet = Mutex::default();
 
-        create_new(
-            "wallet-9".to_owned(),
-            "foo".to_owned(),
-            "http://localhost".to_owned(),
-            &current_wallet,
-        )
-        .await
-        .unwrap();
+        create_new("wallet-9".to_owned(), "foo".to_owned(), &current_wallet)
+            .await
+            .unwrap();
         let initial_sk = {
             let guard = current_wallet.lock().await;
             let wallet = guard.as_ref().unwrap();
@@ -644,14 +613,9 @@ mod browser_tests {
 
         unload_current(&current_wallet).await;
 
-        load_existing(
-            "wallet-9".to_owned(),
-            "foo".to_owned(),
-            "http://localhost".to_owned(),
-            &current_wallet,
-        )
-        .await
-        .unwrap();
+        load_existing("wallet-9".to_owned(), "foo".to_owned(), &current_wallet)
+            .await
+            .unwrap();
         let loaded_sk = {
             let guard = current_wallet.lock().await;
             let wallet = guard.as_ref().unwrap();

@@ -182,7 +182,7 @@ jobs:
       - name: Extension wallet tests
         run: |
           cd extension/wallet
-          cargo test
+          wasm-pack test --firefox --headless
 
       - name: Upload artifact on test failure
         if: ${{ failure() }}
