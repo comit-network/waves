@@ -298,7 +298,7 @@ mod tests {
         client.generatetoaddress(1, &miner_address).await.unwrap();
 
         let liquidation_transaction = lender
-            .liquidation_transaction(&mut thread_rng(), &SECP256K1, Amount::from_sat(10_000))
+            .liquidation_transaction(&mut thread_rng(), &SECP256K1, Amount::from_sat(1))
             .unwrap();
 
         client
