@@ -27,8 +27,8 @@ pub async fn make_buy_create_swap_payload(
         name,
         current_wallet,
         sell_amount,
-        btc_asset_id,
         usdt_asset_id,
+        btc_asset_id,
     )
     .await
 }

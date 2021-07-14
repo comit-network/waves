@@ -23,10 +23,6 @@ pub async fn repay_loan(
     current_wallet: &Mutex<Option<Wallet>>,
     loan_txid: Txid,
 ) -> Result<Txid, Error> {
-    let wallet = current(&name, current_wallet)
-        .await
-        .map_err(Error::LoadWallet)?;
-
     // TODO: Only abort early if this fails because the transaction
     // hasn't been mined
     if fetch_transaction(loan_txid).await.is_err() {
@@ -41,7 +37,12 @@ pub async fn repay_loan(
         .ok_or(Error::EmptyState)?;
     let borrower = serde_json::from_str::<Borrower1>(&borrower).map_err(Error::Deserialize)?;
 
-    let blinding_key = wallet.blinding_key();
+    let blinding_key = {
+        let wallet = current(&name, current_wallet)
+            .await
+            .map_err(Error::LoadWallet)?;
+        wallet.blinding_key()
+    };
 
     let coin_selector = {
         let name = name.clone();
