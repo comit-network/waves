@@ -53,6 +53,7 @@ jobs:
 
       - name: Set up environment and build binaries
         run: |
+          ls -la /usr/local/bin/ &&\
           ./e2e_test_setup.sh
 
       - name: Run test
