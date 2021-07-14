@@ -11,7 +11,7 @@ This project includes:
 
 ## Try it out on _regtest_
 
-# How to get started
+### Environment Setup
 
 Install nigiri from https://github.com/vulpemventures/nigiri
 
@@ -42,7 +42,9 @@ The asset ID of this new asset will be in `.usdt_asset_id`
 ./waves-scripts mint_usdt
 ```
 
-Afterwards we can go ahead and start bobtimus:
+### Start the Maker (Bobtimus)
+
+Once the environment setup is done you can go ahead and start bobtimus:
 
 ```bash
 ./waves-scripts start_bobtimus
@@ -53,28 +55,28 @@ This will start bobtimus in a detached mode. Its PID can be found in `.bobtimus`
 While bobtimus is hosting a production version of waves on `http://localhost:3030` you probably want a development
 build while working on it.
 For that run the following command and keep the terminal open. Your waves application will be reachable under
-`http://localhost:3004`
+`http://localhost:3004`.
+
+Note that you can use this in the browser that includes the web-extension (see next section).
+For trading with Bobtimus the web extension is required, so you will have to complete [running the taker web extension](#run-the-taker-web-extension)
 
 ```bash
-./waves-script start_webapp
+./waves-scripts start_webapp
 ```
 
-Last but not least, you will need the web extension.
-We will need to go into the extension directory and run the following two commands:
+## Run the Taker Web Extension
 
-```bash
-cd extension;
-yarn install # only needed once
-yarn watch
-```
+Last but not least, you will need the web extension:
 
-This command will start `create-react-app` in watch mode and will automatically re-build the extension.
+- Make sure you are in the directory of the web extension: `cd extension`
+- Make sure you installed nodejs dependencies: `yarn install`
+- Build the web extension, including `wasm` build of the web extension's wallet, run: `yarn watch`
+  - On **MacOs** we encountered probems with the default `clang` compiler.
+    - You can overcome this by installing `llvm`: `brew install llvm`
+    - Then run: `CC=/usr/local/opt/llvm/bin/clang AR=/usr/local/opt/llvm/bin/llvm-ar yarn watch`
+- Once `yarn watch` has `Completed successfully` run: `yarn start`
 
-```bash
-yarn start
-```
-
-This will start a firefox browser with the extension enabled and the browser console being opened.
+If everything was successfully, you now see a firefox browser with the extension enabled and the browser console being opened.
 The latter one is useful for degbugging purposes as it will print all kinds of stuff.
 
 ## What's coming
