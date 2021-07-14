@@ -47,13 +47,11 @@ jobs:
 
       - name: Install nigiri
         run: |
-          echo $PATH &&\
           sudo curl -L "https://github.com/vulpemventures/nigiri/releases/download/v0.0.12/nigiri-linux-amd64" -o /usr/local/bin/nigiri &&\
           sudo chmod 777 /usr/local/bin/nigiri
 
       - name: Set up environment and build binaries
         run: |
-          ls -la /usr/local/bin/ &&\
           ./e2e_test_setup.sh
 
       - name: Run test
