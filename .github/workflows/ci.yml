@@ -44,7 +44,7 @@ jobs:
     steps:
       - name: Install nigiri
         run: |
-          curl -L "https://github.com/vulpemventures/nigiri/releases/download/v0.0.12/nigiri-linux-amd64" -o /bin/nigiri && chmod 776 /bin/nigiri
+          curl -L "https://github.com/vulpemventures/nigiri/releases/download/v0.0.12/nigiri-linux-amd64" -o /usr/bin/nigiri && chmod 776 /usr/bin/nigiri
       - name: Checkout sources
         uses: actions/checkout@v2
 
