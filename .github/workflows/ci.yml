@@ -42,11 +42,12 @@ jobs:
       run:
         working-directory: ./e2e_tests
     steps:
+      - name: Checkout sources
+        uses: actions/checkout@v2
+
       - name: Install nigiri
         run: |
           echo $PATH
-      - name: Checkout sources
-        uses: actions/checkout@v2
 
       - name: Set up environment and build binaries
         run: |
