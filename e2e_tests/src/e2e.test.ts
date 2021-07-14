@@ -187,7 +187,10 @@ describe("webdriver", () => {
         await driver.navigate().refresh();
 
         debug("Signing and sending transaction");
-        let signTransactionButton = await getElementById(driver, "//button[@data-cy='data-cy-sign-and-send-button']", 500_000);
+        let signTransactionButton = await getElementById(
+            driver,
+            "//button[@data-cy='data-cy-sign-and-send-button']",
+        );
         await signTransactionButton.click();
 
         await switchToWindow(webAppTitle);
