@@ -51,8 +51,8 @@ jobs:
 
       - name: Set up environment and build binaries
         run: |
-          echo $PATH
-          ls /home/runner
+          echo $PATH &&\
+          ls /home/runner &&\
           ./e2e_test_setup.sh
 
       - name: Run test
