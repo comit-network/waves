@@ -1,27 +1,29 @@
 set -e
 
-docker-compose up -d
+nigiri start --liquid
 
 sleep 5
 
-btc_asset_id=$(docker exec liquid elements-cli -rpcport=18884 -rpcuser=admin1 -rpcpassword=123 dumpassetlabels | jq -r '.bitcoin')
+btc_asset_id=$(nigiri rpc --liquid dumpassetlabels | jq -r '.bitcoin')
 
 # We need to mine some blocks so that electrs API calls work
-address=$(docker exec liquid elements-cli -rpcport=18884 -rpcuser=admin1 -rpcpassword=123 getnewaddress)
-docker exec liquid elements-cli -rpcport=18884 -rpcuser=admin1 -rpcpassword=123 generatetoaddress 150 $address > /dev/null
+address=$(nigiri rpc --liquid getnewaddress)
+nigiri rpc --liquid generatetoaddress 150 $address > /dev/null
 
-response=$(docker exec liquid elements-cli -rpcport=18884 -rpcuser=admin1 -rpcpassword=123 issueasset 10000000 1)
+response=$(nigiri rpc --liquid issueasset 10000000 1)
 usdt_asset_id=$(echo $response | jq -r '.asset')
 
 echo "USDT Asset ID: "$usdt_asset_id
 echo "Bitcoin Asset ID: "$btc_asset_id
+
+export $(cat ~/.nigiri/.env | xargs)
 
 (
     cd ../extension
     yarn install
 
     export REACT_APP_CHAIN="ELEMENTS"
-    export REACT_APP_ESPLORA_API_URL="http://127.0.0.1:3012"
+    export REACT_APP_ESPLORA_API_URL="http://localhost:$LIQUID_CHOPSTICKS_PORT"
     export REACT_APP_LBTC_ASSET_ID=$btc_asset_id
     export REACT_APP_LUSDT_ASSET_ID=$usdt_asset_id
     yarn build
@@ -33,7 +35,7 @@ echo "Bitcoin Asset ID: "$btc_asset_id
     cd ../waves/
 
     yarn install
-    export REACT_APP_BLOCKEXPLORER_URL="http://localhost:5001"
+    export REACT_APP_BLOCKEXPLORER_URL="http://localhost:$LIQUID_ESPLORA_PORT"
     yarn run build
 
     cd ../
@@ -41,6 +43,6 @@ echo "Bitcoin Asset ID: "$btc_asset_id
     cargo build --bin fake_bobtimus
     RUST_LOG=debug,hyper=info,reqwest=info cargo run --bin fake_bobtimus -- \
             start \
-            --elementsd http://admin1:123@127.0.0.1:7041 \
+            --elementsd http://admin1:123@localhost:$LIQUID_NODE_PORT \
             --usdt $usdt_asset_id > e2e_tests/bobtimus.log 2>&1 &
 )
