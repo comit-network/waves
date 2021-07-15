@@ -3,9 +3,9 @@ use crate::{
     wallet::{current, get_txouts, Wallet},
 };
 use anyhow::Result;
+use baru::swap::{alice_finalize_transaction, sign_with_key};
 use elements::{secp256k1_zkp::SECP256K1, sighash::SigHashCache, Transaction, Txid};
 use futures::lock::Mutex;
-use swap::{alice_finalize_transaction, sign_with_key};
 
 pub(crate) async fn sign_and_send_swap_transaction(
     name: String,

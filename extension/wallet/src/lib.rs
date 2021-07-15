@@ -389,7 +389,7 @@ struct WrongChain(String);
 
 #[derive(serde::Serialize, serde::Deserialize)]
 struct Transaction {
-    #[serde(with = "covenants::transaction_as_string")]
+    #[serde(with = "baru::loan::transaction_as_string")]
     inner: elements::Transaction,
 }
 

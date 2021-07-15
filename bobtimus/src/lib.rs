@@ -5,9 +5,16 @@ extern crate diesel_migrations;
 
 use std::{collections::HashMap, convert::TryInto};
 
-use crate::database::{queries, Sqlite};
+use crate::{
+    database::{queries, Sqlite},
+    elements_rpc::{Client, ElementsRpc},
+};
 use anyhow::{Context, Result};
-use covenants::{Lender0, Lender1, LoanRequest, LoanResponse};
+use baru::{
+    input::Input,
+    loan::{Lender0, Lender1, LoanRequest, LoanResponse},
+    swap,
+};
 use database::LiquidationForm;
 use elements::{
     bitcoin::{
@@ -20,9 +27,7 @@ use elements::{
     },
     Address, AssetId, OutPoint, Transaction, Txid,
 };
-use elements_harness::{elementd_rpc::ElementsRpc, Client as ElementsdClient};
 use futures::{stream, stream::FuturesUnordered, Stream, TryStreamExt};
-use input::Input;
 use serde::{Deserialize, Serialize};
 use tokio::sync::watch::Receiver;
 
@@ -30,6 +35,7 @@ mod amounts;
 
 pub mod cli;
 pub mod database;
+pub mod elements_rpc;
 pub mod fixed_rate;
 pub mod http;
 pub mod kraken;
@@ -45,7 +51,7 @@ pub struct Bobtimus<R, RS> {
     pub rng: R,
     pub rate_service: RS,
     pub secp: Secp256k1<All>,
-    pub elementsd: ElementsdClient,
+    pub elementsd: Client,
     pub btc_asset_id: AssetId,
     pub usdt_asset_id: AssetId,
     pub db: Sqlite,
@@ -117,7 +123,7 @@ where
     }
 
     async fn find_inputs(
-        elements_client: &ElementsdClient,
+        elements_client: &Client,
         asset_id: AssetId,
         input_amount: Amount,
     ) -> Result<Vec<Input>> {
@@ -370,7 +376,7 @@ impl RateSubscription {
     }
 }
 
-pub async fn liquidate_loans(elementsd: &ElementsdClient, db: Sqlite) -> Result<()> {
+pub async fn liquidate_loans(elementsd: &Client, db: Sqlite) -> Result<()> {
     let blockcount = elementsd.get_blockcount().await?;
     let liquidation_txs = db
         .do_in_transaction(|conn| {
@@ -392,19 +398,19 @@ pub async fn liquidate_loans(elementsd: &ElementsdClient, db: Sqlite) -> Result<
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::fixed_rate;
+    use crate::{
+        elements_rpc::{Client, ElementsRpc, ListUnspentOptions},
+        fixed_rate,
+    };
     use anyhow::{Context, Result};
+    use baru::swap::sign_with_key;
     use elements::{
         bitcoin::{secp256k1::Secp256k1, Amount, Network, PrivateKey, PublicKey},
         secp256k1_zkp::{rand::thread_rng, SecretKey, SECP256K1},
         sighash::SigHashCache,
         Address, AddressParams, OutPoint, Transaction, TxOut,
     };
-    use elements_harness::{
-        elementd_rpc::{ElementsRpc, ListUnspentOptions},
-        Client, Elementsd,
-    };
-    use swap::sign_with_key;
+    use elements_harness::Elementsd;
     use testcontainers::clients::Cli;
 
     #[tokio::test]

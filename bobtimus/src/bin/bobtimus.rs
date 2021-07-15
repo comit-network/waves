@@ -1,10 +1,11 @@
 use anyhow::Result;
-use bobtimus::{cli::Config, database::Sqlite, http, kraken, liquidate_loans, Bobtimus};
+use bobtimus::{
+    cli::Config, database::Sqlite, elements_rpc::Client, http, kraken, liquidate_loans, Bobtimus,
+};
 use elements::{
     bitcoin::secp256k1::Secp256k1,
     secp256k1_zkp::rand::{rngs::StdRng, thread_rng, SeedableRng},
 };
-use elements_harness::Client;
 use std::{collections::HashMap, sync::Arc};
 use tokio::sync::Mutex;
 
