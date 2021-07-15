@@ -183,7 +183,7 @@ where
 
 #[derive(serde::Deserialize)]
 struct FinalizeLoanPayload {
-    #[serde(with = "covenants::transaction_as_string")]
+    #[serde(with = "baru::loan::transaction_as_string")]
     tx_hex: Transaction,
 }
 

@@ -2,10 +2,6 @@
 members = [
     "bobtimus",
     "coin_selection",
-    "covenants",
-    "elements-harness",
     "estimate_transaction_size",
     "extension/wallet",
-    "input",
-    "swap"
 ]

@@ -395,7 +395,7 @@ pub struct UtxoInfo {
 #[cfg(all(test))]
 mod test {
     use super::*;
-    use crate::Elementsd;
+    use elements_harness::Elementsd;
     use testcontainers::clients::Cli;
 
     #[tokio::test]

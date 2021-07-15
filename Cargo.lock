@@ -120,6 +120,26 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cdb031dd78e28731d87d56cc8ffef4a8f36ca26c38fe2de700543e627f8a464a"
 
 [[package]]
+name = "baru"
+version = "0.1.0"
+source = "git+https://github.com/comit-network/baru#369ddf8f957533574db36acef8e121d231ec1f5c"
+dependencies = [
+ "anyhow",
+ "bitcoin_hashes 0.9.6",
+ "elements",
+ "env_logger",
+ "hex",
+ "hmac",
+ "log",
+ "rust_decimal",
+ "secp256k1",
+ "secp256k1-zkp",
+ "serde 1.0.126",
+ "sha2",
+ "thiserror",
+]
+
+[[package]]
 name = "base64"
 version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -208,7 +228,8 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-trait",
- "covenants",
+ "baru",
+ "bitcoin_hashes 0.9.6",
  "diesel",
  "diesel_migrations",
  "directories",
@@ -218,7 +239,7 @@ dependencies = [
  "hex",
  "hmac",
  "http-api-problem",
- "input",
+ "jsonrpc_client",
  "log",
  "mime_guess",
  "reqwest",
@@ -228,7 +249,6 @@ dependencies = [
  "serde_json 1.0.64",
  "sha2",
  "structopt",
- "swap",
  "tempfile",
  "testcontainers",
  "tokio",
@@ -359,29 +379,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ea221b5284a47e40033bf9b66f35f984ec0ea2931eb03505246cd27a963f981b"
 
 [[package]]
-name = "covenants"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "bitcoin_hashes 0.9.6",
- "coin_selection",
- "elements",
- "elements-harness",
- "env_logger",
- "estimate_transaction_size",
- "hex",
- "hmac",
- "input",
- "log",
- "rust_decimal",
- "secp256k1-zkp",
- "serde 1.0.126",
- "sha2",
- "testcontainers",
- "tokio",
-]
-
-[[package]]
 name = "cpufeatures"
 version = "0.1.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -505,24 +502,15 @@ dependencies = [
 [[package]]
 name = "elements-harness"
 version = "0.1.0"
+source = "git+https://github.com/comit-network/elements-harness#0c28948c124d68e828e0f27c9202ba278dc04421"
 dependencies = [
- "anyhow",
- "async-trait",
- "bitcoin_hashes 0.9.6",
- "elements",
- "futures",
  "hex",
  "hmac",
- "jsonrpc_client",
- "log",
  "rand 0.8.3",
  "reqwest",
- "serde 1.0.126",
- "serde_json 1.0.64",
  "sha2",
  "testcontainers",
  "thiserror",
- "tokio",
  "tracing",
  "url",
 ]
@@ -922,15 +910,6 @@ checksum = "824845a0bf897a9042383849b02c1bc219c2383772efcd5c6f9766fa4b81aef3"
 dependencies = [
  "autocfg 1.0.1",
  "hashbrown",
-]
-
-[[package]]
-name = "input"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "elements",
- "serde 1.0.126",
 ]
 
 [[package]]
@@ -2002,23 +1981,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1e81da0851ada1f3e9d4312c704aa4f8806f0f9d69faaf8df2f3464b4a9437c2"
 
 [[package]]
-name = "swap"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "elements",
- "elements-harness",
- "estimate_transaction_size",
- "input",
- "secp256k1",
- "serde 1.0.126",
- "sha2",
- "testcontainers",
- "thiserror",
- "tokio",
-]
-
-[[package]]
 name = "syn"
 version = "1.0.72"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2420,18 +2382,17 @@ version = "0.1.0"
 dependencies = [
  "aes-gcm-siv",
  "anyhow",
+ "baru",
  "bdk",
  "coin_selection",
  "conquer-once",
  "console_error_panic_hook",
- "covenants",
  "elements",
  "estimate_transaction_size",
  "futures",
  "getrandom 0.2.3",
  "hex",
  "hkdf",
- "input",
  "itertools",
  "js-sys",
  "log",
@@ -2443,7 +2404,6 @@ dependencies = [
  "serde 1.0.126",
  "serde_json 1.0.64",
  "sha2",
- "swap",
  "thiserror",
  "wasm-bindgen",
  "wasm-bindgen-futures",

@@ -1,13 +1,15 @@
 use anyhow::Result;
 use bobtimus::{
-    cli::Config, database::Sqlite, fixed_rate, http, liquidate_loans, Bobtimus, LiquidUsdt,
+    cli::Config,
+    database::Sqlite,
+    elements_rpc::{Client, ElementsRpc},
+    fixed_rate, http, liquidate_loans, Bobtimus, LiquidUsdt,
 };
 use elements::{
     bitcoin::{secp256k1::Secp256k1, Amount},
     secp256k1_zkp::rand::{rngs::StdRng, thread_rng, SeedableRng},
     Address,
 };
-use elements_harness::{elementd_rpc::ElementsRpc, Client};
 use std::{collections::HashMap, sync::Arc};
 use tokio::sync::Mutex;
 use warp::{Filter, Rejection, Reply};

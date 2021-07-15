@@ -1,12 +1,10 @@
+use baru::{input::Input, loan::Borrower1, swap::sign_with_key};
 use coin_selection::coin_select;
-use covenants::Borrower1;
 use elements::{
     bitcoin::util::amount::Amount, secp256k1_zkp::SECP256K1, sighash::SigHashCache, OutPoint, Txid,
 };
 use futures::lock::Mutex;
-use input::Input;
 use rand::thread_rng;
-use swap::sign_with_key;
 
 use crate::{
     esplora::{broadcast, fetch_transaction},

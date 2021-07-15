@@ -1,7 +1,6 @@
-use covenants::Borrower1;
+use baru::{loan::Borrower1, swap::sign_with_key};
 use elements::{secp256k1_zkp::SECP256K1, sighash::SigHashCache, Transaction};
 use futures::lock::Mutex;
-use swap::sign_with_key;
 
 use crate::{
     storage::Storage,

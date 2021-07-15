@@ -3,7 +3,7 @@ use crate::{
     wallet::{compute_balances, current, get_txouts, Wallet},
     LoanDetails, BTC_ASSET_ID, USDT_ASSET_ID,
 };
-use covenants::{Borrower0, LoanResponse};
+use baru::loan::{Borrower0, LoanResponse};
 use elements::secp256k1_zkp::SECP256K1;
 use futures::lock::Mutex;
 use wasm_bindgen::UnwrapThrowExt;

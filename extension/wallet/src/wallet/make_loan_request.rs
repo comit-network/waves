@@ -3,12 +3,14 @@ use crate::{
     wallet::{current, get_txouts, Wallet},
     BTC_ASSET_ID, DEFAULT_SAT_PER_VBYTE, USDT_ASSET_ID,
 };
+use baru::{
+    input::Input,
+    loan::{Borrower0, LoanRequest},
+};
 use coin_selection::{self, coin_select};
-use covenants::{Borrower0, LoanRequest};
 use elements::{bitcoin::util::amount::Amount, secp256k1_zkp::SECP256K1, OutPoint};
 use estimate_transaction_size::avg_vbytes;
 use futures::lock::Mutex;
-use input::Input;
 use rand::thread_rng;
 use wasm_bindgen::UnwrapThrowExt;
 
