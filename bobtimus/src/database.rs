@@ -153,7 +153,7 @@ mod tests {
     fn given_no_database_exists_calling_new_creates_it() {
         let path = temp_db();
         // validate assumptions: the db does not exist yet
-        assert_eq!(path.as_path().exists(), false);
+        assert!(!path.as_path().exists());
 
         let db = Sqlite::new(&path);
 
@@ -173,8 +173,8 @@ mod tests {
         // validate assumptions:
         // 1. the db does not exist yet
         // 2. the parent folder does not exist yet
-        assert_eq!(path.as_path().exists(), false);
-        assert_eq!(path.parent().unwrap().exists(), false);
+        assert!(!path.as_path().exists());
+        assert!(!path.parent().unwrap().exists());
 
         let db = Sqlite::new(&path);
 

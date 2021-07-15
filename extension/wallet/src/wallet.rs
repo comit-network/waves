@@ -412,7 +412,7 @@ pub struct LoanDetails {
 }
 
 impl LoanDetails {
-    #[allow(clippy::clippy::too_many_arguments)]
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         collateral_asset: AssetId,
         collateral_amount: Amount,

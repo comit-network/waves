@@ -1,0 +1,4 @@
+[toolchain]
+channel = "1.53"
+components = ["clippy"]
+targets = ["wasm32-unknown-unknown"]
