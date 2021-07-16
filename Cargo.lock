@@ -122,7 +122,8 @@ checksum = "cdb031dd78e28731d87d56cc8ffef4a8f36ca26c38fe2de700543e627f8a464a"
 [[package]]
 name = "baru"
 version = "0.1.0"
-source = "git+https://github.com/comit-network/baru#369ddf8f957533574db36acef8e121d231ec1f5c"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "45a925d16d7755d1f745724754b5812644fc6bcf9f2936de18c9710d707c2f87"
 dependencies = [
  "anyhow",
  "bitcoin_hashes 0.9.6",
