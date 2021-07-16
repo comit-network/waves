@@ -6,6 +6,7 @@ edition = "2018"
 
 [dependencies]
 anyhow = "1"
+async-std = { version = "1", features = [ "attributes", "tokio1" ] }
 async-trait = "0.1"
 baru = "0.1"
 bitcoin_hashes = "0.9.0"
@@ -19,6 +20,7 @@ hex = "0.4"
 hmac = "0.10"
 http-api-problem = { version = "0.21", features = [ "warp" ] }
 jsonrpc_client = { version = "0.6", features = [ "reqwest" ] }
+libp2p = { git = "https://github.com/comit-network/rust-libp2p.git", branch = "rendezvous", default-features = false, features = [ "rendezvous", "tcp-tokio", "yamux", "mplex", "dns-tokio", "noise", "ping", "identify" ] }
 log = "0.4"
 mime_guess = "2.0.3"
 reqwest = "0.11"
@@ -29,7 +31,7 @@ serde_json = "1"
 sha2 = "0.9"
 structopt = "0.3"
 tempfile = "3.2"
-tokio = { version = "1", features = [ "macros", "rt-multi-thread" ] }
+tokio = { version = "1", features = [ "rt-multi-thread", "time", "macros", "sync", "process", "fs", "net", "io-util" ] }
 tokio-tungstenite = { version = "0.13", features = [ "tls" ] }
 tracing = "0.1"
 tracing-subscriber = { version = "0.2", default-features = false, features = [ "env-filter", "fmt", "json" ] }

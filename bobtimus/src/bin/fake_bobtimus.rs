@@ -3,14 +3,17 @@ use bobtimus::{
     cli::Config,
     database::Sqlite,
     elements_rpc::{Client, ElementsRpc},
-    fixed_rate, http, liquidate_loans, Bobtimus, LiquidUsdt,
+    fixed_rate, http, liquidate_loans,
+    rendezvous::start_registration_loop,
+    Bobtimus, LiquidUsdt,
 };
 use elements::{
     bitcoin::{secp256k1::Secp256k1, Amount},
     secp256k1_zkp::rand::{rngs::StdRng, thread_rng, SeedableRng},
     Address,
 };
-use std::{collections::HashMap, sync::Arc};
+use libp2p::{Multiaddr, PeerId};
+use std::{collections::HashMap, str::FromStr, sync::Arc};
 use tokio::sync::Mutex;
 use warp::{Filter, Rejection, Reply};
 
@@ -59,6 +62,27 @@ async fn main() -> Result<()> {
                     }
                 });
 
+            // start libp2p behavior
+            tokio::spawn(async move {
+                let rendezvous_point_peer_id =
+                    PeerId::from_str("12D3KooW9wRxMXDWz9KL3xNUTTy4YjuRSU3hcYk1iqZZ47vAZkgU")
+                        .unwrap();
+                let rendezvous_point_address =
+                    Multiaddr::from_str("/ip4/127.0.0.1/tcp/8080").unwrap();
+                let external_addr = Multiaddr::from_str("/ip4/127.0.0.1/tcp/9090").unwrap();
+                let port = 9090;
+                let _ = start_registration_loop(
+                    rendezvous_point_peer_id,
+                    rendezvous_point_address,
+                    external_addr,
+                    port,
+                    "DEMO_NAMESPACE".to_string(),
+                )
+                .await
+                .expect("To start registration loop");
+            });
+
+            // start http api
             warp::serve(routes.or(faucet).with(cors))
                 .run(([127, 0, 0, 1], api_port))
                 .await;

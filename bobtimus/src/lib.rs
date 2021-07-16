@@ -41,6 +41,7 @@ pub mod http;
 pub mod kraken;
 pub mod models;
 pub mod problem;
+pub mod rendezvous;
 pub mod schema;
 
 pub use amounts::*;
