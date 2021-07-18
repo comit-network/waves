@@ -22,13 +22,8 @@ jobs:
           override: true
           components: clippy
 
-      - name: Install dprint
-        run: |
-          curl -fsSL https://dprint.dev/install.sh | sh
-          echo "/home/runner/.dprint/bin" >> $GITHUB_PATH
-
       - name: Check formatting
-        run: dprint check
+        uses: dprint/check@v1.5
 
       - name: Run clippy with default features
         run: cargo clippy --workspace --all-targets -- -D warnings
