@@ -15,12 +15,7 @@ jobs:
       - name: Checkout sources
         uses: actions/checkout@v2
 
-      - name: Install Rust
-        uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          override: true
-          components: clippy
+      - uses: Swatinem/rust-cache@v1.3.0
 
       - name: Check formatting
         uses: dprint/check@v1.5
@@ -40,6 +35,8 @@ jobs:
     steps:
       - name: Checkout sources
         uses: actions/checkout@v2
+
+      - uses: Swatinem/rust-cache@v1.3.0
 
       - name: Install Nigiri
         run: |
@@ -81,18 +78,7 @@ jobs:
       - name: Checkout sources
         uses: actions/checkout@v2
 
-      - name: Install Rust toolchain
-        uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          override: true
-
-      - name: Cache target directory
-        uses: actions/cache@v2
-        if: matrix.os != 'macos-latest'
-        with:
-          path: target
-          key: ${{ matrix.os }}-target-directory-${{ hashFiles('Cargo.lock') }}-v2
+      - uses: Swatinem/rust-cache@v1.3.0
 
       - name: Cargo test (all workspace)
         if: matrix.os == 'ubuntu-latest'
@@ -129,19 +115,12 @@ jobs:
       - name: Checkout sources
         uses: actions/checkout@v2
 
-      - name: Install Rust toolchain
-        id: toolchain
-        uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          override: true
-          target: wasm32-unknown-unknown
+      - uses: Swatinem/rust-cache@v1.3.0
 
-      - name: Cache target, cargo and wasm-pack directories
+      - name: Cache cargo and wasm-pack directories
         uses: actions/cache@v2
         with:
           path: |
-            target
             ~/.cargo/bin
             ~/.cache/.wasm-pack
           key: ubuntu-rust-${{ steps.toolchain.outputs.rustc_hash }}-wasm-wallet-cargo-and-target-directory-${{ hashFiles('Cargo.lock') }}-v1
