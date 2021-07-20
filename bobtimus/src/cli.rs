@@ -26,7 +26,7 @@ pub enum Command {
         rendezvous_point: Option<Multiaddr>,
         #[structopt(
             long,
-            help = "The address your node is reachable at, i.e. your public IP. Your node will listen on localhost:9090. "
+            help = "The address your node is reachable at, i.e. your public IP. Your node will listen on localhost:9090"
         )]
         external_address: Option<Multiaddr>,
     },
@@ -65,9 +65,7 @@ impl Config {
                 external_address,
             } => {
                 if let (Some(_), None) = (&rendezvous_point, &external_address) {
-                    anyhow::bail!(
-                        "`rendezvous-point` was set but no `external-address` provided. "
-                    );
+                    anyhow::bail!("`rendezvous-point` was set but no `external-address` provided.");
                 }
 
                 Config::Start {
