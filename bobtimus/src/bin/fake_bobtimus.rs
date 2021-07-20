@@ -12,8 +12,8 @@ use elements::{
     secp256k1_zkp::rand::{rngs::StdRng, thread_rng, SeedableRng},
     Address,
 };
-use libp2p::{Multiaddr, PeerId};
-use std::{collections::HashMap, str::FromStr, sync::Arc};
+use libp2p::{identity, identity::ed25519};
+use std::{collections::HashMap, sync::Arc};
 use tokio::sync::Mutex;
 use warp::{Filter, Rejection, Reply};
 
@@ -27,6 +27,8 @@ async fn main() -> Result<()> {
             api_port,
             usdt_asset_id,
             db_file,
+            rendezvous_point,
+            external_address,
         } => {
             let db = Sqlite::new(db_file.as_path())?;
 
@@ -63,24 +65,20 @@ async fn main() -> Result<()> {
                 });
 
             // start libp2p behavior
-            tokio::spawn(async move {
-                let rendezvous_point_peer_id =
-                    PeerId::from_str("12D3KooW9wRxMXDWz9KL3xNUTTy4YjuRSU3hcYk1iqZZ47vAZkgU")
-                        .unwrap();
-                let rendezvous_point_address =
-                    Multiaddr::from_str("/ip4/127.0.0.1/tcp/8080").unwrap();
-                let external_addr = Multiaddr::from_str("/ip4/127.0.0.1/tcp/9090").unwrap();
-                let port = 9090;
-                let _ = start_registration_loop(
-                    rendezvous_point_peer_id,
-                    rendezvous_point_address,
-                    external_addr,
-                    port,
-                    "DEMO_NAMESPACE".to_string(),
-                )
-                .await
-                .expect("To start registration loop");
-            });
+            if let (Some(rendezvous_point), Some(external_address)) =
+                (rendezvous_point, external_address)
+            {
+                tokio::spawn(async move {
+                    let _ = start_registration_loop(
+                        rendezvous_point,
+                        external_address,
+                        //TODO: make the key configurable
+                        identity::Keypair::Ed25519(ed25519::Keypair::generate()),
+                    )
+                    .await
+                    .expect("To start rendezvous registration loop");
+                });
+            }
 
             // start http api
             warp::serve(routes.or(faucet).with(cors))

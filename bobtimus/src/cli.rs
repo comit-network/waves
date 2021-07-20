@@ -2,6 +2,7 @@ use crate::USDT_ASSET_ID;
 use anyhow::{Context, Result};
 use directories::ProjectDirs;
 use elements::AssetId;
+use libp2p::Multiaddr;
 use reqwest::Url;
 use std::path::PathBuf;
 use structopt::StructOpt;
@@ -21,6 +22,13 @@ pub enum Command {
         usdt_asset_id: AssetId,
         #[structopt(short, parse(from_os_str))]
         db_file: Option<PathBuf>,
+        #[structopt(long, help = "Address of the rendezvous point to register with")]
+        rendezvous_point: Option<Multiaddr>,
+        #[structopt(
+            long,
+            help = "The address your node is reachable at, i.e. your public IP. Your node will listen on localhost:9090. "
+        )]
+        external_address: Option<Multiaddr>,
     },
     LiquidateLoans {
         #[structopt(default_value = "http://127.0.0.1:7042", long = "elementsd")]
@@ -36,6 +44,8 @@ pub enum Config {
         api_port: u16,
         usdt_asset_id: AssetId,
         db_file: PathBuf,
+        rendezvous_point: Option<Multiaddr>,
+        external_address: Option<Multiaddr>,
     },
     LiquidateLoans {
         elementsd_url: Url,
@@ -51,12 +61,24 @@ impl Config {
                 api_port,
                 usdt_asset_id,
                 db_file,
-            } => Config::Start {
-                elementsd_url,
-                api_port,
-                usdt_asset_id,
-                db_file: resolve_db_file(db_file)?,
-            },
+                rendezvous_point,
+                external_address,
+            } => {
+                if let (Some(_), None) = (&rendezvous_point, &external_address) {
+                    anyhow::bail!(
+                        "`rendezvous-point` was set but no `external-address` provided. "
+                    );
+                }
+
+                Config::Start {
+                    elementsd_url,
+                    api_port,
+                    usdt_asset_id,
+                    db_file: resolve_db_file(db_file)?,
+                    rendezvous_point,
+                    external_address,
+                }
+            }
             Command::LiquidateLoans {
                 elementsd_url,
                 db_file,

@@ -10,8 +10,8 @@ use libp2p::{
     dns::TokioDnsConfig,
     futures::StreamExt,
     identity,
-    identity::ed25519::Keypair,
     mplex::MplexConfig,
+    multiaddr::Protocol,
     noise,
     noise::{NoiseConfig, X25519Spec},
     ping::PingEvent,
@@ -45,14 +45,15 @@ impl From<PingEvent> for Event {
     }
 }
 
+const RENDEZVOUS_NAMESPACE: &str = "COMIT_LOANS";
+const LOCAL_PORT: u16 = 9090;
+
 pub async fn start_registration_loop(
-    rendezvous_point_peer_id: PeerId,
     rendezvous_point_address: Multiaddr,
     external_addr: Multiaddr,
-    listen_port: u16,
-    namespace: String,
+    identity: identity::Keypair,
 ) -> Result<()> {
-    let identity = identity::Keypair::Ed25519(Keypair::generate());
+    let rendezvous_point_peer_id = extract_peer_id(&rendezvous_point_address)?;
 
     let tcp_with_dns = TokioDnsConfig::system(TokioTcpConfig::new().nodelay(true)).unwrap();
 
@@ -64,7 +65,7 @@ pub async fn start_registration_loop(
         identity,
         rendezvous_point_peer_id,
         rendezvous_point_address.clone(),
-        namespace.clone(),
+        RENDEZVOUS_NAMESPACE.to_string(),
     );
 
     let mut swarm = SwarmBuilder::new(transport, behaviour, peer_id)
@@ -75,7 +76,11 @@ pub async fn start_registration_loop(
 
     tracing::info!("Local peer id: {}", swarm.local_peer_id());
 
-    let _ = swarm.listen_on(format!("/ip4/0.0.0.0/tcp/{}", listen_port).parse().unwrap());
+    let _ = swarm.listen_on(
+        format!("/ip4/127.0.0.1/tcp/{}", LOCAL_PORT)
+            .parse()
+            .unwrap(),
+    );
 
     let _ = swarm.add_external_address(external_addr, AddressScore::Infinite);
 
@@ -357,4 +362,41 @@ where
         .boxed();
 
     Ok(transport)
+}
+
+fn extract_peer_id(multiaddress: &Multiaddr) -> Result<PeerId> {
+    let vec = multiaddress.iter().collect::<Vec<_>>();
+    match vec.as_slice() {
+        [.., Protocol::P2p(peer_id_hash)] => PeerId::from_multihash(*peer_id_hash)
+            .map_err(|_| anyhow::anyhow!("Could not parse multihash")),
+
+        _ => Err(anyhow::anyhow!("No peer id found")),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::str::FromStr;
+
+    #[test]
+    fn extract_peer_id_from_multiaddress() {
+        let should_peer_id =
+            PeerId::from_str("12D3KooW9wRxMXDWz9KL3xNUTTy4YjuRSU3hcYk1iqZZ47vAZkgU").unwrap();
+        let multiaddress = Multiaddr::from_str(
+            "/ip4/127.0.0.1/tcp/8080/p2p/12D3KooW9wRxMXDWz9KL3xNUTTy4YjuRSU3hcYk1iqZZ47vAZkgU",
+        )
+        .unwrap();
+
+        let is_peer_id = extract_peer_id(&multiaddress).unwrap();
+        assert_eq!(is_peer_id, should_peer_id);
+    }
+
+    #[test]
+    fn fail_if_no_peer_id_is_in_multiaddress() {
+        let multiaddress = Multiaddr::from_str("/ip4/127.0.0.1/tcp/8080").unwrap();
+
+        let is_error = extract_peer_id(&multiaddress);
+        assert!(is_error.is_err());
+    }
 }
