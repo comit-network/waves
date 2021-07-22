@@ -4,6 +4,7 @@ const webpack = require("webpack");
 
 module.exports = function override(config, env) {
     config.entry.in_page = path.join(__dirname, "src", "in-page", "index.ts");
+    config.entry.extensionPage = path.join(__dirname, "src", "extensionPage", "index.tsx");
 
     config.resolve.extensions.push(".wasm");
 

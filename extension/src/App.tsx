@@ -1,4 +1,4 @@
-import { SettingsIcon } from "@chakra-ui/icons";
+import { ExternalLinkIcon, SettingsIcon } from "@chakra-ui/icons";
 import { Box, Center, ChakraProvider, Heading, IconButton } from "@chakra-ui/react";
 import { faBug } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
@@ -58,6 +58,16 @@ const App = () => {
                     aria-label="Settings"
                     icon={<SettingsIcon />}
                     onClick={() => browser.runtime.openOptionsPage()}
+                />
+                <IconButton
+                    aria-label="Extend"
+                    icon={<ExternalLinkIcon />}
+                    onClick={async () => {
+                        await browser.tabs.create({
+                            url: "home.html",
+                        });
+                        window.close();
+                    }}
                 />
                 {walletStatus?.status === Status.Loaded
                     && <>
