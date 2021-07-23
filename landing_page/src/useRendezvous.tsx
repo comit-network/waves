@@ -11,8 +11,9 @@ import { rendezvous } from "./proto";
 
 const protocols = ["/rendezvous/1.0.0"];
 
-const RENDEZVOUS_NODE_ADDR = "/ip4/127.0.0.1/tcp/7740/ws";
-const RENDEZVOUS_NODE_PEER_ID = "12D3KooWBhi3snUnzX8pTQQiRV5o6FtJXjoHT2D9dSZyJY2Z9L9E";
+// Currently configure to waves own rendezvous instance for testing
+const RENDEZVOUS_NODE_ADDR = "/dns4/rendezvous.coblox.tech/tcp/9961/wss";
+const RENDEZVOUS_NODE_PEER_ID = "12D3KooWJwDRoLzZw7wgJR3z7Eb8AhK79ixowPF5FwA74SfnoiNz";
 
 export function getPeerId(): PeerId {
     return PeerId.createFromB58String(RENDEZVOUS_NODE_PEER_ID);
@@ -40,8 +41,8 @@ export class Rendezvous {
             config: {
                 transport: {
                     [transportKey]: {
-                        // in order to allow IP-addresses as part of the multiaddress we set the filters to all
-                        filter: filters.all,
+                        // note: in case connection to IP is needed for dev purposes filter has to be changed to `all`
+                        filter: filters.dnsWss,
                     },
                 },
             },
