@@ -36,11 +36,11 @@ pub async fn load_existing(
     scrypt::scrypt_check(&password, &stored_password)
         .with_context(|| format!("bad password for wallet '{}'", name))?;
 
-    let sk_ciphertext = storage
-        .get_item::<String>(&format!("wallets.{}.secret_key", name))?
-        .context("no secret key for wallet")?;
+    let xprv_ciphertext = storage
+        .get_item::<String>(&format!("wallets.{}.xprv", name))?
+        .context("no xprv key for wallet")?;
 
-    let wallet = Wallet::initialize_existing(name, password, sk_ciphertext)?;
+    let wallet = Wallet::initialize_existing(name, password, xprv_ciphertext)?;
 
     guard.replace(wallet);
 

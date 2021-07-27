@@ -48,9 +48,14 @@ export async function getWalletStatus(): Promise<WalletStatus> {
     return proxy.getWalletStatus();
 }
 
-export async function createWallet(password: string): Promise<void> {
+export async function createWalletFromBip39(seed_words: string, password: string): Promise<void> {
     // @ts-ignore
-    return proxy.createWallet(password);
+    return proxy.createWalletFromBip39(seed_words, password);
+}
+
+export async function bip39SeedWords(): Promise<string> {
+    // @ts-ignore
+    return proxy.bip39SeedWords();
 }
 
 export async function unlockWallet(password: string): Promise<void> {

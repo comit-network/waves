@@ -15,6 +15,8 @@ aes-gcm-siv = { version = "0.9", features = [ "std" ] }
 anyhow = "1"
 baru = "0.1"
 bdk = { version = "0.4", default-features = false }
+bip32 = { version = "0.2", features = [ "secp256k1" ] }
+bip39 = { version = "1", features = [ "rand" ] }
 coin_selection = { path = "../../coin_selection" }
 conquer-once = "0.3"
 console_error_panic_hook = { version = "0.1.6", optional = true }

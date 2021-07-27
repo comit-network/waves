@@ -18,12 +18,12 @@ import AddressQr from "./components/AddressQr";
 import WalletBalances from "./components/Balances";
 import ConfirmLoan from "./components/ConfirmLoan";
 import ConfirmSwap from "./components/ConfirmSwap";
-import UnlockWallet from "./components/UnlockWallet";
+import CreateWallet from "./components/CreateWallet";
 import OpenLoans from "./components/OpenLoans";
+import UnlockWallet from "./components/UnlockWallet";
 import WithdrawAll from "./components/WithdrawAll";
 import { Status } from "./models";
 import theme from "./theme";
-import CreateWallet from "./components/CreateWallet";
 
 const App = () => {
     const walletStatusHook = useAsync({ promiseFn: getWalletStatus });
