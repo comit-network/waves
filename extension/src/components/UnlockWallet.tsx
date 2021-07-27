@@ -49,7 +49,6 @@ function UnlockWallet({ onUnlock }: UnlockWalletProps) {
                                 h="1.75rem"
                                 size="sm"
                                 onClick={handleClick}
-                                data-cy={"data-cy-unlock-wallet-button"}
                             >
                                 {show ? "Hide" : "Show"}
                             </Button>
