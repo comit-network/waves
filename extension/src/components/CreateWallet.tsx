@@ -9,12 +9,11 @@ import { Status } from "../models";
 Debug.enable("*");
 const debug = Debug("unlock-wallet");
 
-type CreateOrUnlockWalletProps = {
+type CreateWalletProps = {
     onUnlock: () => void;
-    status: Status;
 };
 
-function CreateOrUnlockWallet({ onUnlock, status }: CreateOrUnlockWalletProps) {
+function CreateWallet({ onUnlock }: CreateWalletProps) {
     const [show, setShow] = React.useState(false);
     const [password, setPassword] = useState("");
     const onPasswordChange = (event: ChangeEvent<HTMLInputElement>) => setPassword(event.target.value);
@@ -22,14 +21,10 @@ function CreateOrUnlockWallet({ onUnlock, status }: CreateOrUnlockWalletProps) {
 
     let { run, isPending, isRejected } = useAsync({
         deferFn: async () => {
-            if (status === Status.None) {
-                await createWallet(password);
-            } else if (status === Status.NotLoaded) {
-                await unlockWallet(password);
-            }
+            await createWallet(password);
             onUnlock();
         },
-        onReject: (e) => debug("Failed to unlock wallet: %s", e),
+        onReject: (e) => debug("Failed to create wallet: %s", e),
     });
 
     return (
@@ -61,7 +56,7 @@ function CreateOrUnlockWallet({ onUnlock, status }: CreateOrUnlockWalletProps) {
                             </Button>
                         </InputRightElement>
                     </InputGroup>
-                    <FormErrorMessage>Failed to unlock wallet. Wrong password?</FormErrorMessage>
+                    <FormErrorMessage>Failed to create wallet. Wrong password?</FormErrorMessage>
                 </FormControl>
                 <Button
                     type="submit"
@@ -69,12 +64,11 @@ function CreateOrUnlockWallet({ onUnlock, status }: CreateOrUnlockWalletProps) {
                     isLoading={isPending}
                     data-cy={"data-cy-create-or-unlock-wallet-button"}
                 >
-                    {status === Status.None && "Create"}
-                    {status === Status.NotLoaded && "Unlock"}
+                    {"Create"}
                 </Button>
             </form>
         </>
     );
 }
 
-export default CreateOrUnlockWallet;
+export default CreateWallet;
