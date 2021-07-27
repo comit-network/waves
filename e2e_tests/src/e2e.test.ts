@@ -21,7 +21,7 @@ describe("webdriver", () => {
 
     beforeAll(async () => {
         const service = new firefox.ServiceBuilder(firefoxPath);
-        const options = new firefox.Options().headless();
+        const options = new firefox.Options();
 
         driver = new Builder()
             .setFirefoxService(service)
@@ -71,7 +71,7 @@ describe("webdriver", () => {
     }
 
     async function switchToWindow(name: string) {
-        await driver.switchTo().window(await getWindowHandle(name));
+        // await driver.switchTo().window(await getWindowHandle(name));
     }
 
     test("Create wallet", async () => {
@@ -80,15 +80,35 @@ describe("webdriver", () => {
         await switchToWindow(extensionTitle);
 
         debug("Choosing password");
-        let password = "foo";
 
+        let step1 = await getElementById(driver, "//button[@data-cy='data-cy-create-wallet-step-1']");
+        await step1.click();
+
+        let mnemonic = "bargain pretty shop spy travel toilet hero ridge critic race weapon elbow";
+
+        let mnemonicInput = await getElementById(driver, "//textarea[@data-cy='data-cy-create-wallet-mnemonic-input']");
+        await mnemonicInput.sendKeys(mnemonic);
+
+        let checkBox = await getElementById(driver, "//label[@data-cy='data-cy-create-wallet-checkbox-input']");
+        await checkBox.click();
+
+        let step2 = await getElementById(driver, "//button[@data-cy='data-cy-create-wallet-step-2']");
+        await step2.click();
+
+        let mnemonicConfirmationInput = await getElementById(
+            driver,
+            "//textarea[@data-cy='data-cy-create-wallet-mnemonic-input-confirmation']",
+        );
+        await mnemonicConfirmationInput.sendKeys(mnemonic);
+
+        let password = "foo";
         let passwordInput = await getElementById(driver, "//input[@data-cy='data-cy-create-wallet-password-input']");
         await passwordInput.sendKeys(password);
 
         debug("Creating wallet");
         let createWalletButton = await getElementById(
             driver,
-            "//button[@data-cy='data-cy-create-or-unlock-wallet-button']",
+            "//button[@data-cy='data-cy-create-wallet-button']",
         );
         await createWalletButton.click();
 

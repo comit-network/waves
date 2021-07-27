@@ -60,7 +60,7 @@ function CreateWallet({ onUnlock }: CreateWalletProps) {
         <Accordion>
             <AccordionItem>
                 <h2>
-                    <AccordionButton>
+                    <AccordionButton data-cy={"data-cy-create-wallet-step-1"}>
                         <Box flex="1" textAlign="left">
                             Generate seed words
                         </Box>
@@ -72,6 +72,7 @@ function CreateWallet({ onUnlock }: CreateWalletProps) {
                         placeholder={seedWords}
                         value={seedWords}
                         isInvalid={generatingSeedWordsFailed}
+                        data-cy={"data-cy-create-wallet-mnemonic-input"}
                         onChange={(event) => setSeedWords(event.target.value)}
                     />
                     <IconButton
@@ -82,7 +83,11 @@ function CreateWallet({ onUnlock }: CreateWalletProps) {
                             newSeedWords();
                         }}
                     />
-                    <Checkbox isChecked={backedUp} onChange={_ => setBackedUp(!backedUp)}>
+                    <Checkbox
+                        isChecked={backedUp}
+                        onChange={_ => setBackedUp(!backedUp)}
+                        data-cy={"data-cy-create-wallet-checkbox-input"}
+                    >
                         I confirm that I have a secure backup of the seed words
                     </Checkbox>
                 </AccordionPanel>
@@ -90,7 +95,7 @@ function CreateWallet({ onUnlock }: CreateWalletProps) {
 
             <AccordionItem isDisabled={!backedUp}>
                 <h2>
-                    <AccordionButton>
+                    <AccordionButton data-cy={"data-cy-create-wallet-step-2"}>
                         <Box flex="1" textAlign="left">
                             Confirm seed words
                         </Box>
@@ -109,6 +114,7 @@ function CreateWallet({ onUnlock }: CreateWalletProps) {
                             placeholder={"Your seed words..."}
                             value={backedUpSeedWords}
                             onChange={(event) => setBackedUpSeedWords(event.target.value)}
+                            data-cy={"data-cy-create-wallet-mnemonic-input-confirmation"}
                         />
                         <FormControl id="password" isInvalid={createWalletIsRejected}>
                             <InputGroup size="md">
