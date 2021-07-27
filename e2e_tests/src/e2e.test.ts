@@ -20,6 +20,7 @@ describe("e2e tests", () => {
     let extensionTitle: string;
 
     beforeAll(async () => {
+        const debug = Debug("e2e-setup");
         const service = new firefox.ServiceBuilder(firefoxPath);
         const options = new firefox.Options();
 
@@ -53,6 +54,44 @@ describe("e2e tests", () => {
         let extensionUrl = `moz-extension://${extensionId}/popup.html`;
         await driver.get(`${extensionUrl}`);
         extensionTitle = await driver.getTitle();
+        // set testing wallet.
+        // seed words are: `bargain pretty shop spy travel toilet hero ridge critic race weapon elbow`
+        // wallet password is: `foo`.
+        // address is: `el1qqvq7q42zu99ky2g7n3hmh0yfr8eru0sxk6tutl3hlv240rd8rxyqrsukpsvsqdzc84dvmv6atmzp3f3hassdgmyx5cafy30dp`
+        await driver.executeScript("return window.localStorage.setItem('wallets','demo');");
+        await driver.executeScript(
+            "return window.localStorage.setItem('wallets.demo.password','$rscrypt$0$DwgB$fh5CD4WuA/JSKKnclw+Orw==$x3aZgNLWV8QzMPOffn+z7otM1/Up2yyrBgFLDkCNMoI=$');",
+        );
+        await driver.executeScript(
+            "return window.localStorage.setItem('wallets.demo.xprv','71dc4a79771da7a28e2ff1a805be3efd5fba436eb9280de0fe410297199e4975$7388ec81fed12d71b385216e48726f23dd863babbbe897af8486d08715776a5b12c8606704d4c00590899619d65cffe324293e8dc639deb0185db15f7f386db231453b78a9f7011af5ad75e113482506655ea2301b24ad0c14c6ddbe1224d2131bf647a74ed54b8befb76a0f0a90163d403a7a1a3976247302718be379619b');",
+        );
+
+        let faucetUrl =
+            `http://localhost:3030/api/faucet/el1qqvq7q42zu99ky2g7n3hmh0yfr8eru0sxk6tutl3hlv240rd8rxyqrsukpsvsqdzc84dvmv6atmzp3f3hassdgmyx5cafy30dp`;
+        let response = await fetch(faucetUrl, {
+            method: "POST",
+        });
+        assert(response.ok);
+
+        await driver.navigate().refresh();
+
+        // unlock wallet
+        debug("Unlocking wallet");
+        let password = "foo";
+        let passwordInput = await getElementById(driver, "//input[@data-cy='data-cy-unlock-wallet-password-input']");
+        await passwordInput.sendKeys(password);
+
+        let unlockWalletButton = await getElementById(driver, "//button[@data-cy='data-cy-unlock-wallet-button']");
+        await unlockWalletButton.click();
+
+        debug("Getting wallet address");
+        let addressField = await getElementById(driver, "//p[@data-cy='data-cy-wallet-address-text-field']");
+        let address = await addressField.getText();
+        debug(`Address found: ${address}`);
+        assert(
+            "el1qqvq7q42zu99ky2g7n3hmh0yfr8eru0sxk6tutl3hlv240rd8rxyqrsukpsvsqdzc84dvmv6atmzp3f3hassdgmyx5cafy30dp"
+                === address,
+        );
     }, 20000);
 
     afterAll(async () => {
