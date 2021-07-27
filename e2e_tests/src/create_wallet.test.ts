@@ -1,10 +1,8 @@
 import * as assert from "assert";
 import Debug from "debug";
 import fetch from "node-fetch";
-import { Builder, By, until } from "selenium-webdriver";
-
-const firefox = require("selenium-webdriver/firefox");
-const firefoxPath = require("geckodriver").path;
+import { By, until } from "selenium-webdriver";
+import { setupBrowserWithExtension, switchToWindow } from "./utils";
 
 const getElementById = async (driver, xpath, timeout = 4000) => {
     const el = await driver.wait(until.elementLocated(By.xpath(xpath)), timeout);
@@ -20,64 +18,22 @@ describe("webdriver", () => {
     let extensionTitle: string;
 
     beforeAll(async () => {
-        const service = new firefox.ServiceBuilder(firefoxPath);
-        const options = new firefox.Options();
-
-        driver = new Builder()
-            .setFirefoxService(service)
-            .forBrowser("firefox")
-            .setFirefoxOptions(options)
-            .build();
-
-        await driver.get(webAppUrl);
-
-        await driver.installAddon("../extension/zip/waves_wallet-0.0.1.zip", true);
-
-        // this probably works forever unless we change something and then it won't work anymore
-        await driver.get("about:debugging#/runtime/this-firefox");
-        const extensionElement = await getElementById(
-            driver,
-            "//span[contains(text(),'waves_wallet')]//"
-                + "parent::li/section/dl/div//dt[contains(text(),'Internal UUID')]/following-sibling::dd",
-        );
-        extensionId = await extensionElement.getText();
-
-        // load webapp again
-        await driver.get(webAppUrl);
-        webAppTitle = await driver.getTitle();
-
-        // Opens a new tab and switches to new tab
-        await driver.switchTo().newWindow("tab");
-
-        // Open extension
-        let extensionUrl = `moz-extension://${extensionId}/popup.html`;
-        await driver.get(`${extensionUrl}`);
-        extensionTitle = await driver.getTitle();
+        let { driver: d, extensionId: eId, extensionTitle: eTitle, webAppTitle: wTitle } =
+            await setupBrowserWithExtension(webAppUrl);
+        driver = d;
+        extensionId = eId;
+        extensionTitle = eTitle;
+        webAppTitle = wTitle;
     }, 20000);
 
     afterAll(async () => {
         await driver.quit();
     });
 
-    async function getWindowHandle(name: string) {
-        let allWindowHandles = await driver.getAllWindowHandles();
-        for (const windowHandle of allWindowHandles) {
-            await driver.switchTo().window(windowHandle);
-            const title = await driver.getTitle();
-            if (title === name) {
-                return windowHandle;
-            }
-        }
-    }
-
-    async function switchToWindow(name: string) {
-        await driver.switchTo().window(await getWindowHandle(name));
-    }
-
     test("Create wallet", async () => {
         const debug = Debug("e2e-create");
 
-        await switchToWindow(extensionTitle);
+        await switchToWindow(driver, extensionTitle);
 
         debug("Choosing password");
 
