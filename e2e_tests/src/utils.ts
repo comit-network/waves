@@ -96,15 +96,6 @@ const unlockWallet = async (driver: WebDriver, extensionTitle: string) => {
 
     let unlockWalletButton = await getElementById(driver, "//button[@data-cy='data-cy-unlock-wallet-button']");
     await unlockWalletButton.click();
-
-    debug("Getting wallet address");
-    let addressField = await getElementById(driver, "//p[@data-cy='data-cy-wallet-address-text-field']");
-    let address = await addressField.getText();
-    debug(`Address found: ${address}`);
-    assert(
-        "el1qqvq7q42zu99ky2g7n3hmh0yfr8eru0sxk6tutl3hlv240rd8rxyqrsukpsvsqdzc84dvmv6atmzp3f3hassdgmyx5cafy30dp"
-            === address,
-    );
 };
 
 async function getWindowHandle(driver: WebDriver, name: string) {
