@@ -54,6 +54,7 @@ echo "Bitcoin Asset ID: "$btc_asset_id
     cargo build --bin fake_bobtimus
     RUST_LOG=debug,hyper=info,reqwest=info cargo run --bin fake_bobtimus -- \
             start \
+            --http 127.0.0.1:3030 \
             --elementsd http://admin1:123@localhost:18884 \
             --usdt $usdt_asset_id > e2e_tests/bobtimus.log 2>&1 &
 )

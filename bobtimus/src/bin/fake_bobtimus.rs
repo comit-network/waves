@@ -1,4 +1,4 @@
-use anyhow::Result;
+use anyhow::{bail, Result};
 use bobtimus::{
     cli::Config,
     database::Sqlite,
@@ -21,9 +21,10 @@ async fn main() -> Result<()> {
     match Config::parse()? {
         Config::Start {
             elementsd_url,
-            api_port,
+            http,
             usdt_asset_id,
             db_file,
+            https,
         } => {
             let db = Sqlite::new(db_file.as_path())?;
 
@@ -59,9 +60,15 @@ async fn main() -> Result<()> {
                     }
                 });
 
-            warp::serve(routes.or(faucet).with(cors))
-                .run(([127, 0, 0, 1], api_port))
-                .await;
+            if https.is_some() {
+                bail!("Fake Bobtimus is not configured to run on https");
+            }
+
+            if let Some(listen_http) = http {
+                warp::serve(routes.or(faucet).with(cors))
+                    .run(listen_http)
+                    .await;
+            }
         }
         Config::LiquidateLoans {
             elementsd_url,
