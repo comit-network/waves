@@ -31,9 +31,7 @@ type CreateWalletProps = {
 
 function CreateWallet({ onUnlock }: CreateWalletProps) {
     const [backedUp, setBackedUp] = useState(false);
-    const [seedWords, setSeedWords] = useState(
-        "chase prevent symptom panel promote short tray cigar wonder vanish sustain hurry",
-    );
+    const [seedWords, setSeedWords] = useState("");
     const [backedUpSeedWords, setBackedUpSeedWords] = useState("");
     const [show, setShow] = useState(false);
     const [password, setPassword] = useState("");
@@ -69,7 +67,7 @@ function CreateWallet({ onUnlock }: CreateWalletProps) {
                 </h2>
                 <AccordionPanel pb={4}>
                     <Textarea
-                        placeholder={seedWords}
+                        placeholder={"Hit generate to create your seed word list..."}
                         value={seedWords}
                         isInvalid={generatingSeedWordsFailed}
                         data-cy={"data-cy-create-wallet-mnemonic-input"}
