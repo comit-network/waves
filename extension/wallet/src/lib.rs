@@ -98,7 +98,7 @@ pub fn bip39_seed_words() -> Result<JsValue, JsValue> {
 
 /// Create a new wallet from the given seed words (mnemonic) with the given name and password.
 ///
-/// Fails if a the seed words are invalid or if the wallet with this name already exists.
+/// Fails if the seed words are invalid or if the wallet with this name already exists.
 /// The created wallet will be automatically loaded.
 #[wasm_bindgen]
 pub async fn create_new_bip39_wallet(
