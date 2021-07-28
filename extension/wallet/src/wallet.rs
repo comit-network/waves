@@ -38,7 +38,8 @@ use std::{
 };
 use wasm_bindgen::UnwrapThrowExt;
 
-pub use create_new::create_new;
+use bip32::{Prefix, XPrv};
+pub use create_new::{bip39_seed_words, create_from_bip39};
 pub use extract_loan::{extract_loan, Error as ExtractLoanError};
 pub use extract_trade::{extract_trade, Trade};
 pub use get_address::get_address;
@@ -53,6 +54,7 @@ pub use make_loan_request::{make_loan_request, Error as MakeLoanRequestError};
 pub use repay_loan::{repay_loan, Error as RepayLoanError};
 pub(crate) use sign_and_send_swap_transaction::sign_and_send_swap_transaction;
 pub(crate) use sign_loan::sign_loan;
+use std::str::FromStr;
 pub use unload_current::unload_current;
 pub use withdraw_everything_to::withdraw_everything_to;
 
@@ -115,34 +117,39 @@ pub struct Wallet {
     name: String,
     encryption_key: [u8; 32],
     secret_key: SecretKey,
+    xprv: XPrv,
     sk_salt: [u8; 32],
 }
 
 const SECRET_KEY_ENCRYPTION_NONCE: &[u8; 12] = b"SECRET_KEY!!";
 
 impl Wallet {
-    pub fn initialize_new(name: String, password: String, secret_key: SecretKey) -> Result<Self> {
+    pub fn initialize_new(name: String, password: String, root_xprv: XPrv) -> Result<Self> {
         let sk_salt = thread_rng().gen::<[u8; 32]>();
 
         let encryption_key = Self::derive_encryption_key(&password, &sk_salt)?;
 
+        // TODO: derive key according to some derivation path
+        let secret_key = root_xprv.to_bytes();
+
         Ok(Self {
             name,
             encryption_key,
-            secret_key,
             sk_salt,
+            secret_key: SecretKey::from_slice(&secret_key)?,
+            xprv: root_xprv,
         })
     }
 
     pub fn initialize_existing(
         name: String,
         password: String,
-        sk_ciphertext: String,
+        xprv_ciphertext: String,
     ) -> Result<Self> {
-        let mut parts = sk_ciphertext.split('$');
+        let mut parts = xprv_ciphertext.split('$');
 
         let salt = parts.next().context("no salt in cipher text")?;
-        let sk = parts.next().context("no secret key in cipher text")?;
+        let xprv = parts.next().context("no secret key in cipher text")?;
 
         let mut sk_salt = [0u8; 32];
         hex::decode_to_slice(salt, &mut sk_salt).context("failed to decode salt as hex")?;
@@ -151,19 +158,26 @@ impl Wallet {
 
         let cipher = Aes256GcmSiv::new(GenericArray::from_slice(&encryption_key));
         let nonce = GenericArray::from_slice(SECRET_KEY_ENCRYPTION_NONCE);
-        let sk = cipher
+        let xprv = cipher
             .decrypt(
                 nonce,
-                hex::decode(sk)
-                    .context("failed to decode sk as hex")?
+                hex::decode(xprv)
+                    .context("failed to decode xpk as hex")?
                     .as_slice(),
             )
             .context("failed to decrypt secret key")?;
 
+        let xprv = String::from_utf8(xprv)?;
+        let root_xprv = XPrv::from_str(xprv.as_str())?;
+
+        // TODO: derive key according to some derivation path
+        let secret_key = root_xprv.to_bytes();
+
         Ok(Self {
             name,
             encryption_key,
-            secret_key: SecretKey::from_slice(&sk).context("invalid secret key")?,
+            secret_key: SecretKey::from_slice(&secret_key)?,
+            xprv: root_xprv,
             sk_salt,
         })
     }
@@ -190,18 +204,19 @@ impl Wallet {
         )
     }
 
-    /// Encrypts the secret key with the encryption key.
+    /// Encrypts the extended private key with the encryption key.
     ///
     /// # Choice of nonce
     ///
-    /// We store the secret key on disk and as such have to use a constant nonce, otherwise we would not be able to decrypt it again.
+    /// We store the extended private key on disk and as such have to use a constant nonce, otherwise we would not be able to decrypt it again.
     /// The encryption only happens once and as such, there is conceptually only one message and we are not "reusing" the nonce which would be insecure.
-    fn encrypted_secret_key(&self) -> Result<Vec<u8>> {
+    fn encrypted_xprv_key(&self) -> Result<Vec<u8>> {
         let cipher = Aes256GcmSiv::new(&GenericArray::from_slice(&self.encryption_key));
+        let xprv = &self.xprv.to_string(Prefix::XPRV);
         let enc_sk = cipher
             .encrypt(
                 GenericArray::from_slice(SECRET_KEY_ENCRYPTION_NONCE),
-                &self.secret_key[..],
+                xprv.as_bytes(),
             )
             .context("failed to encrypt secret key")?;
 
@@ -450,8 +465,22 @@ mod browser_tests {
     use wasm_bindgen_test::*;
 
     use super::*;
+    use bip39::Mnemonic;
+    use std::str::FromStr;
 
     wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
+
+    async fn create_new(
+        name: String,
+        password: String,
+        current_wallet: &Mutex<Option<Wallet>>,
+    ) -> Result<()> {
+        let mnemonic = Mnemonic::from_str(
+            "bargain pretty shop spy travel toilet hero ridge critic race weapon elbow",
+        )
+        .unwrap();
+        create_from_bip39(name, mnemonic, password, current_wallet).await
+    }
 
     fn set_elements_chain_in_local_storage() {
         crate::Storage::local_storage()

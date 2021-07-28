@@ -79,7 +79,7 @@ start_bobtimus () {
     fi
 
     if [ ! -f ".usdt_asset_id" ]; then
-        echo "Usdt asset id not configured. Did you run `mint_usdt`?"
+        echo "Usdt asset id not configured. Did you run mint_usdt?"
         exit 1
     fi
 

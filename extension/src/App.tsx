@@ -18,8 +18,9 @@ import AddressQr from "./components/AddressQr";
 import WalletBalances from "./components/Balances";
 import ConfirmLoan from "./components/ConfirmLoan";
 import ConfirmSwap from "./components/ConfirmSwap";
-import CreateOrUnlockWallet from "./components/CreateOrUnlockWallet";
+import CreateWallet from "./components/CreateWallet";
 import OpenLoans from "./components/OpenLoans";
+import UnlockWallet from "./components/UnlockWallet";
 import WithdrawAll from "./components/WithdrawAll";
 import { Status } from "./models";
 import theme from "./theme";
@@ -87,18 +88,15 @@ const App = () => {
                 {walletStatus?.status === Status.NotLoaded
                     && <>
                         <Heading>Unlock Wallet</Heading>
-                        <CreateOrUnlockWallet
+                        <UnlockWallet
                             onUnlock={refreshAll}
-                            status={Status.NotLoaded}
                         />
                     </>}
-
                 {walletStatus?.status === Status.None
                     && <>
                         <Heading>Create Wallet</Heading>
-                        <CreateOrUnlockWallet
+                        <CreateWallet
                             onUnlock={refreshAll}
-                            status={Status.None}
                         />
                     </>}
                 {!walletStatus && error

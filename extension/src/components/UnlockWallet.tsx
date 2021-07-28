@@ -3,18 +3,16 @@ import Debug from "debug";
 import * as React from "react";
 import { ChangeEvent, useState } from "react";
 import { useAsync } from "react-async";
-import { createWallet, unlockWallet } from "../background-proxy";
-import { Status } from "../models";
+import { unlockWallet } from "../background-proxy";
 
 Debug.enable("*");
 const debug = Debug("unlock-wallet");
 
-type CreateOrUnlockWalletProps = {
+type UnlockWalletProps = {
     onUnlock: () => void;
-    status: Status;
 };
 
-function CreateOrUnlockWallet({ onUnlock, status }: CreateOrUnlockWalletProps) {
+function UnlockWallet({ onUnlock }: UnlockWalletProps) {
     const [show, setShow] = React.useState(false);
     const [password, setPassword] = useState("");
     const onPasswordChange = (event: ChangeEvent<HTMLInputElement>) => setPassword(event.target.value);
@@ -22,11 +20,7 @@ function CreateOrUnlockWallet({ onUnlock, status }: CreateOrUnlockWalletProps) {
 
     let { run, isPending, isRejected } = useAsync({
         deferFn: async () => {
-            if (status === Status.None) {
-                await createWallet(password);
-            } else if (status === Status.NotLoaded) {
-                await unlockWallet(password);
-            }
+            await unlockWallet(password);
             onUnlock();
         },
         onReject: (e) => debug("Failed to unlock wallet: %s", e),
@@ -48,14 +42,13 @@ function CreateOrUnlockWallet({ onUnlock, status }: CreateOrUnlockWalletProps) {
                             placeholder="Enter password"
                             value={password}
                             onChange={onPasswordChange}
-                            data-cy={"data-cy-create-wallet-password-input"}
+                            data-cy={"data-cy-unlock-wallet-password-input"}
                         />
                         <InputRightElement width="4.5rem">
                             <Button
                                 h="1.75rem"
                                 size="sm"
                                 onClick={handleClick}
-                                data-cy={"data-cy-create-wallet-button"}
                             >
                                 {show ? "Hide" : "Show"}
                             </Button>
@@ -67,14 +60,13 @@ function CreateOrUnlockWallet({ onUnlock, status }: CreateOrUnlockWalletProps) {
                     type="submit"
                     variant="solid"
                     isLoading={isPending}
-                    data-cy={"data-cy-create-or-unlock-wallet-button"}
+                    data-cy={"data-cy-unlock-wallet-button"}
                 >
-                    {status === Status.None && "Create"}
-                    {status === Status.NotLoaded && "Unlock"}
+                    {"Unlock"}
                 </Button>
             </form>
         </>
     );
 }
 
-export default CreateOrUnlockWallet;
+export default UnlockWallet;

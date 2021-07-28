@@ -3,7 +3,8 @@ import { browser } from "webextension-polyfill-ts";
 import { Direction, Message, MessageKind } from "../messages";
 import { LoanDetails, LoanToSign, SwapToSign } from "../models";
 import {
-    createWallet,
+    bip39SeedWords,
+    createNewBip39Wallet,
     extractLoan,
     extractTrade,
     getAddress,
@@ -110,10 +111,6 @@ async function call_wallet<T>(wallet_fn: () => Promise<T>, kind: MessageKind): P
 }
 
 // @ts-ignore
-window.createWallet = async (password: string) => {
-    return createWallet(walletName, password);
-};
-// @ts-ignore
 window.getWalletStatus = async () => {
     return walletStatus(walletName);
 };
@@ -201,6 +198,14 @@ window.repayLoan = async (txid: string): void => {
 // @ts-ignore
 window.getPastTransactions = async (): Txid[] => {
     return getPastTransactions(walletName);
+};
+// @ts-ignore
+window.bip39SeedWords = async (): string => {
+    return bip39SeedWords();
+};
+// @ts-ignore
+window.createWalletFromBip39 = async (seed_words: string, password: string) => {
+    return createNewBip39Wallet(walletName, seed_words, password);
 };
 
 function updateBadge() {
