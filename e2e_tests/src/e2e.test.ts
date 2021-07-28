@@ -1,4 +1,3 @@
-import * as assert from "assert";
 import Debug from "debug";
 import { until } from "selenium-webdriver";
 import {
@@ -73,7 +72,7 @@ describe("e2e tests", () => {
 
         await driver.sleep(2000);
         let url = await driver.getCurrentUrl();
-        assert(url.includes("/swapped/"));
+        expect(url).toContain("/swapped/");
         debug("Swap successful");
     }, 40000);
 
@@ -118,7 +117,7 @@ describe("e2e tests", () => {
 
         await driver.sleep(2000);
         let url = await driver.getCurrentUrl();
-        assert(url.includes("/swapped/"));
+        expect(url).toContain("/swapped/");
         debug("Swap successful");
     }, 40000);
 
@@ -162,7 +161,7 @@ describe("e2e tests", () => {
         let url = await driver.getCurrentUrl();
 
         // TODO: Change when we have dedicated success page for loans
-        assert(url.includes("/swapped/"));
+        expect(url).toContain("/swapped/");
         debug("Loan successful");
 
         debug("Checking open loans");
@@ -193,7 +192,7 @@ describe("e2e tests", () => {
             .getText();
 
         debug(`BTC balance before ${btcBalanceBefore}; BTC balance after ${btcBalanceAfter}`);
-        assert((btcBalanceBefore < btcBalanceAfter));
+        expect(Number(btcBalanceBefore)).toBeLessThan(Number(btcBalanceAfter));
 
         debug("Repayment successful");
     }, 40000);
