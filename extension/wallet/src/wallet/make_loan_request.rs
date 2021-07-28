@@ -74,7 +74,7 @@ pub async fn make_loan_request(
             })
             .await?;
 
-            // Bob currently hardcodes a fee-rate of 1 sat / vbyte, hence
+            // TODO Bob currently hardcodes a fee-rate of 1 sat / vbyte, hence
             // there is no need for us to perform fee estimation. Later
             // on, both parties should probably agree on a block-target
             // and use the same estimation service.
