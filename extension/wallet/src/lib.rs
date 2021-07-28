@@ -1,5 +1,6 @@
 use std::str::FromStr;
 
+use bip32::{Language, Mnemonic};
 use conquer_once::Lazy;
 use elements::{
     bitcoin::util::amount::{Amount, Denomination},
@@ -21,8 +22,6 @@ mod storage;
 mod wallet;
 
 use crate::{storage::Storage, wallet::*};
-use bip39::{Language, Mnemonic};
-use itertools::Itertools;
 use reqwest::Url;
 
 // TODO: make this configurable through extension option UI
@@ -87,7 +86,7 @@ pub fn setup() {
     handler.forget();
 }
 
-/// Generates random seed words with length 12 and language english  
+/// Generates 24 random seed words in english  
 #[wasm_bindgen]
 pub fn bip39_seed_words() -> Result<JsValue, JsValue> {
     let mnemonic = map_err_from_anyhow!(wallet::bip39_seed_words(Language::English, 12))?;
