@@ -5,7 +5,7 @@ use crate::{
     storage::Storage,
     wallet::{ListOfWallets, Wallet},
 };
-use bip32::{Language, Mnemonic, XPrv};
+use bip32::{ExtendedPrivateKey, Language, Mnemonic};
 use rand::{thread_rng, RngCore};
 
 pub fn bip39_seed_words(language: Language) -> Mnemonic {
@@ -42,7 +42,7 @@ pub async fn create_from_bip39(
         scrypt::scrypt_simple(&password, &params).context("failed to hash password")?;
 
     let secret_key_seed = mnemonic.to_seed(password.as_str());
-    let xprv = XPrv::new(secret_key_seed)?;
+    let xprv = ExtendedPrivateKey::new(secret_key_seed)?;
     let new_wallet = Wallet::initialize_new(name.clone(), password, xprv)?;
 
     storage.set_item(&format!("wallets.{}.password", name), hashed_password)?;

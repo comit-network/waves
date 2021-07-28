@@ -38,7 +38,7 @@ use std::{
 };
 use wasm_bindgen::UnwrapThrowExt;
 
-use bip32::{Prefix, XPrv};
+use bip32::{ExtendedPrivateKey, Prefix};
 pub use create_new::{bip39_seed_words, create_from_bip39};
 pub use extract_loan::{extract_loan, Error as ExtractLoanError};
 pub use extract_trade::{extract_trade, Trade};
@@ -117,14 +117,18 @@ pub struct Wallet {
     name: String,
     encryption_key: [u8; 32],
     secret_key: SecretKey,
-    xprv: XPrv,
+    xprv: ExtendedPrivateKey<SecretKey>,
     sk_salt: [u8; 32],
 }
 
 const SECRET_KEY_ENCRYPTION_NONCE: &[u8; 12] = b"SECRET_KEY!!";
 
 impl Wallet {
-    pub fn initialize_new(name: String, password: String, root_xprv: XPrv) -> Result<Self> {
+    pub fn initialize_new(
+        name: String,
+        password: String,
+        root_xprv: ExtendedPrivateKey<SecretKey>,
+    ) -> Result<Self> {
         let sk_salt = thread_rng().gen::<[u8; 32]>();
 
         let encryption_key = Self::derive_encryption_key(&password, &sk_salt)?;
@@ -168,7 +172,7 @@ impl Wallet {
             .context("failed to decrypt secret key")?;
 
         let xprv = String::from_utf8(xprv)?;
-        let root_xprv = XPrv::from_str(xprv.as_str())?;
+        let root_xprv = ExtendedPrivateKey::from_str(xprv.as_str())?;
 
         // TODO: derive key according to some derivation path
         let secret_key = root_xprv.to_bytes();
