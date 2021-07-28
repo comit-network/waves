@@ -39,7 +39,6 @@ pub mod elements_rpc;
 pub mod fixed_rate;
 pub mod http;
 pub mod kraken;
-pub mod models;
 pub mod problem;
 pub mod schema;
 
