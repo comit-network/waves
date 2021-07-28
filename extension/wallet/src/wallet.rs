@@ -465,8 +465,7 @@ mod browser_tests {
     use wasm_bindgen_test::*;
 
     use super::*;
-    use bip39::Mnemonic;
-    use std::str::FromStr;
+    use bip32::{Language, Mnemonic};
 
     wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
 
@@ -475,10 +474,7 @@ mod browser_tests {
         password: String,
         current_wallet: &Mutex<Option<Wallet>>,
     ) -> Result<()> {
-        let mnemonic = Mnemonic::from_str(
-            "bargain pretty shop spy travel toilet hero ridge critic race weapon elbow",
-        )
-        .unwrap();
+        let mnemonic = Mnemonic::new("globe favorite camp draw action kid soul junk space soda genre vague name brisk female circle equal fix decade gloom elbow address genius noodle", Language::English).unwrap();
         create_from_bip39(name, mnemonic, password, current_wallet).await
     }
 

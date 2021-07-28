@@ -194,22 +194,10 @@ dependencies = [
  "hmac 0.11.0",
  "k256",
  "ripemd160",
+ "secp256k1",
  "sha2",
  "subtle",
  "zeroize",
-]
-
-[[package]]
-name = "bip39"
-version = "1.0.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b9e89470017230c38e52b82b3ee3f530db1856ba1d434e3a67a3456a8a8dec5f"
-dependencies = [
- "bitcoin_hashes 0.9.6",
- "rand 0.6.5",
- "rand_core 0.4.2",
- "serde 1.0.126",
- "unicode-normalization",
 ]
 
 [[package]]
@@ -2606,7 +2594,6 @@ dependencies = [
  "baru",
  "bdk",
  "bip32",
- "bip39",
  "coin_selection",
  "conquer-once",
  "console_error_panic_hook",

@@ -1,5 +1,6 @@
 use std::str::FromStr;
 
+use bip32::{Language, Mnemonic};
 use conquer_once::Lazy;
 use elements::{
     bitcoin::util::amount::{Amount, Denomination},
@@ -21,8 +22,6 @@ mod storage;
 mod wallet;
 
 use crate::{storage::Storage, wallet::*};
-use bip39::{Language, Mnemonic};
-use itertools::Itertools;
 use reqwest::Url;
 
 // TODO: make this configurable through extension option UI
@@ -87,13 +86,13 @@ pub fn setup() {
     handler.forget();
 }
 
-/// Generates random seed words with length 12 and language english  
+/// Generates 24 random seed words in english  
 #[wasm_bindgen]
 pub fn bip39_seed_words() -> Result<JsValue, JsValue> {
-    let mnemonic = map_err_from_anyhow!(wallet::bip39_seed_words(Language::English, 12))?;
-    let words = mnemonic.word_iter().join(" ");
+    let mnemonic = wallet::bip39_seed_words(Language::English);
+    let words = mnemonic.phrase();
 
-    Ok(JsValue::from_str(words.as_str()))
+    Ok(JsValue::from_str(words))
 }
 
 /// Create a new wallet from the given seed words (mnemonic) with the given name and password.
@@ -106,7 +105,8 @@ pub async fn create_new_bip39_wallet(
     seed_words: String,
     password: String,
 ) -> Result<JsValue, JsValue> {
-    let mnemonic = map_err_from_anyhow!(Mnemonic::from_str(seed_words.as_str()))?;
+    let mnemonic = Mnemonic::new(seed_words, Language::English)
+        .map_err(|e| JsValue::from_str(format!("Could not parse seed words: {:?}", e).as_str()))?;
 
     map_err_from_anyhow!(
         wallet::create_from_bip39(name, mnemonic, password, &LOADED_WALLET).await
