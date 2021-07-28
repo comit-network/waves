@@ -1,4 +1,3 @@
-import * as assert from "assert";
 import Debug from "debug";
 import fetch from "node-fetch";
 import { By, until } from "selenium-webdriver";
@@ -80,7 +79,7 @@ describe("webdriver", () => {
         let response = await fetch(url, {
             method: "POST",
         });
-        assert(response.ok);
+        expect(response.ok).toBeTruthy();
         let body = await response.text();
         debug("Faucet response: %s", body);
 

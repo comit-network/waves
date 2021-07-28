@@ -39,8 +39,9 @@ describe("e2e tests", () => {
         let address = await addressField.getText();
         debug(`Address found: ${address}`);
         expect(
-            "el1qqf09atu8jsmd25eclm8t5relx9q3x80yw3yncesd3ez2rgzy2pxkmamlcgrwlfa523rd4vjmcg4anyv2w89kk74k5p0af0pj5").toBe(
-                address
+            "el1qqf09atu8jsmd25eclm8t5relx9q3x80yw3yncesd3ez2rgzy2pxkmamlcgrwlfa523rd4vjmcg4anyv2w89kk74k5p0af0pj5",
+        ).toBe(
+            address,
         );
     }, 40000);
 });

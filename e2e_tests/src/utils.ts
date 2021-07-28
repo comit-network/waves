@@ -1,4 +1,3 @@
-import * as assert from "assert";
 import Debug from "debug";
 import fetch from "node-fetch";
 import { Builder, By, until, WebDriver } from "selenium-webdriver";
@@ -79,7 +78,7 @@ const faucet = async (address: string) => {
     let response = await fetch(faucetUrl, {
         method: "POST",
     });
-    assert(response.ok);
+    expect(response.ok).toBeTruthy();
 };
 
 const unlockWallet = async (driver: WebDriver, extensionTitle: string) => {
