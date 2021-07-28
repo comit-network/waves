@@ -40,7 +40,8 @@ describe("webdriver", () => {
         let step1 = await getElementById(driver, "//button[@data-cy='data-cy-create-wallet-step-1']");
         await step1.click();
 
-        let mnemonic = "bargain pretty shop spy travel toilet hero ridge critic race weapon elbow";
+        let mnemonic =
+            "globe favorite camp draw action kid soul junk space soda genre vague name brisk female circle equal fix decade gloom elbow address genius noodle";
 
         let mnemonicInput = await getElementById(driver, "//textarea[@data-cy='data-cy-create-wallet-mnemonic-input']");
         await mnemonicInput.sendKeys(mnemonic);

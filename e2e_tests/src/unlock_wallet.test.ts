@@ -1,4 +1,3 @@
-import * as assert from "assert";
 import Debug from "debug";
 import { getElementById, setupBrowserWithExtension, setupTestingWallet, switchToWindow, unlockWallet } from "./utils";
 
@@ -39,9 +38,9 @@ describe("e2e tests", () => {
         let addressField = await getElementById(driver, "//p[@data-cy='data-cy-wallet-address-text-field']");
         let address = await addressField.getText();
         debug(`Address found: ${address}`);
-        assert(
-            "el1qqvq7q42zu99ky2g7n3hmh0yfr8eru0sxk6tutl3hlv240rd8rxyqrsukpsvsqdzc84dvmv6atmzp3f3hassdgmyx5cafy30dp"
-                === address,
+        expect(
+            "el1qqf09atu8jsmd25eclm8t5relx9q3x80yw3yncesd3ez2rgzy2pxkmamlcgrwlfa523rd4vjmcg4anyv2w89kk74k5p0af0pj5").toBe(
+                address
         );
     }, 40000);
 });
