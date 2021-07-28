@@ -57,21 +57,21 @@ const setupBrowserWithExtension = async (webAppUrl: string) => {
 };
 
 // set testing wallet.
-// seed words are: `bargain pretty shop spy travel toilet hero ridge critic race weapon elbow`
+// seed words are: `globe favorite camp draw action kid soul junk space soda genre vague name brisk female circle equal fix decade gloom elbow address genius noodle`
 // wallet password is: `foo`.
-// address is: `el1qqvq7q42zu99ky2g7n3hmh0yfr8eru0sxk6tutl3hlv240rd8rxyqrsukpsvsqdzc84dvmv6atmzp3f3hassdgmyx5cafy30dp`
+// address is: `el1qqf09atu8jsmd25eclm8t5relx9q3x80yw3yncesd3ez2rgzy2pxkmamlcgrwlfa523rd4vjmcg4anyv2w89kk74k5p0af0pj5`
 const setupTestingWallet = async (driver: WebDriver, extensionTitle: string) => {
     await switchToWindow(driver, extensionTitle);
 
     await driver.executeScript("return window.localStorage.setItem('wallets','demo');");
     await driver.executeScript(
-        "return window.localStorage.setItem('wallets.demo.password','$rscrypt$0$DwgB$fh5CD4WuA/JSKKnclw+Orw==$x3aZgNLWV8QzMPOffn+z7otM1/Up2yyrBgFLDkCNMoI=$');",
+        "return window.localStorage.setItem('wallets.demo.password','$rscrypt$0$DwgB$brb7JqhPEJbIxXOu/Jn3Aw==$8eWWdvAarl6IuOjViqAZuqhq05aD/YBjTAtioqtoC9U=$');",
     );
     await driver.executeScript(
-        "return window.localStorage.setItem('wallets.demo.xprv','71dc4a79771da7a28e2ff1a805be3efd5fba436eb9280de0fe410297199e4975$7388ec81fed12d71b385216e48726f23dd863babbbe897af8486d08715776a5b12c8606704d4c00590899619d65cffe324293e8dc639deb0185db15f7f386db231453b78a9f7011af5ad75e113482506655ea2301b24ad0c14c6ddbe1224d2131bf647a74ed54b8befb76a0f0a90163d403a7a1a3976247302718be379619b');",
+        "return window.localStorage.setItem('wallets.demo.xprv','4b83ff6937ce2650354d02d9c7f6d9b828824c1dbe4d0795b3b14d9c9042dbca$0c130f39ada0ec0e9e0e2a2af91815f7e77f8ed64481467f19e42bcdfeaf88af2d10df9e9143223b71e053f67fad830ec102c7e977bd646cd1dec3a2718c97dc7e98cd349c7a3c2147f78c9b8b6436f68b96e2bf73f11ca496483175ad5dfa577d1efb40827455b05e3c51f9745ed8d4726d49f4a54470073efea876815f25');",
     );
 
-    return "el1qqvq7q42zu99ky2g7n3hmh0yfr8eru0sxk6tutl3hlv240rd8rxyqrsukpsvsqdzc84dvmv6atmzp3f3hassdgmyx5cafy30dp";
+    return "el1qqf09atu8jsmd25eclm8t5relx9q3x80yw3yncesd3ez2rgzy2pxkmamlcgrwlfa523rd4vjmcg4anyv2w89kk74k5p0af0pj5";
 };
 
 const faucet = async (address: string) => {
