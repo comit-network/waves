@@ -29,11 +29,14 @@ function balanceEntry(balance: BalanceEntry) {
     return <Box key={balance.ticker}>
         <HStack>
             {image}
-            <Box>
-                <Text textStyle="smGray" data-cy={`data-cy-${balance.ticker}-balance-text-field`}>
-                    {balance.ticker}: {balance.value}
+            <HStack>
+                <Text textStyle="smGray">
+                    {balance.ticker}:
                 </Text>
-            </Box>
+                <Text textStyle="smGray" data-cy={`data-cy-${balance.ticker}-balance-text-field`}>
+                    {balance.value}
+                </Text>
+            </HStack>
         </HStack>
     </Box>;
 }
