@@ -72,7 +72,20 @@ where
             }
         });
 
-    let create_loan = warp::post()
+    let offer_loan = warp::get()
+        .and(warp::path!("api" / "loan" / "lbtc-lusdt"))
+        .and_then({
+            let bobtimus = bobtimus.clone();
+            move || {
+                let bobtimus = bobtimus.clone();
+                async move {
+                    let mut bobtimus = bobtimus.lock().await;
+                    offer_loan(&mut bobtimus).await
+                }
+            }
+        });
+
+    let take_loan = warp::post()
         .and(warp::path!("api" / "loan" / "lbtc-lusdt"))
         .and(warp::body::json())
         .and_then({
@@ -81,7 +94,7 @@ where
                 let bobtimus = bobtimus.clone();
                 async move {
                     let mut bobtimus = bobtimus.lock().await;
-                    create_loan(&mut bobtimus, payload).await
+                    take_loan(&mut bobtimus, payload).await
                 }
             }
         });
@@ -104,7 +117,8 @@ where
     latest_rate
         .or(create_sell_swap)
         .or(create_buy_swap)
-        .or(create_loan)
+        .or(offer_loan)
+        .or(take_loan)
         .or(finalize_loan)
         .or(waves_resources)
         .or(index_html)
@@ -158,7 +172,21 @@ where
         .map_err(warp::reject::custom)
 }
 
-async fn create_loan<R, RS>(
+async fn offer_loan<R, RS>(bobtimus: &mut Bobtimus<R, RS>) -> Result<impl Reply, Rejection>
+where
+    R: RngCore + CryptoRng,
+    RS: LatestRate,
+{
+    bobtimus
+        .handle_loan_offer_request()
+        .await
+        .map(|loan_offer| warp::reply::json(&loan_offer))
+        .map_err(anyhow::Error::from)
+        .map_err(problem::from_anyhow)
+        .map_err(warp::reject::custom)
+}
+
+async fn take_loan<R, RS>(
     bobtimus: &mut Bobtimus<R, RS>,
     payload: serde_json::Value,
 ) -> Result<impl Reply, Rejection>

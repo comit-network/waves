@@ -1,10 +1,10 @@
-import { Button, Center, useToast, VStack } from "@chakra-ui/react";
+import { Button, Center, Tooltip, useToast, VStack } from "@chakra-ui/react";
 import Debug from "debug";
 import React, { Dispatch } from "react";
 import { AsyncState, useAsync } from "react-async";
 import { useHistory } from "react-router-dom";
 import { Action, Asset, BorrowState, Rate } from "./App";
-import { postLoanFinalization, postLoanRequest } from "./Bobtimus";
+import { getLoanOffer, postLoanFinalization, postLoanRequest } from "./Bobtimus";
 import calculateBetaAmount from "./calculateBetaAmount";
 import NumberInput from "./components/NumberInput";
 import RateInfo from "./components/RateInfo";
@@ -26,19 +26,19 @@ function Borrow({ dispatch, state, rate, wavesProvider, walletStatusAsyncState }
     const toast = useToast();
     const history = useHistory();
 
+    const loanOfferHook = useAsync({
+        promiseFn: getLoanOffer,
+        onResolve: (data) => {
+            dispatch({
+                type: "UpdateLoanOffer",
+                value: data,
+            });
+        },
+    });
+    let { isLoading: loanOfferLoading, data: loanOffer } = loanOfferHook;
+    // TODO: Automated reload of loan offers
+
     let { data: walletStatus, reload: reloadWalletStatus, error: walletStatusError } = walletStatusAsyncState;
-
-    // TODO: We should get an up-to-date interest rate from Bobtimus
-    let interestRate = 0.10;
-
-    const principalAmount = Number.parseFloat(state.principalAmount);
-    let collateralAmount = calculateBetaAmount(
-        Asset.USDT,
-        principalAmount,
-        rate,
-    );
-
-    let interestAmount = principalAmount * interestRate;
 
     function onPrincipalAmountChange(newAmount: string) {
         dispatch({
@@ -47,7 +47,22 @@ function Borrow({ dispatch, state, rate, wavesProvider, walletStatusAsyncState }
         });
     }
 
-    let { run: requestNewLoan, isLoading: isRequestingNewLoan } = useAsync({
+    const interestRate = loanOffer ? loanOffer.interest[0].interest_rate : 0;
+    const minPrincipal = loanOffer ? loanOffer.min_principal : 0;
+    const maxPrincipal = loanOffer ? loanOffer.max_principal : 0;
+
+    const principalAmount = Number.parseFloat(state.principalAmount);
+
+    // TODO: Let the user define the collateral amount that is within Bobtimus' LTV bounds
+    let collateralAmount = calculateBetaAmount(
+        Asset.USDT,
+        principalAmount,
+        rate,
+    );
+
+    let interestAmount = principalAmount * interestRate;
+
+    let { run: takeLoan, isLoading: isTakingLoan } = useAsync({
         deferFn: async () => {
             if (!wavesProvider) {
                 error("Cannot borrow. Waves provider not found.");
@@ -55,6 +70,9 @@ function Borrow({ dispatch, state, rate, wavesProvider, walletStatusAsyncState }
             }
 
             try {
+                // TODO: Gather values that the user selected / we have from Bobtimus and
+                //  construct the payload out of that and what the wallet returns.
+                //  Currently some parameters are decided by the wallet which the wallet is not concerned with (e.g. timelock)
                 let loanRequest = await wavesProvider.makeLoanRequestPayload(collateralAmount.toString());
                 let loanResponse = await postLoanRequest(loanRequest);
                 let loanTransaction = await wavesProvider.signLoan(loanResponse);
@@ -122,8 +140,8 @@ function Borrow({ dispatch, state, rate, wavesProvider, walletStatusAsyncState }
                 loanButton = <Button
                     variant="primary"
                     w="15rem"
-                    isLoading={isRequestingNewLoan}
-                    onClick={requestNewLoan}
+                    isLoading={isTakingLoan}
+                    onClick={takeLoan}
                     data-cy="data-cy-take-loan-button"
                 >
                     Take loan
@@ -137,15 +155,17 @@ function Borrow({ dispatch, state, rate, wavesProvider, walletStatusAsyncState }
             <Center bg="gray.100" w={400} h={400} borderRadius={"md"}>
                 <VStack spacing={4}>
                     <p>Principal:</p>
-                    <NumberInput
-                        currency="$"
-                        value={state.principalAmount}
-                        precision={2}
-                        step={0.01}
-                        onAmountChange={onPrincipalAmountChange}
-                        isDisabled={false}
-                        dataCy={"data-cy-principal"}
-                    />
+                    <Tooltip label={"min = " + minPrincipal + " max = " + maxPrincipal} aria-label="principal" hasArrow>
+                        <NumberInput
+                            currency="$"
+                            value={state.principalAmount}
+                            precision={2}
+                            step={0.01}
+                            onAmountChange={onPrincipalAmountChange}
+                            isDisabled={loanOfferLoading}
+                            dataCy={"data-cy-principal"}
+                        />
+                    </Tooltip>
                     <p>Collateral:</p>
                     <NumberInput
                         currency="₿"
@@ -156,9 +176,9 @@ function Borrow({ dispatch, state, rate, wavesProvider, walletStatusAsyncState }
                         isDisabled={true}
                         dataCy={"data-cy-collateral"}
                     />
-                    <p>Interest {interestRate}%:</p>
+                    <p>Interest {interestRate * 100}%:</p>
                     <NumberInput
-                        currency="₿"
+                        currency="$"
                         value={interestAmount}
                         precision={7}
                         step={0.01}

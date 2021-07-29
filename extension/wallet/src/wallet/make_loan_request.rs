@@ -14,6 +14,11 @@ use futures::lock::Mutex;
 use rand::thread_rng;
 use wasm_bindgen::UnwrapThrowExt;
 
+// TODO: The return type will have to change to a type specific to this wallet.
+//  The type "LoanRequest" is from baru and should not be used here.
+//  Once we take a loan with Bobtimus, Bobtimus will create what is needed for baru (i.e. what is called "LoanRequest" atm).
+//  We might have to pass more into here / add to what is returned on the outside the wallet before taking a loan on Bobtimus.
+//  e.g. timelock should not be decided in here, it depends on what the user chooses...
 pub async fn make_loan_request(
     name: String,
     current_wallet: &Mutex<Option<Wallet>>,

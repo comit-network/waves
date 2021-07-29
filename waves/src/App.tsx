@@ -5,7 +5,7 @@ import { useAsync } from "react-async";
 import { useSSE } from "react-hooks-sse";
 import { Link as RouteLink, Redirect, Route, Switch, useHistory } from "react-router-dom";
 import "./App.css";
-import { fundAddress } from "./Bobtimus";
+import { fundAddress, LoanOffer } from "./Bobtimus";
 import Borrow from "./Borrow";
 import COMIT from "./components/comit_logo_spellout_opacity_50.svg";
 import Trade from "./Trade";
@@ -23,7 +23,6 @@ export type AssetSide = "Alpha" | "Beta";
 
 export type Action =
     | { type: "UpdateAlphaAmount"; value: string }
-    | { type: "UpdatePrincipalAmount"; value: string }
     | { type: "UpdateAlphaAssetType"; value: Asset }
     | { type: "UpdateBetaAssetType"; value: Asset }
     | {
@@ -34,7 +33,10 @@ export type Action =
     }
     | { type: "PublishTransaction"; value: string }
     | { type: "UpdateWalletStatus"; value: WalletStatus }
-    | { type: "UpdateBalance"; value: Balances };
+    | { type: "UpdateBalance"; value: Balances }
+    | { type: "UpdatePrincipalAmount"; value: string }
+    | { type: "UpdateLoanTerm"; value: number }
+    | { type: "UpdateLoanOffer"; value: LoanOffer };
 
 export interface TradeState {
     alpha: AssetState;
@@ -43,8 +45,12 @@ export interface TradeState {
 }
 
 export interface BorrowState {
+    // user can select
     loanTerm: number;
     principalAmount: string;
+
+    // from Bobtimus
+    loanOffer: LoanOffer | null;
 }
 
 export interface State {
@@ -93,8 +99,9 @@ const initialState = {
         txId: "",
     },
     borrow: {
-        principalAmount: "20000.0",
-        loanTerm: 30,
+        principalAmount: "0.0",
+        loanTerm: 0,
+        loanOffer: null,
     },
     wallet: {
         balance: {
@@ -196,6 +203,29 @@ export function reducer(state: State = initialState, action: Action) {
                 borrow: {
                     ...state.borrow,
                     principalAmount: action.value,
+                },
+            };
+        case "UpdateLoanTerm":
+            return {
+                ...state,
+                borrow: {
+                    ...state.borrow,
+                    loanTerm: action.value,
+                },
+            };
+        case "UpdateLoanOffer":
+            // TODO: We currently always overwrite upon a new loan offer
+            //  This will have to be adapted once we refresh loan offers.
+            const principalAmount = action.value.min_principal.toString();
+            const loanTerm = action.value.interest[0].timelock / 60 / 24;
+
+            return {
+                ...state,
+                borrow: {
+                    ...state.borrow,
+                    principalAmount,
+                    loanTerm,
+                    loanOffer: action.value,
                 },
             };
         default:

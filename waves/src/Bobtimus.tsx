@@ -19,6 +19,42 @@ export async function postBuyPayload(payload: CreateSwapPayload) {
     return await postPayload(payload, "buy");
 }
 
+export interface Rate {
+    ask: number; // sat
+    bid: number; // sat
+}
+
+export interface Interest {
+    timelock: number;
+    interest_rate: number; // percentage, decimal represented as float
+}
+
+export interface LoanOffer {
+    rate: Rate;
+    fee_sats_per_vbyte: number;
+    min_principal: number; // sat
+    max_principal: number; // sat
+    max_ltv: number; // percentage, decimal represented as float
+    interest: Interest[];
+}
+
+export async function getLoanOffer(): Promise<LoanOffer> {
+    let res = await fetch(`/api/loan/lbtc-lusdt`, {
+        method: "GET",
+        headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json",
+        },
+    });
+
+    if (res.status !== 200) {
+        debug("failed to fetch loan offer");
+        throw new Error("failed to fetch loan offer");
+    }
+
+    return await res.json();
+}
+
 export async function postLoanRequest(payload: LoanRequestPayload) {
     let res = await fetch(`/api/loan/lbtc-lusdt`, {
         method: "POST",
