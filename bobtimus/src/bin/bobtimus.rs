@@ -7,7 +7,7 @@ use elements::{
     secp256k1_zkp::rand::{rngs::StdRng, thread_rng, SeedableRng},
 };
 use std::{collections::HashMap, sync::Arc};
-use tokio::sync::Mutex;
+use tokio::{join, sync::Mutex};
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -16,9 +16,10 @@ async fn main() -> Result<()> {
     match Config::parse()? {
         Config::Start {
             elementsd_url,
-            api_port,
+            http,
             usdt_asset_id,
             db_file,
+            https,
         } => {
             let db = Sqlite::new(db_file.as_path())?;
 
@@ -40,9 +41,30 @@ async fn main() -> Result<()> {
             };
             let bobtimus = Arc::new(Mutex::new(bobtimus));
 
-            warp::serve(http::routes(bobtimus, subscription))
-                .run(([127, 0, 0, 1], api_port))
-                .await;
+            let https = https.map(|https| {
+                warp::serve(http::routes(bobtimus.clone(), subscription.clone()))
+                    .tls()
+                    .cert_path(https.tls_certificate)
+                    .key_path(https.tls_private_key)
+                    .run(https.listen_https)
+            });
+
+            let http = http.map(|listen_http| {
+                warp::serve(http::routes(bobtimus, subscription)).run(listen_http)
+            });
+
+            match (http, https) {
+                (Some(http), Some(https)) => {
+                    join!(http, https);
+                }
+                (Some(http), None) => {
+                    http.await;
+                }
+                (None, Some(https)) => {
+                    https.await;
+                }
+                _ => {}
+            }
         }
         Config::LiquidateLoans {
             elementsd_url,

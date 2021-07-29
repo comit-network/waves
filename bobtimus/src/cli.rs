@@ -1,9 +1,9 @@
 use crate::USDT_ASSET_ID;
-use anyhow::{Context, Result};
+use anyhow::{bail, Context, Result};
 use directories::ProjectDirs;
 use elements::AssetId;
 use reqwest::Url;
-use std::path::PathBuf;
+use std::{net::SocketAddr, path::PathBuf};
 use structopt::StructOpt;
 
 #[derive(structopt::StructOpt, Debug)]
@@ -12,15 +12,19 @@ pub enum Command {
     Start {
         #[structopt(default_value = "http://127.0.0.1:7042", long = "elementsd")]
         elementsd_url: Url,
-        #[structopt(default_value = "3030")]
-        api_port: u16,
-        #[structopt(
-        default_value = USDT_ASSET_ID,
-        long = "usdt"
-    )]
+        #[structopt(default_value = USDT_ASSET_ID, long = "usdt")]
         usdt_asset_id: AssetId,
         #[structopt(short, parse(from_os_str))]
         db_file: Option<PathBuf>,
+
+        #[structopt(long = "http")]
+        listen_http: Option<SocketAddr>,
+        #[structopt(long = "https")]
+        listen_https: Option<SocketAddr>,
+        #[structopt(long, parse(from_os_str))]
+        tls_certificate: Option<PathBuf>,
+        #[structopt(long, parse(from_os_str))]
+        tls_private_key: Option<PathBuf>,
     },
     LiquidateLoans {
         #[structopt(default_value = "http://127.0.0.1:7042", long = "elementsd")]
@@ -30,12 +34,19 @@ pub enum Command {
     },
 }
 
+pub struct Https {
+    pub listen_https: SocketAddr,
+    pub tls_certificate: PathBuf,
+    pub tls_private_key: PathBuf,
+}
+
 pub enum Config {
     Start {
         elementsd_url: Url,
-        api_port: u16,
         usdt_asset_id: AssetId,
         db_file: PathBuf,
+        http: Option<SocketAddr>,
+        https: Option<Https>,
     },
     LiquidateLoans {
         elementsd_url: Url,
@@ -48,15 +59,39 @@ impl Config {
         let config = match Command::from_args() {
             Command::Start {
                 elementsd_url,
-                api_port,
+                listen_http,
+                listen_https,
                 usdt_asset_id,
                 db_file,
-            } => Config::Start {
-                elementsd_url,
-                api_port,
-                usdt_asset_id,
-                db_file: resolve_db_file(db_file)?,
-            },
+                tls_certificate,
+                tls_private_key,
+            } => {
+                if listen_http.is_none() && listen_https.is_none() {
+                    bail!("Neither listening on HTTP nor HTTPS were configured, this server is pointless");
+                }
+
+                let https = match (listen_https, tls_certificate, tls_private_key) {
+                    (Some(listen_https), Some(tls_certificate), Some(tls_private_key)) => {
+                        Some(Https {
+                            listen_https,
+                            tls_certificate,
+                            tls_private_key,
+                        })
+                    }
+                    (None, None, None) => None,
+                    _ => bail!(
+                        "HTTPS has to be configured with TLS server private key and certificate"
+                    ),
+                };
+
+                Config::Start {
+                    elementsd_url,
+                    http: listen_http,
+                    usdt_asset_id,
+                    db_file: resolve_db_file(db_file)?,
+                    https,
+                }
+            }
             Command::LiquidateLoans {
                 elementsd_url,
                 db_file,
