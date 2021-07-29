@@ -88,7 +88,7 @@ impl LiquidUsdt {
         Ok(Self(amount))
     }
 
-    fn serialize_to_nominal<S>(amount: &LiquidUsdt, serializer: S) -> Result<S::Ok, S::Error>
+    pub fn serialize_to_nominal<S>(amount: &LiquidUsdt, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
     {

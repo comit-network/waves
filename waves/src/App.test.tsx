@@ -3,7 +3,23 @@ import React from "react";
 import { Listener, Source, SSEProvider } from "react-hooks-sse";
 import { BrowserRouter } from "react-router-dom";
 import App, { Asset, reducer } from "./App";
+import { Interest, Rate } from "./Bobtimus";
 import calculateBetaAmount from "./calculateBetaAmount";
+
+const defaultLoanOffer = {
+    rate: {
+        ask: 20000,
+        bid: 20000,
+    },
+    fee_sats_per_vbyte: 1,
+    min_principal: 100,
+    max_principal: 10000,
+    max_ltv: 0.8,
+    interest: [{
+        timelock: 43200,
+        interest_rate: 0.15,
+    }],
+};
 
 const defaultState = {
     trade: {
@@ -17,6 +33,7 @@ const defaultState = {
     borrow: {
         principalAmount: "1000",
         loanTerm: 30,
+        loanOffer: defaultLoanOffer,
     },
     wallet: {
         balance: {
@@ -185,6 +202,7 @@ test("update principal amount logic", () => {
         borrow: {
             loanTerm: 30,
             principalAmount: "10000",
+            loanOffer: null,
         },
     };
 
@@ -195,4 +213,24 @@ test("update principal amount logic", () => {
             value: newValue,
         }).borrow.principalAmount,
     ).toBe(newValue);
+});
+
+test("update loan offer logic", () => {
+    const initialState = {
+        ...defaultState,
+        borrow: {
+            loanTerm: 0,
+            principalAmount: "0",
+            loanOffer: null,
+        },
+    };
+
+    let newState = reducer(initialState, {
+        type: "UpdateLoanOffer",
+        value: defaultLoanOffer,
+    });
+
+    expect(newState.borrow.loanOffer).toBe(defaultLoanOffer);
+    expect(newState.borrow.principalAmount).toBe("100");
+    expect(newState.borrow.loanTerm).toBe(30);
 });

@@ -264,6 +264,7 @@ dependencies = [
  "reqwest",
  "rust-embed",
  "rust_decimal",
+ "rust_decimal_macros",
  "serde 1.0.126",
  "serde_json 1.0.64",
  "sha2",
@@ -1750,13 +1751,23 @@ dependencies = [
 
 [[package]]
 name = "rust_decimal"
-version = "1.14.0"
+version = "1.15.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2fd51dfdc79146dc24efbe4626c01ed5cd9f5b3b5742b51b26ea413e7dd7730b"
+checksum = "c5446d1cf2dfe2d6367c8b27f2082bdf011e60e76fa1fcd140047f535156d6e7"
 dependencies = [
  "arrayvec",
  "num-traits 0.2.14",
  "serde 1.0.126",
+]
+
+[[package]]
+name = "rust_decimal_macros"
+version = "1.15.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f1927f5f2552e7c5335f2daef329de05f91efd8ec4a71c3ff4066ad45361b1df"
+dependencies = [
+ "quote",
+ "rust_decimal",
 ]
 
 [[package]]

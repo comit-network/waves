@@ -39,10 +39,13 @@ pub mod elements_rpc;
 pub mod fixed_rate;
 pub mod http;
 pub mod kraken;
+pub mod loan;
 pub mod problem;
 pub mod schema;
 
+use crate::loan::{Interest, LoanOffer};
 pub use amounts::*;
+use rust_decimal_macros::dec;
 
 pub const USDT_ASSET_ID: &str = "ce091c998b83c78bb71a632313ba3760f1763d9cfcffae02258ffa9865a37bd2";
 
@@ -257,10 +260,37 @@ where
         Ok(transaction)
     }
 
-    /// Handle Alice's loan request in which she puts up L-BTC as
-    /// collateral and we give lend her L-USDt which she will have to
+    /// Handle the borrower's loan offer request
+    ///
+    /// We return the range of possible loan terms to the borrower.
+    /// The borrower can then request a loan using parameters that are within our terms.
+    pub async fn handle_loan_offer_request(&mut self) -> Result<LoanOffer> {
+        Ok(LoanOffer {
+            rate: self.rate_service.latest_rate(),
+            // TODO: Dynamic fee estimation
+            fee_sats_per_vbyte: Amount::from_sat(1),
+            min_principal: LiquidUsdt::from_str_in_dollar("100")
+                .expect("static value to be convertible"),
+            max_principal: LiquidUsdt::from_str_in_dollar("10000")
+                .expect("static value to be convertible"),
+            max_ltv: dec!(0.8),
+            // TODO: Dynamic interest based on current market values
+            interest: vec![Interest {
+                // Assuming 1 min block interval, 43200 mins = 30 days
+                timelock: 43200,
+                interest_rate: dec!(0.15),
+            }],
+        })
+    }
+
+    /// Handle the borrower's loan request in which she puts up L-BTC as
+    /// collateral and we lend L-USDt to her which she will have to
     /// repay in the future.
     pub async fn handle_loan_request(&mut self, payload: LoanRequest) -> Result<LoanResponse> {
+        // TODO: Ensure that the loan requested is within what we "currently" accept.
+        //  Currently there is no ID for incoming loan requests, that would associate them with an offer,
+        //  so we just have to ensure that the loan is still "acceptable" in the current state of Bobtimus.
+
         let lender_address = self
             .elementsd
             .get_new_segwit_confidential_address()
@@ -299,9 +329,9 @@ where
         Ok(loan_response)
     }
 
-    /// Handle Alice's request to finalize a loan.
+    /// Handle the borrower's request to finalize a loan.
     ///
-    /// If we still agree with the loan transaction sent by Alice, we
+    /// If we still agree with the loan transaction sent by the borrower, we
     /// will sign and broadcast it.
     ///
     /// Additionally, we save the signed liquidation transaction so
