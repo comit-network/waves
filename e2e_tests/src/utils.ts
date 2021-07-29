@@ -1,4 +1,5 @@
 import Debug from "debug";
+import { promises as fsp } from "fs";
 import fetch from "node-fetch";
 import { Builder, By, until, WebDriver } from "selenium-webdriver";
 import { Driver } from "selenium-webdriver/firefox";
@@ -7,8 +8,14 @@ const firefox = require("selenium-webdriver/firefox");
 const firefoxPath = require("geckodriver").path;
 
 const getElementById = async (driver, xpath, timeout = 4000) => {
-    const el = await driver.wait(until.elementLocated(By.xpath(xpath)), timeout);
-    return await driver.wait(until.elementIsVisible(el), timeout);
+    try {
+        const el = await driver.wait(until.elementLocated(By.xpath(xpath)), timeout);
+        return await driver.wait(until.elementIsVisible(el), timeout);
+    } catch (e) {
+        const filename = xpath.replace(/[^\w\s]/gi, "");
+        await takeScreenshot(driver, `./screenshots/error-${filename}.png`);
+        throw e;
+    }
 };
 
 const setupBrowserWithExtension = async (webAppUrl: string) => {
@@ -110,6 +117,11 @@ async function getWindowHandle(driver: WebDriver, name: string) {
 
 async function switchToWindow(driver: WebDriver, name: string) {
     await driver.switchTo().window(await getWindowHandle(driver, name));
+}
+
+async function takeScreenshot(driver, file) {
+    let image = await driver.takeScreenshot();
+    await fsp.writeFile(file, image, "base64");
 }
 
 export { faucet, getElementById, setupBrowserWithExtension, setupTestingWallet, switchToWindow, unlockWallet };

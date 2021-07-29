@@ -60,9 +60,7 @@ jobs:
           name: Logfiles
           path: |
             ./e2e_tests/bobtimus.log
-            ./e2e_tests/liquid.log
-            ./e2e_tests/electrs.log
-            ./e2e_tests/esplora.log
+            ./e2e_tests/screenshots
 
   build_test_workspace:
     strategy:

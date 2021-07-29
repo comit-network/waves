@@ -2,3 +2,5 @@ node_modules
 /nigiri/config/regtest/
 /nigiri/liquid-config/liquidregtest/
 
+screenshots/*
+!screenshots/.gitkeep
