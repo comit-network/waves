@@ -77,6 +77,7 @@ function CreateWallet({ onUnlock }: CreateWalletProps) {
                         aria-label="Refresh"
                         icon={<RepeatIcon />}
                         isLoading={isGeneratingSeedWords}
+                        data-cy={"data-cy-create-wallet-generate-mnemonic"}
                         onClick={(_) => {
                             newSeedWords();
                         }}
