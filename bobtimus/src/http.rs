@@ -201,7 +201,7 @@ where
         .map_err(warp::reject::custom)?;
 
     bobtimus
-        .handle_loan_request(payload)
+        .handle_loan_request(dbg!(payload))
         .await
         .map(|loan_response| warp::reply::json(&loan_response))
         .map_err(anyhow::Error::from)
