@@ -75,3 +75,14 @@ echo "Bitcoin Asset ID: "$btc_asset_id
             --elementsd http://admin1:123@localhost:18884 \
             --usdt $usdt_asset_id > e2e_tests/bobtimus.log 2>&1 &
 )
+
+# give bobtimus time to start:
+
+sleep 5s
+
+# fund test wallets
+curl -POST  http://localhost:3030/api/faucet/el1qqfc6m8nrnrfpcsj9thg2df9jzpv4pwm4shm5wvn2untay2dmhhk4ut8j35jtd7jvqplx3gt9zth7ndtn6mcq68d03l4e7wqay -d {}
+curl -POST  http://localhost:3030/api/faucet/el1qq0zel5lg55nvhv9kkrq8gme8hnvp0lemuzcmu086dn2m8laxjgkewkhqnh8vxdnlp4cejs3925j0gu9n9krdgmqm89vku0kc8 -d {}
+curl -POST  http://localhost:3030/api/faucet/el1qqf09atu8jsmd25eclm8t5relx9q3x80yw3yncesd3ez2rgzy2pxkmamlcgrwlfa523rd4vjmcg4anyv2w89kk74k5p0af0pj5 -d {}
+curl -POST  http://localhost:3030/api/faucet/el1qqgupeqadsckv095dr7u90ukn3nsfs4gayfl3746kaf6l2nn0wrs8e5s4943wa0ven87ggpk9qgsdqz6779mgsj0783d9hau0d -d {}
+curl -POST  http://localhost:3030/api/faucet/el1qqfahtc82zq03wcq6t2hwys5azxp5l5pggpsxq7f8h5jfpq0waced0tg6s9v0avhsam03ecyycdrgw4gzcsackynfpjmfd5l6d -d {}

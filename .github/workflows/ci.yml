@@ -51,7 +51,7 @@ jobs:
       - name: Run test
         run: |
           yarn install
-          yarn run test
+          yarn run all-tests
 
       - name: Archive logs
         uses: actions/upload-artifact@v2
