@@ -1,17 +1,34 @@
 set -e
 
-# This script is primarily for CI purposes. If you want to run the e2e tests locally use the -L flag:
-#    ./e2e_test_setup.sh -L
+usage() { echo "Usage:
+    To clean up old state run: ./e2e_test_setup -C
+    To start docker containers run: ./e2e_test_setup -S
+" 1>&2; exit 1; }
 
-if getopts ":L" arg; then
-  mkdir -p nigiri
-  cd nigiri
-  if [[ ! ( -d "config" ) || ! ( -d "liquid-config" ) || ! ( -f "docker-compose.yml" ) ]]; then
-    curl https://travis.nigiri.network | bash
-  fi
-  docker-compose -f ./docker-compose.yml up -d
-  cd ../
-fi
+while getopts "CS" o; do
+    case "${o}" in
+        C)
+            if [ -d "nigiri" ]
+            then
+                echo "Clearing docker compose data"
+                cd nigiri
+                docker compose down
+                rm -rf liquid-config/liquidregtest
+                cd ..
+            else
+                echo "Nigiri data does not exist."
+            fi
+            ;;
+        S)
+            echo "Starting docker containers"
+            docker compose -f ./nigiri/docker-compose.yml up -d
+            ;;
+        *)
+            usage
+            ;;
+    esac
+done
+
 
 btc_asset_id=$(docker exec nigiri_liquid_1 elements-cli -rpcport=18884 -rpcuser=admin1 -rpcpassword=123 dumpassetlabels | jq -r '.bitcoin')
 
