@@ -15,7 +15,11 @@ export default class WavesProvider {
 
     public async getNewAddress(): Promise<Address>;
 
-    public async makeLoanRequestPayload(collateral: string): Promise<LoanRequestPayload>;
+    public async makeLoanRequestPayload(
+        collateral: string,
+        fee_rate: string,
+        timeout: string,
+    ): Promise<LoanRequestPayload>;
 
     public async signAndSendSwap(tx_hex: string): Promise<Txid>;
 

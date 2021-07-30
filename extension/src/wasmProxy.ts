@@ -55,11 +55,16 @@ export async function makeBuyCreateSwapPayload(name: string, usdt: string): Prom
     return make_buy_create_swap_payload(name, usdt);
 }
 
-export async function makeLoanRequestPayload(name: string, collateral: string): Promise<CreateSwapPayload> {
+export async function makeLoanRequestPayload(
+    name: string,
+    collateral: string,
+    fee_rate: string,
+    timelock: string,
+): Promise<CreateSwapPayload> {
     const { make_loan_request } = await import("./wallet");
 
     debug("makeLoanRequestPayload");
-    return make_loan_request(name, collateral);
+    return make_loan_request(name, collateral, fee_rate, timelock);
 }
 
 export async function signAndSendSwap(name: string, hex: string): Promise<Txid> {

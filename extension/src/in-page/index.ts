@@ -116,7 +116,11 @@ export default class WavesProvider {
         return promise;
     }
 
-    public async makeLoanRequestPayload(collateral: string): Promise<LoanRequestPayload> {
+    public async makeLoanRequestPayload(
+        collateral: string,
+        fee_rate: string,
+        timeout: string,
+    ): Promise<LoanRequestPayload> {
         debug("Making loan request payload");
         let promise = new Promise<LoanRequestPayload>((resolve, reject) => {
             let listener = async function(event: MessageEvent<Message<LoanRequestPayload>>) {
@@ -139,7 +143,11 @@ export default class WavesProvider {
         window.postMessage({
             kind: MessageKind.LoanRequest,
             direction: Direction.ToBackground,
-            payload: collateral,
+            payload: {
+                collateral: collateral,
+                fee_rate: fee_rate,
+                timeout: timeout,
+            },
         }, "*");
         return promise;
     }

@@ -36,7 +36,8 @@ function Borrow({ dispatch, state, rate, wavesProvider, walletStatusAsyncState }
         },
     });
     let { isLoading: loanOfferLoading, data: loanOffer } = loanOfferHook;
-    // TODO: Automated reload of loan offers
+    // TODO: Some mechanism to refresh the loan offer values
+    //  Note: The rate is currently not taken from the offer, but from the state's rate
 
     let { data: walletStatus, reload: reloadWalletStatus, error: walletStatusError } = walletStatusAsyncState;
 
@@ -70,11 +71,18 @@ function Borrow({ dispatch, state, rate, wavesProvider, walletStatusAsyncState }
             }
 
             try {
-                // TODO: Gather values that the user selected / we have from Bobtimus and
-                //  construct the payload out of that and what the wallet returns.
-                //  Currently some parameters are decided by the wallet which the wallet is not concerned with (e.g. timelock)
-                let loanRequest = await wavesProvider.makeLoanRequestPayload(collateralAmount.toString());
+                const feeRate = state.loanOffer!.fee_sats_per_vbyte;
+                // Liquid has 1 minute blocktime
+                const loanTermInBlocks = state.loanTermInDays * 24 * 60;
+
+                let loanRequest = await wavesProvider.makeLoanRequestPayload(
+                    collateralAmount.toString(),
+                    feeRate.toString(),
+                    loanTermInBlocks.toString(),
+                );
                 let loanResponse = await postLoanRequest(loanRequest);
+                debug(JSON.stringify(loanResponse));
+
                 let loanTransaction = await wavesProvider.signLoan(loanResponse);
                 let txid = await postLoanFinalization(loanTransaction);
 
@@ -186,7 +194,7 @@ function Borrow({ dispatch, state, rate, wavesProvider, walletStatusAsyncState }
                         isDisabled={true}
                         dataCy={"data-cy-interest"}
                     />
-                    <p>Loan term (in days): {state.loanTerm}</p>
+                    <p>Loan term (in days): {state.loanTermInDays}</p>
                 </VStack>
             </Center>
 
