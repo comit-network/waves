@@ -42,11 +42,12 @@ export interface TradeState {
     alpha: AssetState;
     beta: Asset;
     txId: string;
+    rate: Rate;
 }
 
 export interface BorrowState {
     // user can select
-    loanTerm: number;
+    loanTermInDays: number;
     principalAmount: string;
 
     // from Bobtimus
@@ -66,6 +67,12 @@ export interface Rate {
 
 interface Wallet {
     status: WalletStatus;
+    balance: Balance;
+}
+
+interface Balance {
+    usdtBalance: number;
+    btcBalance: number;
 }
 
 interface WalletStatus {
@@ -83,7 +90,7 @@ interface AssetState {
     amount: string;
 }
 
-const initialState = {
+const initialState: State = {
     trade: {
         alpha: {
             type: Asset.LBTC,
@@ -100,7 +107,7 @@ const initialState = {
     },
     borrow: {
         principalAmount: "0.0",
-        loanTerm: 0,
+        loanTermInDays: 0,
         loanOffer: null,
     },
     wallet: {
@@ -217,14 +224,14 @@ export function reducer(state: State = initialState, action: Action) {
             // TODO: We currently always overwrite upon a new loan offer
             //  This will have to be adapted once we refresh loan offers.
             const principalAmount = action.value.min_principal.toString();
-            const loanTerm = action.value.interest[0].timelock / 60 / 24;
+            const loanTermInDays = action.value.interest[0].timelock / 60 / 24;
 
             return {
                 ...state,
                 borrow: {
                     ...state.borrow,
                     principalAmount,
-                    loanTerm,
+                    loanTermInDays,
                     loanOffer: action.value,
                 },
             };

@@ -269,6 +269,7 @@ where
             rate: self.rate_service.latest_rate(),
             // TODO: Dynamic fee estimation
             fee_sats_per_vbyte: Amount::from_sat(1),
+            // TODO: Send sats over the wire and refactor waves reducer to use amount classes
             min_principal: LiquidUsdt::from_str_in_dollar("100")
                 .expect("static value to be convertible"),
             max_principal: LiquidUsdt::from_str_in_dollar("10000")

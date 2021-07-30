@@ -1,7 +1,7 @@
 use crate::{
     storage::Storage,
     wallet::{current, get_txouts, Wallet},
-    BTC_ASSET_ID, DEFAULT_SAT_PER_VBYTE, USDT_ASSET_ID,
+    BTC_ASSET_ID, USDT_ASSET_ID,
 };
 use baru::{
     input::Input,
@@ -14,15 +14,12 @@ use futures::lock::Mutex;
 use rand::thread_rng;
 use wasm_bindgen::UnwrapThrowExt;
 
-// TODO: The return type will have to change to a type specific to this wallet.
-//  The type "LoanRequest" is from baru and should not be used here.
-//  Once we take a loan with Bobtimus, Bobtimus will create what is needed for baru (i.e. what is called "LoanRequest" atm).
-//  We might have to pass more into here / add to what is returned on the outside the wallet before taking a loan on Bobtimus.
-//  e.g. timelock should not be decided in here, it depends on what the user chooses...
 pub async fn make_loan_request(
     name: String,
     current_wallet: &Mutex<Option<Wallet>>,
     collateral_amount: Amount,
+    fee_rate: Amount,
+    timelock: u64,
 ) -> Result<LoanRequest, Error> {
     let btc_asset_id = {
         let guard = BTC_ASSET_ID.lock().expect_throw("can get lock");
@@ -79,17 +76,12 @@ pub async fn make_loan_request(
             })
             .await?;
 
-            // TODO Bob currently hardcodes a fee-rate of 1 sat / vbyte, hence
-            // there is no need for us to perform fee estimation. Later
-            // on, both parties should probably agree on a block-target
-            // and use the same estimation service.
-            let bobs_fee_rate = Amount::from_sat(1);
-            let fee_offset = calculate_fee_offset(bobs_fee_rate);
+            let fee_offset = calculate_fee_offset(fee_rate);
 
             let output = coin_select(
                 utxos.iter().map(|(utxo, _)| utxo).cloned().collect(),
                 amount,
-                bobs_fee_rate.as_sat() as f32,
+                fee_rate.as_sat() as f32,
                 fee_offset,
             )?;
             let selection = output
@@ -114,16 +106,14 @@ pub async fn make_loan_request(
         }
     };
 
-    let borrower = Borrower0::new(
+    let borrower_state_0 = Borrower0::new(
         &mut thread_rng(),
         coin_selector,
         address,
         blinding_key,
         collateral_amount,
-        Amount::from_sat(DEFAULT_SAT_PER_VBYTE),
-        // TODO: This must be chosen explicitly either by the borrower
-        // through the UI or by Bobtimus via configuration
-        0,
+        fee_rate,
+        timelock,
         btc_asset_id,
         usdt_asset_id,
     )
@@ -134,11 +124,11 @@ pub async fn make_loan_request(
     storage
         .set_item(
             "borrower_state",
-            serde_json::to_string(&borrower).map_err(Error::Serialize)?,
+            serde_json::to_string(&borrower_state_0).map_err(Error::Serialize)?,
         )
         .map_err(Error::Save)?;
 
-    Ok(borrower.loan_request())
+    Ok(borrower_state_0.loan_request())
 }
 
 #[derive(Debug, thiserror::Error)]

@@ -67,7 +67,13 @@ browser.runtime.onMessage.addListener(async (msg: Message<any>, sender) => {
                 break;
             case MessageKind.LoanRequest:
                 message = await call_wallet(
-                    async () => await makeLoanRequestPayload(walletName, msg.payload),
+                    async () =>
+                        await makeLoanRequestPayload(
+                            walletName,
+                            msg.payload.collateral,
+                            msg.payload.fee_rate,
+                            msg.payload.timeout,
+                        ),
                     MessageKind.LoanResponse,
                 );
                 break;
