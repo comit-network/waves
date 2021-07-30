@@ -123,13 +123,14 @@ checksum = "cdb031dd78e28731d87d56cc8ffef4a8f36ca26c38fe2de700543e627f8a464a"
 
 [[package]]
 name = "baru"
-version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "45a925d16d7755d1f745724754b5812644fc6bcf9f2936de18c9710d707c2f87"
+version = "0.1.1"
+source = "git+https://github.com/comit-network/baru.git?tag=0.1.1#d8b46ceee58ad3a1c153dacd7bd41ab5f3ea24a5"
 dependencies = [
  "anyhow",
  "bitcoin_hashes 0.9.6",
- "elements",
+ "conquer-once",
+ "elements 0.17.0",
+ "elements-miniscript",
  "env_logger",
  "hex",
  "hmac 0.10.1",
@@ -156,10 +157,10 @@ checksum = "daeccaea73c9fc27e218e2a4402070707fb8354afd30fecd4a1c9a0bea8b79c4"
 dependencies = [
  "async-trait",
  "bdk-macros",
- "bitcoin",
+ "bitcoin 0.26.0",
  "js-sys",
  "log",
- "miniscript",
+ "miniscript 5.1.0",
  "rand 0.7.3",
  "serde 1.0.126",
  "serde_json 1.0.64",
@@ -184,6 +185,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2dabbe35f96fb9507f7330793dc490461b2962659ac5d427181e451a623751d1"
 
 [[package]]
+name = "bech32"
+version = "0.8.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cf9ff0bbfd639f15c74af777d81383cf53efb7c93613f6cab67c6c11e05bbf8b"
+
+[[package]]
 name = "bip32"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -205,8 +212,20 @@ version = "0.26.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1ec5f88a446d66e7474a3b8fa2e348320b574463fb78d799d90ba68f79f48e0e"
 dependencies = [
- "bech32",
+ "bech32 0.7.3",
  "bitcoin_hashes 0.9.6",
+ "secp256k1",
+ "serde 1.0.126",
+]
+
+[[package]]
+name = "bitcoin"
+version = "0.27.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8a427b27dae305157520d86673f2393b3eb08d880609abfcffc6e3c3c820e764"
+dependencies = [
+ "bech32 0.8.1",
+ "bitcoin_hashes 0.10.0",
  "secp256k1",
  "serde 1.0.126",
 ]
@@ -222,6 +241,15 @@ name = "bitcoin_hashes"
 version = "0.9.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3e6d72ba9671cb0929b5620e1bc30cdf5e206ccb3dbaa8964d67f6efc1e16129"
+dependencies = [
+ "serde 1.0.126",
+]
+
+[[package]]
+name = "bitcoin_hashes"
+version = "0.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "006cc91e1a1d99819bc5b8214be3555c1f0611b169f527a1fdc54ed1f2b745b0"
 dependencies = [
  "serde 1.0.126",
 ]
@@ -252,7 +280,7 @@ dependencies = [
  "diesel",
  "diesel_migrations",
  "directories",
- "elements",
+ "elements 0.17.0",
  "elements-harness",
  "futures",
  "hex",
@@ -361,7 +389,7 @@ name = "coin_selection"
 version = "0.1.0"
 dependencies = [
  "bdk",
- "elements",
+ "elements 0.17.0",
  "estimate_transaction_size",
  "thiserror",
 ]
@@ -530,10 +558,23 @@ version = "0.17.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "52bc8e918eb82346053fc6dcac7281066778164bced4cfa40e4b2b2e4b219c8b"
 dependencies = [
- "bitcoin",
+ "bitcoin 0.26.0",
  "bitcoin_hashes 0.9.6",
  "secp256k1-zkp",
  "serde 1.0.126",
+ "serde_json 0.9.10",
+ "slip21",
+]
+
+[[package]]
+name = "elements"
+version = "0.18.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "aa776445bd0ef9b30eab2e7c09cacc3a545e0502c178fdca9c4c6d80f738d519"
+dependencies = [
+ "bitcoin 0.27.0",
+ "bitcoin_hashes 0.10.0",
+ "secp256k1-zkp",
  "serde_json 0.9.10",
  "slip21",
 ]
@@ -552,6 +593,17 @@ dependencies = [
  "thiserror",
  "tracing",
  "url",
+]
+
+[[package]]
+name = "elements-miniscript"
+version = "0.1.0"
+source = "git+http://github.com/ElementsProject/elements-miniscript#eef01843a2f7f36cb670a3444a5e2bc1bb6dff4b"
+dependencies = [
+ "bitcoin 0.27.0",
+ "elements 0.18.0",
+ "miniscript 6.0.0",
+ "serde 1.0.126",
 ]
 
 [[package]]
@@ -1145,7 +1197,16 @@ version = "5.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "71f455be59a359d50370c4f587afbc5739c862e684c5afecae80ab93e7474b4e"
 dependencies = [
- "bitcoin",
+ "bitcoin 0.26.0",
+]
+
+[[package]]
+name = "miniscript"
+version = "6.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1f88ac7d08e876153a4a81e851693db71f325b382baa77723f63210451e2414f"
+dependencies = [
+ "bitcoin 0.27.0",
 ]
 
 [[package]]
@@ -2504,7 +2565,7 @@ dependencies = [
  "coin_selection",
  "conquer-once",
  "console_error_panic_hook",
- "elements",
+ "elements 0.17.0",
  "estimate_transaction_size",
  "futures",
  "getrandom 0.2.3",

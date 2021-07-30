@@ -7,7 +7,7 @@ edition = "2018"
 [dependencies]
 anyhow = "1"
 async-trait = "0.1"
-baru = "0.1"
+baru = { git = "https://github.com/comit-network/baru.git", tag = "0.1.1" }
 bitcoin_hashes = "0.9.0"
 diesel = { version = "1.4", features = [ "sqlite" ] }
 diesel_migrations = "1.4"
