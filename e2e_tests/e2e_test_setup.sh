@@ -12,7 +12,7 @@ while getopts "CS" o; do
             then
                 echo "Clearing docker compose data"
                 cd nigiri
-                docker compose down
+                docker-compose down
                 rm -rf liquid-config/liquidregtest
                 cd ..
             else
@@ -21,7 +21,7 @@ while getopts "CS" o; do
             ;;
         S)
             echo "Starting docker containers"
-            docker compose -f ./nigiri/docker-compose.yml up -d
+            docker-compose -f ./nigiri/docker-compose.yml up -d
             ;;
         *)
             usage
