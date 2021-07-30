@@ -1,10 +1,14 @@
-import { Box, Button, Flex, Heading, Image, Spacer, Text } from "@chakra-ui/react";
+import { Box, Button, Flex, Heading, Image, Spacer, Text, useInterval } from "@chakra-ui/react";
+import Debug from "debug";
+import moment from "moment";
 import React from "react";
 import { useAsync } from "react-async";
-import { signLoan } from "../background-proxy";
+import { getBlockHeight, signLoan } from "../background-proxy";
 import { LoanToSign, USDT_TICKER } from "../models";
 import YouSwapItem from "./SwapItem";
 import Usdt from "./tether.svg";
+
+const debug = Debug("confirmloan:error");
 
 interface ConfirmLoanProps {
     onCancel: (tabId: number) => void;
@@ -23,6 +27,22 @@ export default function ConfirmLoan(
     });
 
     let { details: { collateral, principal, principalRepayment, term } } = loanToSign;
+
+    const blockHeightHook = useAsync({
+        promiseFn: getBlockHeight,
+        onReject: (e) => debug("Failed to fetch block height %s", e),
+    });
+    let { data: blockHeight, reload: reloadBlockHeight } = blockHeightHook;
+
+    useInterval(() => {
+        reloadBlockHeight();
+    }, 6000); // 1 min
+
+    // format the time nicely into something like : `in 13 hours` or `in 1 month`.
+    // block-height and loan-term are in "blocktime" ^= minutes
+    const deadline = blockHeight && term
+        ? moment().add(Math.abs(blockHeight - term), "minutes").fromNow()
+        : null;
 
     return (<Box>
         <form
@@ -64,7 +84,7 @@ export default function ConfirmLoan(
             <Box w="100%">
                 <Flex>
                     <Box h="40px" p="1">
-                        <Text>Loan term: {term}</Text>
+                        <Text>Loan term: {term} block-height {deadline ? "(due " + deadline + ")" : ""}</Text>
                     </Box>
                 </Flex>
             </Box>

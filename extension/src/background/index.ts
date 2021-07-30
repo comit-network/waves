@@ -9,6 +9,7 @@ import {
     extractTrade,
     getAddress,
     getBalances,
+    getBlockHeight,
     getOpenLoans,
     getPastTransactions,
     makeBuyCreateSwapPayload,
@@ -212,6 +213,11 @@ window.bip39SeedWords = async (): string => {
 // @ts-ignore
 window.createWalletFromBip39 = async (seed_words: string, password: string) => {
     return createNewBip39Wallet(walletName, seed_words, password);
+};
+
+// @ts-ignore
+window.getBlockHeight = async () => {
+    return getBlockHeight();
 };
 
 function updateBadge() {

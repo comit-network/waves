@@ -265,6 +265,8 @@ where
     /// We return the range of possible loan terms to the borrower.
     /// The borrower can then request a loan using parameters that are within our terms.
     pub async fn handle_loan_offer_request(&mut self) -> Result<LoanOffer> {
+        let current_height = self.elementsd.get_blockcount().await?;
+
         Ok(LoanOffer {
             rate: self.rate_service.latest_rate(),
             // TODO: Dynamic fee estimation
@@ -277,8 +279,9 @@ where
             max_ltv: dec!(0.8),
             // TODO: Dynamic interest based on current market values
             interest: vec![Interest {
+                // Absolute timelock calculated from current block height
                 // Assuming 1 min block interval, 43200 mins = 30 days
-                timelock: 43200,
+                timelock: current_height + 43200,
                 interest_rate: dec!(0.15),
             }],
         })

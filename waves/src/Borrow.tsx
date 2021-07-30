@@ -75,6 +75,8 @@ function Borrow({ dispatch, state, rate, wavesProvider, walletStatusAsyncState }
                 // Liquid has 1 minute blocktime
                 const loanTermInBlocks = state.loanTermInDays * 24 * 60;
 
+                debug("loan term in blocks: " + loanTermInBlocks);
+
                 let loanRequest = await wavesProvider.makeLoanRequestPayload(
                     collateralAmount.toString(),
                     feeRate.toString(),

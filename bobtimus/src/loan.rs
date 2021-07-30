@@ -46,7 +46,7 @@ pub struct LoanOffer {
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct Interest {
     /// Timelock in blocks
-    pub timelock: u64,
+    pub timelock: u32,
     /// Interest rate in percent
     pub interest_rate: Decimal,
 }

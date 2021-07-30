@@ -1,10 +1,21 @@
-import { Box, Button, FormControl, FormErrorMessage, HStack, Image, VStack } from "@chakra-ui/react";
+import {
+    Box,
+    Button,
+    FormControl,
+    FormErrorMessage,
+    HStack,
+    Image,
+    SkeletonText,
+    useInterval,
+    VStack,
+} from "@chakra-ui/react";
 import { Accordion, AccordionButton, AccordionIcon, AccordionItem, AccordionPanel } from "@chakra-ui/react";
 import Debug from "debug";
 import moment from "moment";
 import * as React from "react";
 import { useAsync } from "react-async";
 import { repayLoan } from "../background-proxy";
+import { getBlockHeight } from "../background-proxy";
 import { LoanDetails } from "../models";
 import Btc from "./bitcoin.svg";
 import Usdt from "./tether.svg";
@@ -45,10 +56,21 @@ function OpenLoan({ loanDetails, onRepayed, index }: OpenLoanProps) {
         onReject: (e) => error("Failed to repay loan %s: %s", loanDetails.txid, e),
     });
 
-    // TODO: get current block height from explorer
-    const currentHeight = 10;
-    // this will format the time nicely into something like : `in 13 hours` or `in 1 month`.
-    const deadline = moment().add((currentHeight - loanDetails.term) * 60, "hours").fromNow();
+    const blockHeightHook = useAsync({
+        promiseFn: getBlockHeight,
+        onReject: (e) => error("Failed to fetch block height %s", e),
+    });
+    let { data: blockHeight, reload: reloadBlockHeight } = blockHeightHook;
+
+    useInterval(() => {
+        reloadBlockHeight();
+    }, 6000); // 1 min
+
+    // format the time nicely into something like : `in 13 hours` or `in 1 month`.
+    // block-height and loan-term are in "blocktime" ^= minutes
+    const deadline = blockHeight
+        ? moment().add(Math.abs(blockHeight - loanDetails.term), "minutes").fromNow()
+        : null;
 
     return <AccordionItem>
         <h2>
@@ -66,7 +88,9 @@ function OpenLoan({ loanDetails, onRepayed, index }: OpenLoanProps) {
                     <Box w="32px" h="32px">
                         <Image src={Usdt} h="32px" />
                     </Box>
-                    <Box>are due {deadline}</Box>
+                    {deadline
+                        ? <Box>are due {deadline}</Box>
+                        : <Box><SkeletonText noOfLines={2} spacing="4" /></Box>}
                 </HStack>
                 <AccordionIcon />
             </AccordionButton>
@@ -104,7 +128,7 @@ function OpenLoan({ loanDetails, onRepayed, index }: OpenLoanProps) {
                         </Box>
                     </HStack>
                     <Box>
-                        Loan term: {loanDetails.term}
+                        Loan term: {loanDetails.term} (due block-height)
                     </Box>
                     <FormControl id="repayment" isInvalid={repayFailed}>
                         <Box>
