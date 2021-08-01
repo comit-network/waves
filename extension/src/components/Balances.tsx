@@ -42,7 +42,9 @@ function balanceEntry(balance: BalanceEntry) {
 }
 
 function WalletBalances({ balanceUpdates }: BalancesProps) {
-    let elements = balanceUpdates.map((be) => balanceEntry(be));
+    let elements = balanceUpdates
+        .sort((a, b) => a.ticker.localeCompare(b.ticker))
+        .map((be) => balanceEntry(be));
 
     return (
         <HStack justify="center">
