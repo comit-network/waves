@@ -2,12 +2,11 @@ use std::str::FromStr;
 
 use bip32::{Language, Mnemonic};
 use conquer_once::Lazy;
-use elements::{
-    bitcoin::util::amount::{Amount, Denomination},
-    Address, AddressParams, Txid,
-};
+use elements::{bitcoin::util::amount::Amount, Address, AddressParams, Txid};
 use futures::lock::Mutex;
 use js_sys::Promise;
+use reqwest::Url;
+use rust_decimal::{prelude::ToPrimitive, Decimal, RoundingStrategy};
 use wasm_bindgen::{prelude::*, JsCast};
 use web_sys::window;
 
@@ -22,7 +21,6 @@ mod storage;
 mod wallet;
 
 use crate::{storage::Storage, wallet::*};
-use reqwest::Url;
 
 // TODO: make this configurable through extension option UI
 const DEFAULT_SAT_PER_VBYTE: u64 = 1;
@@ -190,7 +188,7 @@ pub async fn make_buy_create_swap_payload(
     wallet_name: String,
     usdt: String,
 ) -> Result<JsValue, JsValue> {
-    let usdt = map_err_from_anyhow!(Amount::from_str_in(&usdt, Denomination::Bitcoin))?;
+    let usdt = map_err_from_anyhow!(parse_to_bitcoin_amount(usdt))?;
     let payload = map_err_from_anyhow!(
         wallet::make_buy_create_swap_payload(wallet_name, &LOADED_WALLET, usdt).await
     )?;
@@ -207,7 +205,7 @@ pub async fn make_sell_create_swap_payload(
     wallet_name: String,
     btc: String,
 ) -> Result<JsValue, JsValue> {
-    let btc = map_err_from_anyhow!(Amount::from_str_in(&btc, Denomination::Bitcoin))?;
+    let btc = map_err_from_anyhow!(parse_to_bitcoin_amount(btc))?;
     let payload = map_err_from_anyhow!(
         wallet::make_sell_create_swap_payload(wallet_name, &LOADED_WALLET, btc).await
     )?;
@@ -228,7 +226,7 @@ pub async fn make_loan_request(
     wallet_name: String,
     collateral: String,
 ) -> Result<JsValue, JsValue> {
-    let collateral = map_err_from_anyhow!(Amount::from_str_in(&collateral, Denomination::Bitcoin))?;
+    let collateral = map_err_from_anyhow!(parse_to_bitcoin_amount(collateral))?;
     let loan_request = map_err_from_anyhow!(
         wallet::make_loan_request(wallet_name, &LOADED_WALLET, collateral).await
     )?;
@@ -422,4 +420,14 @@ impl From<Transaction> for elements::Transaction {
     fn from(from: Transaction) -> Self {
         from.inner
     }
+}
+
+fn parse_to_bitcoin_amount(amount: String) -> anyhow::Result<Amount> {
+    let parsed = Decimal::from_str(amount.as_str())?;
+    let rounded = parsed
+        .round_dp_with_strategy(8, RoundingStrategy::MidpointAwayFromZero)
+        .to_f64()
+        .ok_or_else(|| anyhow::anyhow!("decimal cannot be represented as f64"))?;
+    let amount = Amount::from_btc(rounded)?;
+    Ok(amount)
 }

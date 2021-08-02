@@ -8,7 +8,7 @@ const getElementById = async (driver, xpath, timeout = 4000) => {
     return await driver.wait(until.elementIsVisible(el), timeout);
 };
 
-describe("webdriver", () => {
+describe("create wallet", () => {
     const webAppUrl = "http://localhost:3030";
 
     let driver;
@@ -39,11 +39,14 @@ describe("webdriver", () => {
         let step1 = await getElementById(driver, "//button[@data-cy='data-cy-create-wallet-step-1']");
         await step1.click();
 
-        let mnemonic =
-            "globe favorite camp draw action kid soul junk space soda genre vague name brisk female circle equal fix decade gloom elbow address genius noodle";
+        let refreshMnemonicButton = await getElementById(
+            driver,
+            "//button[@data-cy='data-cy-create-wallet-generate-mnemonic']",
+        );
+        await refreshMnemonicButton.click();
 
         let mnemonicInput = await getElementById(driver, "//textarea[@data-cy='data-cy-create-wallet-mnemonic-input']");
-        await mnemonicInput.sendKeys(mnemonic);
+        let mnemonic = mnemonicInput.getText();
 
         let checkBox = await getElementById(driver, "//label[@data-cy='data-cy-create-wallet-checkbox-input']");
         await checkBox.click();
@@ -71,9 +74,7 @@ describe("webdriver", () => {
         debug("Getting wallet address");
         let addressField = await getElementById(driver, "//p[@data-cy='data-cy-wallet-address-text-field']");
         let address = await addressField.getText();
-        debug(`Address found: ${address}`);
 
-        // TODO: re-enable faucet again
         let url = `${webAppUrl}/api/faucet/${address}`;
         debug("Calling faucet: %s", url);
         let response = await fetch(url, {
@@ -83,13 +84,34 @@ describe("webdriver", () => {
         let body = await response.text();
         debug("Faucet response: %s", body);
 
-        // TODO: Remove when automatic balance refreshing is
-        // implemented
+        // TODO: Remove when automatic balance refreshing is implemented
         await new Promise(r => setTimeout(r, 10_000));
         await driver.navigate().refresh();
 
         debug("Waiting for balance update");
         let btcAmount = await getElementById(driver, "//p[@data-cy='data-cy-L-BTC-balance-text-field']", 20_000);
         debug("Found L-BTC amount: %s", await btcAmount.getText());
+
+        let wallets = await driver.executeScript(
+            "return window.localStorage.getItem('wallets')",
+        );
+        let pwd = await driver.executeScript(
+            "return window.localStorage.getItem('wallets.demo.password')",
+        );
+        let xprv = await driver.executeScript(
+            "return window.localStorage.getItem('wallets.demo.xprv')",
+        );
+
+        let setup_logger = Debug("setup");
+        setup_logger(
+            `await driver.executeScript("return window.localStorage.setItem('wallets.demo.wallets','${wallets}');",);`,
+        );
+        setup_logger(
+            `await driver.executeScript("return window.localStorage.setItem('wallets.demo.password','${pwd}');",);`,
+        );
+        setup_logger(
+            `await driver.executeScript("return window.localStorage.setItem('wallets.demo.xprv','${xprv}');",);`,
+        );
+        setup_logger(`Address: '${address}'`);
     }, 30_000);
 });

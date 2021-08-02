@@ -1,17 +1,34 @@
 set -e
 
-# This script is primarily for CI purposes. If you want to run the e2e tests locally use the -L flag:
-#    ./e2e_test_setup.sh -L
+usage() { echo "Usage:
+    To clean up old state run: ./e2e_test_setup -C
+    To start docker containers run: ./e2e_test_setup -S
+" 1>&2; exit 1; }
 
-if getopts ":L" arg; then
-  mkdir -p nigiri
-  cd nigiri
-  if [[ ! ( -d "config" ) || ! ( -d "liquid-config" ) || ! ( -f "docker-compose.yml" ) ]]; then
-    curl https://travis.nigiri.network | bash
-  fi
-  docker-compose -f ./docker-compose.yml up -d
-  cd ../
-fi
+while getopts "CS" o; do
+    case "${o}" in
+        C)
+            if [ -d "nigiri" ]
+            then
+                echo "Clearing docker compose data"
+                cd nigiri
+                docker-compose down
+                rm -rf liquid-config/liquidregtest
+                cd ..
+            else
+                echo "Nigiri data does not exist."
+            fi
+            ;;
+        S)
+            echo "Starting docker containers"
+            docker-compose -f ./nigiri/docker-compose.yml up -d
+            ;;
+        *)
+            usage
+            ;;
+    esac
+done
+
 
 btc_asset_id=$(docker exec nigiri_liquid_1 elements-cli -rpcport=18884 -rpcuser=admin1 -rpcpassword=123 dumpassetlabels | jq -r '.bitcoin')
 
@@ -51,10 +68,25 @@ echo "Bitcoin Asset ID: "$btc_asset_id
 
     cd ../
 
-    cargo build --bin fake_bobtimus
-    RUST_LOG=debug,hyper=info,reqwest=info cargo run --bin fake_bobtimus -- \
+    cargo build --bin bobtimus --features faucet
+    RUST_LOG=debug,hyper=info,reqwest=info cargo run --bin bobtimus --features faucet -- \
             start \
             --http 127.0.0.1:3030 \
             --elementsd http://admin1:123@localhost:18884 \
             --usdt $usdt_asset_id > e2e_tests/bobtimus.log 2>&1 &
 )
+
+# give bobtimus time to start:
+
+sleep 5s
+
+# fund test wallets
+
+# wallet for borrow.test.ts
+curl -POST  http://localhost:3030/api/faucet/el1qq0zel5lg55nvhv9kkrq8gme8hnvp0lemuzcmu086dn2m8laxjgkewkhqnh8vxdnlp4cejs3925j0gu9n9krdgmqm89vku0kc8 -d {}
+# wallet for unlock_wallet.test.ts
+curl -POST  http://localhost:3030/api/faucet/el1qqf09atu8jsmd25eclm8t5relx9q3x80yw3yncesd3ez2rgzy2pxkmamlcgrwlfa523rd4vjmcg4anyv2w89kk74k5p0af0pj5 -d {}
+# wallet for usdt-btc_buy.test.ts
+curl -POST  http://localhost:3030/api/faucet/el1qqgupeqadsckv095dr7u90ukn3nsfs4gayfl3746kaf6l2nn0wrs8e5s4943wa0ven87ggpk9qgsdqz6779mgsj0783d9hau0d -d {}
+# wallet for usdt-btc_sell.test.ts
+curl -POST  http://localhost:3030/api/faucet/el1qqfahtc82zq03wcq6t2hwys5azxp5l5pggpsxq7f8h5jfpq0waced0tg6s9v0avhsam03ecyycdrgw4gzcsackynfpjmfd5l6d -d {}

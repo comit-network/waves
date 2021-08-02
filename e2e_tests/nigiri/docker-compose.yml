@@ -1,0 +1,68 @@
+version: '3.9'
+services:
+  liquid:
+    image: vulpemventures/liquid:latest
+    ports:
+      - 18884:18884
+      - 18886:18886
+    volumes:
+      - ./liquid-config/:/config
+    restart: unless-stopped
+  electrs-liquid:
+    image: vulpemventures/electrs-liquid:latest
+    entrypoint:
+      - /build/electrs
+    command:
+      - -vvvv
+      - --parent-network
+      - regtest
+      - --network
+      - liquidregtest
+      - --daemon-dir
+      - /config
+      - --daemon-rpc-addr
+      - liquid:18884
+      - --cookie
+      - admin1:123
+      - --http-addr
+      - 0.0.0.0:3002
+      - --electrum-rpc-addr
+      - 0.0.0.0:60401
+      - --cors
+      - "*"
+    links:
+      - liquid
+    depends_on:
+      - liquid
+    ports:
+      - 50401:60401
+      - 3012:3002
+    volumes:
+      - ./liquid-config/:/config
+    restart: unless-stopped
+  chopsticks-liquid:
+    image: vulpemventures/nigiri-chopsticks:latest
+    command:
+      - --use-faucet
+      - --use-mining
+      - --use-logger
+      - --rpc-addr
+      - liquid:18884
+      - --electrs-addr
+      - electrs-liquid:3002
+      - --addr
+      - 0.0.0.0:3000
+      - --chain
+      - liquid
+    links:
+      - electrs-liquid
+      - liquid
+    depends_on:
+      - electrs-liquid
+    ports:
+      - 3001:3000
+    restart: unless-stopped
+
+networks:
+  default:
+    name: nigiri

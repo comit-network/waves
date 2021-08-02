@@ -90,12 +90,12 @@ start_bobtimus () {
     __ensure_log_dir
     __read_env_file
 
-    cargo build --bin fake_bobtimus
+    cargo build --bin bobtimus --features faucet
 
     local -r elementsd_rpc_user="admin1"
     local -r elementsd_rpc_password="123"
 
-    RUST_LOG=debug,hyper=info,reqwest=info cargo run --bin fake_bobtimus -- \
+    RUST_LOG=debug,hyper=info,reqwest=info cargo run --bin bobtimus --features faucet -- \
             start \
             --http 127.0.0.1:3030 \
             --elementsd http://$elementsd_rpc_user:$elementsd_rpc_password@127.0.0.1:$LIQUID_NODE_PORT \

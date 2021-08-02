@@ -1,6 +1,9 @@
 use anyhow::{anyhow, Context, Result};
 use elements::bitcoin::{Amount, Denomination};
-use rust_decimal::{prelude::ToPrimitive, Decimal};
+use rust_decimal::{
+    prelude::{FromPrimitive, ToPrimitive},
+    Decimal, RoundingStrategy,
+};
 use serde::{Deserialize, Serialize};
 use std::{convert::TryFrom, fmt::Debug};
 
@@ -43,6 +46,10 @@ impl Rate {
         let btc = Decimal::from(satodollars)
             .checked_div(Decimal::from(self.ask.as_satodollar()))
             .ok_or_else(|| anyhow!("division overflow"))?;
+
+        // we round to 1 satoshi
+        let btc = btc.round_dp_with_strategy(8, RoundingStrategy::MidpointAwayFromZero);
+
         let btc = btc
             .to_f64()
             .ok_or_else(|| anyhow!("decimal cannot be represented as f64"))?;
@@ -109,6 +116,11 @@ impl TryFrom<f64> for LiquidUsdt {
     type Error = anyhow::Error;
 
     fn try_from(value: f64) -> Result<Self> {
+        let value = Decimal::from_f64(value)
+            .with_context(|| format!("LiquidUsdt amount cannot be parsed from float {}", value))?
+            .round_dp_with_strategy(8, RoundingStrategy::MidpointAwayFromZero)
+            .to_f64()
+            .unwrap();
         Ok(LiquidUsdt(Amount::from_btc(value)?))
     }
 }
@@ -168,5 +180,11 @@ mod tests {
         let serialized = serde_json::to_string(&rate).unwrap();
 
         assert_eq!(serialized, "{\"ask\":19313.52,\"bid\":19213.53}")
+    }
+
+    #[test]
+    fn test_rounding_liquid_usdt() {
+        let amount = LiquidUsdt::try_from(0.0000000123).unwrap();
+        assert_eq!(amount.0, Amount::from_sat(1));
     }
 }
