@@ -45,10 +45,10 @@ pub async fn extract_loan(
         .ok_or(Error::EmptyState)?;
     let borrower = serde_json::from_str::<Borrower0>(&borrower).map_err(Error::Deserialize)?;
 
-    let timelock = loan_response.timelock;
     let borrower = borrower
         .interpret(SECP256K1, loan_response)
         .map_err(Error::InterpretLoanResponse)?;
+    let timelock = borrower.collateral_contract().timelock();
 
     let collateral_balance = balances
         .iter()
@@ -72,15 +72,15 @@ pub async fn extract_loan(
         })
         .unwrap_or_default();
 
-    let loan_txid = borrower.loan_transaction.txid();
+    let loan_txid = borrower.loan_transaction().txid();
     let loan_details = LoanDetails::new(
         btc_asset_id,
-        borrower.collateral_amount,
+        borrower.collateral_amount(),
         collateral_balance,
         usdt_asset_id,
-        borrower.principal_tx_out_amount,
+        borrower.principal_amount(),
         principal_balance,
-        timelock,
+        *timelock,
         loan_txid,
     )
     .map_err(Error::LoanDetails)?;

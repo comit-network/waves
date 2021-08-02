@@ -13,13 +13,12 @@ default = ["console_error_panic_hook"]
 [dependencies]
 aes-gcm-siv = { version = "0.9", features = ["std"] }
 anyhow = "1"
-baru = "0.1"
-bdk = { version = "0.4", default-features = false }
+baru = "0.2"
 bip32 = { version = "0.2", features = ["secp256k1-ffi", "bip39"], default-features = false }
 coin_selection = { path = "../../coin_selection" }
 conquer-once = "0.3"
 console_error_panic_hook = { version = "0.1.6", optional = true }
-elements = { version = "0.17", features = ["serde-feature"] }
+elements = { version = "0.18", features = ["serde-feature"] }
 estimate_transaction_size = { path = "../../estimate_transaction_size" }
 futures = "0.3"
 getrandom = { version = "0.2", features = ["wasm-bindgen", "js"] }
@@ -48,7 +47,7 @@ wasm-bindgen-test = "0.3.13"
 [build-dependencies]
 anyhow = "1"
 conquer-once = "0.3"
-elements = { version = "0.17" }
+elements = { version = "0.18" }
 
 # By default wasm-opt is true which makes the build fail.
 [package.metadata.wasm-pack.profile.release]

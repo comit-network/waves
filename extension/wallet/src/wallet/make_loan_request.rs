@@ -19,7 +19,7 @@ pub async fn make_loan_request(
     current_wallet: &Mutex<Option<Wallet>>,
     collateral_amount: Amount,
     fee_rate: Amount,
-    timelock: u64,
+    timelock: u32,
 ) -> Result<LoanRequest, Error> {
     let btc_asset_id = {
         let guard = BTC_ASSET_ID.lock().expect_throw("can get lock");

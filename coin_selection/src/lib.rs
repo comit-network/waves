@@ -1,11 +1,13 @@
 use bdk::{
-    bitcoin::{Amount, Denomination},
     database::{BatchOperations, Database},
     wallet::coin_selection::{
         BranchAndBoundCoinSelection, CoinSelectionAlgorithm, CoinSelectionResult,
     },
 };
-use elements::{AssetId, OutPoint, Script};
+use elements::{
+    bitcoin::{Amount, Denomination},
+    AssetId, OutPoint, Script,
+};
 use estimate_transaction_size::avg_vbytes;
 
 /// Select a subset of `utxos` to cover the `target` amount.
@@ -70,7 +72,8 @@ pub fn coin_select(
             utxos
                 .iter()
                 .find(|utxo| {
-                    bdk_utxo.outpoint.txid.as_hash() == utxo.outpoint.txid.as_hash()
+                    format!("{}", bdk_utxo.outpoint.txid)
+                        == format!("{}", utxo.outpoint.txid.as_hash())
                         && bdk_utxo.outpoint.vout == utxo.outpoint.vout
                 })
                 .expect("same source of utxos")
@@ -100,7 +103,7 @@ pub enum Error {
     #[error("All UTXOs must have the same asset ID")]
     HeterogeneousUtxos,
     #[error("Failed to parse recommended fee: {0}")]
-    ParseFee(#[from] bdk::bitcoin::util::amount::ParseAmountError),
+    ParseFee(#[from] elements::bitcoin::util::amount::ParseAmountError),
     #[error("Error from bdk: {0}")]
     Bdk(#[from] bdk::Error),
 }
@@ -121,7 +124,9 @@ impl From<Utxo> for bdk::UTXO {
 
         Self {
             outpoint: bdk::bitcoin::OutPoint {
-                txid: bdk::bitcoin::Txid::from_hash(utxo.outpoint.txid.as_hash()),
+                txid: format!("{}", utxo.outpoint.txid)
+                    .parse()
+                    .expect("txid to be a txid"),
                 vout: utxo.outpoint.vout,
             },
             txout: bdk::bitcoin::TxOut {

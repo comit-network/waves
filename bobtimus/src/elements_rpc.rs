@@ -1,7 +1,7 @@
 use anyhow::{bail, Context, Result};
 use bitcoin_hashes::hex::FromHex;
 use elements::{
-    bitcoin::{Amount, PrivateKey},
+    bitcoin::Amount,
     confidential::{Asset, Nonce, Value},
     encode::serialize_hex,
     secp256k1_zkp::{SecretKey, Signature},
@@ -338,17 +338,15 @@ impl Client {
         Ok(sig)
     }
 
-    pub async fn dump_private_key(&self, address: &Address) -> Result<SecretKey> {
-        let privkey = self.dumpprivkey(address).await?;
-        let privkey = PrivateKey::from_wif(&privkey)?;
-
-        Ok(privkey.key)
-    }
-
     pub async fn get_blockcount(&self) -> Result<u32> {
         let blockcount = self.getblockcount().await?;
 
         Ok(blockcount)
+    }
+
+    pub async fn get_address_blinding_key(&self, address: &Address) -> Result<SecretKey> {
+        let key = self.dumpblindingkey(address).await?;
+        Ok(key)
     }
 }
 

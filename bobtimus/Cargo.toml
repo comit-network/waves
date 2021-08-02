@@ -7,12 +7,12 @@ edition = "2018"
 [dependencies]
 anyhow = "1"
 async-trait = "0.1"
-baru = "0.1"
+baru = "0.2"
 bitcoin_hashes = "0.9.0"
 diesel = { version = "1.4", features = ["sqlite"] }
 diesel_migrations = "1.4"
 directories = "3.0"
-elements = { version = "0.17", features = ["serde-feature"] }
+elements = { version = "0.18", features = ["serde-feature"] }
 elements-harness = { git = "https://github.com/comit-network/elements-harness" }
 futures = { version = "0.3", default-features = false }
 hex = "0.4"

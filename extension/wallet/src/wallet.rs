@@ -310,8 +310,8 @@ impl fmt::Display for ListOfWallets {
 pub struct CreateSwapPayload {
     pub alice_inputs: Vec<SwapUtxo>,
     pub address: Address,
-    #[serde(with = "bdk::bitcoin::util::amount::serde::as_sat")]
-    pub amount: bdk::bitcoin::Amount,
+    #[serde(with = "elements::bitcoin::util::amount::serde::as_sat")]
+    pub amount: elements::bitcoin::Amount,
 }
 
 #[derive(Clone, Copy, Debug, serde::Serialize, serde::Deserialize)]
@@ -426,7 +426,7 @@ pub struct LoanDetails {
     pub principal: TradeSide,
     pub principal_repayment: Decimal,
     // TODO: Express as target date or number of days instead?
-    pub term: u64,
+    pub term: u32,
     pub txid: Txid,
 }
 
@@ -439,7 +439,7 @@ impl LoanDetails {
         principal_asset: AssetId,
         principal_amount: Amount,
         principal_balance: Decimal,
-        timelock: u64,
+        timelock: u32,
         txid: Txid,
     ) -> Result<Self> {
         let collateral = TradeSide::new_sell(

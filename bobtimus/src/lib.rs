@@ -3,7 +3,7 @@ extern crate diesel;
 #[macro_use]
 extern crate diesel_migrations;
 
-use std::{collections::HashMap, convert::TryInto};
+use std::collections::HashMap;
 
 use crate::{
     database::{queries, Sqlite},
@@ -45,6 +45,7 @@ pub mod schema;
 
 use crate::loan::{Interest, LoanOffer};
 pub use amounts::*;
+use elements::bitcoin::PublicKey;
 use rust_decimal_macros::dec;
 
 pub const USDT_ASSET_ID: &str = "ce091c998b83c78bb71a632313ba3760f1763d9cfcffae02258ffa9865a37bd2";
@@ -295,17 +296,31 @@ where
         //  Currently there is no ID for incoming loan requests, that would associate them with an offer,
         //  so we just have to ensure that the loan is still "acceptable" in the current state of Bobtimus.
 
+        let oracle_secret_key = elements::secp256k1_zkp::key::ONE_KEY;
+        let oralce_priv_key = elements::bitcoin::PrivateKey::new(
+            oracle_secret_key,
+            elements::bitcoin::Network::Regtest,
+        );
+        let oracle_pk = PublicKey::from_private_key(&self.secp, &oralce_priv_key);
+
         let lender_address = self
             .elementsd
             .get_new_segwit_confidential_address()
             .await
             .context("failed to get lender address")?;
 
+        let address_blinder = self
+            .elementsd
+            .get_address_blinding_key(&lender_address)
+            .await?;
+
         let lender0 = Lender0::new(
             &mut self.rng,
             self.btc_asset_id,
             self.usdt_asset_id,
             lender_address,
+            address_blinder,
+            oracle_pk,
         )
         .unwrap();
 
@@ -328,7 +343,7 @@ where
         let loan_response = lender1.loan_response();
 
         self.lender_states
-            .insert(loan_response.transaction.txid(), lender1);
+            .insert(loan_response.transaction().txid(), lender1);
 
         Ok(loan_response)
     }
@@ -360,16 +375,14 @@ where
 
         let txid = self.elementsd.send_raw_transaction(&transaction).await?;
 
-        let liquidation_tx =
-            lender.liquidation_transaction(&mut self.rng, &self.secp, Amount::ONE_SAT)?;
-        let locktime = lender
-            .timelock
-            .try_into()
-            .expect("TODO: locktimes should be modelled as u32");
+        let liquidation_tx = lender
+            .liquidation_transaction(&mut self.rng, &self.secp, Amount::ONE_SAT)
+            .await?;
+        let locktime = lender.collateral_contract().timelock();
 
         self.db
             .do_in_transaction(|conn| {
-                LiquidationForm::new(txid, &liquidation_tx, locktime).insert(conn)?;
+                LiquidationForm::new(txid, &liquidation_tx, *locktime).insert(conn)?;
 
                 Ok(())
             })
