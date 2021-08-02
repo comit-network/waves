@@ -1,4 +1,4 @@
-import { Button, Center, Tooltip, useToast, VStack } from "@chakra-ui/react";
+import { Box, Button, Center, Tooltip, useToast, VStack } from "@chakra-ui/react";
 import Debug from "debug";
 import React, { Dispatch } from "react";
 import { AsyncState, useAsync } from "react-async";
@@ -165,16 +165,23 @@ function Borrow({ dispatch, state, rate, wavesProvider, walletStatusAsyncState }
             <Center bg="gray.100" w={400} h={400} borderRadius={"md"}>
                 <VStack spacing={4}>
                     <p>Principal:</p>
-                    <Tooltip label={"min = " + minPrincipal + " max = " + maxPrincipal} aria-label="principal" hasArrow>
-                        <NumberInput
-                            currency="$"
-                            value={state.principalAmount}
-                            precision={2}
-                            step={0.01}
-                            onAmountChange={onPrincipalAmountChange}
-                            isDisabled={loanOfferLoading}
-                            dataCy={"data-cy-principal"}
-                        />
+                    <Tooltip
+                        label={"min = " + minPrincipal + " max = " + maxPrincipal}
+                        aria-label="principal"
+                        hasArrow
+                        placement={"right"}
+                    >
+                        <Box>
+                            <NumberInput
+                                currency="$"
+                                value={state.principalAmount}
+                                precision={2}
+                                step={0.01}
+                                onAmountChange={onPrincipalAmountChange}
+                                isDisabled={loanOfferLoading}
+                                dataCy={"data-cy-principal"}
+                            />
+                        </Box>
                     </Tooltip>
                     <p>Collateral:</p>
                     <NumberInput
