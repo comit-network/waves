@@ -26,9 +26,9 @@
     }
   ],
   "icons": {
-    "16": "img/icon-16.png",
-    "48": "img/icon-48.png",
-    "128": "img/icon-128.png"
+    "16": "favicon.svg",
+    "48": "favicon.svg",
+    "128": "favicon.svg"
   },
   "options_ui": {
     "page": "options.html",
