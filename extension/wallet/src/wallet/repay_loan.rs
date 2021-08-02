@@ -184,9 +184,10 @@ pub async fn repay_loan(
         Some(open_loans) => serde_json::from_str(&open_loans).map_err(Error::Deserialize)?,
         None => Vec::<LoanDetails>::new(),
     };
+
     let open_loans = open_loans
         .iter()
-        .take_while(|details| loan_txid != details.txid)
+        .filter(|details| loan_txid != details.txid)
         .collect::<Vec<_>>();
     storage
         .set_item(
