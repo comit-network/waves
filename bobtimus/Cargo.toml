@@ -1,7 +1,7 @@
 [package]
 name = "bobtimus"
 version = "0.1.0"
-authors = [ "CoBloX Team <team@coblox.tech>" ]
+authors = ["CoBloX Team <team@coblox.tech>"]
 edition = "2018"
 
 [dependencies]
@@ -9,36 +9,36 @@ anyhow = "1"
 async-trait = "0.1"
 baru = "0.1"
 bitcoin_hashes = "0.9.0"
-diesel = { version = "1.4", features = [ "sqlite" ] }
+diesel = { version = "1.4", features = ["sqlite"] }
 diesel_migrations = "1.4"
 directories = "3.0"
-elements = { version = "0.17", features = [ "serde-feature" ] }
+elements = { version = "0.17", features = ["serde-feature"] }
 elements-harness = { git = "https://github.com/comit-network/elements-harness" }
 futures = { version = "0.3", default-features = false }
 hex = "0.4"
 hmac = "0.10"
-http-api-problem = { version = "0.21", features = [ "warp" ] }
-jsonrpc_client = { version = "0.6", features = [ "reqwest" ] }
+http-api-problem = { version = "0.21", features = ["warp"] }
+jsonrpc_client = { version = "0.6", features = ["reqwest"] }
 log = "0.4"
 mime_guess = "2.0.3"
 reqwest = "0.11"
 rust-embed = "5.7.0"
-rust_decimal = { version = "1.15", features = [ "serde-float" ] }
+rust_decimal = { version = "1.15", features = ["serde-float"] }
 rust_decimal_macros = "1.15"
-serde = { version = "1", features = [ "derive" ] }
+serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 sha2 = "0.9"
 structopt = "0.3"
 tempfile = "3.2"
-tokio = { version = "1", features = [ "macros", "rt-multi-thread" ] }
-tokio-tungstenite = { version = "0.13", features = [ "tls" ] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+tokio-tungstenite = { version = "0.13", features = ["tls"] }
 tracing = "0.1"
-tracing-subscriber = { version = "0.2", default-features = false, features = [ "env-filter", "fmt", "json" ] }
-warp = { version = "0.3", default-features = false, features = [ "tls" ] }
+tracing-subscriber = { version = "0.2", default-features = false, features = ["env-filter", "fmt", "json"] }
+warp = { version = "0.3", default-features = false, features = ["tls"] }
 
 [dev-dependencies]
 testcontainers = "0.12"
 
 [features]
-default = [ ]
-faucet = [ ]
+default = []
+faucet = []
