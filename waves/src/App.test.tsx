@@ -1,9 +1,5 @@
-import { act, render, screen } from "@testing-library/react";
 import React from "react";
-import { Listener, Source, SSEProvider } from "react-hooks-sse";
-import { BrowserRouter } from "react-router-dom";
-import App, { Asset, reducer, State } from "./App";
-import { Interest, Rate } from "./Bobtimus";
+import { Asset, reducer, State } from "./App";
 import calculateBetaAmount from "./calculateBetaAmount";
 
 const defaultLoanOffer = {
@@ -16,8 +12,9 @@ const defaultLoanOffer = {
     max_principal: 10000,
     max_ltv: 0.8,
     interest: [{
-        timelock: 43200,
+        term: 30,
         interest_rate: 0.15,
+        collateralization: 1.5,
     }],
 };
 

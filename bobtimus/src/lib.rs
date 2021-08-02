@@ -12,7 +12,7 @@ use crate::{
 use anyhow::{Context, Result};
 use baru::{
     input::Input,
-    loan::{Lender0, Lender1, LoanRequest, LoanResponse},
+    loan::{Lender0, Lender1, LoanResponse},
     swap,
 };
 use database::LiquidationForm;
@@ -43,7 +43,7 @@ pub mod loan;
 pub mod problem;
 pub mod schema;
 
-use crate::loan::{Interest, LoanOffer};
+use crate::loan::{Interest, LoanOffer, LoanRequest};
 pub use amounts::*;
 use elements::bitcoin::PublicKey;
 use rust_decimal_macros::dec;
@@ -266,8 +266,6 @@ where
     /// We return the range of possible loan terms to the borrower.
     /// The borrower can then request a loan using parameters that are within our terms.
     pub async fn handle_loan_offer_request(&mut self) -> Result<LoanOffer> {
-        let current_height = self.elementsd.get_blockcount().await?;
-
         Ok(LoanOffer {
             rate: self.rate_service.latest_rate(),
             // TODO: Dynamic fee estimation
@@ -280,10 +278,9 @@ where
             max_ltv: dec!(0.8),
             // TODO: Dynamic interest based on current market values
             interest: vec![Interest {
-                // Absolute timelock calculated from current block height
-                // Assuming 1 min block interval, 43200 mins = 30 days
-                timelock: current_height + 43200,
+                term: 30,
                 interest_rate: dec!(0.15),
+                collateralization: dec!(1.5),
             }],
         })
     }
@@ -302,6 +299,11 @@ where
             elements::bitcoin::Network::Regtest,
         );
         let oracle_pk = PublicKey::from_private_key(&self.secp, &oralce_priv_key);
+
+        // calculate the absolute timelock from the loan term
+        let current_height = self.elementsd.get_blockcount().await?;
+        let term_in_minutes = payload.term * 24 * 60;
+        let timelock = current_height + term_in_minutes;
 
         let lender_address = self
             .elementsd
@@ -334,8 +336,9 @@ where
                         Self::find_inputs(&elementsd_client, asset, amount).await
                     }
                 },
-                payload,
+                payload.into(),
                 self.rate_service.latest_rate().bid.as_satodollar(),
+                timelock,
             )
             .await
             .unwrap();

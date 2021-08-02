@@ -1,7 +1,7 @@
 import Debug from "debug";
 import React, { ReactElement } from "react";
 import { SSEProvider } from "react-hooks-sse";
-import { CreateSwapPayload, LoanRequestPayload } from "./waves-provider/wavesProvider";
+import { CreateSwapPayload, LoanRequestPayload, OutPoint } from "./waves-provider/wavesProvider";
 
 const debug = Debug("bobtimus");
 
@@ -25,8 +25,9 @@ export interface Rate {
 }
 
 export interface Interest {
-    timelock: number;
+    term: number;
     interest_rate: number; // percentage, decimal represented as float
+    collateralization: number; // percentage, decimal represented as float
 }
 
 export interface LoanOffer {
@@ -36,6 +37,17 @@ export interface LoanOffer {
     max_principal: number; // sat
     max_ltv: number; // percentage, decimal represented as float
     interest: Interest[];
+}
+
+export interface LoanRequest {
+    collateral_amount: number;
+    collateral_inputs: { txin: OutPoint; original_txout: any; blinding_key: string }[];
+    fee_sats_per_vbyte: number;
+    borrower_pk: string;
+    borrower_address: string;
+
+    /// Loan term in days
+    term: number;
 }
 
 export async function getLoanOffer(): Promise<LoanOffer> {
@@ -55,14 +67,23 @@ export async function getLoanOffer(): Promise<LoanOffer> {
     return await res.json();
 }
 
-export async function postLoanRequest(payload: LoanRequestPayload) {
+export async function postLoanRequest(walletParams: LoanRequestPayload, termInDays: number) {
+    let loanRequest: LoanRequest = {
+        borrower_address: walletParams.borrower_address,
+        borrower_pk: walletParams.borrower_pk,
+        collateral_amount: walletParams.collateral_amount,
+        collateral_inputs: walletParams.collateral_inputs,
+        fee_sats_per_vbyte: walletParams.fee_sats_per_vbyte,
+        term: termInDays,
+    };
+
     let res = await fetch(`/api/loan/lbtc-lusdt`, {
         method: "POST",
         headers: {
             "Content-Type": "application/json",
             Accept: "application/json",
         },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(loanRequest),
     });
 
     if (res.status !== 200) {

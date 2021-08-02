@@ -20,7 +20,7 @@ import { LoanDetails } from "../models";
 import Btc from "./bitcoin.svg";
 import Usdt from "./tether.svg";
 
-const debug = Debug("openloans:error");
+const error = Debug("openloans:error");
 
 interface OpenLoansProps {
     openLoans: LoanDetails[] | undefined;
@@ -53,7 +53,7 @@ function OpenLoan({ loanDetails, onRepayed, index }: OpenLoanProps) {
             await repayLoan(loanDetails.txid);
             onRepayed();
         },
-        onReject: (e) => debug("Failed to repay loan %s: %s", loanDetails.txid, e),
+        onReject: (e) => error("Failed to repay loan %s: %s", loanDetails.txid, e),
     });
 
     const blockHeightHook = useAsync({

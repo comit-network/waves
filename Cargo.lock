@@ -124,8 +124,7 @@ checksum = "cdb031dd78e28731d87d56cc8ffef4a8f36ca26c38fe2de700543e627f8a464a"
 [[package]]
 name = "baru"
 version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6a23513ccaf1216e056a58cbf696e14c21c4b0236da951747c9ede655e7c502a"
+source = "git+https://github.com/da-kami/baru?branch=lender-decides-timelock#782ac49d81440f544dacc266d2720d48f3956655"
 dependencies = [
  "anyhow",
  "bitcoin_hashes 0.9.6",
