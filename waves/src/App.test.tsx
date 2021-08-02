@@ -2,10 +2,26 @@ import { act, render, screen } from "@testing-library/react";
 import React from "react";
 import { Listener, Source, SSEProvider } from "react-hooks-sse";
 import { BrowserRouter } from "react-router-dom";
-import App, { Asset, reducer } from "./App";
+import App, { Asset, reducer, State } from "./App";
+import { Interest, Rate } from "./Bobtimus";
 import calculateBetaAmount from "./calculateBetaAmount";
 
-const defaultState = {
+const defaultLoanOffer = {
+    rate: {
+        ask: 20000,
+        bid: 20000,
+    },
+    fee_sats_per_vbyte: 1,
+    min_principal: 100,
+    max_principal: 10000,
+    max_ltv: 0.8,
+    interest: [{
+        timelock: 43200,
+        interest_rate: 0.15,
+    }],
+};
+
+const defaultState: State = {
     trade: {
         alpha: {
             type: Asset.LBTC,
@@ -13,10 +29,15 @@ const defaultState = {
         },
         beta: Asset.USDT,
         txId: "",
+        rate: {
+            ask: 0,
+            bid: 0,
+        },
     },
     borrow: {
         principalAmount: "1000",
-        loanTerm: 30,
+        loanTermInDays: 43200, // 30 days in min
+        loanOffer: defaultLoanOffer,
     },
     wallet: {
         balance: {
@@ -183,7 +204,7 @@ test("update principal amount logic", () => {
     const initialState = {
         ...defaultState,
         borrow: {
-            loanTerm: 30,
+            ...defaultState.borrow,
             principalAmount: "10000",
         },
     };
@@ -195,4 +216,24 @@ test("update principal amount logic", () => {
             value: newValue,
         }).borrow.principalAmount,
     ).toBe(newValue);
+});
+
+test("update loan offer logic", () => {
+    const initialState = {
+        ...defaultState,
+        borrow: {
+            loanTermInDays: 0,
+            principalAmount: "0",
+            loanOffer: null,
+        },
+    };
+
+    let newState = reducer(initialState, {
+        type: "UpdateLoanOffer",
+        value: defaultLoanOffer,
+    });
+
+    expect(newState.borrow.loanOffer).toBe(defaultLoanOffer);
+    expect(newState.borrow.principalAmount).toBe("100");
+    expect(newState.borrow.loanTermInDays).toBe(30);
 });

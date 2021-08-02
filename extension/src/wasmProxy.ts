@@ -55,11 +55,16 @@ export async function makeBuyCreateSwapPayload(name: string, usdt: string): Prom
     return make_buy_create_swap_payload(name, usdt);
 }
 
-export async function makeLoanRequestPayload(name: string, collateral: string): Promise<CreateSwapPayload> {
+export async function makeLoanRequestPayload(
+    name: string,
+    collateral: string,
+    fee_rate: string,
+    timelock: string,
+): Promise<CreateSwapPayload> {
     const { make_loan_request } = await import("./wallet");
 
     debug("makeLoanRequestPayload");
-    return make_loan_request(name, collateral);
+    return make_loan_request(name, collateral, fee_rate, timelock);
 }
 
 export async function signAndSendSwap(name: string, hex: string): Promise<Txid> {
@@ -134,4 +139,11 @@ export async function createNewBip39Wallet(name: string, seedWords: string, pass
 
     debug("create_new_bip39_wallet");
     return create_new_bip39_wallet(name, seedWords, password);
+}
+
+export async function getBlockHeight(): Promise<string> {
+    const { get_block_height } = await import("./wallet");
+
+    debug("getBlockHeight");
+    return get_block_height();
 }

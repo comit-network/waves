@@ -44,14 +44,14 @@ function CreateWallet({ onUnlock }: CreateWalletProps) {
             await createWalletFromBip39(backedUpSeedWords, password);
             onUnlock();
         },
-        onReject: (e) => debug("Failed to unlock wallet: %s", e),
+        onReject: (e) => debug("Failed to create wallet: %s", e),
     });
     let { run: newSeedWords, isPending: isGeneratingSeedWords, isRejected: generatingSeedWordsFailed } = useAsync({
         deferFn: async () => {
             let words = await bip39SeedWords();
             setSeedWords(words);
         },
-        onReject: (e) => debug("Failed to unlock wallet: %s", e),
+        onReject: (e) => debug("Failed to generate seed words: %s", e),
     });
 
     return (

@@ -9,6 +9,7 @@ import {
     extractTrade,
     getAddress,
     getBalances,
+    getBlockHeight,
     getOpenLoans,
     getPastTransactions,
     makeBuyCreateSwapPayload,
@@ -67,7 +68,13 @@ browser.runtime.onMessage.addListener(async (msg: Message<any>, sender) => {
                 break;
             case MessageKind.LoanRequest:
                 message = await call_wallet(
-                    async () => await makeLoanRequestPayload(walletName, msg.payload),
+                    async () =>
+                        await makeLoanRequestPayload(
+                            walletName,
+                            msg.payload.collateral,
+                            msg.payload.fee_rate,
+                            msg.payload.timeout,
+                        ),
                     MessageKind.LoanResponse,
                 );
                 break;
@@ -206,6 +213,11 @@ window.bip39SeedWords = async (): string => {
 // @ts-ignore
 window.createWalletFromBip39 = async (seed_words: string, password: string) => {
     return createNewBip39Wallet(walletName, seed_words, password);
+};
+
+// @ts-ignore
+window.getBlockHeight = async () => {
+    return getBlockHeight();
 };
 
 function updateBadge() {
