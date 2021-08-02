@@ -3,7 +3,13 @@
   "name": "e2e_tests",
   "version": "0.0.1",
   "scripts": {
-    "test": "DEBUG=e2e-* jest -runInBand"
+    "create-test": "DEBUG=e2e-* jest -t 'create'",
+    "unlock-test": "DEBUG=e2e-* jest -t 'unlock'",
+    "buy-test": "DEBUG=e2e-* jest -t 'buy'",
+    "sell-test": "DEBUG=e2e-* jest -t 'sell'",
+    "borrow-test": "DEBUG=e2e-* jest -t 'borrow'",
+    "all-tests": "yarn run create-test && yarn run unlock-test && yarn run buy-test && yarn run sell-test && yarn run borrow-test",
+    "all-tests-browser": "BROWSER=true yarn run all-tests"
   },
   "dependencies": {
     "@types/debug": "4.1.6",
