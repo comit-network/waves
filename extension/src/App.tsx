@@ -1,5 +1,5 @@
 import { SettingsIcon } from "@chakra-ui/icons";
-import { Box, Center, ChakraProvider, Heading, IconButton } from "@chakra-ui/react";
+import { Box, Center, ChakraProvider, Flex, Heading, IconButton, Spacer } from "@chakra-ui/react";
 import { faBug } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import * as React from "react";
@@ -55,13 +55,22 @@ const App = () => {
     return (
         <ChakraProvider theme={theme}>
             <Box h={600} w={400}>
-                <IconButton
-                    aria-label="Settings"
-                    icon={<SettingsIcon />}
-                    onClick={() => browser.runtime.openOptionsPage()}
-                />
                 {walletStatus?.status === Status.Loaded
                     && <>
+                        <Flex>
+                            <Center p="2">
+                                <Heading size="md">Waves Wallet</Heading>
+                            </Center>
+                            <Spacer />
+                            <Box>
+                                <IconButton
+                                    aria-label="Settings"
+                                    icon={<SettingsIcon />}
+                                    onClick={() => browser.runtime.openOptionsPage()}
+                                />
+                            </Box>
+                        </Flex>
+
                         {balanceUpdates && <WalletBalances balanceUpdates={balanceUpdates} />}
                         {!signLoan && !swapToSign && <AddressQr />}
                         {!signLoan && !swapToSign && <WithdrawAll />}

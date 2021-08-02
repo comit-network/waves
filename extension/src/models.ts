@@ -1,6 +1,6 @@
 // TODO: All field names should be camelCase
 
-export const USDT_TICKER = "USDt";
+export const USDT_TICKER = "L-USDt";
 export const BTC_TICKER = "L-BTC";
 
 export enum Status {
