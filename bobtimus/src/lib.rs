@@ -130,7 +130,7 @@ where
         input_amount: Amount,
     ) -> Result<Vec<Input>> {
         let bob_inputs = elements_client
-            .select_inputs_for(asset_id, input_amount, false)
+            .select_inputs_for(asset_id, input_amount, true)
             .await
             .context("failed to select inputs for swap")?;
 
