@@ -427,10 +427,14 @@ impl RateSubscription {
 }
 
 pub async fn liquidate_loans(elementsd: &Client, db: Sqlite) -> Result<()> {
-    let blockcount = elementsd.get_blockcount().await?;
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("Time went backwards");
+    let secs_since_epoch = now.as_secs();
+
     let liquidation_txs = db
         .do_in_transaction(|conn| {
-            let txs = queries::get_publishable_liquidations_txs(conn, blockcount)?;
+            let txs = queries::get_publishable_liquidations_txs(conn, secs_since_epoch)?;
             Ok(txs)
         })
         .await?;
