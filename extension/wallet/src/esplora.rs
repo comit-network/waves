@@ -39,10 +39,16 @@ pub async fn fetch_utxos(address: &Address) -> Result<Vec<Utxo>> {
         ));
     }
 
-    response
+    let mut utxos = response
         .json::<Vec<Utxo>>()
         .await
-        .context("failed to deserialize response")
+        .context("failed to deserialize response")?;
+
+    // Sort UTXOs to have more deterministic output in case something goes wrong.
+    // Note that the order of these UTXOs does not have to be strictly assured.
+    utxos.sort_by(|l, r| l.txid.cmp(&r.txid).then(l.vout.cmp(&r.vout)));
+
+    Ok(utxos)
 }
 
 /// Fetch transaction history for the specified address.
