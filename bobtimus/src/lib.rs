@@ -47,6 +47,10 @@ use crate::loan::{Interest, LoanOffer, LoanRequest};
 pub use amounts::*;
 use elements::bitcoin::PublicKey;
 use rust_decimal_macros::dec;
+use std::{
+    convert::TryFrom,
+    time::{Duration, SystemTime, UNIX_EPOCH},
+};
 
 pub const USDT_ASSET_ID: &str = "ce091c998b83c78bb71a632313ba3760f1763d9cfcffae02258ffa9865a37bd2";
 
@@ -300,10 +304,7 @@ where
         );
         let oracle_pk = PublicKey::from_private_key(&self.secp, &oralce_priv_key);
 
-        // calculate the absolute timelock from the loan term
-        let current_height = self.elementsd.get_blockcount().await?;
-        let term_in_minutes = payload.term * 24 * 60;
-        let timelock = current_height + term_in_minutes;
+        let timelock = days_to_unix_timestamp_timelock(payload.term, SystemTime::now())?;
 
         let lender_address = self
             .elementsd
@@ -443,6 +444,21 @@ pub async fn liquidate_loans(elementsd: &Client, db: Sqlite) -> Result<()> {
 
     Ok(())
 }
+/// Calculates the absolute timelock from the loan term in days
+///
+/// The timelock is represented as Unix timestamp (seconds since the epoch).
+/// Note: Miniscript uses u32 for representing the timestamp so we return a u32.
+fn days_to_unix_timestamp_timelock(term_in_days: u32, now: SystemTime) -> Result<u32> {
+    let since_the_epoch = now.duration_since(UNIX_EPOCH).expect("Time went backwards");
+
+    let term = Duration::from_secs((term_in_days * 24 * 60 * 60) as u64);
+
+    let timelock = (since_the_epoch + term).as_secs();
+    let timelock = u32::try_from(timelock)
+        .context("Overflow, the given timestamp appears to be too far in the future")?;
+
+    Ok(timelock)
+}
 
 #[cfg(test)]
 mod tests {
@@ -460,7 +476,37 @@ mod tests {
         Address, AddressParams, OutPoint, Transaction, TxOut,
     };
     use elements_harness::Elementsd;
+    use proptest::proptest;
     use testcontainers::clients::Cli;
+
+    // This test ensures that this function will not panic on different systems now and in the future.
+    // At the point of writing 30868 days were supported, equivalent to 84.569863 calendar years.
+    // We allow a maximum of 18250 days = 50 years for loan terms.
+    // This test will pass for the next ~34.5 years given a correct system time.
+    proptest! {
+        #[test]
+        fn timelock_calculation_does_not_panic_between_1_day_and_100_years(
+            term_in_days in 1u32..18250, // 18250 days = 50 years
+        ) {
+            let now = SystemTime::now();
+            let _ = days_to_unix_timestamp_timelock(term_in_days, now).unwrap();
+        }
+    }
+
+    #[test]
+    fn timelock_calculation_30_days() {
+        let term_in_days = 30;
+        let now = SystemTime::now();
+
+        let since_epoch = u32::try_from(now.duration_since(UNIX_EPOCH).unwrap().as_secs()).unwrap();
+
+        let timelock = days_to_unix_timestamp_timelock(term_in_days, now).unwrap();
+
+        let difference = timelock - since_epoch;
+
+        // 2_592_000 = 30 days in secs
+        assert_eq!(difference, 2_592_000)
+    }
 
     #[tokio::test]
     async fn test_handle_btc_sell_swap_request() {
