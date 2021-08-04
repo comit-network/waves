@@ -1,6 +1,4 @@
-use crate::{
-    loan::LoanRequest, problem, Bobtimus, CreateSwapPayload, LatestRate, RateSubscription,
-};
+use crate::{problem, Bobtimus, LatestRate, RateSubscription};
 use anyhow::Context;
 use elements::{
     encode::serialize_hex,
@@ -54,8 +52,15 @@ where
             move |payload| {
                 let bobtimus = bobtimus.clone();
                 async move {
-                    let mut bobtimus = bobtimus.lock().await;
-                    create_buy_swap(&mut bobtimus, payload).await
+                    bobtimus
+                        .lock()
+                        .await
+                        .handle_create_buy_swap(payload)
+                        .await
+                        .map(|transaction| serialize_hex(&transaction))
+                        .map_err(anyhow::Error::from)
+                        .map_err(problem::from_anyhow)
+                        .map_err(warp::reject::custom)
                 }
             }
         });
@@ -68,8 +73,15 @@ where
             move |payload| {
                 let bobtimus = bobtimus.clone();
                 async move {
-                    let mut bobtimus = bobtimus.lock().await;
-                    create_sell_swap(&mut bobtimus, payload).await
+                    bobtimus
+                        .lock()
+                        .await
+                        .handle_create_sell_swap(payload)
+                        .await
+                        .map(|transaction| serialize_hex(&transaction))
+                        .map_err(anyhow::Error::from)
+                        .map_err(problem::from_anyhow)
+                        .map_err(warp::reject::custom)
                 }
             }
         });
@@ -81,8 +93,15 @@ where
             move || {
                 let bobtimus = bobtimus.clone();
                 async move {
-                    let mut bobtimus = bobtimus.lock().await;
-                    offer_loan(&mut bobtimus).await
+                    bobtimus
+                        .lock()
+                        .await
+                        .handle_loan_offer_request()
+                        .await
+                        .map(|loan_offer| warp::reply::json(&loan_offer))
+                        .map_err(anyhow::Error::from)
+                        .map_err(problem::from_anyhow)
+                        .map_err(warp::reject::custom)
                 }
             }
         });
@@ -94,9 +113,17 @@ where
             let bobtimus = bobtimus.clone();
             move |payload| {
                 let bobtimus = bobtimus.clone();
+
                 async move {
-                    let mut bobtimus = bobtimus.lock().await;
-                    take_loan(&mut bobtimus, payload).await
+                    bobtimus
+                        .lock()
+                        .await
+                        .handle_loan_request(payload)
+                        .await
+                        .map(|loan_response| warp::reply::json(&loan_response))
+                        .map_err(anyhow::Error::from)
+                        .map_err(problem::from_anyhow)
+                        .map_err(warp::reject::custom)
                 }
             }
         });
@@ -104,12 +131,15 @@ where
     let finalize_loan = warp::post()
         .and(warp::path!("api" / "loan" / "lbtc-lusdt" / "finalize"))
         .and(warp::body::json())
-        .and_then(move |payload| {
+        .and_then(move |payload: FinalizeLoanPayload| {
             let bobtimus = bobtimus.clone();
             async move {
-                let mut bobtimus = bobtimus.lock().await;
-                finalize_loan(&mut bobtimus, payload)
+                bobtimus
+                    .lock()
                     .await
+                    .finalize_loan(payload.tx_hex)
+                    .await
+                    .map(|loan_response| warp::reply::json(&loan_response))
                     .map_err(anyhow::Error::from)
                     .map_err(problem::from_anyhow)
                     .map_err(warp::reject::custom)
@@ -128,89 +158,10 @@ where
         .boxed()
 }
 
-async fn create_buy_swap<R, RS>(
-    bobtimus: &mut Bobtimus<R, RS>,
-    payload: CreateSwapPayload,
-) -> Result<impl Reply, Rejection>
-where
-    R: RngCore + CryptoRng,
-    RS: LatestRate,
-{
-    bobtimus
-        .handle_create_buy_swap(payload)
-        .await
-        .map(|transaction| serialize_hex(&transaction))
-        .map_err(anyhow::Error::from)
-        .map_err(problem::from_anyhow)
-        .map_err(warp::reject::custom)
-}
-
-async fn create_sell_swap<R, RS>(
-    bobtimus: &mut Bobtimus<R, RS>,
-    payload: CreateSwapPayload,
-) -> Result<impl Reply, Rejection>
-where
-    R: RngCore + CryptoRng,
-    RS: LatestRate,
-{
-    bobtimus
-        .handle_create_sell_swap(payload)
-        .await
-        .map(|transaction| serialize_hex(&transaction))
-        .map_err(anyhow::Error::from)
-        .map_err(problem::from_anyhow)
-        .map_err(warp::reject::custom)
-}
-
-async fn offer_loan<R, RS>(bobtimus: &mut Bobtimus<R, RS>) -> Result<impl Reply, Rejection>
-where
-    R: RngCore + CryptoRng,
-    RS: LatestRate,
-{
-    bobtimus
-        .handle_loan_offer_request()
-        .await
-        .map(|loan_offer| warp::reply::json(&loan_offer))
-        .map_err(anyhow::Error::from)
-        .map_err(problem::from_anyhow)
-        .map_err(warp::reject::custom)
-}
-
-async fn take_loan<R, RS>(
-    bobtimus: &mut Bobtimus<R, RS>,
-    payload: LoanRequest,
-) -> Result<impl Reply, Rejection>
-where
-    R: RngCore + CryptoRng,
-    RS: LatestRate,
-{
-    bobtimus
-        .handle_loan_request(payload)
-        .await
-        .map(|loan_response| warp::reply::json(&loan_response))
-        .map_err(anyhow::Error::from)
-        .map_err(problem::from_anyhow)
-        .map_err(warp::reject::custom)
-}
-
 #[derive(serde::Deserialize)]
 struct FinalizeLoanPayload {
     #[serde(with = "baru::loan::transaction_as_string")]
     tx_hex: Transaction,
-}
-
-async fn finalize_loan<R, RS>(
-    bobtimus: &mut Bobtimus<R, RS>,
-    payload: FinalizeLoanPayload,
-) -> anyhow::Result<impl Reply>
-where
-    R: RngCore + CryptoRng,
-    RS: LatestRate,
-{
-    bobtimus
-        .finalize_loan(payload.tx_hex)
-        .await
-        .map(|loan_response| warp::reply::json(&loan_response))
 }
 
 fn latest_rate(subscription: RateSubscription) -> impl Reply {
