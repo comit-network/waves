@@ -1,4 +1,4 @@
-import { Center, VStack } from "@chakra-ui/react";
+import { Box, Center, VStack } from "@chakra-ui/react";
 import React, { Dispatch } from "react";
 import { Action, Asset, AssetSide } from "../App";
 import AssetSelect from "./AssetSelect";
@@ -7,6 +7,7 @@ import NumberInput from "./NumberInput";
 type StringOrNumber = string | number;
 
 interface AssetSelectorProps {
+    label: string;
     assetSide: AssetSide;
     type: Asset;
     amount: StringOrNumber;
@@ -14,7 +15,7 @@ interface AssetSelectorProps {
     dispatch: Dispatch<Action>;
 }
 
-function AssetSelector({ assetSide, type, amount, placement, dispatch }: AssetSelectorProps) {
+function AssetSelector({ label, assetSide, type, amount, placement, dispatch }: AssetSelectorProps) {
     const box_width = 400;
     const box_height = 220;
 
@@ -53,6 +54,7 @@ function AssetSelector({ assetSide, type, amount, placement, dispatch }: AssetSe
     return (
         <Center bg="gray.100" w={box_width} h={box_height} borderRadius={"md"}>
             <VStack spacing={4} id="select{type}">
+                <Box textColor="gray.400" mt="-35px">{label}</Box>
                 <AssetSelect type={type} onAssetChange={onAssetTypeChange} placement={placement} />
                 {/* asset is BTC: render BTC input*/}
                 {type === Asset.LBTC
