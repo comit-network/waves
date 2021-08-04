@@ -13,13 +13,39 @@ pub(crate) async fn sign_loan(
     current_wallet: &Mutex<Option<Wallet>>,
 ) -> Result<Transaction, Error> {
     let storage = Storage::local_storage().map_err(Error::Storage)?;
+    // load temporary loan_borrower state. When the frontend _asks_ the extension to
+    // sign a loan, the information gets stored in the background script first.
+    // When a request to bobtimas was made to actually take the loan,
+    // this temporary loan details are saved in localStorage.
+    // There can only be one pending loans at the time hence there is no identifier.
+    let (borrower, loan_details) = load_borrower_state(&storage)?;
+
+    let loan_transaction = sign_transaction(&name, current_wallet, &borrower).await?;
+
+    // We don't broadcast this transaction ourselves, but we expect
+    // the lender to do so very soon. We therefore save the borrower
+    // state so that we can later on build, sign and broadcast the
+    // repayment transaction
+    update_saved_loans(storage, &borrower, loan_details, &loan_transaction)?;
+
+    Ok(loan_transaction)
+}
+
+fn load_borrower_state(storage: &Storage) -> Result<(Borrower1, LoanDetails), Error> {
     let borrower = storage
         .get_item::<String>("borrower_state")
         .map_err(Error::Load)?
         .ok_or(Error::EmptyState)?;
     let (borrower, loan_details) =
         serde_json::from_str::<(Borrower1, LoanDetails)>(&borrower).map_err(Error::Deserialize)?;
+    Ok((borrower, loan_details))
+}
 
+async fn sign_transaction(
+    name: &str,
+    current_wallet: &Mutex<Option<Wallet>>,
+    borrower: &Borrower1,
+) -> Result<Transaction, Error> {
     let loan_transaction = borrower
         .sign(|mut transaction| async {
             let wallet = current(&name, current_wallet).await?;
@@ -66,12 +92,15 @@ pub(crate) async fn sign_loan(
         })
         .await
         .map_err(Error::Sign)?;
+    Ok(loan_transaction)
+}
 
-    // We don't broadcast this transaction ourselves, but we expect
-    // the lender to do so very soon. We therefore save the borrower
-    // state so that we can later on build, sign and broadcast the
-    // repayment transaction
-
+fn update_saved_loans(
+    storage: Storage,
+    borrower: &Borrower1,
+    loan_details: LoanDetails,
+    loan_transaction: &Transaction,
+) -> Result<(), Error> {
     let mut open_loans = match storage
         .get_item::<String>("open_loans")
         .map_err(Error::Load)?
@@ -94,8 +123,7 @@ pub(crate) async fn sign_loan(
             serde_json::to_string(&borrower).map_err(Error::Serialize)?,
         )
         .map_err(Error::Save)?;
-
-    Ok(loan_transaction)
+    Ok(())
 }
 
 #[derive(Debug, thiserror::Error)]
