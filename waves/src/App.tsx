@@ -1,4 +1,4 @@
-import { Box, Button, Center, HStack, Image, useToast, VStack } from "@chakra-ui/react";
+import { Box, Button, Center, Divider, HStack, Image, useToast, VStack } from "@chakra-ui/react";
 import Debug from "debug";
 import React, { useEffect, useReducer } from "react";
 import { useAsync } from "react-async";
@@ -307,6 +307,7 @@ function App() {
                         <NavLink text="Trade" path={"/trade"} />
                         <NavLink text="Borrow" path={"/borrow"} />
                     </HStack>
+                    <Divider />
                     <Switch>
                         <Route path="/trade">
                             <Trade
@@ -339,7 +340,7 @@ const NavLink = ({ text, path }: NavLinkProps) => (
         <Route
             path={path}
             children={({ match }) => (
-                <Button colorScheme="blue" variant={match?.path ? "solid" : "outline"}>
+                <Button width="100px" colorScheme="blue" variant={match?.path ? "solid" : "outline"}>
                     {text}
                 </Button>
             )}
