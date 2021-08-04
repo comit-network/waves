@@ -1,4 +1,6 @@
-use crate::{problem, Bobtimus, CreateSwapPayload, LatestRate, RateSubscription};
+use crate::{
+    loan::LoanRequest, problem, Bobtimus, CreateSwapPayload, LatestRate, RateSubscription,
+};
 use anyhow::Context;
 use elements::{
     encode::serialize_hex,
@@ -128,18 +130,12 @@ where
 
 async fn create_buy_swap<R, RS>(
     bobtimus: &mut Bobtimus<R, RS>,
-    payload: serde_json::Value,
+    payload: CreateSwapPayload,
 ) -> Result<impl Reply, Rejection>
 where
     R: RngCore + CryptoRng,
     RS: LatestRate,
 {
-    let payload = payload.to_string();
-    let payload: CreateSwapPayload = serde_json::from_str(&payload)
-        .map_err(anyhow::Error::from)
-        .map_err(problem::from_anyhow)
-        .map_err(warp::reject::custom)?;
-
     bobtimus
         .handle_create_buy_swap(payload)
         .await
@@ -151,18 +147,12 @@ where
 
 async fn create_sell_swap<R, RS>(
     bobtimus: &mut Bobtimus<R, RS>,
-    payload: serde_json::Value,
+    payload: CreateSwapPayload,
 ) -> Result<impl Reply, Rejection>
 where
     R: RngCore + CryptoRng,
     RS: LatestRate,
 {
-    let payload = payload.to_string();
-    let payload: CreateSwapPayload = serde_json::from_str(&payload)
-        .map_err(anyhow::Error::from)
-        .map_err(problem::from_anyhow)
-        .map_err(warp::reject::custom)?;
-
     bobtimus
         .handle_create_sell_swap(payload)
         .await
@@ -188,18 +178,12 @@ where
 
 async fn take_loan<R, RS>(
     bobtimus: &mut Bobtimus<R, RS>,
-    payload: serde_json::Value,
+    payload: LoanRequest,
 ) -> Result<impl Reply, Rejection>
 where
     R: RngCore + CryptoRng,
     RS: LatestRate,
 {
-    let payload = payload.to_string();
-    let payload = serde_json::from_str(&payload)
-        .map_err(anyhow::Error::from)
-        .map_err(problem::from_anyhow)
-        .map_err(warp::reject::custom)?;
-
     bobtimus
         .handle_loan_request(payload)
         .await
@@ -217,13 +201,12 @@ struct FinalizeLoanPayload {
 
 async fn finalize_loan<R, RS>(
     bobtimus: &mut Bobtimus<R, RS>,
-    payload: serde_json::Value,
+    payload: FinalizeLoanPayload,
 ) -> anyhow::Result<impl Reply>
 where
     R: RngCore + CryptoRng,
     RS: LatestRate,
 {
-    let payload: FinalizeLoanPayload = serde_json::from_value(payload)?;
     bobtimus
         .finalize_loan(payload.tx_hex)
         .await
