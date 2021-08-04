@@ -18,7 +18,6 @@ export default class WavesProvider {
     public async makeLoanRequestPayload(
         collateral: string,
         fee_rate: string,
-        timeout: string,
     ): Promise<LoanRequestPayload>;
 
     public async signAndSendSwap(tx_hex: string): Promise<Txid>;

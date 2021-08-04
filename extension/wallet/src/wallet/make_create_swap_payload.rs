@@ -2,9 +2,8 @@ use crate::{
     wallet::{current, get_txouts, CreateSwapPayload, SwapUtxo, Wallet},
     BTC_ASSET_ID, USDT_ASSET_ID,
 };
-use bdk::bitcoin::Amount;
 use coin_selection::{self, coin_select};
-use elements::{secp256k1_zkp::SECP256K1, AssetId, OutPoint};
+use elements::{bitcoin::Amount, secp256k1_zkp::SECP256K1, AssetId, OutPoint};
 use estimate_transaction_size::avg_vbytes;
 use futures::lock::Mutex;
 use wasm_bindgen::UnwrapThrowExt;

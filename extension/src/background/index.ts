@@ -73,7 +73,6 @@ browser.runtime.onMessage.addListener(async (msg: Message<any>, sender) => {
                             walletName,
                             msg.payload.collateral,
                             msg.payload.fee_rate,
-                            msg.payload.timeout,
                         ),
                     MessageKind.LoanResponse,
                 );

@@ -111,10 +111,10 @@ pub mod queries {
 
     pub fn get_publishable_liquidations_txs(
         conn: &SqliteConnection,
-        blockcount: u32,
+        secs_since_epoch: u64,
     ) -> Result<Vec<Transaction>> {
         let txs = liquidations::table
-            .filter(liquidations::locktime.le(blockcount as i64))
+            .filter(liquidations::locktime.le(secs_since_epoch as i64))
             .get_results::<Liquidation>(conn)?;
 
         let txs = txs

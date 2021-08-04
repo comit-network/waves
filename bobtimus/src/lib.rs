@@ -3,7 +3,7 @@ extern crate diesel;
 #[macro_use]
 extern crate diesel_migrations;
 
-use std::{collections::HashMap, convert::TryInto};
+use std::collections::HashMap;
 
 use crate::{
     database::{queries, Sqlite},
@@ -12,7 +12,7 @@ use crate::{
 use anyhow::{Context, Result};
 use baru::{
     input::Input,
-    loan::{Lender0, Lender1, LoanRequest, LoanResponse},
+    loan::{Lender0, Lender1, LoanResponse},
     swap,
 };
 use database::LiquidationForm;
@@ -43,9 +43,14 @@ pub mod loan;
 pub mod problem;
 pub mod schema;
 
-use crate::loan::{Interest, LoanOffer};
+use crate::loan::{Interest, LoanOffer, LoanRequest};
 pub use amounts::*;
+use elements::bitcoin::PublicKey;
 use rust_decimal_macros::dec;
+use std::{
+    convert::TryFrom,
+    time::{Duration, SystemTime, UNIX_EPOCH},
+};
 
 pub const USDT_ASSET_ID: &str = "ce091c998b83c78bb71a632313ba3760f1763d9cfcffae02258ffa9865a37bd2";
 
@@ -265,8 +270,6 @@ where
     /// We return the range of possible loan terms to the borrower.
     /// The borrower can then request a loan using parameters that are within our terms.
     pub async fn handle_loan_offer_request(&mut self) -> Result<LoanOffer> {
-        let current_height = self.elementsd.get_blockcount().await?;
-
         Ok(LoanOffer {
             rate: self.rate_service.latest_rate(),
             // TODO: Dynamic fee estimation
@@ -279,10 +282,9 @@ where
             max_ltv: dec!(0.8),
             // TODO: Dynamic interest based on current market values
             interest: vec![Interest {
-                // Absolute timelock calculated from current block height
-                // Assuming 1 min block interval, 43200 mins = 30 days
-                timelock: current_height + 43200,
+                term: 30,
                 interest_rate: dec!(0.15),
+                collateralization: dec!(1.5),
             }],
         })
     }
@@ -295,17 +297,33 @@ where
         //  Currently there is no ID for incoming loan requests, that would associate them with an offer,
         //  so we just have to ensure that the loan is still "acceptable" in the current state of Bobtimus.
 
+        let oracle_secret_key = elements::secp256k1_zkp::key::ONE_KEY;
+        let oralce_priv_key = elements::bitcoin::PrivateKey::new(
+            oracle_secret_key,
+            elements::bitcoin::Network::Regtest,
+        );
+        let oracle_pk = PublicKey::from_private_key(&self.secp, &oralce_priv_key);
+
+        let timelock = days_to_unix_timestamp_timelock(payload.term, SystemTime::now())?;
+
         let lender_address = self
             .elementsd
             .get_new_segwit_confidential_address()
             .await
             .context("failed to get lender address")?;
 
+        let address_blinder = self
+            .elementsd
+            .get_address_blinding_key(&lender_address)
+            .await?;
+
         let lender0 = Lender0::new(
             &mut self.rng,
             self.btc_asset_id,
             self.usdt_asset_id,
             lender_address,
+            address_blinder,
+            oracle_pk,
         )
         .unwrap();
 
@@ -319,8 +337,9 @@ where
                         Self::find_inputs(&elementsd_client, asset, amount).await
                     }
                 },
-                payload,
+                payload.into(),
                 self.rate_service.latest_rate().bid.as_satodollar(),
+                timelock,
             )
             .await
             .unwrap();
@@ -328,7 +347,7 @@ where
         let loan_response = lender1.loan_response();
 
         self.lender_states
-            .insert(loan_response.transaction.txid(), lender1);
+            .insert(loan_response.transaction().txid(), lender1);
 
         Ok(loan_response)
     }
@@ -360,16 +379,14 @@ where
 
         let txid = self.elementsd.send_raw_transaction(&transaction).await?;
 
-        let liquidation_tx =
-            lender.liquidation_transaction(&mut self.rng, &self.secp, Amount::ONE_SAT)?;
-        let locktime = lender
-            .timelock
-            .try_into()
-            .expect("TODO: locktimes should be modelled as u32");
+        let liquidation_tx = lender
+            .liquidation_transaction(&mut self.rng, &self.secp, Amount::ONE_SAT)
+            .await?;
+        let locktime = lender.collateral_contract().timelock();
 
         self.db
             .do_in_transaction(|conn| {
-                LiquidationForm::new(txid, &liquidation_tx, locktime).insert(conn)?;
+                LiquidationForm::new(txid, &liquidation_tx, *locktime).insert(conn)?;
 
                 Ok(())
             })
@@ -410,10 +427,14 @@ impl RateSubscription {
 }
 
 pub async fn liquidate_loans(elementsd: &Client, db: Sqlite) -> Result<()> {
-    let blockcount = elementsd.get_blockcount().await?;
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .expect("Time went backwards");
+    let secs_since_epoch = now.as_secs();
+
     let liquidation_txs = db
         .do_in_transaction(|conn| {
-            let txs = queries::get_publishable_liquidations_txs(conn, blockcount)?;
+            let txs = queries::get_publishable_liquidations_txs(conn, secs_since_epoch)?;
             Ok(txs)
         })
         .await?;
@@ -426,6 +447,21 @@ pub async fn liquidate_loans(elementsd: &Client, db: Sqlite) -> Result<()> {
     }
 
     Ok(())
+}
+/// Calculates the absolute timelock from the loan term in days
+///
+/// The timelock is represented as Unix timestamp (seconds since the epoch).
+/// Note: Miniscript uses u32 for representing the timestamp so we return a u32.
+fn days_to_unix_timestamp_timelock(term_in_days: u32, now: SystemTime) -> Result<u32> {
+    let since_the_epoch = now.duration_since(UNIX_EPOCH).expect("Time went backwards");
+
+    let term = Duration::from_secs((term_in_days * 24 * 60 * 60) as u64);
+
+    let timelock = (since_the_epoch + term).as_secs();
+    let timelock = u32::try_from(timelock)
+        .context("Overflow, the given timestamp appears to be too far in the future")?;
+
+    Ok(timelock)
 }
 
 #[cfg(test)]
@@ -444,7 +480,37 @@ mod tests {
         Address, AddressParams, OutPoint, Transaction, TxOut,
     };
     use elements_harness::Elementsd;
+    use proptest::proptest;
     use testcontainers::clients::Cli;
+
+    // This test ensures that this function will not panic on different systems now and in the future.
+    // At the point of writing 30868 days were supported, equivalent to 84.569863 calendar years.
+    // We allow a maximum of 18250 days = 50 years for loan terms.
+    // This test will pass for the next ~34.5 years given a correct system time.
+    proptest! {
+        #[test]
+        fn timelock_calculation_does_not_panic_between_1_day_and_100_years(
+            term_in_days in 1u32..18250, // 18250 days = 50 years
+        ) {
+            let now = SystemTime::now();
+            let _ = days_to_unix_timestamp_timelock(term_in_days, now).unwrap();
+        }
+    }
+
+    #[test]
+    fn timelock_calculation_30_days() {
+        let term_in_days = 30;
+        let now = SystemTime::now();
+
+        let since_epoch = u32::try_from(now.duration_since(UNIX_EPOCH).unwrap().as_secs()).unwrap();
+
+        let timelock = days_to_unix_timestamp_timelock(term_in_days, now).unwrap();
+
+        let difference = timelock - since_epoch;
+
+        // 2_592_000 = 30 days in secs
+        assert_eq!(difference, 2_592_000)
+    }
 
     #[tokio::test]
     async fn test_handle_btc_sell_swap_request() {

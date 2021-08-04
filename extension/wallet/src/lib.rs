@@ -235,19 +235,16 @@ pub async fn make_loan_request(
     wallet_name: String,
     collateral: String,
     fee_rate: String,
-    timeout: String,
 ) -> Result<JsValue, JsValue> {
     // TODO: Change the UI to handle SATs not BTC
     let collateral_in_btc = map_err_from_anyhow!(parse_to_bitcoin_amount(collateral))?;
     let fee_rate_in_sat = Amount::from_sat(map_err_from_anyhow!(u64::from_str(fee_rate.as_str()))?);
-    let timeout = map_err_from_anyhow!(u64::from_str(timeout.as_str()))?;
     let loan_request = map_err_from_anyhow!(
         wallet::make_loan_request(
             wallet_name,
             &LOADED_WALLET,
             collateral_in_btc,
             fee_rate_in_sat,
-            timeout
         )
         .await
     )?;

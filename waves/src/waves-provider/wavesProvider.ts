@@ -35,7 +35,6 @@ export interface LoanRequestPayload {
     collateral_inputs: { txin: OutPoint; original_txout: any; blinding_key: string }[];
     fee_sats_per_vbyte: number;
     borrower_pk: string;
-    timelock: number;
     borrower_address: string;
 }
 

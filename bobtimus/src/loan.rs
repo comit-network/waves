@@ -1,5 +1,9 @@
 use crate::{LiquidUsdt, Rate};
-use elements::bitcoin::Amount;
+use baru::input::Input;
+use elements::{
+    bitcoin::{Amount, PublicKey},
+    Address,
+};
 use rust_decimal::Decimal;
 
 #[derive(Debug, Clone, serde::Serialize)]
@@ -45,8 +49,37 @@ pub struct LoanOffer {
 
 #[derive(Debug, Clone, serde::Serialize)]
 pub struct Interest {
-    /// Timelock in blocks
-    pub timelock: u32,
+    /// Loan term in days
+    pub term: u32,
+    /// Collateralization in percent
+    ///
+    /// Rational: If a borrower over-collateralizes with e.g. 150% -> better rate than at 140%
+    pub collateralization: Decimal,
     /// Interest rate in percent
     pub interest_rate: Decimal,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct LoanRequest {
+    #[serde(with = "::elements::bitcoin::util::amount::serde::as_sat")]
+    pub collateral_amount: Amount,
+    collateral_inputs: Vec<Input>,
+    #[serde(with = "::elements::bitcoin::util::amount::serde::as_sat")]
+    fee_sats_per_vbyte: Amount,
+    borrower_pk: PublicKey,
+    /// Loan term in days
+    pub term: u32,
+    borrower_address: Address,
+}
+
+impl From<LoanRequest> for baru::loan::LoanRequest {
+    fn from(loan_request: LoanRequest) -> Self {
+        baru::loan::LoanRequest::new(
+            loan_request.collateral_amount,
+            loan_request.collateral_inputs,
+            loan_request.fee_sats_per_vbyte,
+            loan_request.borrower_pk,
+            loan_request.borrower_address,
+        )
+    }
 }
