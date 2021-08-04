@@ -134,6 +134,7 @@ function Trade({ state, dispatch, rate, walletStatusAsyncState, wavesProvider }:
                 <VStack spacing={4} align="stretch">
                     <Flex color="white">
                         <AssetSelector
+                            label="You Send"
                             assetSide="Alpha"
                             placement="left"
                             amount={state.alpha.amount}
@@ -155,6 +156,7 @@ function Trade({ state, dispatch, rate, walletStatusAsyncState, wavesProvider }:
                             </Box>
                         </Center>
                         <AssetSelector
+                            label="You Receive"
                             assetSide="Beta"
                             placement="right"
                             amount={betaAmount}
