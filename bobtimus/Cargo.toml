@@ -7,7 +7,7 @@ edition = "2018"
 [dependencies]
 anyhow = "1"
 async-trait = "0.1"
-baru = { git = "https://github.com/da-kami/baru", branch = "lender-decides-timelock" }
+baru = { git = "https://github.com/comit-network/baru", rev = "a9f9ed9f1838af98527bf98f3f1321cd76a13bea" }
 bitcoin_hashes = "0.9.0"
 diesel = { version = "1.4", features = ["sqlite"] }
 diesel_migrations = "1.4"

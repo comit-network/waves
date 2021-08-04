@@ -43,9 +43,10 @@ pub mod loan;
 pub mod problem;
 pub mod schema;
 
-use crate::loan::{Interest, LoanOffer, LoanRequest};
+use crate::loan::{Collateralization, LoanOffer, LoanRequest, Term};
 pub use amounts::*;
 use elements::bitcoin::PublicKey;
+use rust_decimal::{prelude::ToPrimitive, Decimal};
 use rust_decimal_macros::dec;
 use std::{
     convert::TryFrom,
@@ -270,32 +271,60 @@ where
     /// We return the range of possible loan terms to the borrower.
     /// The borrower can then request a loan using parameters that are within our terms.
     pub async fn handle_loan_offer_request(&mut self) -> Result<LoanOffer> {
-        Ok(LoanOffer {
+        Ok(self.current_loan_offer())
+    }
+
+    fn current_loan_offer(&mut self) -> LoanOffer {
+        LoanOffer {
             rate: self.rate_service.latest_rate(),
             // TODO: Dynamic fee estimation
             fee_sats_per_vbyte: Amount::from_sat(1),
-            // TODO: Send sats over the wire and refactor waves reducer to use amount classes
             min_principal: LiquidUsdt::from_str_in_dollar("100")
                 .expect("static value to be convertible"),
             max_principal: LiquidUsdt::from_str_in_dollar("10000")
                 .expect("static value to be convertible"),
             max_ltv: dec!(0.8),
             // TODO: Dynamic interest based on current market values
-            interest: vec![Interest {
-                term: 30,
-                interest_rate: dec!(0.15),
-                collateralization: dec!(1.5),
-            }],
-        })
+            base_interest_rate: dec!(0.05),
+            terms: vec![
+                Term {
+                    days: 30,
+                    interest_mod: Decimal::ZERO,
+                },
+                Term {
+                    days: 60,
+                    interest_mod: dec!(0.10),
+                },
+                Term {
+                    days: 120,
+                    interest_mod: dec!(0.15),
+                },
+            ],
+            collateralizations: vec![
+                Collateralization {
+                    collateralization: dec!(1.5),
+                    interest_mod: dec!(-0.01),
+                },
+                Collateralization {
+                    collateralization: dec!(2.0),
+                    interest_mod: dec!(-0.02),
+                },
+            ],
+        }
     }
 
     /// Handle the borrower's loan request in which she puts up L-BTC as
     /// collateral and we lend L-USDt to her which she will have to
     /// repay in the future.
-    pub async fn handle_loan_request(&mut self, payload: LoanRequest) -> Result<LoanResponse> {
+    pub async fn handle_loan_request(&mut self, loan_request: LoanRequest) -> Result<LoanResponse> {
         // TODO: Ensure that the loan requested is within what we "currently" accept.
         //  Currently there is no ID for incoming loan requests, that would associate them with an offer,
         //  so we just have to ensure that the loan is still "acceptable" in the current state of Bobtimus.
+
+        // TODO: If principal below min -> bail
+        // TODO: If principal above max -> bail
+        // TODO: If collateralization does not fulfill LTV -> bail
+        // TODO: If rate (calc from collateral, collateralization% and principal) not within our acceptable rate interval -> bail
 
         let oracle_secret_key = elements::secp256k1_zkp::key::ONE_KEY;
         let oralce_priv_key = elements::bitcoin::PrivateKey::new(
@@ -304,7 +333,7 @@ where
         );
         let oracle_pk = PublicKey::from_private_key(&self.secp, &oralce_priv_key);
 
-        let timelock = days_to_unix_timestamp_timelock(payload.term, SystemTime::now())?;
+        let timelock = days_to_unix_timestamp_timelock(loan_request.term, SystemTime::now())?;
 
         let lender_address = self
             .elementsd
@@ -327,22 +356,46 @@ where
         )
         .unwrap();
 
+        let loan_offer = self.current_loan_offer();
+
+        let interest_rate = calculate_interest_rate(
+            loan_request.term,
+            loan_request.collateralization,
+            &loan_offer.terms,
+            &loan_offer.collateralizations,
+            loan_offer.base_interest_rate,
+        )?;
+        let repayment_amount =
+            calculate_repayment_amount(loan_request.principal_amount, interest_rate)?;
+
+        let elementsd_client = self.elementsd.clone();
+        let principal_inputs = Self::find_inputs(
+            &elementsd_client,
+            self.usdt_asset_id,
+            loan_request.principal_amount.into(),
+        )
+        .await?;
+
+        let liquidation_price =
+            calculate_liquidation_price(repayment_amount, loan_request.collateral_amount)?;
+
         let lender1 = lender0
-            .interpret(
+            .build_loan_transaction(
                 &mut self.rng,
                 &SECP256K1,
-                {
-                    let elementsd_client = self.elementsd.clone();
-                    |amount, asset| async move {
-                        Self::find_inputs(&elementsd_client, asset, amount).await
-                    }
-                },
-                payload.into(),
-                self.rate_service.latest_rate().bid.as_satodollar(),
+                loan_offer.fee_sats_per_vbyte,
+                (
+                    loan_request.collateral_amount.into(),
+                    loan_request.collateral_inputs,
+                ),
+                (loan_request.principal_amount.into(), principal_inputs),
+                repayment_amount.into(),
+                liquidation_price.as_satodollar(),
+                (loan_request.borrower_pk, loan_request.borrower_address),
                 timelock,
             )
             .await
-            .unwrap();
+            .context("Failed to build loan transaction")?;
 
         let loan_response = lender1.loan_response();
 
@@ -464,6 +517,84 @@ fn days_to_unix_timestamp_timelock(term_in_days: u32, now: SystemTime) -> Result
     Ok(timelock)
 }
 
+fn calculate_interest_rate(
+    borrower_term: u32,
+    borrower_collateralization: Decimal,
+    term_thresholds: &[Term],
+    collateralization_thresholds: &[Collateralization],
+    base_interest_rate: Decimal,
+) -> Result<Decimal> {
+    let mut term_interest_mod = Decimal::ZERO;
+    for term in term_thresholds {
+        if borrower_term >= term.days {
+            term_interest_mod = term.interest_mod;
+            continue;
+        }
+        break;
+    }
+
+    let mut collateralization_interest_mod = Decimal::ZERO;
+    for collateralization in collateralization_thresholds {
+        if borrower_collateralization >= collateralization.collateralization {
+            collateralization_interest_mod = collateralization.interest_mod;
+            continue;
+        }
+        break;
+    }
+
+    let interest_rate = base_interest_rate
+        .checked_add(term_interest_mod)
+        .context("Overflow due to addition")?
+        .checked_add(collateralization_interest_mod)
+        .context("Overflow due to addition")?;
+
+    Ok(interest_rate)
+}
+
+fn calculate_repayment_amount(
+    principal_amount: LiquidUsdt,
+    interest_percentage: Decimal,
+) -> Result<LiquidUsdt> {
+    let principal_amount = Decimal::from(principal_amount.as_satodollar());
+
+    let repayment_amount = principal_amount
+        .checked_add(
+            principal_amount
+                .checked_mul(interest_percentage)
+                .context("multiplication overflow")?,
+        )
+        .context("addition overflow")?;
+    let repayment_amount = LiquidUsdt::from_satodollar(
+        repayment_amount
+            .to_u64()
+            .context("decimal cannot be represented as u64")?,
+    );
+
+    Ok(repayment_amount)
+}
+
+fn calculate_liquidation_price(
+    repayment_amount: LiquidUsdt,
+    collateral: LiquidBtc,
+) -> Result<LiquidUsdt> {
+    let repayment_amount = Decimal::from(repayment_amount.as_satodollar());
+    let one_btc_as_sat = Decimal::from(Amount::ONE_BTC.as_sat());
+    let collateral_as_btc = Decimal::from(collateral.0.as_sat())
+        .checked_div(one_btc_as_sat)
+        .context("division error")?;
+
+    let liquidation_price = repayment_amount
+        .checked_div(collateral_as_btc)
+        .context("division error")?;
+    let liquidation_price = LiquidUsdt::from_satodollar(
+        liquidation_price
+            .to_u64()
+            .context("decimal cannot be represented as u64")?,
+    );
+
+    Ok(liquidation_price)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -481,7 +612,119 @@ mod tests {
     };
     use elements_harness::Elementsd;
     use proptest::proptest;
+    use rust_decimal::prelude::FromPrimitive;
     use testcontainers::clients::Cli;
+
+    #[test]
+    fn test_calculate_interest_rate() {
+        let term_thresholds = vec![Term {
+            days: 30,
+            interest_mod: dec!(0.001),
+        }];
+        let collateralization_thresholds = vec![Collateralization {
+            collateralization: dec!(1.5),
+            interest_mod: dec!(-0.002),
+        }];
+        let base_interest_rate = dec!(0.05);
+
+        let borrower_term = 30;
+        let borrower_collateralization = dec!(1.5);
+        let interest_rate = calculate_interest_rate(
+            borrower_term,
+            borrower_collateralization,
+            &term_thresholds,
+            &collateralization_thresholds,
+            base_interest_rate,
+        )
+        .unwrap();
+        assert_eq!(interest_rate, dec!(0.049));
+
+        let borrower_term = 29;
+        let borrower_collateralization = dec!(1.4);
+        let interest_rate = calculate_interest_rate(
+            borrower_term,
+            borrower_collateralization,
+            &term_thresholds,
+            &collateralization_thresholds,
+            base_interest_rate,
+        )
+        .unwrap();
+        assert_eq!(interest_rate, dec!(0.05));
+
+        let borrower_term = 30;
+        let borrower_collateralization = dec!(1.4);
+        let interest_rate = calculate_interest_rate(
+            borrower_term,
+            borrower_collateralization,
+            &term_thresholds,
+            &collateralization_thresholds,
+            base_interest_rate,
+        )
+        .unwrap();
+        assert_eq!(interest_rate, dec!(0.051));
+
+        let borrower_term = 29;
+        let borrower_collateralization = dec!(1.5);
+        let interest_rate = calculate_interest_rate(
+            borrower_term,
+            borrower_collateralization,
+            &term_thresholds,
+            &collateralization_thresholds,
+            base_interest_rate,
+        )
+        .unwrap();
+        assert_eq!(interest_rate, dec!(0.048));
+    }
+
+    #[test]
+    fn test_calculate_repayment_amount() {
+        let principal_amount = LiquidUsdt::from_satodollar(10000);
+        let interest_percentage = dec!(0.05);
+
+        let repayment_amount =
+            calculate_repayment_amount(principal_amount, interest_percentage).unwrap();
+        assert_eq!(repayment_amount, LiquidUsdt::from_satodollar(10500));
+    }
+
+    proptest! {
+        #[test]
+        fn test_calculate_repayment_amount_no_panic(
+            // we eventually hit decimal limits, but the amounts are so high that is should not matter
+            principal_amount in 1u64..15_000_000_000_000_000_000, // satdollar ^= 150 billion usd
+            interest_percentage in 0.001f32..0.2,
+        ) {
+            let principal_amount = LiquidUsdt::from_satodollar(principal_amount);
+            let interest_percentage = Decimal::from_f32(interest_percentage).unwrap();
+
+            let _ = calculate_repayment_amount(principal_amount, interest_percentage).unwrap();
+        }
+    }
+
+    #[test]
+    fn test_calculate_liquidation_price() {
+        let repayment_amount = LiquidUsdt::from_str_in_dollar("10500").unwrap();
+        let collateral = LiquidBtc::from(Amount::from_btc(0.35).unwrap());
+
+        let liquidation_price = calculate_liquidation_price(repayment_amount, collateral).unwrap();
+
+        assert_eq!(
+            liquidation_price,
+            LiquidUsdt::from_str_in_dollar("30000").unwrap()
+        )
+    }
+
+    proptest! {
+        #[test]
+        fn test_calculate_liquidation_price_no_panic(
+            repayment_amount in 1u64..,
+            collateral in 1u64..,
+        ) {
+            let repayment_amount = LiquidUsdt::from_satodollar(repayment_amount);
+            let collateral = LiquidBtc::from(Amount::from_sat(collateral));
+
+            let liquidation_price = calculate_liquidation_price(repayment_amount, collateral).unwrap();
+        }
+    }
 
     // This test ensures that this function will not panic on different systems now and in the future.
     // At the point of writing 30868 days were supported, equivalent to 84.569863 calendar years.

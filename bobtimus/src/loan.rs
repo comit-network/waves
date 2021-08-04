@@ -1,4 +1,4 @@
-use crate::{LiquidUsdt, Rate};
+use crate::{LiquidBtc, LiquidUsdt, Rate};
 use baru::input::Input;
 use elements::{
     bitcoin::{Amount, PublicKey},
@@ -14,10 +14,8 @@ pub struct LoanOffer {
     #[serde(with = "::elements::bitcoin::util::amount::serde::as_sat")]
     pub fee_sats_per_vbyte: Amount,
 
-    #[serde(serialize_with = "LiquidUsdt::serialize_to_nominal")]
-    pub min_principal: LiquidUsdt,
-    #[serde(serialize_with = "LiquidUsdt::serialize_to_nominal")]
-    pub max_principal: LiquidUsdt,
+    pub min_principal: LiquidUsdt, // USDT
+    pub max_principal: LiquidUsdt, // USDT
 
     /// The maximum LTV that defines at what point the lender liquidates
     ///
@@ -44,42 +42,40 @@ pub struct LoanOffer {
     /// The max_ltv protects the lender from Bitcoin falling too much.
     pub max_ltv: Decimal,
 
-    pub interest: Vec<Interest>,
+    /// Base interest in percent (to be applied to the principal amount)
+    pub base_interest_rate: Decimal,
+
+    /// Interest in relation to terms
+    pub terms: Vec<Term>,
+
+    /// Interest rates in relation to collteralization
+    pub collateralizations: Vec<Collateralization>,
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
-pub struct Interest {
-    /// Loan term in days
-    pub term: u32,
-    /// Collateralization in percent
-    ///
-    /// Rational: If a borrower over-collateralizes with e.g. 150% -> better rate than at 140%
+#[derive(Debug, Clone, Copy, serde::Serialize)]
+pub struct Term {
+    pub days: u32,
+    /// Interest to be added on top of the base interest rate for this term
+    pub interest_mod: Decimal,
+}
+
+/// Allows to specify a better rate for users that
+#[derive(Debug, Clone, Copy, serde::Serialize)]
+pub struct Collateralization {
     pub collateralization: Decimal,
-    /// Interest rate in percent
-    pub interest_rate: Decimal,
+    /// Interest to be added on top of the base interest rate for this term.
+    pub interest_mod: Decimal,
 }
 
+// TODO: Make sure that removing sat_per_vbyte is OK here
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct LoanRequest {
-    #[serde(with = "::elements::bitcoin::util::amount::serde::as_sat")]
-    pub collateral_amount: Amount,
-    collateral_inputs: Vec<Input>,
-    #[serde(with = "::elements::bitcoin::util::amount::serde::as_sat")]
-    fee_sats_per_vbyte: Amount,
-    borrower_pk: PublicKey,
+    pub principal_amount: LiquidUsdt, // USDT
+    pub collateral_amount: LiquidBtc, // BTC
+    pub collateral_inputs: Vec<Input>,
+    pub collateralization: Decimal,
+    pub borrower_pk: PublicKey,
     /// Loan term in days
     pub term: u32,
-    borrower_address: Address,
-}
-
-impl From<LoanRequest> for baru::loan::LoanRequest {
-    fn from(loan_request: LoanRequest) -> Self {
-        baru::loan::LoanRequest::new(
-            loan_request.collateral_amount,
-            loan_request.collateral_inputs,
-            loan_request.fee_sats_per_vbyte,
-            loan_request.borrower_pk,
-            loan_request.borrower_address,
-        )
-    }
+    pub borrower_address: Address,
 }
