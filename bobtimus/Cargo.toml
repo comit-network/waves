@@ -13,7 +13,6 @@ diesel = { version = "1.4", features = ["sqlite"] }
 diesel_migrations = "1.4"
 directories = "3.0"
 elements = { version = "0.18", features = ["serde-feature"] }
-elements-harness = { git = "https://github.com/comit-network/elements-harness" }
 futures = { version = "0.3", default-features = false }
 hex = "0.4"
 hmac = "0.10"
@@ -38,6 +37,7 @@ tracing-subscriber = { version = "0.2", default-features = false, features = ["e
 warp = { version = "0.3", default-features = false, features = ["tls"] }
 
 [dev-dependencies]
+elements-harness = { git = "https://github.com/comit-network/elements-harness" }
 testcontainers = "0.12"
 
 [features]
