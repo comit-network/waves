@@ -14,7 +14,7 @@ pub enum Command {
         elementsd_url: Url,
         #[structopt(default_value = USDT_ASSET_ID, long = "usdt")]
         usdt_asset_id: AssetId,
-        #[structopt(short, parse(from_os_str))]
+        #[structopt(long, parse(from_os_str))]
         db_file: Option<PathBuf>,
 
         #[structopt(long = "http")]
@@ -29,7 +29,7 @@ pub enum Command {
     LiquidateLoans {
         #[structopt(default_value = "http://127.0.0.1:7042", long = "elementsd")]
         elementsd_url: Url,
-        #[structopt(short, parse(from_os_str))]
+        #[structopt(long, parse(from_os_str))]
         db_file: Option<PathBuf>,
     },
 }

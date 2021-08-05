@@ -99,7 +99,8 @@ start_bobtimus () {
             start \
             --http 127.0.0.1:3030 \
             --elementsd http://$elementsd_rpc_user:$elementsd_rpc_password@127.0.0.1:$LIQUID_NODE_PORT \
-            --usdt $usdt_asset_id > $log_dir/bobtimus 2>&1 &
+            --usdt $usdt_asset_id \
+            --db-file="./.bobtimus.sqlite" > $log_dir/bobtimus 2>&1 &
     bobtimus_pid=$!
 
     sleep 1
