@@ -38,9 +38,7 @@ var swapToSign: SwapToSign | undefined;
 var loanToSign: LoanToSign | undefined;
 
 browser.runtime.onMessage.addListener(async (msg: Message<any>, sender) => {
-    debug(
-        `Received: "${JSON.stringify(msg)}" from tab ${sender.tab?.id}`,
-    );
+    debug(`Received: %o from tab %d`, msg, sender.tab?.id);
 
     if (msg.direction === Direction.ToBackground) {
         let message;
