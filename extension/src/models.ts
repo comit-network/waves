@@ -43,7 +43,6 @@ export interface Trade {
 export interface SwapToSign {
     txHex: string;
     decoded: Trade;
-    tabId: number;
 }
 
 export interface LoanDetails {
@@ -56,7 +55,6 @@ export interface LoanDetails {
 
 export interface LoanToSign {
     details: LoanDetails;
-    tabId: number;
 }
 
 export type Tx = string;

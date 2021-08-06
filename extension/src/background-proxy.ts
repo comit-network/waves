@@ -8,14 +8,14 @@ export async function getAddress(): Promise<Address> {
     return proxy.getAddress();
 }
 
-export async function signAndSendSwap(txHex: string, tabId: number): Promise<void> {
+export async function signAndSendSwap(txHex: string): Promise<void> {
     // @ts-ignore
-    return proxy.signAndSendSwap(txHex, tabId);
+    return proxy.signAndSendSwap(txHex);
 }
 
-export async function signLoan(tabId: number): Promise<void> {
+export async function signLoan(): Promise<void> {
     // @ts-ignore
-    return proxy.signLoan(tabId);
+    return proxy.signLoan();
 }
 
 export async function getLoanToSign(): Promise<LoanToSign | undefined> {
@@ -28,14 +28,14 @@ export async function getSwapToSign(): Promise<SwapToSign | undefined> {
     return proxy.getSwapToSign();
 }
 
-export async function rejectLoan(tabId: number): Promise<void> {
+export async function rejectLoan(): Promise<void> {
     // @ts-ignore
-    return proxy.rejectLoan(tabId);
+    return proxy.rejectLoan();
 }
 
-export async function rejectSwap(tabId: number): Promise<void> {
+export async function rejectSwap(): Promise<void> {
     // @ts-ignore
-    return proxy.rejectSwap(tabId);
+    return proxy.rejectSwap();
 }
 
 export async function withdrawAll(address: string): Promise<Txid> {

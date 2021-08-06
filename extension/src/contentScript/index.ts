@@ -1,46 +1,53 @@
 import Debug from "debug";
+import { AsyncReturnType } from "type-fest";
 import { browser } from "webextension-polyfill-ts";
-import { Direction, Message } from "../messages";
+import { invokeBackgroundScriptRpc } from "../background";
+import WavesProvider from "../in-page";
 
 Debug.enable("*");
 const debug = Debug("content");
 
 debug("Hello world from content script");
 
-async function forwardToBackground(message: Message<any>): Promise<Message<any>> {
-    try {
-        return await browser.runtime.sendMessage(message);
-    } catch (error) {
-        debug(`Error: ${JSON.stringify(error)}`);
-        throw error;
-    }
+export interface RequestMessage<T extends keyof WavesProvider> {
+    type: "request";
+    method: T;
+    args: Parameters<WavesProvider[T]>;
+    id: string;
 }
 
-window.addEventListener("message", async function(event: MessageEvent<Message<any>>) {
-    if (
-        event.source === window
-        && event.data.direction === Direction.ToBackground
-    ) {
-        debug(`Forwarding request from ips to bs: ${JSON.stringify(event.data)}`);
-        let response = await forwardToBackground(event.data);
+export interface ResponseMessage<T extends keyof WavesProvider> {
+    type: "response";
+    id: string;
+    ok?: AsyncReturnType<WavesProvider[T]>;
+    err?: string;
+}
 
-        if (response) {
-            debug(`Forwarding response from bs to ips: ${JSON.stringify(response)}`);
-            window.postMessage(response, "*");
-        }
+window.addEventListener("message", (event: MessageEvent<RequestMessage<keyof WavesProvider>>) => {
+    if (event.source !== window || event.data.type !== "request") {
+        return;
     }
-});
 
-browser.runtime.onMessage.addListener(async function(msg: Message<any>) {
-    // Some messages from the background script (the ones that depend on
-    // user interaction via the pop-up), are not a direct response to a
-    // message we send fro the content script, so we must be ready to
-    // listen for messages from the background script and forward them to
-    // the content script too
-    if (msg.direction === Direction.ToPage) {
-        debug(`Forwarding message from bs to ips: ${JSON.stringify(msg)}`);
-        window.postMessage(msg, "*");
-    }
+    invokeBackgroundScriptRpc({
+        method: event.data.method,
+        args: event.data.args,
+    }).then(ok => {
+        let responseMessage: ResponseMessage<keyof WavesProvider> = {
+            type: "response",
+            id: event.data.id,
+            ok,
+        };
+
+        window.postMessage(responseMessage, "*");
+    }).catch(err => {
+        let responseMessage: ResponseMessage<keyof WavesProvider> = {
+            type: "response",
+            id: event.data.id,
+            err: err.toString(), // Unfortunately, we have to send a string representation here
+        };
+
+        window.postMessage(responseMessage, "*");
+    });
 });
 
 /**

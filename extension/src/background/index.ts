@@ -1,7 +1,7 @@
 import Debug from "debug";
 import { browser } from "webextension-polyfill-ts";
-import { Direction, Message, MessageKind } from "../messages";
-import { LoanDetails, LoanToSign, SwapToSign } from "../models";
+import WavesProvider from "../in-page";
+import { LoanDetails, LoanToSign, SwapToSign, Txid } from "../models";
 import {
     bip39SeedWords,
     createNewBip39Wallet,
@@ -26,7 +26,6 @@ import {
 // TODO: Is this global or do we need one per file?
 Debug.enable("*");
 const debug = Debug("background");
-const error = Debug("background:error");
 
 // First thing we load settings
 loadSettings();
@@ -34,84 +33,88 @@ loadSettings();
 debug("Hello world from background script");
 
 const walletName = "demo";
-var swapToSign: SwapToSign | undefined;
-var loanToSign: LoanToSign | undefined;
 
-browser.runtime.onMessage.addListener(async (msg: Message<any>, sender) => {
-    debug(`Received: %o from tab %d`, msg, sender.tab?.id);
+var swapToSign: SwapToSign | null;
+var resolveSwapSignRequest: ((txid: Txid) => void) | null;
+var rejectSwapSignRequest: ((e: any) => void) | null;
 
-    if (msg.direction === Direction.ToBackground) {
-        let message;
-        switch (msg.kind) {
-            case MessageKind.WalletStatusRequest:
-                message = await call_wallet(() => walletStatus(walletName), MessageKind.WalletStatusResponse);
-                break;
-            case MessageKind.SellRequest:
-                message = await call_wallet(
-                    async () => await makeSellCreateSwapPayload(walletName, msg.payload),
-                    MessageKind.SellResponse,
-                );
-                break;
-            case MessageKind.BuyRequest:
-                message = await call_wallet(
-                    async () => await makeBuyCreateSwapPayload(walletName, msg.payload),
-                    MessageKind.BuyResponse,
-                );
-                break;
-            case MessageKind.AddressRequest:
-                message = await call_wallet(
-                    async () => await getAddress(walletName),
-                    MessageKind.AddressResponse,
-                );
-                break;
-            case MessageKind.LoanRequest:
-                message = await call_wallet(
-                    async () =>
-                        await makeLoanRequestPayload(
-                            walletName,
-                            msg.payload.collateral,
-                            msg.payload.fee_rate,
-                        ),
-                    MessageKind.LoanResponse,
-                );
-                break;
-            case MessageKind.SignAndSendSwap:
-                try {
-                    const txHex = msg.payload;
-                    const decoded = await extractTrade(walletName, txHex);
-                    swapToSign = { txHex, decoded, tabId: sender.tab!.id! };
-                    updateBadge();
-                } catch (e) {
-                    error(e);
-                    message = { kind: MessageKind.SwapTxid, direction: Direction.ToPage, error: e };
-                }
-                break;
-            case MessageKind.SignLoan:
-                try {
-                    const details = await extractLoan(walletName, msg.payload);
-                    loanToSign = { details, tabId: sender.tab!.id! };
-                    updateBadge();
-                } catch (e) {
-                    error(e);
-                    message = { kind: MessageKind.SignedLoan, direction: Direction.ToPage, error: e };
-                }
-                break;
-        }
-        return message;
-    }
+var loanToSign: LoanToSign | null;
+var resolveLoanSignRequest: ((txid: Txid) => void) | null;
+var rejectLoanSignRequest: ((e: any) => void) | null;
+
+export interface RpcMessage<T extends keyof WavesProvider> {
+    type: "rpc-message";
+    method: T;
+    args: Parameters<WavesProvider[T]>;
+}
+
+/*
+ * Defines the public interface of the background script.
+ *
+ * To ensure maximum benefit from the type checker, other components like the content script should only use this function to send messages.
+ */
+export function invokeBackgroundScriptRpc(message: Omit<RpcMessage<keyof WavesProvider>, "type">): Promise<any> {
+    return browser.runtime.sendMessage({
+        type: "rpc-message",
+        ...message,
+    });
+}
+
+addRpcMessageListener("walletStatus", () => walletStatus(walletName));
+addRpcMessageListener("getBuyCreateSwapPayload", ([usdt]) => makeBuyCreateSwapPayload(walletName, usdt));
+addRpcMessageListener("getSellCreateSwapPayload", ([btc]) => makeSellCreateSwapPayload(walletName, btc));
+addRpcMessageListener("getNewAddress", () => getAddress(walletName));
+addRpcMessageListener(
+    "makeLoanRequestPayload",
+    ([collateral, feerate]) => makeLoanRequestPayload(walletName, collateral, feerate),
+);
+
+addRpcMessageListener("signAndSendSwap", ([txHex]) => {
+    return new Promise((resolve, reject) => {
+        extractTrade(walletName, txHex)
+            .then(decoded => {
+                swapToSign = { txHex, decoded };
+                resolveSwapSignRequest = resolve;
+                rejectSwapSignRequest = reject;
+
+                updateBadge();
+            })
+            .catch(e => {
+                reject(e);
+                cleanupPendingSwap();
+            });
+    });
+});
+addRpcMessageListener("signLoan", ([loanRequest]) => {
+    return new Promise((resolve, reject) => {
+        extractLoan(walletName, loanRequest)
+            .then(details => {
+                loanToSign = { details };
+                resolveLoanSignRequest = resolve;
+                rejectLoanSignRequest = reject;
+
+                updateBadge();
+            })
+            .catch(e => {
+                reject(e);
+                cleanupPendingLoan();
+            });
+    });
 });
 
-async function call_wallet<T>(wallet_fn: () => Promise<T>, kind: MessageKind): Promise<Message<T | undefined>> {
-    let payload;
-    let err;
-    try {
-        payload = await wallet_fn();
-    } catch (e) {
-        error(e);
-        err = e;
-    }
+function addRpcMessageListener<T extends keyof WavesProvider>(
+    method: T,
+    callback: (args: Parameters<WavesProvider[T]>) => ReturnType<WavesProvider[T]>,
+) {
+    browser.runtime.onMessage.addListener((msg: RpcMessage<T>) => {
+        if (msg.type !== "rpc-message" || msg.method !== method) {
+            return;
+        }
 
-    return { kind, direction: Direction.ToPage, payload, error: err };
+        debug(`Received: %o`, msg);
+
+        return callback(msg.args);
+    });
 }
 
 // @ts-ignore
@@ -135,57 +138,52 @@ window.getSwapToSign = async () => {
     return swapToSign;
 };
 // @ts-ignore
-window.signAndSendSwap = async (txHex: string, tabId: number) => {
-    let payload;
-    let err;
-
-    try {
-        payload = await signAndSendSwap(walletName, txHex);
-    } catch (e) {
-        error(e);
-        err = e;
+window.signAndSendSwap = (txHex: string) => {
+    if (!resolveSwapSignRequest || !rejectSwapSignRequest) {
+        throw new Error("No pending promise functions for swap sign request");
     }
 
-    browser.tabs.sendMessage(tabId, { direction: Direction.ToPage, kind: MessageKind.SwapTxid, payload, error: err });
-    swapToSign = undefined;
-    updateBadge();
+    signAndSendSwap(walletName, txHex)
+        .then(resolveSwapSignRequest)
+        .catch(rejectSwapSignRequest)
+        .then(cleanupPendingSwap);
 };
 // @ts-ignore
-window.rejectSwap = (tabId: number) => {
-    browser.tabs.sendMessage(tabId, { direction: Direction.ToPage, kind: MessageKind.SwapRejected });
-    swapToSign = undefined;
-    updateBadge();
+window.rejectSwap = () => {
+    if (!resolveSwapSignRequest || !rejectSwapSignRequest) {
+        throw new Error("No pending promise functions for swap sign request");
+    }
+
+    rejectSwapSignRequest("User declined signing request");
+    cleanupPendingSwap();
 };
 // @ts-ignore
 window.getLoanToSign = () => {
     return loanToSign;
 };
 // @ts-ignore
-window.signLoan = async (tabId: number) => {
+window.signLoan = async () => {
+    if (!resolveLoanSignRequest || !rejectLoanSignRequest) {
+        throw new Error("No pending promise functions for loan sign request");
+    }
+
     // TODO: Currently, we assume that whatever the user has verified
     // on the pop-up matches what is stored in the extension's
     // storage. It would be better to send around the swap ID to check
     // that the wallet is signing the same transaction the user has authorised
-
-    let payload;
-    let err;
-
-    try {
-        payload = await signLoan(walletName);
-    } catch (e) {
-        error(e);
-        err = e;
-    }
-
-    browser.tabs.sendMessage(tabId, { direction: Direction.ToPage, kind: MessageKind.SignedLoan, payload, error: err });
-    loanToSign = undefined;
-    updateBadge();
+    signLoan(walletName)
+        .then(resolveLoanSignRequest)
+        .catch(rejectLoanSignRequest)
+        .then(cleanupPendingLoan);
 };
 // @ts-ignore
-window.rejectLoan = (tabId: number) => {
-    browser.tabs.sendMessage(tabId, { direction: Direction.ToPage, kind: MessageKind.LoanRejected });
-    loanToSign = undefined;
-    updateBadge();
+window.rejectLoan = () => {
+    if (!resolveLoanSignRequest || !rejectLoanSignRequest) {
+        throw new Error("No pending promise functions for loan sign request");
+    }
+
+    rejectLoanSignRequest("User declined signing request");
+    cleanupPendingLoan();
 };
 // @ts-ignore
 window.withdrawAll = async (address: string) => {
@@ -232,6 +230,20 @@ function loadSettings() {
     ensureVarSet("CHAIN");
     ensureVarSet("LBTC_ASSET_ID");
     ensureVarSet("LUSDT_ASSET_ID");
+}
+
+function cleanupPendingSwap() {
+    resolveSwapSignRequest = null;
+    rejectSwapSignRequest = null;
+    swapToSign = null;
+    updateBadge();
+}
+
+function cleanupPendingLoan() {
+    resolveLoanSignRequest = null;
+    rejectLoanSignRequest = null;
+    loanToSign = null;
+    updateBadge();
 }
 
 // First we check environment variable. If set, we honor it and overwrite settings in local storage.

@@ -77,8 +77,8 @@ const App = () => {
                         {!signLoan && !swapToSign && <OpenLoans openLoans={openLoans} onRepayed={refreshAll} />}
 
                         {swapToSign && <ConfirmSwap
-                            onCancel={async (tabId: number) => {
-                                await rejectSwap(tabId);
+                            onCancel={async () => {
+                                await rejectSwap();
                                 refreshAll();
                             }}
                             onSuccess={refreshAll}
@@ -86,8 +86,8 @@ const App = () => {
                         />}
                         {signLoan
                             && <ConfirmLoan
-                                onCancel={async (tabId: number) => {
-                                    await rejectLoan(tabId);
+                                onCancel={async () => {
+                                    await rejectLoan();
                                     refreshAll();
                                 }}
                                 onSuccess={refreshAll}
