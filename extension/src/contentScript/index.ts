@@ -48,7 +48,7 @@ browser.runtime.onMessage.addListener(async function(msg: Message<any>) {
  *
  * @param {string} contentPath - Path to be js file to be included
  */
-async function injectScript(contentPath: string) {
+function injectScript(contentPath: string) {
     try {
         const container = document.head || document.documentElement;
         const scriptTag = document.createElement("script");
@@ -62,6 +62,4 @@ async function injectScript(contentPath: string) {
 
 const inpageUrl = browser.runtime.getURL("in_page.bundle.js");
 
-(async function() {
-    await injectScript(inpageUrl);
-}());
+injectScript(inpageUrl);
