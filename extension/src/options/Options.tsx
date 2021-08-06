@@ -3,6 +3,8 @@ import {
     Button,
     Center,
     FormControl,
+    FormErrorMessage,
+    FormHelperText,
     FormLabel,
     HStack,
     Input,
@@ -13,8 +15,9 @@ import {
     VStack,
 } from "@chakra-ui/react";
 import Debug from "debug";
-import { useState } from "react";
+import { ChangeEvent, useState } from "react";
 import * as React from "react";
+import { loadLoanBackup } from "../background-proxy";
 import "./Options.css";
 
 Debug.enable("*");
@@ -29,10 +32,29 @@ function Options() {
         writeChain(value);
     };
 
+    const [error, setError] = useState("");
+    const [isError, setIsError] = useState(false);
+
+    const handleUpload = (e: ChangeEvent<HTMLInputElement>) => {
+        if (!e.target || !e.target.files) {
+            setError("No file selected");
+            setIsError(true);
+            return;
+        }
+
+        const fileReader = new FileReader();
+        let file = e.target.files[0];
+        fileReader.readAsText(file, "UTF-8");
+        fileReader.onload = async (e) => {
+            let backupDetails = JSON.parse(e.target!.result as string);
+            await loadLoanBackup(backupDetails);
+        };
+    };
+
     return (
-        <Box>
-            <Center>
-                <VStack>
+        <Center>
+            <VStack>
+                <Box>
                     <FormControl as="fieldset" isRequired>
                         <HStack>
                             <FormLabel as="legend">Chain</FormLabel>
@@ -48,9 +70,17 @@ function Options() {
                     <KeyValueField keyName="ESPLORA_API_URL" title={"Esplora API URL"} />
                     <KeyValueField keyName="LBTC_ASSET_ID" title={"Bitcoin Asset ID (L-BTC)"} />
                     <KeyValueField keyName="LUSDT_ASSET_ID" title={"USD Asset ID (L-USDT)"} />
-                </VStack>
-            </Center>
-        </Box>
+                </Box>
+                <Box>
+                    <FormControl id="backup" isInvalid={isError}>
+                        <FormLabel>Restore backup</FormLabel>
+                        <input type="file" onChange={handleUpload} />
+                        <FormHelperText>Upload a loan-details.json file</FormHelperText>
+                        <FormErrorMessage>{error}</FormErrorMessage>
+                    </FormControl>
+                </Box>
+            </VStack>
+        </Center>
     );
 }
 
