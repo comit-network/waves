@@ -1,5 +1,15 @@
 import Debug from "debug";
-import { Address, BalanceUpdate, CreateSwapPayload, LoanDetails, Status, Trade, Txid, WalletStatus } from "./models";
+import {
+    Address,
+    BalanceUpdate,
+    CreateSwapPayload,
+    LoanDetails,
+    LoanRequestPayload,
+    Status,
+    Trade,
+    Txid,
+    WalletStatus,
+} from "./models";
 
 Debug.enable("*");
 const debug = Debug("wasmProxy");
@@ -59,7 +69,7 @@ export async function makeLoanRequestPayload(
     name: string,
     collateral: string,
     fee_rate: string,
-): Promise<CreateSwapPayload> {
+): Promise<LoanRequestPayload> {
     const { make_loan_request } = await import("./wallet");
 
     debug("makeLoanRequestPayload");
