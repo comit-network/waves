@@ -3,7 +3,7 @@ import Debug from "debug";
 import moment from "moment";
 import React from "react";
 import { useAsync } from "react-async";
-import { getBlockHeight, signLoan } from "../background-proxy";
+import { getBlockHeight, rejectLoan, signLoan } from "../background-proxy";
 import { LoanToSign, USDT_TICKER } from "../models";
 import YouSwapItem from "./SwapItem";
 import Usdt from "./tether.svg";
@@ -92,7 +92,10 @@ export default function ConfirmLoan(
             <Button
                 variant="secondary"
                 mr={3}
-                onClick={() => onCancel()}
+                onClick={async () => {
+                    await rejectLoan();
+                    onCancel();
+                }}
             >
                 Cancel
             </Button>

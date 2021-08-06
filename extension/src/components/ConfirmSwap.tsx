@@ -1,7 +1,7 @@
 import { Box, Button, Heading } from "@chakra-ui/react";
 import React from "react";
 import { useAsync } from "react-async";
-import { signAndSendSwap } from "../background-proxy";
+import { rejectSwap, signAndSendSwap } from "../background-proxy";
 import { SwapToSign } from "../models";
 import YouSwapItem from "./SwapItem";
 
@@ -47,7 +47,10 @@ export default function ConfirmSwap(
             <Button
                 variant="secondary"
                 mr={3}
-                onClick={() => onCancel()}
+                onClick={async () => {
+                    await rejectSwap();
+                    onCancel();
+                }}
             >
                 Cancel
             </Button>

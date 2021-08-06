@@ -5,15 +5,7 @@ import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import * as React from "react";
 import { useAsync } from "react-async";
 import { browser } from "webextension-polyfill-ts";
-import {
-    getBalances,
-    getLoanToSign,
-    getOpenLoans,
-    getSwapToSign,
-    getWalletStatus,
-    rejectLoan,
-    rejectSwap,
-} from "./background-proxy";
+import { getBalances, getLoanToSign, getOpenLoans, getSwapToSign, getWalletStatus } from "./background-proxy";
 import AddressQr from "./components/AddressQr";
 import WalletBalances from "./components/Balances";
 import ConfirmLoan from "./components/ConfirmLoan";
@@ -77,19 +69,13 @@ const App = () => {
                         {!signLoan && !swapToSign && <OpenLoans openLoans={openLoans} onRepayed={refreshAll} />}
 
                         {swapToSign && <ConfirmSwap
-                            onCancel={async () => {
-                                await rejectSwap();
-                                refreshAll();
-                            }}
+                            onCancel={refreshAll}
                             onSuccess={refreshAll}
                             swapToSign={swapToSign!}
                         />}
                         {signLoan
                             && <ConfirmLoan
-                                onCancel={async () => {
-                                    await rejectLoan();
-                                    refreshAll();
-                                }}
+                                onCancel={refreshAll}
                                 onSuccess={refreshAll}
                                 loanToSign={loanToSign!}
                             />}
