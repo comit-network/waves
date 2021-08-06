@@ -12,17 +12,18 @@ const debug = Debug("confirmloan:error");
 
 interface ConfirmLoanProps {
     onCancel: () => void;
-    onSuccess: () => void;
+    onSigned: (signedTransaction: string) => void;
     loanToSign: LoanToSign;
 }
 
 export default function ConfirmLoan(
-    { onCancel, onSuccess, loanToSign }: ConfirmLoanProps,
+    { onCancel, onSigned, loanToSign }: ConfirmLoanProps,
 ) {
     let { isPending, run } = useAsync({
         deferFn: async () => {
-            await signLoan();
-            onSuccess();
+            let signedTransaction = await signLoan();
+            debug("Signed loan: %s", signedTransaction);
+            onSigned(signedTransaction);
         },
     });
 

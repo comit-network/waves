@@ -59,6 +59,20 @@ describe("borrow test", () => {
         debug("Signing loan");
         let signLoanButton = await getElementById(driver, "//button[@data-cy='data-cy-sign-loan-button']", 20_000);
         await signLoanButton.click();
+        debug("Download loan backup");
+        let downloadLoanButton = await getElementById(
+            driver,
+            "//button[@data-cy='data-cy-download-loan-button']",
+            20_000,
+        );
+        await downloadLoanButton.click();
+        debug("Confirming the backup");
+        let confirmLoanButton = await getElementById(
+            driver,
+            "//button[@data-cy='data-cy-confirm-loan-button']",
+            20_000,
+        );
+        await confirmLoanButton.click();
 
         await switchToWindow(driver, webAppTitle);
 

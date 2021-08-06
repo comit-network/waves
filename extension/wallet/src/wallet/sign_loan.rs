@@ -5,7 +5,7 @@ use futures::lock::Mutex;
 use crate::{
     storage::Storage,
     wallet::{current, get_txouts, LoanDetails},
-    Wallet,
+    Error, Wallet,
 };
 
 pub(crate) async fn sign_loan(
@@ -26,7 +26,7 @@ pub(crate) async fn sign_loan(
     // the lender to do so very soon. We therefore save the borrower
     // state so that we can later on build, sign and broadcast the
     // repayment transaction
-    update_saved_loans(storage, &borrower, loan_details, &loan_transaction)?;
+    update_open_loans(storage, &borrower, loan_details)?;
 
     Ok(loan_transaction)
 }
@@ -35,7 +35,7 @@ fn load_borrower_state(storage: &Storage) -> Result<(Borrower1, LoanDetails), Er
     let borrower = storage
         .get_item::<String>("borrower_state")
         .map_err(Error::Load)?
-        .ok_or(Error::EmptyState)?;
+        .ok_or(Error::EmptyBorrowerState)?;
     let (borrower, loan_details) =
         serde_json::from_str::<(Borrower1, LoanDetails)>(&borrower).map_err(Error::Deserialize)?;
     Ok((borrower, loan_details))
@@ -95,51 +95,46 @@ async fn sign_transaction(
     Ok(loan_transaction)
 }
 
-fn update_saved_loans(
+pub fn update_open_loans(
     storage: Storage,
     borrower: &Borrower1,
     loan_details: LoanDetails,
-    loan_transaction: &Transaction,
 ) -> Result<(), Error> {
+    let open_loans_key = "open_loans";
     let mut open_loans = match storage
-        .get_item::<String>("open_loans")
+        .get_item::<String>(open_loans_key)
         .map_err(Error::Load)?
     {
         Some(open_loans) => serde_json::from_str(&open_loans).map_err(Error::Deserialize)?,
         None => Vec::<LoanDetails>::new(),
     };
 
-    open_loans.push(loan_details);
-    storage
-        .set_item(
-            "open_loans",
-            serde_json::to_string(&open_loans).map_err(Error::Serialize)?,
-        )
-        .map_err(Error::Save)?;
+    let txid = loan_details.txid;
+    if open_loans.iter().all(|item| item.txid != txid) {
+        open_loans.push(loan_details);
+        storage
+            .set_item(
+                open_loans_key,
+                serde_json::to_string(&open_loans).map_err(Error::Serialize)?,
+            )
+            .map_err(Error::Save)?;
+        log::debug!("Stored new open loan: {} ", txid);
+    }
 
-    storage
-        .set_item(
-            &format!("loan_state:{}", loan_transaction.txid()),
-            serde_json::to_string(&borrower).map_err(Error::Serialize)?,
-        )
-        .map_err(Error::Save)?;
+    let loan_state_key = &format!("loan_state:{}", txid);
+    if storage
+        .get_item::<String>(loan_state_key)
+        .map_err(Error::Load)?
+        .is_none()
+    {
+        storage
+            .set_item(
+                loan_state_key,
+                serde_json::to_string(&borrower).map_err(Error::Serialize)?,
+            )
+            .map_err(Error::Save)?;
+        log::debug!("Stored new loan state: {} ", txid);
+    }
+
     Ok(())
-}
-
-#[derive(Debug, thiserror::Error)]
-pub enum Error {
-    #[error("Storage error: {0}")]
-    Storage(anyhow::Error),
-    #[error("Failed to load item from storage: {0}")]
-    Load(anyhow::Error),
-    #[error("Loaded empty borrower state")]
-    EmptyState,
-    #[error("Failed to save item to storage: {0}")]
-    Save(anyhow::Error),
-    #[error("Deserialization failed: {0}")]
-    Deserialize(serde_json::Error),
-    #[error("Serialization failed: {0}")]
-    Serialize(serde_json::Error),
-    #[error("Failed to sign transaction: {0}")]
-    Sign(anyhow::Error),
 }

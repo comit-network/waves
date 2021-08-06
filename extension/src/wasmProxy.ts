@@ -1,6 +1,7 @@
 import Debug from "debug";
 import {
     Address,
+    BackupDetails,
     BalanceUpdate,
     CreateSwapPayload,
     LoanDetails,
@@ -106,6 +107,21 @@ export async function signLoan(name: string): Promise<string> {
 
     debug("signLoan");
     return (await sign_loan(name)).inner;
+}
+
+export async function createLoanBackup(name: string, loanTx: string): Promise<BackupDetails> {
+    const { create_loan_backup } = await import("./wallet");
+
+    debug("createLoanBackup");
+    const tx = { inner: loanTx };
+    return create_loan_backup(name, tx);
+}
+
+export async function loadLoanBackup(backupDetails: BackupDetails): Promise<void> {
+    const { load_loan_backup } = await import("./wallet");
+
+    debug("loadLoanBackup");
+    return load_loan_backup(backupDetails);
 }
 
 export async function withdrawAll(name: string, address: string): Promise<Txid> {

@@ -8,7 +8,7 @@ import { browser } from "webextension-polyfill-ts";
 import { getBalances, getLoanToSign, getOpenLoans, getSwapToSign, getWalletStatus } from "./background-proxy";
 import AddressQr from "./components/AddressQr";
 import WalletBalances from "./components/Balances";
-import ConfirmLoan from "./components/ConfirmLoan";
+import ConfirmLoanWizard from "./components/ConfirmLoanWizard";
 import ConfirmSwap from "./components/ConfirmSwap";
 import CreateWallet from "./components/CreateWallet";
 import OpenLoans from "./components/OpenLoans";
@@ -74,7 +74,7 @@ const App = () => {
                             swapToSign={swapToSign!}
                         />}
                         {signLoan
-                            && <ConfirmLoan
+                            && <ConfirmLoanWizard
                                 onCancel={refreshAll}
                                 onSuccess={refreshAll}
                                 loanToSign={loanToSign!}
