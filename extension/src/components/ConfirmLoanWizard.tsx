@@ -19,6 +19,7 @@ import moment from "moment";
 import React, { useState } from "react";
 import { useAsync } from "react-async";
 import { FiCheck, FiClipboard, FiExternalLink } from "react-icons/all";
+import { browser } from "webextension-polyfill-ts";
 import { confirmLoan, createLoanBackup, getBlockHeight, rejectLoan, signLoan } from "../background-proxy";
 import { LoanToSign, USDT_TICKER } from "../models";
 import YouSwapItem from "./SwapItem";
@@ -51,9 +52,7 @@ const ConfirmLoanWizard = ({ onCancel, onSuccess, loanToSign }: ConfirmLoanWizar
             const loanBackup = await createLoanBackup(signedTransaction);
             const file = new Blob([JSON.stringify(loanBackup)], { type: "text/json" });
             const url = URL.createObjectURL(file);
-            // Note: it would be nicer to open a dialog to download the file. However, we would lose focus
-            // of the window. We don't want that, hence we just open a new tab with the content
-            window.open(url, "_blank");
+            await browser.downloads.download({ url, filename: "loan-backup.json" });
             nextStep();
         },
     });
