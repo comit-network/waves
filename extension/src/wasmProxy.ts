@@ -165,10 +165,3 @@ export async function createNewBip39Wallet(name: string, seedWords: string, pass
     debug("create_new_bip39_wallet");
     return create_new_bip39_wallet(name, seedWords, password);
 }
-
-export async function getBlockHeight(): Promise<string> {
-    const { get_block_height } = await import("./wallet");
-
-    debug("getBlockHeight");
-    return get_block_height();
-}

@@ -143,15 +143,6 @@ pub async fn wallet_status(name: String) -> Result<JsValue, JsValue> {
     Ok(status)
 }
 
-/// Retrieve the latest block height from Esplora
-#[wasm_bindgen]
-pub async fn get_block_height() -> Result<JsValue, JsValue> {
-    let latest_block_height = map_err_from_anyhow!(esplora::get_block_height().await)?;
-    let latest_block_height = map_err_from_anyhow!(JsValue::from_serde(&latest_block_height))?;
-
-    Ok(latest_block_height)
-}
-
 /// Get an address for the wallet with the given name.
 ///
 /// Fails if the wallet is currently not loaded.

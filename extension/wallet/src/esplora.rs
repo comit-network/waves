@@ -155,23 +155,6 @@ pub async fn get_fee_estimates() -> Result<FeeEstimatesResponse> {
     Ok(fee_estimates)
 }
 
-pub async fn get_block_height() -> Result<u32> {
-    let esplora_url = {
-        let guard = ESPLORA_API_URL.lock().expect_throw("can get lock");
-        guard.clone()
-    };
-    let esplora_url = esplora_url.join("/blocks/tip/height")?;
-
-    let latest_block_height = reqwest::get(esplora_url.clone())
-        .await
-        .with_context(|| format!("failed to GET {}", esplora_url))?
-        .json()
-        .await
-        .context("failed to deserialize latest block height")?;
-
-    Ok(latest_block_height)
-}
-
 /// The response object for the `/fee-estimates` endpoint.
 ///
 /// The key is the confirmation target (in number of blocks) and the value is the estimated feerate (in sat/vB).
