@@ -24,10 +24,25 @@ export interface Rate {
     bid: number; // sat
 }
 
-export interface Interest {
-    term: number;
-    interest_rate: number; // percentage, decimal represented as float
-    collateralization: number; // percentage, decimal represented as float
+export interface Term {
+    days: number;
+    // percentage, decimal represented as float
+    // example:
+    // 0.01 => add 0.01 to base interest
+    // -0.01 => subtract 0.01 from base interest
+    interest_mod: number;
+}
+
+export interface Collateralization {
+    // percentage, decimal represented as float
+    // example:
+    // 1.5 => 150%
+    collateralization: number;
+    // percentage, decimal represented as float
+    // example:
+    // 0.01 => add 0.01 to base interest
+    // -0.01 => subtract 0.01 from base interest
+    interest_mod: number;
 }
 
 export interface LoanOffer {
@@ -35,8 +50,12 @@ export interface LoanOffer {
     fee_sats_per_vbyte: number;
     min_principal: number; // sat
     max_principal: number; // sat
-    max_ltv: number; // percentage, decimal represented as float
-    interest: Interest[];
+    // percentage, decimal represented as float
+    // 0.8 => 80%
+    max_ltv: number;
+    base_interest_rate: number;
+    terms: Term[];
+    collateralizations: Collateralization[];
 }
 
 export interface LoanRequest {

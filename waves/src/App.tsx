@@ -224,7 +224,7 @@ export function reducer(state: State = initialState, action: Action) {
             // TODO: We currently always overwrite upon a new loan offer
             //  This will have to be adapted once we refresh loan offers.
             const principalAmount = action.value.min_principal.toString();
-            const loanTermInDays = action.value.interest[0].term;
+            const loanTermInDays = action.value.terms[0].days;
 
             return {
                 ...state,

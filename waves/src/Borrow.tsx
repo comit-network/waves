@@ -1,4 +1,4 @@
-import { Box, Button, Center, Tooltip, useToast, VStack } from "@chakra-ui/react";
+import { Box, Button, ButtonGroup, Center, Divider, HStack, Text, Tooltip, useToast, VStack } from "@chakra-ui/react";
 import Debug from "debug";
 import React, { Dispatch } from "react";
 import { AsyncState, useAsync } from "react-async";
@@ -48,7 +48,7 @@ function Borrow({ dispatch, state, rate, wavesProvider, walletStatusAsyncState }
         });
     }
 
-    const interestRate = loanOffer ? loanOffer.interest[0].interest_rate : 0;
+    const interestRate = loanOffer ? loanOffer.base_interest_rate : 0;
     const minPrincipal = loanOffer ? loanOffer.min_principal : 0;
     const maxPrincipal = loanOffer ? loanOffer.max_principal : 0;
 

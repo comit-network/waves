@@ -1,8 +1,9 @@
 import React from "react";
 import { Asset, reducer, State } from "./App";
+import { LoanOffer } from "./Bobtimus";
 import calculateBetaAmount from "./calculateBetaAmount";
 
-const defaultLoanOffer = {
+const defaultLoanOffer: LoanOffer = {
     rate: {
         ask: 20000,
         bid: 20000,
@@ -11,10 +12,14 @@ const defaultLoanOffer = {
     min_principal: 100,
     max_principal: 10000,
     max_ltv: 0.8,
-    interest: [{
-        term: 30,
-        interest_rate: 0.15,
+    base_interest_rate: 0.15,
+    terms: [{
+        days: 30,
+        interest_mod: 0.01,
+    }],
+    collateralizations: [{
         collateralization: 1.5,
+        interest_mod: -0.02,
     }],
 };
 
