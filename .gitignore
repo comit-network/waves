@@ -18,3 +18,5 @@
 waves/cypress/videos
 
 bobtimus.log
+
+.bobtimus.sqlite

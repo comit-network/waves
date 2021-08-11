@@ -240,12 +240,20 @@ export function reducer(state: State = initialState, action: Action) {
     }
 }
 
+const wavesProvider = window.wavesProvider;
+
+function walletStatus() {
+    if (!wavesProvider) {
+        throw new Error("No extension");
+    }
+
+    return wavesProvider.walletStatus();
+}
+
 function App() {
     const history = useHistory();
     const toast = useToast();
     const path = history.location.pathname;
-
-    const wavesProvider = window.wavesProvider;
 
     useEffect(() => {
         if (path === "/app") {
@@ -261,7 +269,7 @@ function App() {
     });
 
     let walletStatusAsyncState = useAsync({
-        promiseFn: wavesProvider?.walletStatus,
+        promiseFn: walletStatus,
     });
 
     let { run: callFaucet, isLoading: isFaucetLoading } = useAsync({

@@ -18,6 +18,7 @@ hex = "0.4"
 hmac = "0.10"
 http-api-problem = { version = "0.21", features = ["warp"] }
 jsonrpc_client = { version = "0.6", features = ["reqwest"] }
+libsqlite3-sys = { version = ">=0.8.0, <0.23.0", features = ["bundled"] }
 log = "0.4"
 mime_guess = "2.0.3"
 proptest = "1"

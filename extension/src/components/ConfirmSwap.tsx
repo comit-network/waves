@@ -1,12 +1,12 @@
 import { Box, Button, Heading } from "@chakra-ui/react";
 import React from "react";
 import { useAsync } from "react-async";
-import { signAndSendSwap } from "../background-proxy";
+import { rejectSwap, signAndSendSwap } from "../background-proxy";
 import { SwapToSign } from "../models";
 import YouSwapItem from "./SwapItem";
 
 interface ConfirmSwapProps {
-    onCancel: (tabId: number) => void;
+    onCancel: () => void;
     onSuccess: () => void;
     swapToSign: SwapToSign;
 }
@@ -16,7 +16,7 @@ export default function ConfirmSwap(
 ) {
     let { isPending, run } = useAsync({
         deferFn: async () => {
-            await signAndSendSwap(swapToSign.txHex, swapToSign.tabId);
+            await signAndSendSwap(swapToSign.txHex);
             onSuccess();
         },
     });
@@ -47,7 +47,10 @@ export default function ConfirmSwap(
             <Button
                 variant="secondary"
                 mr={3}
-                onClick={() => onCancel(swapToSign.tabId)}
+                onClick={async () => {
+                    await rejectSwap();
+                    onCancel();
+                }}
             >
                 Cancel
             </Button>

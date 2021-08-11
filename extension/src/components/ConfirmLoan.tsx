@@ -3,7 +3,7 @@ import Debug from "debug";
 import moment from "moment";
 import React from "react";
 import { useAsync } from "react-async";
-import { getBlockHeight, signLoan } from "../background-proxy";
+import { getBlockHeight, rejectLoan, signLoan } from "../background-proxy";
 import { LoanToSign, USDT_TICKER } from "../models";
 import YouSwapItem from "./SwapItem";
 import Usdt from "./tether.svg";
@@ -11,7 +11,7 @@ import Usdt from "./tether.svg";
 const debug = Debug("confirmloan:error");
 
 interface ConfirmLoanProps {
-    onCancel: (tabId: number) => void;
+    onCancel: () => void;
     onSuccess: () => void;
     loanToSign: LoanToSign;
 }
@@ -21,7 +21,7 @@ export default function ConfirmLoan(
 ) {
     let { isPending, run } = useAsync({
         deferFn: async () => {
-            await signLoan(loanToSign.tabId);
+            await signLoan();
             onSuccess();
         },
     });
@@ -92,7 +92,10 @@ export default function ConfirmLoan(
             <Button
                 variant="secondary"
                 mr={3}
-                onClick={() => onCancel(loanToSign.tabId)}
+                onClick={async () => {
+                    await rejectLoan();
+                    onCancel();
+                }}
             >
                 Cancel
             </Button>

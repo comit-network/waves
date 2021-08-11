@@ -1,5 +1,7 @@
 import Debug from "debug";
-import { Direction, Message, MessageKind } from "../messages";
+import { AsyncReturnType } from "type-fest";
+import { v4 } from "uuid";
+import { RequestMessage, ResponseMessage } from "../contentScript";
 import { Address, CreateSwapPayload, LoanRequestPayload, Tx, Txid, WalletStatus } from "../models";
 
 Debug.enable("*");
@@ -7,113 +9,19 @@ const debug = Debug("inpage");
 
 export default class WavesProvider {
     public async walletStatus(): Promise<WalletStatus> {
-        debug("Requesting wallet status");
-        let promise = new Promise<WalletStatus>((resolve, reject) => {
-            let listener = async function(event: MessageEvent<Message<WalletStatus>>) {
-                if (
-                    event.data.direction === Direction.ToPage
-                    && event.data.kind === MessageKind.WalletStatusResponse
-                ) {
-                    if (event.data.error) {
-                        reject(event.data.error);
-                    } else {
-                        debug(`Received wallet status: ${JSON.stringify(event.data)}`);
-
-                        window.removeEventListener("message", listener);
-                        resolve(event.data.payload);
-                    }
-                }
-            };
-            window.addEventListener("message", listener);
-        });
-        window.postMessage({
-            kind: MessageKind.WalletStatusRequest,
-            direction: Direction.ToBackground,
-        }, "*");
-        return promise;
+        return invokeContentScript("walletStatus", []);
     }
 
     public async getSellCreateSwapPayload(btc: string): Promise<CreateSwapPayload> {
-        debug("Getting sell create-swap payload");
-        let promise = new Promise<CreateSwapPayload>((resolve, reject) => {
-            let listener = async function(event: MessageEvent<Message<CreateSwapPayload>>) {
-                if (
-                    event.data.direction === Direction.ToPage
-                    && event.data.kind === MessageKind.SellResponse
-                ) {
-                    if (event.data.error) {
-                        reject(event.data.error);
-                    } else {
-                        debug(`Received sell response: ${JSON.stringify(event.data)}`);
-
-                        window.removeEventListener("message", listener);
-                        resolve(event.data.payload);
-                    }
-                }
-            };
-            window.addEventListener("message", listener);
-        });
-        window.postMessage({
-            kind: MessageKind.SellRequest,
-            direction: Direction.ToBackground,
-            payload: btc,
-        }, "*");
-        return promise;
+        return invokeContentScript("getSellCreateSwapPayload", [btc]);
     }
 
     public async getBuyCreateSwapPayload(usdt: string): Promise<CreateSwapPayload> {
-        debug("Getting buy create-swap payload");
-        let promise = new Promise<CreateSwapPayload>((resolve, reject) => {
-            let listener = async function(event: MessageEvent<Message<CreateSwapPayload>>) {
-                if (
-                    event.data.direction === Direction.ToPage
-                    && event.data.kind === MessageKind.BuyResponse
-                ) {
-                    if (event.data.error) {
-                        reject(event.data.error);
-                    } else {
-                        debug(`Received buy response: ${JSON.stringify(event.data)}`);
-
-                        window.removeEventListener("message", listener);
-                        resolve(event.data.payload);
-                    }
-                }
-            };
-            window.addEventListener("message", listener);
-        });
-        window.postMessage({
-            kind: MessageKind.BuyRequest,
-            direction: Direction.ToBackground,
-            payload: usdt,
-        }, "*");
-        return promise;
+        return invokeContentScript("getBuyCreateSwapPayload", [usdt]);
     }
 
     public async getNewAddress(): Promise<Address> {
-        debug("Getting address");
-        let promise = new Promise<Address>((resolve, reject) => {
-            let listener = async function(event: MessageEvent<Message<Address>>) {
-                if (
-                    event.data.direction === Direction.ToPage
-                    && event.data.kind === MessageKind.AddressResponse
-                ) {
-                    if (event.data.error) {
-                        reject(event.data.kind);
-                    } else {
-                        debug(`Received address: ${JSON.stringify(event.data)}`);
-
-                        window.removeEventListener("message", listener);
-                        resolve(event.data.payload);
-                    }
-                }
-            };
-            window.addEventListener("message", listener);
-        });
-        window.postMessage({
-            kind: MessageKind.AddressRequest,
-            direction: Direction.ToBackground,
-        }, "*");
-        return promise;
+        return invokeContentScript("getNewAddress", []);
     }
 
     public async makeLoanRequestPayload(
@@ -121,103 +29,80 @@ export default class WavesProvider {
         fee_rate: string,
         timeout: string,
     ): Promise<LoanRequestPayload> {
-        debug("Making loan request payload");
-        let promise = new Promise<LoanRequestPayload>((resolve, reject) => {
-            let listener = async function(event: MessageEvent<Message<LoanRequestPayload>>) {
-                if (
-                    event.data.direction === Direction.ToPage
-                    && event.data.kind === MessageKind.LoanResponse
-                ) {
-                    if (event.data.error) {
-                        reject(event.data.error);
-                    } else {
-                        debug(`Received loan request payload: ${JSON.stringify(event.data)}`);
-
-                        window.removeEventListener("message", listener);
-                        resolve(event.data.payload);
-                    }
-                }
-            };
-            window.addEventListener("message", listener);
-        });
-        window.postMessage({
-            kind: MessageKind.LoanRequest,
-            direction: Direction.ToBackground,
-            payload: {
-                collateral: collateral,
-                fee_rate: fee_rate,
-                timeout: timeout,
-            },
-        }, "*");
-        return promise;
+        return invokeContentScript("makeLoanRequestPayload", [collateral, fee_rate, timeout]);
     }
 
     public async signAndSendSwap(tx_hex: string): Promise<Txid> {
-        debug("Signing and sending swap");
-        let promise = new Promise<Txid>((resolve, reject) => {
-            let listener = async function(event: MessageEvent<Message<Txid>>) {
-                if (
-                    event.data.direction === Direction.ToPage
-                ) {
-                    if (event.data.kind === MessageKind.SwapTxid) {
-                        if (event.data.error) {
-                            reject(event.data.error);
-                        } else {
-                            debug(`Received swap txid: ${JSON.stringify(event.data)}`);
-
-                            window.removeEventListener("message", listener);
-                            resolve(event.data.payload);
-                        }
-                    } else if (event.data.kind === MessageKind.SwapRejected) {
-                        debug(`Swap rejected: ${JSON.stringify(event.data)}`);
-
-                        window.removeEventListener("message", listener);
-                        reject("User rejected swap");
-                    }
-                }
-            };
-            window.addEventListener("message", listener);
-        });
-        window.postMessage({
-            kind: MessageKind.SignAndSendSwap,
-            direction: Direction.ToBackground,
-            payload: tx_hex,
-        }, "*");
-        return promise;
+        return invokeContentScript("signAndSendSwap", [tx_hex]);
     }
 
     public async signLoan(loan_response: any): Promise<Tx> {
-        debug("Signing loan after user confirmation");
-        let promise = new Promise<Tx>((resolve, reject) => {
-            let listener = async function(event: MessageEvent<Message<Tx>>) {
-                if (
-                    event.data.direction === Direction.ToPage
-                ) {
-                    if (event.data.kind === MessageKind.SignedLoan) {
-                        if (event.data.error) {
-                            reject(event.data.error);
-                        } else {
-                            debug(`Received signed loan: ${JSON.stringify(event.data)}`);
+        return invokeContentScript("signLoan", [loan_response]);
+    }
+}
 
-                            window.removeEventListener("message", listener);
-                            resolve(event.data.payload);
-                        }
-                    } else if (event.data.kind === MessageKind.LoanRejected) {
-                        debug(`Loan rejected: ${JSON.stringify(event.data)}`);
+function invokeContentScript<R extends keyof WavesProvider>(
+    fn: R,
+    args: Parameters<WavesProvider[R]>,
+): Promise<AsyncReturnType<WavesProvider[R]>> {
+    let request = new Request(fn, args);
 
-                        window.removeEventListener("message", listener);
-                        reject("User rejected loan");
-                    }
-                }
-            };
-            window.addEventListener("message", listener);
-        });
-        window.postMessage({
-            kind: MessageKind.SignLoan,
-            direction: Direction.ToBackground,
-            payload: loan_response,
-        }, "*");
-        return promise;
+    debug(`Sending request for %s with %s`, fn, request.id);
+
+    let promise = new Promise<AsyncReturnType<WavesProvider[R]>>((resolve, reject) => {
+        let listener = function(event: MessageEvent) {
+            if (!request.isRespondedToIn(event)) {
+                return;
+            }
+
+            debug(`Received response for %s`, fn);
+
+            if (event.data.err) {
+                reject(event.data.err);
+            } else if (event.data.ok) {
+                resolve(event.data.ok);
+            } else {
+                debug("Bad event! %s", JSON.stringify(event.data));
+
+                throw new Error("Invalid event format!");
+            }
+
+            window.removeEventListener("message", listener);
+        };
+
+        window.addEventListener("message", listener);
+    });
+
+    request.send();
+
+    return promise;
+}
+
+class Request<T extends keyof WavesProvider> {
+    readonly id: string;
+
+    constructor(readonly method: T, readonly args: Parameters<WavesProvider[T]>) {
+        this.id = v4();
+    }
+
+    /**
+     * Checks if the given event is the response to this request.
+     *
+     * This uses TypeScript's Type Guards: https://www.typescripttutorial.net/typescript-tutorial/typescript-type-guards/
+     */
+    isRespondedToIn(event: MessageEvent): event is MessageEvent<ResponseMessage<T>> {
+        return event.data.type === "response" && event.data.id === this.id;
+    }
+
+    send() {
+        let message: RequestMessage<T> = {
+            type: "request",
+            method: this.method,
+            args: this.args,
+            id: this.id,
+        };
+
+        window.postMessage(message, "*");
     }
 }
 
