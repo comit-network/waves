@@ -9,7 +9,7 @@ use crate::{
 };
 use baru::loan::Borrower1;
 
-/// Represents a backup-ble loan
+/// Represents a backup-able loan
 #[derive(Clone, Deserialize, Serialize, Debug)]
 pub struct BackupDetails {
     loan_details: LoanDetails,
