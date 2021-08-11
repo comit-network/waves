@@ -3,12 +3,13 @@ use crate::{
     wallet::{current, get_txouts, Wallet},
     BTC_ASSET_ID, USDT_ASSET_ID,
 };
-use baru::{
-    input::Input,
-    loan::{Borrower0, LoanRequest},
-};
+use baru::{input::Input, loan::Borrower0};
 use coin_selection::{self, coin_select};
-use elements::{bitcoin::util::amount::Amount, secp256k1_zkp::SECP256K1, OutPoint};
+use elements::{
+    bitcoin::{util::amount::Amount, PublicKey},
+    secp256k1_zkp::SECP256K1,
+    Address, OutPoint,
+};
 use estimate_transaction_size::avg_vbytes;
 use futures::lock::Mutex;
 use rand::thread_rng;
@@ -19,7 +20,7 @@ pub async fn make_loan_request(
     current_wallet: &Mutex<Option<Wallet>>,
     collateral_amount: Amount,
     fee_rate: Amount,
-) -> Result<LoanRequest, Error> {
+) -> Result<LoanRequestWalletParams, Error> {
     let btc_asset_id = {
         let guard = BTC_ASSET_ID.lock().expect_throw("can get lock");
         *guard
@@ -126,9 +127,44 @@ pub async fn make_loan_request(
         )
         .map_err(Error::Save)?;
 
-    // TODO: Fix, use new API here
-    #[allow(deprecated)]
-    Ok(borrower_state_0.loan_request())
+    let loan_request = LoanRequestWalletParams::new(
+        *borrower_state_0.collateral_amount(),
+        borrower_state_0.collateral_inputs().to_vec(),
+        borrower_state_0.fee_sats_per_vbyte(),
+        borrower_state_0.pk(),
+        borrower_state_0.address().clone(),
+    );
+
+    Ok(loan_request)
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct LoanRequestWalletParams {
+    #[serde(with = "::elements::bitcoin::util::amount::serde::as_sat")]
+    pub collateral_amount: Amount,
+    pub collateral_inputs: Vec<Input>,
+    #[serde(with = "::elements::bitcoin::util::amount::serde::as_sat")]
+    pub fee_sats_per_vbyte: Amount,
+    pub borrower_pk: PublicKey,
+    pub borrower_address: Address,
+}
+
+impl LoanRequestWalletParams {
+    fn new(
+        collateral_amount: Amount,
+        collateral_inputs: Vec<Input>,
+        fee_sats_per_vbyte: Amount,
+        borrower_pk: PublicKey,
+        borrower_address: Address,
+    ) -> Self {
+        Self {
+            collateral_amount,
+            collateral_inputs,
+            fee_sats_per_vbyte,
+            borrower_pk,
+            borrower_address,
+        }
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
