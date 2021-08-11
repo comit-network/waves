@@ -283,9 +283,11 @@ where
                 .expect("static value to be convertible"),
             max_principal: LiquidUsdt::from_str_in_dollar("10000")
                 .expect("static value to be convertible"),
+            // TODO: Maximum LTV to be decided by a model
             max_ltv: dec!(0.8),
-            // TODO: Dynamic interest based on current market values
+            // TODO: Interest to be decided by a model
             base_interest_rate: dec!(0.05),
+            // TODO: Potentially fine-tune the model with these values
             terms: vec![
                 Term {
                     days: 30,
@@ -317,14 +319,44 @@ where
     /// collateral and we lend L-USDt to her which she will have to
     /// repay in the future.
     pub async fn handle_loan_request(&mut self, loan_request: LoanRequest) -> Result<LoanResponse> {
-        // TODO: Ensure that the loan requested is within what we "currently" accept.
-        //  Currently there is no ID for incoming loan requests, that would associate them with an offer,
-        //  so we just have to ensure that the loan is still "acceptable" in the current state of Bobtimus.
+        let loan_offer = self.current_loan_offer();
 
-        // TODO: If principal below min -> bail
-        // TODO: If principal above max -> bail
-        // TODO: If collateralization does not fulfill LTV -> bail
-        // TODO: If rate (calc from collateral, collateralization% and principal) not within our acceptable rate interval -> bail
+        let interest_rate = calculate_interest_rate(
+            loan_request.term,
+            loan_request.collateralization,
+            &loan_offer.terms,
+            &loan_offer.collateralizations,
+            loan_offer.base_interest_rate,
+        )?;
+        let repayment_amount =
+            calculate_repayment_amount(loan_request.principal_amount, interest_rate)?;
+
+        let request_price = calculate_request_price(
+            repayment_amount,
+            loan_request.collateral_amount,
+            loan_request.collateralization,
+        )?;
+
+        let current_price = self.rate_service.latest_rate();
+        let request_ltv = calculate_ltv(
+            repayment_amount,
+            loan_request.collateral_amount,
+            current_price.bid,
+        )?;
+
+        // TODO: Make configurable
+        let price_fluctuation_interval = (dec!(0.99), dec!(1.01));
+
+        validate_loan_is_acceptable(
+            request_price,
+            current_price.bid,
+            price_fluctuation_interval,
+            loan_request.principal_amount,
+            loan_offer.min_principal,
+            loan_offer.max_principal,
+            request_ltv,
+            loan_offer.max_ltv,
+        )??;
 
         let oracle_secret_key = elements::secp256k1_zkp::key::ONE_KEY;
         let oralce_priv_key = elements::bitcoin::PrivateKey::new(
@@ -355,18 +387,6 @@ where
             oracle_pk,
         )
         .unwrap();
-
-        let loan_offer = self.current_loan_offer();
-
-        let interest_rate = calculate_interest_rate(
-            loan_request.term,
-            loan_request.collateralization,
-            &loan_offer.terms,
-            &loan_offer.collateralizations,
-            loan_offer.base_interest_rate,
-        )?;
-        let repayment_amount =
-            calculate_repayment_amount(loan_request.principal_amount, interest_rate)?;
 
         let elementsd_client = self.elementsd.clone();
         let principal_inputs = Self::find_inputs(
@@ -575,11 +595,11 @@ fn calculate_repayment_amount(
 
 fn calculate_liquidation_price(
     repayment_amount: LiquidUsdt,
-    collateral: LiquidBtc,
+    collateral_amount: LiquidBtc,
 ) -> Result<LiquidUsdt> {
     let repayment_amount = Decimal::from(repayment_amount.as_satodollar());
     let one_btc_as_sat = Decimal::from(Amount::ONE_BTC.as_sat());
-    let collateral_as_btc = Decimal::from(collateral.0.as_sat())
+    let collateral_as_btc = Decimal::from(collateral_amount.0.as_sat())
         .checked_div(one_btc_as_sat)
         .context("division error")?;
 
@@ -593,6 +613,143 @@ fn calculate_liquidation_price(
     );
 
     Ok(liquidation_price)
+}
+
+fn calculate_request_price(
+    repayment_amount: LiquidUsdt,
+    collateral_amount: LiquidBtc,
+    collateralization: Decimal,
+) -> Result<LiquidUsdt> {
+    let repayment_amount = Decimal::from(repayment_amount.as_satodollar());
+
+    let one_btc_as_sat = Decimal::from(Amount::ONE_BTC.as_sat());
+    let collateral_as_btc = Decimal::from(collateral_amount.0.as_sat())
+        .checked_div(one_btc_as_sat)
+        .context("division error")?;
+
+    let price = repayment_amount
+        .checked_div(
+            collateral_as_btc
+                .checked_div(collateralization)
+                .context("division error")?,
+        )
+        .context("division error")?;
+    let price = LiquidUsdt::from_satodollar(
+        price
+            .to_u64()
+            .context("decimal cannot be represented as u64")?,
+    );
+
+    Ok(price)
+}
+
+fn calculate_ltv(
+    repayment_amount: LiquidUsdt,
+    collateral_amount: LiquidBtc,
+    current_bid_price: LiquidUsdt,
+) -> Result<Decimal> {
+    let repayment_amount = Decimal::from(repayment_amount.as_satodollar());
+    let price = Decimal::from(current_bid_price.as_satodollar());
+
+    let one_btc = Decimal::from(Amount::ONE_BTC.as_sat());
+    let collateral_in_btc = Decimal::from(collateral_amount.0.as_sat())
+        .checked_div(one_btc)
+        .context("division error")?;
+
+    let ltv = repayment_amount
+        .checked_div(
+            collateral_in_btc
+                .checked_mul(price)
+                .context("multiplication error")?,
+        )
+        .context("division error")?;
+
+    Ok(ltv)
+}
+
+#[derive(Debug, PartialEq, thiserror::Error)]
+enum LoanValidationError {
+    #[error(
+        "The given price {request_price} is not acceptable with current price {current_price}"
+    )]
+    PriceNotAcceptable {
+        request_price: LiquidUsdt,
+        current_price: LiquidUsdt,
+    },
+
+    #[error("The given principal amount {request_principal} is below the configured minimum {min_principal}")]
+    PrincipalBelowMin {
+        request_principal: LiquidUsdt,
+        min_principal: LiquidUsdt,
+    },
+
+    #[error("The given principal amount {request_principal} is above the configured maximum {max_principal}")]
+    PrincipalAboveMax {
+        request_principal: LiquidUsdt,
+        max_principal: LiquidUsdt,
+    },
+
+    #[error("The LTV value {request_ltv} is above the configured maximum {max_ltv}")]
+    LtvAboveMax {
+        request_ltv: Decimal,
+        max_ltv: Decimal,
+    },
+}
+
+#[allow(clippy::too_many_arguments)]
+fn validate_loan_is_acceptable(
+    request_price: LiquidUsdt,
+    current_price: LiquidUsdt,
+    price_fluctuation_interval: (Decimal, Decimal),
+    request_principal: LiquidUsdt,
+    min_principal: LiquidUsdt,
+    max_principal: LiquidUsdt,
+    request_ltv: Decimal,
+    max_ltv: Decimal,
+) -> Result<Result<(), LoanValidationError>> {
+    let request_price_dec = request_price.as_satodollar_dec();
+    let current_price_dec = current_price.as_satodollar_dec();
+
+    // TODO: Evaluate if we want to use an upper and a lower bound.
+    //  We could just restrict by upper bound, because that is what makes it more expensive for the lender
+    //  i.e. if price was 1000 and is 100 now we must ensure to accept only if the current price it not higher than 100 + x%
+    let (lower, upper) = price_fluctuation_interval;
+    let lower_bound = current_price_dec
+        .checked_mul(lower)
+        .context("multiplication error")?;
+    let upper_bound = current_price_dec
+        .checked_mul(upper)
+        .context("multiplication error")?;
+
+    if request_price_dec < lower_bound || request_price_dec > upper_bound {
+        return Ok(Err(LoanValidationError::PriceNotAcceptable {
+            request_price,
+            current_price,
+        }));
+    }
+
+    if request_principal < min_principal {
+        return Ok(Err(LoanValidationError::PrincipalBelowMin {
+            request_principal,
+            min_principal,
+        }));
+    }
+
+    if request_principal > max_principal {
+        return Ok(Err(LoanValidationError::PrincipalAboveMax {
+            request_principal,
+            max_principal,
+        }));
+    }
+
+    if request_ltv > max_ltv {
+        return Ok(Err(LoanValidationError::LtvAboveMax {
+            request_ltv,
+            max_ltv,
+        }));
+    }
+
+    Ok(Ok(()))
 }
 
 #[cfg(test)]
@@ -722,8 +879,154 @@ mod tests {
             let repayment_amount = LiquidUsdt::from_satodollar(repayment_amount);
             let collateral = LiquidBtc::from(Amount::from_sat(collateral));
 
-            let liquidation_price = calculate_liquidation_price(repayment_amount, collateral).unwrap();
+            let _ = calculate_liquidation_price(repayment_amount, collateral).unwrap();
         }
+    }
+
+    #[test]
+    fn test_calculate_price() {
+        let repayment_amount = LiquidUsdt::from_str_in_dollar("10500").unwrap();
+        let collateral = LiquidBtc::from(Amount::from_btc(0.39375).unwrap());
+        let collateralization = dec!(1.5);
+
+        let price =
+            calculate_request_price(repayment_amount, collateral, collateralization).unwrap();
+
+        assert_eq!(price, LiquidUsdt::from_str_in_dollar("40000").unwrap());
+    }
+
+    #[test]
+    fn test_calculate_ltv() {
+        let repayment_amount = LiquidUsdt::from_str_in_dollar("10500").unwrap();
+        let collateral = LiquidBtc::from(Amount::from_btc(0.4).unwrap());
+        let current_price = LiquidUsdt::from_str_in_dollar("40000").unwrap();
+        let ltv = calculate_ltv(repayment_amount, collateral, current_price).unwrap();
+
+        assert_eq!(ltv, dec!(0.65625))
+    }
+
+    #[test]
+    fn given_loan_request_acceptable_then_dont_error() {
+        let request_price = LiquidUsdt::from_str_in_dollar("40000").unwrap();
+        let current_price = LiquidUsdt::from_str_in_dollar("39603.96039604").unwrap();
+        let price_fluctuation_interval = (dec!(0.90), dec!(1.01));
+        let request_principal = LiquidUsdt::from_str_in_dollar("1000").unwrap();
+        let min_principal = LiquidUsdt::from_str_in_dollar("1000").unwrap();
+        let max_principal = LiquidUsdt::from_str_in_dollar("10000").unwrap();
+        let request_ltv = dec!(0.8);
+        let max_ltv = dec!(0.8);
+
+        validate_loan_is_acceptable(
+            request_price,
+            current_price,
+            price_fluctuation_interval,
+            request_principal,
+            min_principal,
+            max_principal,
+            request_ltv,
+            max_ltv,
+        )
+        .unwrap()
+        .unwrap();
+    }
+
+    #[test]
+    fn given_loan_request_and_price_drop_lower_then_fluctuation_then_error() {
+        let request_price = LiquidUsdt::from_str_in_dollar("40000").unwrap();
+        let price_fluctuation_interval = (dec!(0.90), dec!(1.01));
+        let request_principal = LiquidUsdt::from_str_in_dollar("1000").unwrap();
+        let min_principal = LiquidUsdt::from_str_in_dollar("1000").unwrap();
+        let max_principal = LiquidUsdt::from_str_in_dollar("10000").unwrap();
+        let request_ltv = dec!(0.8);
+        let max_ltv = dec!(0.8);
+
+        let current_price = LiquidUsdt::from_str_in_dollar("39603.96039603").unwrap();
+        let error = validate_loan_is_acceptable(
+            request_price,
+            current_price,
+            price_fluctuation_interval,
+            request_principal,
+            min_principal,
+            max_principal,
+            request_ltv,
+            max_ltv,
+        )
+        .unwrap()
+        .unwrap_err();
+
+        assert_eq!(
+            error,
+            LoanValidationError::PriceNotAcceptable {
+                request_price,
+                current_price
+            }
+        )
+    }
+
+    #[test]
+    fn given_loan_request_and_price_raise_higher_then_fluctuation_then_error() {
+        let request_price = LiquidUsdt::from_str_in_dollar("40000").unwrap();
+        let price_fluctuation_interval = (dec!(0.90), dec!(1.01));
+        let request_principal = LiquidUsdt::from_str_in_dollar("1000").unwrap();
+        let min_principal = LiquidUsdt::from_str_in_dollar("1000").unwrap();
+        let max_principal = LiquidUsdt::from_str_in_dollar("10000").unwrap();
+        let request_ltv = dec!(0.8);
+        let max_ltv = dec!(0.8);
+
+        let current_price = LiquidUsdt::from_str_in_dollar("44444.44444445").unwrap();
+        let error = validate_loan_is_acceptable(
+            request_price,
+            current_price,
+            price_fluctuation_interval,
+            request_principal,
+            min_principal,
+            max_principal,
+            request_ltv,
+            max_ltv,
+        )
+        .unwrap()
+        .unwrap_err();
+
+        assert_eq!(
+            error,
+            LoanValidationError::PriceNotAcceptable {
+                request_price,
+                current_price
+            }
+        )
+    }
+
+    #[test]
+    fn given_loan_request_with_principal_lower_min_then_error() {
+        let request_price = LiquidUsdt::from_str_in_dollar("40000").unwrap();
+        let current_price = LiquidUsdt::from_str_in_dollar("40000").unwrap();
+        let price_fluctuation_interval = (dec!(0.90), dec!(1.01));
+        let min_principal = LiquidUsdt::from_str_in_dollar("1000").unwrap();
+        let max_principal = LiquidUsdt::from_str_in_dollar("10000").unwrap();
+        let request_ltv = dec!(0.8);
+        let max_ltv = dec!(0.8);
+
+        let request_principal = LiquidUsdt::from_str_in_dollar("999.99999999").unwrap();
+        let error = validate_loan_is_acceptable(
+            request_price,
+            current_price,
+            price_fluctuation_interval,
+            request_principal,
+            min_principal,
+            max_principal,
+            request_ltv,
+            max_ltv,
+        )
+        .unwrap()
+        .unwrap_err();
+
+        assert_eq!(
+            error,
+            LoanValidationError::PrincipalBelowMin {
+                request_principal,
+                min_principal
+            }
+        )
     }
 
     // This test ensures that this function will not panic on different systems now and in the future.

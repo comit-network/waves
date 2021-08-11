@@ -1,4 +1,4 @@
-import { Box, Button, Center, Tooltip, useToast, VStack } from "@chakra-ui/react";
+import { Box, Button, ButtonGroup, Center, Divider, HStack, Text, Tooltip, useToast, VStack } from "@chakra-ui/react";
 import Debug from "debug";
 import React, { Dispatch } from "react";
 import { AsyncState, useAsync } from "react-async";
@@ -48,7 +48,7 @@ function Borrow({ dispatch, state, rate, wavesProvider, walletStatusAsyncState }
         });
     }
 
-    const interestRate = loanOffer ? loanOffer.interest[0].interest_rate : 0;
+    const interestRate = loanOffer ? loanOffer.base_interest_rate : 0;
     const minPrincipal = loanOffer ? loanOffer.min_principal : 0;
     const maxPrincipal = loanOffer ? loanOffer.max_principal : 0;
 
@@ -158,49 +158,74 @@ function Borrow({ dispatch, state, rate, wavesProvider, walletStatusAsyncState }
 
     return (
         <VStack spacing={4} align="stretch">
-            <Center bg="gray.100" w={400} h={400} borderRadius={"md"}>
-                <VStack spacing={4}>
-                    <p>Principal:</p>
-                    <Tooltip
-                        label={"min = " + minPrincipal + " max = " + maxPrincipal}
-                        aria-label="principal"
-                        hasArrow
-                        placement={"right"}
+            <Center bg="gray.100" w={800} h={320} borderRadius={"md"}>
+                <HStack spacing={4}>
+                    <VStack spacing={4}>
+                        <Text align={"left"}>I want to borrow</Text>
+                        <Tooltip
+                            label={"min = " + minPrincipal + " max = " + maxPrincipal}
+                            aria-label="principal"
+                            hasArrow
+                            placement={"right"}
+                        >
+                            <Box>
+                                <NumberInput
+                                    currency="$"
+                                    value={state.principalAmount}
+                                    precision={2}
+                                    step={0.01}
+                                    onAmountChange={onPrincipalAmountChange}
+                                    isDisabled={loanOfferLoading}
+                                    dataCy={"data-cy-principal"}
+                                />
+                            </Box>
+                        </Tooltip>
+                        <Text align={"left"}>Loan Term</Text>
+                        <ButtonGroup variant="outline" colorScheme={"blue"} spacing="6">
+                            <Button width={"100px"} variant={"solid"}>30 days</Button>
+                            <Button width={"100px"}>90 days</Button>
+                            <Button width={"100px"}>180 days</Button>
+                        </ButtonGroup>
+                        <Box>Collateralization</Box>
+                        <ButtonGroup variant="outline" colorScheme={"blue"} spacing="6">
+                            <Button width={"100px"}>130%</Button>
+                            <Button width={"100px"} variant={"solid"}>150%</Button>
+                            <Button width={"100px"}>200%</Button>
+                        </ButtonGroup>
+                    </VStack>
+                    <Divider orientation={"vertical"} />
+                    <VStack
+                        spacing={4}
+                        bg={"white"}
+                        borderRadius={"md"}
+                        pt={"5px"}
+                        pb="25px"
+                        pr="25px"
+                        pl={"25px"}
+                        boxShadow="xs"
                     >
-                        <Box>
-                            <NumberInput
-                                currency="$"
-                                value={state.principalAmount}
-                                precision={2}
-                                step={0.01}
-                                onAmountChange={onPrincipalAmountChange}
-                                isDisabled={loanOfferLoading}
-                                dataCy={"data-cy-principal"}
-                            />
-                        </Box>
-                    </Tooltip>
-                    <p>Collateral:</p>
-                    <NumberInput
-                        currency="₿"
-                        value={collateralAmount}
-                        precision={7}
-                        step={0.000001}
-                        onAmountChange={() => {}}
-                        isDisabled={true}
-                        dataCy={"data-cy-collateral"}
-                    />
-                    <p>Interest {interestRate * 100}%:</p>
-                    <NumberInput
-                        currency="$"
-                        value={interestAmount}
-                        precision={7}
-                        step={0.01}
-                        onAmountChange={() => {}}
-                        isDisabled={true}
-                        dataCy={"data-cy-interest"}
-                    />
-                    <p>Loan term (in days): {state.loanTermInDays}</p>
-                </VStack>
+                        <p>Collateral:</p>
+                        <NumberInput
+                            currency="₿"
+                            value={collateralAmount}
+                            precision={7}
+                            step={0.000001}
+                            onAmountChange={() => {}}
+                            isDisabled={true}
+                            dataCy={"data-cy-collateral"}
+                        />
+                        <p>Interest {interestRate * 100}%:</p>
+                        <NumberInput
+                            currency="$"
+                            value={interestAmount}
+                            precision={7}
+                            step={0.01}
+                            onAmountChange={() => {}}
+                            isDisabled={true}
+                            dataCy={"data-cy-interest"}
+                        />
+                    </VStack>
+                </HStack>
             </Center>
 
             <RateInfo rate={rate} direction={"ask"} />

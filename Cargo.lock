@@ -316,6 +316,7 @@ dependencies = [
  "structopt",
  "tempfile",
  "testcontainers",
+ "thiserror",
  "tokio",
  "tokio-tungstenite",
  "tracing",
