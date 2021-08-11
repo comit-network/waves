@@ -13,7 +13,7 @@ default = ["console_error_panic_hook"]
 [dependencies]
 aes-gcm-siv = { version = "0.9", features = ["std"] }
 anyhow = "1"
-baru = { git = "https://github.com/da-kami/baru", branch = "lender-decides-timelock" }
+baru = "0.3"
 bip32 = { version = "0.2", features = ["secp256k1-ffi", "bip39"], default-features = false }
 coin_selection = { path = "../../coin_selection" }
 conquer-once = "0.3"

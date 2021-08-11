@@ -5,3 +5,4 @@
 # It is recommended to check this file in to source control so that
 # everyone who runs the test benefits from these saved cases.
 cc 9bb7f1b54a4968641948d278e51a05ed2930034b95de73641862e33bfcdcea4d # shrinks to term_in_days = 30868
+cc 1ea9687935221688e83172c1a589fbb8beb2dbfeb527c320dd9810a402281a8a # shrinks to principal_amount = 15775565394041882682, interest_percentage = 0.16932377
