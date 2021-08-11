@@ -1,7 +1,6 @@
 use crate::{
-    esplora,
     wallet::{current, get_txouts, Wallet, DEFAULT_SAT_PER_VBYTE},
-    BTC_ASSET_ID,
+    BTC_ASSET_ID, ESPLORA_CLIENT,
 };
 use anyhow::{bail, Context, Result};
 use elements::{
@@ -24,6 +23,8 @@ pub async fn withdraw_everything_to(
     current_wallet: &Mutex<Option<Wallet>>,
     address: Address,
 ) -> Result<Txid> {
+    let client = ESPLORA_CLIENT.lock().expect_throw("can get lock");
+
     let btc_asset_id = {
         let guard = BTC_ASSET_ID.lock().expect_throw("can get lock");
         *guard
@@ -55,7 +56,7 @@ pub async fn withdraw_everything_to(
         })
         .collect::<HashMap<_, _>>();
 
-    let fee_estimates = esplora::get_fee_estimates().await?;
+    let fee_estimates = client.get_fee_estimates().await?;
 
     let estimated_virtual_size =
         estimate_virtual_size(prevout_values.len() as u64, txouts.len() as u64);
@@ -237,7 +238,8 @@ pub async fn withdraw_everything_to(
         }
     }
 
-    let txid = esplora::broadcast(transaction)
+    let txid = client
+        .broadcast(transaction)
         .await
         .context("failed to broadcast transaction via esplora")?;
 

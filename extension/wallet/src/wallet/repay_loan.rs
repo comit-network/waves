@@ -7,11 +7,11 @@ use futures::lock::Mutex;
 use rand::thread_rng;
 
 use crate::{
-    esplora::{broadcast, fetch_transaction},
     storage::Storage,
     wallet::{current, get_txouts, LoanDetails},
-    Wallet, DEFAULT_SAT_PER_VBYTE,
+    Wallet, DEFAULT_SAT_PER_VBYTE, ESPLORA_CLIENT,
 };
+use wasm_bindgen::UnwrapThrowExt;
 
 // TODO: Parts of the implementation are very similar to what we do in
 // `sign_and_send_swap_transaction`. We could extract common
@@ -21,9 +21,11 @@ pub async fn repay_loan(
     current_wallet: &Mutex<Option<Wallet>>,
     loan_txid: Txid,
 ) -> Result<Txid, Error> {
+    let client = ESPLORA_CLIENT.lock().expect_throw("can get lock");
+
     // TODO: Only abort early if this fails because the transaction
     // hasn't been mined
-    if fetch_transaction(loan_txid).await.is_err() {
+    if client.fetch_transaction(loan_txid).await.is_err() {
         return Err(Error::NoLoan);
     }
 
@@ -167,7 +169,8 @@ pub async fn repay_loan(
         .await
         .map_err(Error::BuildTransaction)?;
 
-    let repayment_txid = broadcast(loan_repayment_tx)
+    let repayment_txid = client
+        .broadcast(loan_repayment_tx)
         .await
         .map_err(Error::SendTransaction)?;
 

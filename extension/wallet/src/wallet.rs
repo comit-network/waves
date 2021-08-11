@@ -1,8 +1,7 @@
 use crate::{
     assets::{self, lookup},
-    esplora,
     esplora::Utxo,
-    CHAIN, DEFAULT_SAT_PER_VBYTE,
+    CHAIN, DEFAULT_SAT_PER_VBYTE, ESPLORA_CLIENT,
 };
 use aes_gcm_siv::{
     aead::{Aead, NewAead},
@@ -38,6 +37,7 @@ use std::{
 };
 use wasm_bindgen::UnwrapThrowExt;
 
+use crate::esplora::fetch_transaction;
 use bip32::{ExtendedPrivateKey, Prefix};
 pub use create_new::{bip39_seed_words, create_from_bip39};
 pub use extract_loan::{extract_loan, Error as ExtractLoanError};
@@ -80,14 +80,17 @@ async fn get_txouts<T, FM: Fn(Utxo, TxOut) -> Result<Option<T>> + Copy>(
     wallet: &Wallet,
     filter_map: FM,
 ) -> Result<Vec<T>> {
+    let client = ESPLORA_CLIENT.lock().expect_throw("can get lock");
+
     let address = wallet.get_address();
 
-    let utxos = esplora::fetch_utxos(&address).await?;
+    let utxos = client.fetch_utxos(address).await?;
 
+    let url = client.base_url();
     let txouts = utxos
         .into_iter()
         .map(move |utxo| async move {
-            let mut tx = esplora::fetch_transaction(utxo.txid).await?;
+            let mut tx = fetch_transaction(url, utxo.txid).await?;
             let txout = tx.output.remove(utxo.vout as usize);
 
             filter_map(utxo, txout)

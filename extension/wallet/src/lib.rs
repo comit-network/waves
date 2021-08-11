@@ -20,7 +20,7 @@ mod logger;
 mod storage;
 mod wallet;
 
-use crate::{storage::Storage, wallet::*};
+use crate::{esplora::EsploraClient, storage::Storage, wallet::*};
 
 // TODO: make this configurable through extension option UI
 const DEFAULT_SAT_PER_VBYTE: u64 = 1;
@@ -38,14 +38,14 @@ static CHAIN: Lazy<std::sync::Mutex<Chain>> = Lazy::new(|| {
             .expect_throw("empty 'CHAIN'"),
     )
 });
-static ESPLORA_API_URL: Lazy<std::sync::Mutex<Url>> = Lazy::new(|| {
-    std::sync::Mutex::new(
+static ESPLORA_CLIENT: Lazy<std::sync::Mutex<EsploraClient>> = Lazy::new(|| {
+    std::sync::Mutex::new(EsploraClient::new(
         Storage::local_storage()
             .expect_throw("local storage to be available")
             .get_item::<Url>("ESPLORA_API_URL")
             .expect_throw("failed to get 'ESPLORA_API_URL'")
             .expect_throw("empty 'ESPLORA_API_URL'"),
-    )
+    ))
 });
 static BTC_ASSET_ID: Lazy<std::sync::Mutex<elements::AssetId>> = Lazy::new(|| {
     std::sync::Mutex::new(
@@ -141,6 +141,17 @@ pub async fn wallet_status(name: String) -> Result<JsValue, JsValue> {
     let status = map_err_from_anyhow!(JsValue::from_serde(&status))?;
 
     Ok(status)
+}
+
+/// Retrieve the latest block height from Esplora
+#[wasm_bindgen]
+pub async fn get_block_height() -> Result<JsValue, JsValue> {
+    let client = ESPLORA_CLIENT.lock().expect_throw("can get lock");
+
+    let latest_block_height = map_err_from_anyhow!(client.get_block_height().await)?;
+    let latest_block_height = map_err_from_anyhow!(JsValue::from_serde(&latest_block_height))?;
+
+    Ok(latest_block_height)
 }
 
 /// Get an address for the wallet with the given name.
@@ -388,10 +399,10 @@ fn handle_storage_update(event: web_sys::StorageEvent) -> Promise {
                 }
             };
 
-            let mut guard = ESPLORA_API_URL
+            let mut guard = ESPLORA_CLIENT
                 .lock()
                 .expect_throw("could not acquire lock.");
-            *guard = esplora_api_url;
+            *guard = EsploraClient::new(esplora_api_url);
         }
         (Some("LBTC_ASSET_ID"), Some(new_value)) => {
             let mut guard = BTC_ASSET_ID.lock().expect_throw("could not acquire lock");

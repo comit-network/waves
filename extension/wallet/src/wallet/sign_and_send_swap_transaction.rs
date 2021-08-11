@@ -1,17 +1,20 @@
 use crate::{
-    esplora::broadcast,
     wallet::{current, get_txouts, Wallet},
+    ESPLORA_CLIENT,
 };
 use anyhow::Result;
 use baru::swap::{alice_finalize_transaction, sign_with_key};
 use elements::{secp256k1_zkp::SECP256K1, sighash::SigHashCache, Transaction, Txid};
 use futures::lock::Mutex;
+use wasm_bindgen::UnwrapThrowExt;
 
 pub(crate) async fn sign_and_send_swap_transaction(
     name: String,
     current_wallet: &Mutex<Option<Wallet>>,
     transaction: Transaction,
 ) -> Result<Txid, Error> {
+    let client = ESPLORA_CLIENT.lock().expect_throw("can get lock");
+
     let wallet = current(&name, current_wallet)
         .await
         .map_err(Error::LoadWallet)?;
@@ -59,7 +62,7 @@ pub(crate) async fn sign_and_send_swap_transaction(
     .await
     .map_err(Error::Sign)?;
 
-    let txid = broadcast(transaction).await.map_err(Error::Send)?;
+    let txid = client.broadcast(transaction).await.map_err(Error::Send)?;
 
     Ok(txid)
 }

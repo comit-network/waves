@@ -1,158 +1,173 @@
-use crate::{cache_storage::CacheStorage, ESPLORA_API_URL};
 use anyhow::{anyhow, bail, Context, Result};
 use elements::{
     encode::{deserialize, serialize_hex},
     Address, BlockHash, Transaction, Txid,
 };
-use reqwest::StatusCode;
-use wasm_bindgen::UnwrapThrowExt;
+use reqwest::{StatusCode, Url};
 
-/// Fetch the UTXOs of an address.
-///
-/// UTXOs change over time and as such, this function never uses a cache.
-pub async fn fetch_utxos(address: &Address) -> Result<Vec<Utxo>> {
-    let esplora_url = {
-        let guard = ESPLORA_API_URL.lock().expect_throw("can get lock");
-        guard.clone()
-    };
+use crate::cache_storage::CacheStorage;
 
-    let path = format!("address/{}/utxo", address);
-    let esplora_url = esplora_url.join(path.as_str())?;
-    let response = reqwest::get(esplora_url.clone())
-        .await
-        .context("failed to fetch UTXOs")?;
-
-    if response.status() == StatusCode::NOT_FOUND {
-        log::debug!(
-            "GET {} returned 404, defaulting to empty UTXO set",
-            esplora_url
-        );
-
-        return Ok(Vec::new());
-    }
-
-    if !response.status().is_success() {
-        let error_body = response.text().await?;
-        return Err(anyhow!(
-            "failed to fetch utxos, esplora returned '{}'",
-            error_body
-        ));
-    }
-
-    let mut utxos = response
-        .json::<Vec<Utxo>>()
-        .await
-        .context("failed to deserialize response")?;
-
-    // Sort UTXOs to have more deterministic output in case something goes wrong.
-    // Note that the order of these UTXOs does not have to be strictly assured.
-    utxos.sort_by(|l, r| l.txid.cmp(&r.txid).then(l.vout.cmp(&r.vout)));
-
-    Ok(utxos)
+#[derive(Clone)]
+pub struct EsploraClient {
+    base_url: Url,
 }
 
-/// Fetch transaction history for the specified address.
-///
-/// Returns up to 50 mempool transactions plus the first 25 confirmed
-/// transactions. See
-/// https://github.com/blockstream/esplora/blob/master/API.md#get-addressaddresstxs
-/// for more information.
-pub async fn fetch_transaction_history(address: &Address) -> Result<Vec<Txid>> {
-    let esplora_url = {
-        let guard = ESPLORA_API_URL.lock().expect_throw("can get lock");
-        guard.clone()
-    };
-    let path = format!("address/{}/txs", address);
-    let url = esplora_url.join(path.as_str())?;
-    let response = reqwest::get(url.clone())
-        .await
-        .context("failed to fetch transaction history")?;
-
-    if !response.status().is_success() {
-        let error_body = response.text().await?;
-        return Err(anyhow!(
-            "failed to fetch transaction history, esplora returned '{}' from '{}'",
-            error_body,
-            url
-        ));
+impl EsploraClient {
+    pub fn new(base_url: Url) -> Self {
+        Self { base_url }
     }
 
-    #[derive(serde::Deserialize)]
-    struct HistoryElement {
-        txid: Txid,
+    pub fn base_url(&self) -> &Url {
+        &self.base_url
     }
 
-    let response = response
-        .json::<Vec<HistoryElement>>()
-        .await
-        .context("failed to deserialize response")?;
+    pub async fn fetch_transaction(&self, txid: Txid) -> Result<Transaction> {
+        fetch_transaction(&self.base_url, txid).await
+    }
 
-    Ok(response.iter().map(|elem| elem.txid).collect())
+    pub async fn broadcast(&self, tx: Transaction) -> Result<Txid> {
+        let esplora_url = self.base_url.clone();
+        let esplora_url = esplora_url.join("tx")?;
+        let client = reqwest::Client::new();
+
+        let response = client
+            .post(esplora_url.clone())
+            .body(serialize_hex(&tx))
+            .send()
+            .await?;
+
+        let code = response.status();
+
+        if !code.is_success() {
+            bail!("failed to successfully publish transaction");
+        }
+
+        let txid = response
+            .text()
+            .await?
+            .parse()
+            .context("failed to parse response body as txid")?;
+
+        Ok(txid)
+    }
+
+    /// Fetch transaction history for the specified address.
+    ///
+    /// Returns up to 50 mempool transactions plus the first 25 confirmed
+    /// transactions. See
+    /// https://github.com/blockstream/esplora/blob/master/API.md#get-addressaddresstxs
+    /// for more information.
+    pub async fn fetch_transaction_history(&self, address: &Address) -> Result<Vec<Txid>> {
+        let path = format!("address/{}/txs", address);
+        let base_url = self.base_url.clone();
+        let url = base_url.join(path.as_str())?;
+        let response = reqwest::get(url.clone())
+            .await
+            .context("failed to fetch transaction history")?;
+
+        if !response.status().is_success() {
+            let error_body = response.text().await?;
+            return Err(anyhow!(
+                "failed to fetch transaction history, esplora returned '{}' from '{}'",
+                error_body,
+                url
+            ));
+        }
+
+        #[derive(serde::Deserialize)]
+        struct HistoryElement {
+            txid: Txid,
+        }
+
+        let response = response
+            .json::<Vec<HistoryElement>>()
+            .await
+            .context("failed to deserialize response")?;
+
+        Ok(response.iter().map(|elem| elem.txid).collect())
+    }
+
+    pub async fn get_fee_estimates(&self) -> Result<FeeEstimatesResponse> {
+        let base_url = self.base_url.clone();
+        let esplora_url = base_url.join("fee-estimates")?;
+
+        let fee_estimates = reqwest::get(esplora_url.clone())
+            .await
+            .with_context(|| format!("failed to GET {}", esplora_url))?
+            .json()
+            .await
+            .context("failed to deserialize fee estimates")?;
+
+        Ok(fee_estimates)
+    }
+
+    pub async fn get_block_height(&self) -> Result<u32> {
+        let base_url = self.base_url.clone();
+        let esplora_url = base_url.join("/blocks/tip/height")?;
+
+        let latest_block_height = reqwest::get(esplora_url.clone())
+            .await
+            .with_context(|| format!("failed to GET {}", esplora_url))?
+            .json()
+            .await
+            .context("failed to deserialize latest block height")?;
+
+        Ok(latest_block_height)
+    }
+
+    /// Fetch the UTXOs of an address.
+    ///
+    /// UTXOs change over time and as such, this function never uses a cache.
+    pub async fn fetch_utxos(&self, address: Address) -> Result<Vec<Utxo>> {
+        let path = format!("address/{}/utxo", address);
+        let esplora_url = self.base_url.join(path.as_str())?;
+        let response = reqwest::get(esplora_url.clone())
+            .await
+            .context("failed to fetch UTXOs")?;
+
+        if response.status() == StatusCode::NOT_FOUND {
+            log::debug!(
+                "GET {} returned 404, defaulting to empty UTXO set",
+                esplora_url
+            );
+
+            return Ok(Vec::new());
+        }
+
+        if !response.status().is_success() {
+            let error_body = response.text().await?;
+            return Err(anyhow!(
+                "failed to fetch utxos, esplora returned '{}'",
+                error_body
+            ));
+        }
+
+        let mut utxos = response
+            .json::<Vec<Utxo>>()
+            .await
+            .context("failed to deserialize response")?;
+
+        // Sort UTXOs to have more deterministic output in case something goes wrong.
+        // Note that the order of these UTXOs does not have to be strictly assured.
+        utxos.sort_by(|l, r| l.txid.cmp(&r.txid).then(l.vout.cmp(&r.vout)));
+
+        Ok(utxos)
+    }
 }
 
 /// Fetches a transaction.
 ///
 /// This function makes use of the browsers local storage to avoid spamming the underlying source.
 /// Transaction never change after they've been mined, hence we can cache those indefinitely.
-pub async fn fetch_transaction(txid: Txid) -> Result<Transaction> {
-    let esplora_url = {
-        let guard = ESPLORA_API_URL.lock().expect_throw("can get lock");
-        guard.clone()
-    };
+pub async fn fetch_transaction(base_url: &Url, txid: Txid) -> Result<Transaction> {
     let cache = CacheStorage::new()?;
     let body = cache
-        .match_or_add(&format!("{}tx/{}/hex", esplora_url, txid))
+        .match_or_add(&format!("{}/tx/{}/hex", base_url, txid))
         .await?
         .text()
         .await?;
 
     Ok(deserialize(&hex::decode(body.as_bytes())?)?)
-}
-
-pub async fn broadcast(tx: Transaction) -> Result<Txid> {
-    let esplora_url = {
-        let guard = ESPLORA_API_URL.lock().expect_throw("can get lock");
-        guard.clone()
-    };
-    let esplora_url = esplora_url.join("tx")?;
-    let client = reqwest::Client::new();
-
-    let response = client
-        .post(esplora_url.clone())
-        .body(serialize_hex(&tx))
-        .send()
-        .await?;
-
-    let code = response.status();
-
-    if !code.is_success() {
-        bail!("failed to successfully publish transaction");
-    }
-
-    let txid = response
-        .text()
-        .await?
-        .parse()
-        .context("failed to parse response body as txid")?;
-
-    Ok(txid)
-}
-
-pub async fn get_fee_estimates() -> Result<FeeEstimatesResponse> {
-    let esplora_url = {
-        let guard = ESPLORA_API_URL.lock().expect_throw("can get lock");
-        guard.clone()
-    };
-    let esplora_url = esplora_url.join("fee-estimates")?;
-
-    let fee_estimates = reqwest::get(esplora_url.clone())
-        .await
-        .with_context(|| format!("failed to GET {}", esplora_url))?
-        .json()
-        .await
-        .context("failed to deserialize fee estimates")?;
-
-    Ok(fee_estimates)
 }
 
 /// The response object for the `/fee-estimates` endpoint.
