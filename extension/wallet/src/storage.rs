@@ -3,23 +3,12 @@ use serde::{de::DeserializeOwned, Serialize};
 use std::{error::Error as StdError, str::FromStr};
 use web_sys::window;
 
-use crate::LoanDetails;
-
 /// A wrapper type around the cache storage.
 pub struct Storage {
     inner: web_sys::Storage,
 }
 
 impl Storage {
-    pub fn get_open_loans(&self) -> Result<Vec<LoanDetails>> {
-        let loans = self
-            .get_json_item::<Vec<LoanDetails>>("open_loans")
-            .context("could not load open loans")?
-            .unwrap_or_default();
-
-        Ok(loans)
-    }
-
     pub fn local_storage() -> Result<Self> {
         let storage = map_err_to_anyhow!(window()
             .context("failed to access window object")?

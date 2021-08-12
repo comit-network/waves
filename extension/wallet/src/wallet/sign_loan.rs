@@ -93,7 +93,10 @@ pub fn update_open_loans(
     borrower: &Borrower1,
     loan_details: LoanDetails,
 ) -> Result<(), Error> {
-    let mut open_loans = storage.get_open_loans().unwrap_or_default();
+    let mut open_loans = storage
+        .get_json_item::<Vec<LoanDetails>>("open_loans")
+        .map_err(Error::Load)?
+        .unwrap_or_default();
 
     let txid = loan_details.txid;
     if open_loans.iter().all(|item| item.txid != txid) {

@@ -30,7 +30,10 @@ pub async fn create_loan_backup(
         .await
         .map_err(Error::LoadWallet);
 
-    let open_loans = storage.get_open_loans().unwrap_or_default();
+    let open_loans = storage
+        .get_json_item::<Vec<LoanDetails>>("open_loans")
+        .map_err(Error::Load)?
+        .unwrap_or_default();
 
     let loan_details = open_loans
         .iter()

@@ -9,7 +9,7 @@ use rand::thread_rng;
 use crate::{
     esplora::{broadcast, fetch_transaction},
     storage::Storage,
-    wallet::{current, get_txouts},
+    wallet::{current, get_txouts, LoanDetails},
     Wallet, DEFAULT_SAT_PER_VBYTE,
 };
 
@@ -176,7 +176,10 @@ pub async fn repay_loan(
         .remove_item(&format!("loan_state:{}", loan_txid))
         .map_err(Error::Delete)?;
 
-    let open_loans = storage.get_open_loans().unwrap_or_default();
+    let open_loans = storage
+        .get_json_item::<Vec<LoanDetails>>("open_loans")
+        .map_err(Error::Load)?
+        .unwrap_or_default();
 
     let open_loans = open_loans
         .iter()

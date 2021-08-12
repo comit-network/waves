@@ -355,7 +355,10 @@ pub async fn extract_loan(wallet_name: String, loan_response: JsValue) -> Result
 #[wasm_bindgen]
 pub async fn get_open_loans() -> Result<JsValue, JsValue> {
     let storage = map_err_from_anyhow!(Storage::local_storage())?;
-    let loans = map_err_from_anyhow!(storage.get_open_loans())?;
+    let loans = map_err_from_anyhow!(storage
+        .get_json_item::<Vec<LoanDetails>>("open_loans")
+        .map_err(Error::Load))?
+    .unwrap_or_default();
     let loans = map_err_from_anyhow!(JsValue::from_serde(&loans))?;
 
     Ok(loans)
