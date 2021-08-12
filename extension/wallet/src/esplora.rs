@@ -1,11 +1,13 @@
+use crate::cache_storage::CacheStorage;
 use anyhow::{anyhow, bail, Context, Result};
+use async_trait::async_trait;
+use baru::GetUtxos;
 use elements::{
     encode::{deserialize, serialize_hex},
-    Address, BlockHash, Transaction, Txid,
+    Address, BlockHash, OutPoint, Transaction, TxOut, Txid,
 };
+use futures::{stream::FuturesUnordered, TryStreamExt};
 use reqwest::{StatusCode, Url};
-
-use crate::cache_storage::CacheStorage;
 
 #[derive(Clone)]
 pub struct EsploraClient {
@@ -17,12 +19,8 @@ impl EsploraClient {
         Self { base_url }
     }
 
-    pub fn base_url(&self) -> &Url {
-        &self.base_url
-    }
-
     pub async fn fetch_transaction(&self, txid: Txid) -> Result<Transaction> {
-        fetch_transaction(&self.base_url, txid).await
+        fetch_transaction(self.base_url.clone(), txid).await
     }
 
     pub async fn broadcast(&self, tx: Transaction) -> Result<Txid> {
@@ -114,52 +112,80 @@ impl EsploraClient {
 
         Ok(latest_block_height)
     }
+}
 
-    /// Fetch the UTXOs of an address.
-    ///
-    /// UTXOs change over time and as such, this function never uses a cache.
-    pub async fn fetch_utxos(&self, address: Address) -> Result<Vec<Utxo>> {
-        let path = format!("address/{}/utxo", address);
-        let esplora_url = self.base_url.join(path.as_str())?;
-        let response = reqwest::get(esplora_url.clone())
-            .await
-            .context("failed to fetch UTXOs")?;
+#[async_trait(?Send)]
+impl GetUtxos for EsploraClient {
+    async fn get_utxos(&self, address: Address) -> Result<Vec<(OutPoint, TxOut)>> {
+        let base_url = self.base_url.clone();
+        let utxos = fetch_utxos(base_url.clone(), address).await?;
 
-        if response.status() == StatusCode::NOT_FOUND {
-            log::debug!(
-                "GET {} returned 404, defaulting to empty UTXO set",
-                esplora_url
-            );
+        let txouts = utxos
+            .into_iter()
+            .map(move |utxo| {
+                let base_url = base_url.clone();
+                async move {
+                    let mut tx = fetch_transaction(base_url, utxo.txid).await?;
+                    let txout = tx.output.remove(utxo.vout as usize);
+                    let utxo = OutPoint {
+                        txid: utxo.txid,
+                        vout: utxo.vout,
+                    };
+                    Result::<_, anyhow::Error>::Ok((utxo, txout))
+                }
+            })
+            .collect::<FuturesUnordered<_>>()
+            .try_collect::<Vec<_>>()
+            .await?;
 
-            return Ok(Vec::new());
-        }
-
-        if !response.status().is_success() {
-            let error_body = response.text().await?;
-            return Err(anyhow!(
-                "failed to fetch utxos, esplora returned '{}'",
-                error_body
-            ));
-        }
-
-        let mut utxos = response
-            .json::<Vec<Utxo>>()
-            .await
-            .context("failed to deserialize response")?;
-
-        // Sort UTXOs to have more deterministic output in case something goes wrong.
-        // Note that the order of these UTXOs does not have to be strictly assured.
-        utxos.sort_by(|l, r| l.txid.cmp(&r.txid).then(l.vout.cmp(&r.vout)));
-
-        Ok(utxos)
+        Ok(txouts)
     }
+}
+
+/// Fetch the UTXOs of an address.
+///
+/// UTXOs change over time and as such, this function never uses a cache.
+async fn fetch_utxos(base_url: Url, address: Address) -> Result<Vec<Utxo>> {
+    let path = format!("address/{}/utxo", address);
+    let esplora_url = base_url.join(path.as_str())?;
+    let response = reqwest::get(esplora_url.clone())
+        .await
+        .context("failed to fetch UTXOs")?;
+
+    if response.status() == StatusCode::NOT_FOUND {
+        log::debug!(
+            "GET {} returned 404, defaulting to empty UTXO set",
+            esplora_url
+        );
+
+        return Ok(Vec::new());
+    }
+
+    if !response.status().is_success() {
+        let error_body = response.text().await?;
+        return Err(anyhow!(
+            "failed to fetch utxos, esplora returned '{}'",
+            error_body
+        ));
+    }
+
+    let mut utxos = response
+        .json::<Vec<Utxo>>()
+        .await
+        .context("failed to deserialize response")?;
+
+    // Sort UTXOs to have more deterministic output in case something goes wrong.
+    // Note that the order of these UTXOs does not have to be strictly assured.
+    utxos.sort_by(|l, r| l.txid.cmp(&r.txid).then(l.vout.cmp(&r.vout)));
+
+    Ok(utxos)
 }
 
 /// Fetches a transaction.
 ///
 /// This function makes use of the browsers local storage to avoid spamming the underlying source.
 /// Transaction never change after they've been mined, hence we can cache those indefinitely.
-pub async fn fetch_transaction(base_url: &Url, txid: Txid) -> Result<Transaction> {
+pub async fn fetch_transaction(base_url: Url, txid: Txid) -> Result<Transaction> {
     let cache = CacheStorage::new()?;
     let body = cache
         .match_or_add(&format!("{}/tx/{}/hex", base_url, txid))

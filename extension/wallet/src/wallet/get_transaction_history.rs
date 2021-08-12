@@ -2,7 +2,10 @@ use anyhow::Result;
 use elements::Txid;
 use futures::lock::Mutex;
 
-use crate::{wallet::current, Wallet, ESPLORA_CLIENT};
+use crate::{
+    wallet::{current, Wallet},
+    ESPLORA_CLIENT,
+};
 use wasm_bindgen::UnwrapThrowExt;
 
 pub async fn get_transaction_history(

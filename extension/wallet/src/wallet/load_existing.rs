@@ -3,20 +3,22 @@ use crate::{
     wallet::{ListOfWallets, Wallet},
 };
 use anyhow::{bail, Context, Result};
+use baru::Chain;
 use futures::lock::Mutex;
 
 pub async fn load_existing(
     name: String,
     password: String,
+    chain: String,
     current_wallet: &Mutex<Option<Wallet>>,
 ) -> Result<()> {
     let mut guard = current_wallet.lock().await;
 
-    if let Some(Wallet { name: loaded, .. }) = &*guard {
+    if let Some(wallet) = &*guard {
         bail!(
             "cannot load wallet '{}' because wallet '{}' is currently loaded",
             name,
-            loaded
+            wallet.name()
         )
     }
 
@@ -40,7 +42,9 @@ pub async fn load_existing(
         .get_item::<String>(&format!("wallets.{}.xprv", name))?
         .context("no xprv key for wallet")?;
 
-    let wallet = Wallet::initialize_existing(name, password, xprv_ciphertext)?;
+    let chain = chain.parse::<Chain>()?;
+    #[allow(deprecated)]
+    let wallet = Wallet::initialize_existing(name, password, xprv_ciphertext, chain)?;
 
     guard.replace(wallet);
 

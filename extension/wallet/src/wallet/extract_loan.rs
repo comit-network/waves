@@ -1,6 +1,7 @@
 use crate::{
+    esplora::EsploraClient,
     storage::Storage,
-    wallet::{compute_balances, current, get_txouts, Wallet},
+    wallet::{current, Wallet},
     LoanDetails, BTC_ASSET_ID, USDT_ASSET_ID,
 };
 use baru::loan::{Borrower0, LoanResponse};
@@ -12,6 +13,7 @@ pub async fn extract_loan(
     name: String,
     current_wallet: &Mutex<Option<Wallet>>,
     loan_response: LoanResponse,
+    client: &EsploraClient,
 ) -> Result<LoanDetails, Error> {
     let btc_asset_id = {
         let guard = BTC_ASSET_ID.lock().expect_throw("can get lock");
@@ -22,21 +24,12 @@ pub async fn extract_loan(
         *guard
     };
 
-    let wallet = current(&name, current_wallet)
+    let mut wallet = current(&name, current_wallet)
         .await
         .map_err(Error::LoadWallet)?;
+    wallet.sync(client).await.map_err(Error::SyncWallet)?;
 
-    let txouts = get_txouts(&wallet, |utxo, txout| Ok(Some((utxo, txout))))
-        .await
-        .map_err(Error::GetTxOuts)?;
-    let balances = compute_balances(
-        &wallet,
-        &txouts
-            .iter()
-            .map(|(_, txout)| txout)
-            .cloned()
-            .collect::<Vec<_>>(),
-    );
+    let balances = wallet.compute_balances();
 
     let storage = Storage::local_storage().map_err(Error::Storage)?;
     let borrower = storage
@@ -101,8 +94,6 @@ pub enum Error {
     LoanResponseDeserialization(#[from] serde_json::Error),
     #[error("Wallet is not loaded: {0}")]
     LoadWallet(anyhow::Error),
-    #[error("Failed to get transaction outputs: {0}")]
-    GetTxOuts(anyhow::Error),
     #[error("Storage error: {0}")]
     Storage(anyhow::Error),
     #[error("Failed to load item from storage: {0}")]
@@ -121,4 +112,6 @@ pub enum Error {
     InsufficientCollateral,
     #[error("Failed to build loan details: {0}")]
     LoanDetails(anyhow::Error),
+    #[error("Could not sync wallet: {0}")]
+    SyncWallet(anyhow::Error),
 }

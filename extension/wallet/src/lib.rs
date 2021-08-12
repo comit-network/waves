@@ -2,13 +2,15 @@ use std::str::FromStr;
 
 use bip32::{Language, Mnemonic};
 use conquer_once::Lazy;
-use elements::{bitcoin::util::amount::Amount, Address, AddressParams, Txid};
+use elements::{bitcoin::util::amount::Amount, Address, Txid};
 use futures::lock::Mutex;
 use js_sys::Promise;
 use reqwest::Url;
 use rust_decimal::{prelude::ToPrimitive, Decimal, RoundingStrategy};
 use wasm_bindgen::{prelude::*, JsCast};
 use web_sys::window;
+
+pub use baru::Chain;
 
 #[macro_use]
 mod macros;
@@ -106,8 +108,16 @@ pub async fn create_new_bip39_wallet(
     let mnemonic = Mnemonic::new(seed_words, Language::English)
         .map_err(|e| JsValue::from_str(format!("Could not parse seed words: {:?}", e).as_str()))?;
 
+    // todo: expose the chain param to the user
     map_err_from_anyhow!(
-        wallet::create_from_bip39(name, mnemonic, password, &LOADED_WALLET).await
+        wallet::create_from_bip39(
+            name,
+            mnemonic,
+            password,
+            "Elements".to_string(),
+            &LOADED_WALLET
+        )
+        .await
     )?;
 
     Ok(JsValue::null())
@@ -121,7 +131,9 @@ pub async fn create_new_bip39_wallet(
 /// - the password is wrong
 #[wasm_bindgen]
 pub async fn load_existing_wallet(name: String, password: String) -> Result<JsValue, JsValue> {
-    map_err_from_anyhow!(wallet::load_existing(name, password, &LOADED_WALLET).await)?;
+    map_err_from_anyhow!(
+        wallet::load_existing(name, password, "elements".to_string(), &LOADED_WALLET).await
+    )?;
 
     Ok(JsValue::null())
 }
@@ -172,7 +184,9 @@ pub async fn get_address(name: String) -> Result<JsValue, JsValue> {
 /// Fails if the wallet is currently not loaded or we cannot reach the block explorer for some reason.
 #[wasm_bindgen]
 pub async fn get_balances(name: String) -> Result<JsValue, JsValue> {
-    let balance_entries = map_err_from_anyhow!(wallet::get_balances(&name, &LOADED_WALLET).await)?;
+    let client = map_err_from_anyhow!(ESPLORA_CLIENT.lock())?;
+    let balance_entries =
+        map_err_from_anyhow!(wallet::get_balances(&name, &LOADED_WALLET, &client).await)?;
     let balance_entries = map_err_from_anyhow!(JsValue::from_serde(&balance_entries))?;
 
     Ok(balance_entries)
@@ -200,8 +214,9 @@ pub async fn make_buy_create_swap_payload(
     usdt: String,
 ) -> Result<JsValue, JsValue> {
     let usdt = map_err_from_anyhow!(parse_to_bitcoin_amount(usdt))?;
+    let client = map_err_from_anyhow!(ESPLORA_CLIENT.lock())?;
     let payload = map_err_from_anyhow!(
-        wallet::make_buy_create_swap_payload(wallet_name, &LOADED_WALLET, usdt).await
+        wallet::make_buy_create_swap_payload(wallet_name, &LOADED_WALLET, usdt, &client).await
     )?;
     let payload = map_err_from_anyhow!(JsValue::from_serde(&payload))?;
 
@@ -216,9 +231,10 @@ pub async fn make_sell_create_swap_payload(
     wallet_name: String,
     btc: String,
 ) -> Result<JsValue, JsValue> {
+    let client = map_err_from_anyhow!(ESPLORA_CLIENT.lock())?;
     let btc = map_err_from_anyhow!(parse_to_bitcoin_amount(btc))?;
     let payload = map_err_from_anyhow!(
-        wallet::make_sell_create_swap_payload(wallet_name, &LOADED_WALLET, btc).await
+        wallet::make_sell_create_swap_payload(wallet_name, &LOADED_WALLET, btc, &client).await
     )?;
     let payload = map_err_from_anyhow!(JsValue::from_serde(&payload))?;
 
@@ -241,12 +257,14 @@ pub async fn make_loan_request(
     // TODO: Change the UI to handle SATs not BTC
     let collateral_in_btc = map_err_from_anyhow!(parse_to_bitcoin_amount(collateral))?;
     let fee_rate_in_sat = Amount::from_sat(map_err_from_anyhow!(u64::from_str(fee_rate.as_str()))?);
+    let client = map_err_from_anyhow!(ESPLORA_CLIENT.lock())?;
     let loan_request = map_err_from_anyhow!(
         wallet::make_loan_request(
             wallet_name,
             &LOADED_WALLET,
             collateral_in_btc,
             fee_rate_in_sat,
+            &client
         )
         .await
     )?;
@@ -261,7 +279,9 @@ pub async fn make_loan_request(
 /// Returns the signed transaction.
 #[wasm_bindgen]
 pub async fn sign_loan(wallet_name: String) -> Result<JsValue, JsValue> {
-    let loan_tx = map_err_from_anyhow!(wallet::sign_loan(wallet_name, &LOADED_WALLET).await)?;
+    let client = map_err_from_anyhow!(ESPLORA_CLIENT.lock())?;
+    let loan_tx =
+        map_err_from_anyhow!(wallet::sign_loan(wallet_name, &LOADED_WALLET, &client).await)?;
     let loan_tx = map_err_from_anyhow!(JsValue::from_serde(&Transaction::from(loan_tx)))?;
 
     Ok(loan_tx)
@@ -305,9 +325,15 @@ pub async fn sign_and_send_swap_transaction(
     transaction: JsValue,
 ) -> Result<JsValue, JsValue> {
     let transaction: Transaction = map_err_from_anyhow!(transaction.into_serde())?;
+    let client = map_err_from_anyhow!(ESPLORA_CLIENT.lock())?;
     let txid = map_err_from_anyhow!(
-        wallet::sign_and_send_swap_transaction(wallet_name, &LOADED_WALLET, transaction.into())
-            .await
+        wallet::sign_and_send_swap_transaction(
+            wallet_name,
+            &LOADED_WALLET,
+            transaction.into(),
+            &client
+        )
+        .await
     )?;
     let txid = map_err_from_anyhow!(JsValue::from_serde(&txid))?;
 
@@ -323,8 +349,9 @@ pub async fn sign_and_send_swap_transaction(
 #[wasm_bindgen]
 pub async fn extract_trade(wallet_name: String, transaction: JsValue) -> Result<JsValue, JsValue> {
     let transaction: Transaction = map_err_from_anyhow!(transaction.into_serde())?;
+    let client = map_err_from_anyhow!(ESPLORA_CLIENT.lock())?;
     let trade = map_err_from_anyhow!(
-        wallet::extract_trade(wallet_name, &LOADED_WALLET, transaction.into()).await
+        wallet::extract_trade(wallet_name, &LOADED_WALLET, transaction.into(), &client).await
     )?;
     let trade = map_err_from_anyhow!(JsValue::from_serde(&trade))?;
 
@@ -346,8 +373,9 @@ pub async fn extract_trade(wallet_name: String, transaction: JsValue) -> Result<
 #[wasm_bindgen]
 pub async fn extract_loan(wallet_name: String, loan_response: JsValue) -> Result<JsValue, JsValue> {
     let loan_response = map_err_from_anyhow!(loan_response.into_serde())?;
+    let client = map_err_from_anyhow!(ESPLORA_CLIENT.lock())?;
     let details = map_err_from_anyhow!(
-        wallet::extract_loan(wallet_name, &LOADED_WALLET, loan_response).await
+        wallet::extract_loan(wallet_name, &LOADED_WALLET, loan_response, &client).await
     )?;
     let details = map_err_from_anyhow!(JsValue::from_serde(&details))?;
 
@@ -367,8 +395,10 @@ pub async fn get_open_loans() -> Result<JsValue, JsValue> {
 #[wasm_bindgen]
 pub async fn repay_loan(wallet_name: String, loan_txid: String) -> Result<JsValue, JsValue> {
     let loan_txid = map_err_from_anyhow!(Txid::from_str(&loan_txid))?;
-    let txid =
-        map_err_from_anyhow!(wallet::repay_loan(wallet_name, &LOADED_WALLET, loan_txid).await)?;
+    let client = map_err_from_anyhow!(ESPLORA_CLIENT.lock())?;
+    let txid = map_err_from_anyhow!(
+        wallet::repay_loan(wallet_name, &LOADED_WALLET, loan_txid, &client).await
+    )?;
     let txid = map_err_from_anyhow!(JsValue::from_serde(&txid))?;
 
     Ok(txid)
@@ -420,38 +450,6 @@ fn handle_storage_update(event: web_sys::StorageEvent) -> Promise {
     };
     Promise::resolve(&JsValue::null())
 }
-
-#[derive(Debug, Clone, Copy, PartialEq)]
-enum Chain {
-    Elements,
-    Liquid,
-}
-
-impl From<Chain> for &AddressParams {
-    fn from(from: Chain) -> Self {
-        match from {
-            Chain::Elements => &AddressParams::ELEMENTS,
-            Chain::Liquid => &AddressParams::LIQUID,
-        }
-    }
-}
-
-impl FromStr for Chain {
-    type Err = WrongChain;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let lowercase = s.to_ascii_lowercase();
-        match lowercase.as_str() {
-            "elements" => Ok(Chain::Elements),
-            "liquid" => Ok(Chain::Liquid),
-            _ => Err(WrongChain(lowercase)),
-        }
-    }
-}
-
-#[derive(Debug, thiserror::Error)]
-#[error("Unsupported chain: {0}")]
-struct WrongChain(String);
 
 #[derive(serde::Serialize, serde::Deserialize)]
 struct Transaction {
