@@ -45,6 +45,7 @@
     "storage",
     "tabs",
     "unlimitedStorage",
-    "webRequest"
+    "webRequest",
+    "downloads"
   ]
 }

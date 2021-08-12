@@ -1,9 +1,10 @@
 import Debug from "debug";
 import { browser } from "webextension-polyfill-ts";
 import WavesProvider from "../in-page";
-import { LoanDetails, LoanToSign, SwapToSign, Txid } from "../models";
+import { BackupDetails, LoanDetails, LoanToSign, SwapToSign, Txid } from "../models";
 import {
     bip39SeedWords,
+    createLoanBackup,
     createNewBip39Wallet,
     extractLoan,
     extractTrade,
@@ -12,6 +13,7 @@ import {
     getBlockHeight,
     getOpenLoans,
     getPastTransactions,
+    loadLoanBackup,
     makeBuyCreateSwapPayload,
     makeLoanRequestPayload,
     makeSellCreateSwapPayload,
@@ -171,11 +173,32 @@ window.signLoan = async () => {
     // on the pop-up matches what is stored in the extension's
     // storage. It would be better to send around the swap ID to check
     // that the wallet is signing the same transaction the user has authorised
-    signLoan(walletName)
-        .then(resolveLoanSignRequest)
-        .catch(rejectLoanSignRequest)
-        .then(cleanupPendingLoan);
+
+    // if we receive an error, we respond directly, else we return the details
+    return await signLoan(walletName).catch(rejectLoanSignRequest);
 };
+
+// @ts-ignore
+window.confirmLoan = async (payload: string) => {
+    if (!resolveLoanSignRequest || !rejectLoanSignRequest) {
+        throw new Error("No pending promise functions for loan sign request");
+    }
+    // once sent to the page, we assume the business is done.
+    // TODO: a feedback loop is required where the wallet gets told if bobtimus successfully published the transaction
+    resolveLoanSignRequest(payload);
+    await cleanupPendingLoan();
+};
+
+// @ts-ignore
+window.createLoanBackup = async (loanTx: string) => {
+    return createLoanBackup(walletName, loanTx);
+};
+
+// @ts-ignore
+window.loadLoanBackup = async (backupDetails: BackupDetails) => {
+    return loadLoanBackup(backupDetails);
+};
+
 // @ts-ignore
 window.rejectLoan = () => {
     if (!resolveLoanSignRequest || !rejectLoanSignRequest) {

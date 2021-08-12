@@ -1,5 +1,14 @@
 import { browser } from "webextension-polyfill-ts";
-import { Address, BalanceUpdate, LoanDetails, LoanToSign, SwapToSign, Txid, WalletStatus } from "./models";
+import {
+    Address,
+    BackupDetails,
+    BalanceUpdate,
+    LoanDetails,
+    LoanToSign,
+    SwapToSign,
+    Txid,
+    WalletStatus,
+} from "./models";
 
 const proxy = browser.extension.getBackgroundPage();
 
@@ -13,9 +22,24 @@ export async function signAndSendSwap(txHex: string): Promise<void> {
     return proxy.signAndSendSwap(txHex);
 }
 
-export async function signLoan(): Promise<void> {
+export async function signLoan(): Promise<string> {
     // @ts-ignore
     return proxy.signLoan();
+}
+
+export async function confirmLoan(payload: string): Promise<void> {
+    // @ts-ignore
+    return proxy.confirmLoan(payload);
+}
+
+export async function createLoanBackup(loanTx: string): Promise<string> {
+    // @ts-ignore
+    return proxy.createLoanBackup(loanTx);
+}
+
+export async function loadLoanBackup(backupDetails: BackupDetails): Promise<void> {
+    // @ts-ignore
+    return proxy.loadLoanBackup(backupDetails);
 }
 
 export async function getLoanToSign(): Promise<LoanToSign | undefined> {

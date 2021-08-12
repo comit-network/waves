@@ -79,3 +79,8 @@ export interface OutPoint {
     txid: string;
     vout: number;
 }
+
+export interface BackupDetails {
+    loan_details: LoanDetails;
+    borrower: any; // we don't really care about the type here
+}

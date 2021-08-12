@@ -265,6 +265,35 @@ pub async fn sign_loan(wallet_name: String) -> Result<JsValue, JsValue> {
     Ok(loan_tx)
 }
 
+/// Create a json object which can be used to backup the loan details to the transaction
+///
+/// TODO: Pass in transaction id instead of transaction
+/// For now, we pass in the whole transaction just to access it's transaction id.
+/// This is because `sign_loan` returns the whole transaction and we have no means to deserialize
+/// the transaction from within TS.
+#[wasm_bindgen]
+pub async fn create_loan_backup(
+    wallet_name: String,
+    transaction: JsValue,
+) -> Result<JsValue, JsValue> {
+    log::debug!("Received tx: {:?}", transaction);
+    let transaction: Transaction = map_err_from_anyhow!(transaction.into_serde())?;
+    let backup_details = map_err_from_anyhow!(
+        wallet::create_loan_backup(wallet_name, &LOADED_WALLET, transaction.inner.txid()).await
+    )?;
+    let backup_details = map_err_from_anyhow!(JsValue::from_serde(&backup_details))?;
+    Ok(backup_details)
+}
+
+/// Load a loan backup and store it in localStorage.
+#[wasm_bindgen]
+pub async fn load_loan_backup(backup_details: JsValue) -> Result<(), JsValue> {
+    let backup_details: BackupDetails = map_err_from_anyhow!(backup_details.into_serde())?;
+    map_err_from_anyhow!(wallet::load_loan_backup(backup_details))?;
+
+    Ok(())
+}
+
 /// Sign the given swap transaction and broadcast it to the network.
 ///
 /// Returns the transaction ID.
@@ -448,4 +477,26 @@ fn parse_to_bitcoin_amount(amount: String) -> anyhow::Result<Amount> {
         .ok_or_else(|| anyhow::anyhow!("decimal cannot be represented as f64"))?;
     let amount = Amount::from_btc(rounded)?;
     Ok(amount)
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum Error {
+    #[error("Storage error: {0}")]
+    Storage(anyhow::Error),
+    #[error("Failed to save item to storage: {0}")]
+    Save(anyhow::Error),
+    #[error("Failed to load item from storage: {0}")]
+    Load(anyhow::Error),
+    #[error("Loaded empty borrower state")]
+    EmptyBorrowerState,
+    #[error("Loan details were not found")]
+    LoanNotFound,
+    #[error("Serialization failed: {0}")]
+    Serialize(serde_json::Error),
+    #[error("Deserialization failed: {0}")]
+    Deserialize(serde_json::Error),
+    #[error("Loaded empty borrower state")]
+    EmptyState,
+    #[error("Failed to sign transaction: {0}")]
+    Sign(anyhow::Error),
 }
