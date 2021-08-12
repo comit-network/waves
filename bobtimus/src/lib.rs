@@ -44,9 +44,7 @@ pub mod problem;
 pub mod schema;
 
 use crate::loan::{
-    calculate_interest_rate, calculate_liquidation_price, calculate_ltv,
-    calculate_repayment_amount, calculate_request_price, validate_loan_is_acceptable,
-    Collateralization, LoanOffer, LoanRequest, Term,
+    loan_calculation_and_validation, Collateralization, LoanOffer, LoanRequest, Term, ValidatedLoan,
 };
 pub use amounts::*;
 use elements::bitcoin::PublicKey;
@@ -324,43 +322,19 @@ where
     /// repay in the future.
     pub async fn handle_loan_request(&mut self, loan_request: LoanRequest) -> Result<LoanResponse> {
         let loan_offer = self.current_loan_offer();
-
-        let interest_rate = calculate_interest_rate(
-            loan_request.term,
-            loan_request.collateralization,
-            &loan_offer.terms,
-            &loan_offer.collateralizations,
-            loan_offer.base_interest_rate,
-        )?;
-        let repayment_amount =
-            calculate_repayment_amount(loan_request.principal_amount, interest_rate)?;
-
-        let request_price = calculate_request_price(
-            repayment_amount,
-            loan_request.collateral_amount,
-            loan_request.collateralization,
-        )?;
-
-        let current_price = self.rate_service.latest_rate();
-        let request_ltv = calculate_ltv(
-            repayment_amount,
-            loan_request.collateral_amount,
-            current_price.bid,
-        )?;
-
         // TODO: Make configurable
         let price_fluctuation_interval = (dec!(0.99), dec!(1.01));
+        let current_price = self.rate_service.latest_rate();
 
-        validate_loan_is_acceptable(
-            request_price,
-            current_price.bid,
+        let ValidatedLoan {
+            repayment_amount,
+            liquidation_price,
+        } = loan_calculation_and_validation(
+            &loan_request,
+            &loan_offer,
             price_fluctuation_interval,
-            loan_request.principal_amount,
-            loan_offer.min_principal,
-            loan_offer.max_principal,
-            request_ltv,
-            loan_offer.max_ltv,
-        )??;
+            current_price.ask,
+        )?;
 
         let oracle_secret_key = elements::secp256k1_zkp::key::ONE_KEY;
         let oralce_priv_key = elements::bitcoin::PrivateKey::new(
@@ -399,9 +373,6 @@ where
             loan_request.principal_amount.into(),
         )
         .await?;
-
-        let liquidation_price =
-            calculate_liquidation_price(repayment_amount, loan_request.collateral_amount)?;
 
         let lender1 = lender0
             .build_loan_transaction(

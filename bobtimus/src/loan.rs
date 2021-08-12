@@ -73,17 +73,74 @@ pub struct Collateralization {
 // TODO: Make sure that removing sat_per_vbyte is OK here
 #[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
 pub struct LoanRequest {
-    pub principal_amount: LiquidUsdt,
-    pub collateral_amount: LiquidBtc,
-    pub collateral_inputs: Vec<Input>,
-    pub collateralization: Decimal,
-    pub borrower_pk: PublicKey,
     /// Loan term in days
     pub term: u32,
+    pub principal_amount: LiquidUsdt,
+    pub collateralization: Decimal,
+    pub collateral_amount: LiquidBtc,
+    pub collateral_inputs: Vec<Input>,
+    pub borrower_pk: PublicKey,
     pub borrower_address: Address,
 }
 
-pub fn calculate_interest_rate(
+pub struct ValidatedLoan {
+    pub repayment_amount: LiquidUsdt,
+    pub liquidation_price: LiquidUsdt,
+}
+
+pub fn loan_calculation_and_validation(
+    loan_request: &LoanRequest,
+    loan_offer: &LoanOffer,
+    price_fluctuation_interval: (Decimal, Decimal),
+    current_price: LiquidUsdt,
+) -> Result<ValidatedLoan> {
+    let interest_rate = calculate_interest_rate(
+        loan_request.term,
+        loan_request.collateralization,
+        &loan_offer.terms,
+        &loan_offer.collateralizations,
+        loan_offer.base_interest_rate,
+    )?;
+
+    let repayment_amount =
+        calculate_repayment_amount(loan_request.principal_amount, interest_rate)?;
+
+    let request_price = calculate_request_price(
+        repayment_amount,
+        loan_request.collateral_amount,
+        loan_request.collateralization,
+    )?;
+
+    let request_ltv = calculate_ltv(
+        repayment_amount,
+        loan_request.collateral_amount,
+        current_price,
+    )?;
+
+    // TODO: Validate term within min and max bound
+    validate_loan_is_acceptable(
+        request_price,
+        current_price,
+        price_fluctuation_interval,
+        loan_request.principal_amount,
+        loan_offer.min_principal,
+        loan_offer.max_principal,
+        request_ltv,
+        loan_offer.max_ltv,
+    )??;
+
+    let liquidation_price =
+        calculate_liquidation_price(repayment_amount, loan_request.collateral_amount)?;
+
+    let validated_loan = ValidatedLoan {
+        repayment_amount,
+        liquidation_price,
+    };
+
+    Ok(validated_loan)
+}
+
+fn calculate_interest_rate(
     borrower_term: u32,
     borrower_collateralization: Decimal,
     term_thresholds: &[Term],
@@ -117,7 +174,7 @@ pub fn calculate_interest_rate(
     Ok(interest_rate)
 }
 
-pub fn calculate_repayment_amount(
+fn calculate_repayment_amount(
     principal_amount: LiquidUsdt,
     interest_percentage: Decimal,
 ) -> Result<LiquidUsdt> {
@@ -139,7 +196,7 @@ pub fn calculate_repayment_amount(
     Ok(repayment_amount)
 }
 
-pub fn calculate_liquidation_price(
+fn calculate_liquidation_price(
     repayment_amount: LiquidUsdt,
     collateral_amount: LiquidBtc,
 ) -> Result<LiquidUsdt> {
@@ -161,7 +218,7 @@ pub fn calculate_liquidation_price(
     Ok(liquidation_price)
 }
 
-pub fn calculate_request_price(
+fn calculate_request_price(
     repayment_amount: LiquidUsdt,
     collateral_amount: LiquidBtc,
     collateralization: Decimal,
@@ -189,7 +246,7 @@ pub fn calculate_request_price(
     Ok(price)
 }
 
-pub fn calculate_ltv(
+fn calculate_ltv(
     repayment_amount: LiquidUsdt,
     collateral_amount: LiquidBtc,
     current_bid_price: LiquidUsdt,
@@ -214,7 +271,7 @@ pub fn calculate_ltv(
 }
 
 #[derive(Debug, PartialEq, thiserror::Error)]
-pub enum LoanValidationError {
+enum LoanValidationError {
     #[error(
         "The given price {request_price} is not acceptable with current price {current_price}"
     )]
@@ -243,7 +300,7 @@ pub enum LoanValidationError {
 }
 
 #[allow(clippy::too_many_arguments)]
-pub fn validate_loan_is_acceptable(
+fn validate_loan_is_acceptable(
     request_price: LiquidUsdt,
     current_price: LiquidUsdt,
     price_fluctuation_interval: (Decimal, Decimal),
@@ -304,6 +361,63 @@ mod tests {
     use proptest::proptest;
     use rust_decimal::prelude::FromPrimitive;
     use rust_decimal_macros::dec;
+    use std::str::FromStr;
+
+    #[test]
+    fn test_loan_calculation_and_validation() {
+        let loan_request = LoanRequest {
+            term: 30,
+            principal_amount: LiquidUsdt::from_str_in_dollar("10000").unwrap(),
+            collateralization: dec!(1.4),
+            collateral_amount: Amount::from_btc(0.3675).unwrap().into(),
+
+            // irrelevant for this test
+            collateral_inputs: vec![],
+            borrower_pk: PublicKey::from_str("0218845781f631c48f1c9709e23092067d06837f30aa0cd0544ac887fe91ddd166").unwrap(),
+            borrower_address: Address::from_str("el1qq0zel5lg55nvhv9kkrq8gme8hnvp0lemuzcmu086dn2m8laxjgkewkhqnh8vxdnlp4cejs3925j0gu9n9krdgmqm89vku0kc8").unwrap()
+        };
+
+        let loan_offer = LoanOffer {
+            min_principal: LiquidUsdt::from_str_in_dollar("1000").unwrap(),
+            max_principal: LiquidUsdt::from_str_in_dollar("10000").unwrap(),
+            max_ltv: dec!(0.75),
+            base_interest_rate: dec!(0.05),
+
+            // TODO: Specify terms once term validation is implemented
+            terms: vec![],
+            collateralizations: vec![],
+
+            // irrelevant for this test
+            rate: Rate {
+                ask: Default::default(),
+                bid: Default::default(),
+            },
+            fee_sats_per_vbyte: Default::default(),
+        };
+
+        let current_price = LiquidUsdt::from_str_in_dollar("40000").unwrap();
+        let price_fluctuation_interval = (dec!(0.99), dec!(1.01));
+
+        let ValidatedLoan {
+            repayment_amount,
+            liquidation_price,
+        } = loan_calculation_and_validation(
+            &loan_request,
+            &loan_offer,
+            price_fluctuation_interval,
+            current_price,
+        )
+        .unwrap();
+
+        assert_eq!(
+            repayment_amount,
+            LiquidUsdt::from_str_in_dollar("10500").unwrap()
+        );
+        assert_eq!(
+            liquidation_price,
+            LiquidUsdt::from_str_in_dollar("28571.42857142").unwrap()
+        );
+    }
 
     #[test]
     fn test_calculate_interest_rate() {
