@@ -355,7 +355,7 @@ pub async fn extract_loan(wallet_name: String, loan_response: JsValue) -> Result
 #[wasm_bindgen]
 pub async fn get_open_loans() -> Result<JsValue, JsValue> {
     let storage = map_err_from_anyhow!(Storage::local_storage())?;
-    let loans = map_err_from_anyhow!(storage.get_open_loans().await)?;
+    let loans = map_err_from_anyhow!(storage.get_open_loans())?;
     let loans = map_err_from_anyhow!(JsValue::from_serde(&loans))?;
 
     Ok(loans)
@@ -494,7 +494,7 @@ pub enum Error {
     Serialize(serde_json::Error),
     #[error("Deserialization failed: {0}")]
     Deserialize(serde_json::Error),
-    #[error("Loaded empty borrower state")]
+    #[error("Loaded empty state")]
     EmptyState,
     #[error("Failed to sign transaction: {0}")]
     Sign(anyhow::Error),
