@@ -276,7 +276,6 @@ pub async fn create_loan_backup(
     wallet_name: String,
     transaction: JsValue,
 ) -> Result<JsValue, JsValue> {
-    log::debug!("Received tx: {:?}", transaction);
     let transaction: Transaction = map_err_from_anyhow!(transaction.into_serde())?;
     let backup_details = map_err_from_anyhow!(
         wallet::create_loan_backup(wallet_name, &LOADED_WALLET, transaction.inner.txid()).await
