@@ -40,7 +40,7 @@ pub async fn extract_loan(
 
     let storage = Storage::local_storage().map_err(Error::Storage)?;
     let borrower = storage
-        .get_json_item::<Borrower0>("borrower_state")
+        .get_json_item::<Borrower0>("borrower0_state")
         .map_err(Error::Load)?
         .ok_or(Error::EmptyState)?;
 

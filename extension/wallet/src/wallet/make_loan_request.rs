@@ -120,7 +120,7 @@ pub async fn make_loan_request(
 
     let storage = Storage::local_storage().map_err(Error::Storage)?;
     storage
-        .set_json_item("borrower_state", &borrower_state_0)
+        .set_json_item("borrower0_state", &borrower_state_0)
         .map_err(Error::Save)?;
 
     Ok(borrower_state_0.loan_request())
