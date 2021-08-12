@@ -1,7 +1,5 @@
 [workspace]
 members = [
   "bobtimus",
-  "coin_selection",
-  "estimate_transaction_size",
   "extension/wallet",
 ]

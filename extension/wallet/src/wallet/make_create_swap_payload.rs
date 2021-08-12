@@ -3,8 +3,8 @@ use crate::{
     wallet::{current, CreateSwapPayload, SwapUtxo, Wallet},
     BTC_ASSET_ID, USDT_ASSET_ID,
 };
+use baru::avg_vbytes;
 use elements::{bitcoin::Amount, AssetId};
-use estimate_transaction_size::avg_vbytes;
 use futures::lock::Mutex;
 use wasm_bindgen::UnwrapThrowExt;
 

@@ -4,12 +4,11 @@ use crate::{
     wallet::{current, Wallet},
     BTC_ASSET_ID, USDT_ASSET_ID,
 };
-use baru::{input::Input, loan::Borrower0};
+use baru::{avg_vbytes, input::Input, loan::Borrower0};
 use elements::{
     bitcoin::{util::amount::Amount, PublicKey},
     Address,
 };
-use estimate_transaction_size::avg_vbytes;
 use futures::lock::Mutex;
 use rand::thread_rng;
 use wasm_bindgen::UnwrapThrowExt;
