@@ -26,7 +26,9 @@ pub async fn create_loan_backup(
     // We get a hold of the wallet to ensure that it is loaded. This is a security mechanism
     // to ensure no unauthorized access to the data.
     // Ideally all data is encrypted but that's just how it is :)
-    let _ = current(&name, current_wallet).await.unwrap();
+    let _ = current(&name, current_wallet)
+        .await
+        .map_err(Error::LoadWallet);
 
     let open_loans = storage.get_open_loans().unwrap_or_default();
 

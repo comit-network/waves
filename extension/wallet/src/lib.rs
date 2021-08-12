@@ -498,4 +498,6 @@ pub enum Error {
     EmptyState,
     #[error("Failed to sign transaction: {0}")]
     Sign(anyhow::Error),
+    #[error("Wallet is not loaded: {0}")]
+    LoadWallet(anyhow::Error),
 }
