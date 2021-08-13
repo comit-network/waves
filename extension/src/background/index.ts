@@ -3,27 +3,26 @@ import { browser } from "webextension-polyfill-ts";
 import WavesProvider from "../in-page";
 import { BackupDetails, LoanDetails, LoanToSign, SwapToSign, Txid } from "../models";
 import {
-    bip39SeedWords,
-    createLoanBackup,
-    createNewBip39Wallet,
-    extractLoan,
-    extractTrade,
-    getAddress,
-    getBalances,
-    getBlockHeight,
-    getOpenLoans,
-    getPastTransactions,
-    loadLoanBackup,
-    makeBuyCreateSwapPayload,
-    makeLoanRequestPayload,
-    makeSellCreateSwapPayload,
-    repayLoan,
-    signAndSendSwap,
-    signLoan,
-    unlockWallet,
-    walletStatus,
-    withdrawAll,
-} from "../wasmProxy";
+    bip39_seed_words,
+    create_loan_backup,
+    create_new_bip39_wallet,
+    extract_loan,
+    extract_trade,
+    get_address,
+    get_balances,
+    get_block_height,
+    get_open_loans,
+    get_past_transactions,
+    load_loan_backup,
+    make_buy_create_swap_payload,
+    make_loan_request,
+    make_sell_create_swap_payload,
+    repay_loan,
+    sign_and_send_swap_transaction,
+    sign_loan,
+    wallet_status,
+    withdraw_everything_to,
+} from "../wallet/index.js";
 
 // TODO: Is this global or do we need one per file?
 Debug.enable("*");
@@ -62,18 +61,18 @@ export function invokeBackgroundScriptRpc(message: Omit<RpcMessage<keyof WavesPr
     });
 }
 
-addRpcMessageListener("walletStatus", () => walletStatus(walletName));
-addRpcMessageListener("getBuyCreateSwapPayload", ([usdt]) => makeBuyCreateSwapPayload(walletName, usdt));
-addRpcMessageListener("getSellCreateSwapPayload", ([btc]) => makeSellCreateSwapPayload(walletName, btc));
-addRpcMessageListener("getNewAddress", () => getAddress(walletName));
+addRpcMessageListener("walletStatus", () => wallet_status(walletName));
+addRpcMessageListener("getBuyCreateSwapPayload", ([usdt]) => make_buy_create_swap_payload(walletName, usdt));
+addRpcMessageListener("getSellCreateSwapPayload", ([btc]) => make_sell_create_swap_payload(walletName, btc));
+addRpcMessageListener("getNewAddress", () => get_address(walletName));
 addRpcMessageListener(
     "makeLoanRequestPayload",
-    ([collateral, feerate]) => makeLoanRequestPayload(walletName, collateral, feerate),
+    ([collateral, feerate]) => make_loan_request(walletName, collateral, feerate),
 );
 
 addRpcMessageListener("signAndSendSwap", ([txHex]) => {
     return new Promise((resolve, reject) => {
-        extractTrade(walletName, txHex)
+        extract_trade(walletName, txHex)
             .then(decoded => {
                 swapToSign = { txHex, decoded };
                 resolveSwapSignRequest = resolve;
@@ -89,7 +88,7 @@ addRpcMessageListener("signAndSendSwap", ([txHex]) => {
 });
 addRpcMessageListener("signLoan", ([loanRequest]) => {
     return new Promise((resolve, reject) => {
-        extractLoan(walletName, loanRequest)
+        extract_loan(walletName, loanRequest)
             .then(details => {
                 loanToSign = { details };
                 resolveLoanSignRequest = resolve;
@@ -121,7 +120,7 @@ function addRpcMessageListener<T extends keyof WavesProvider>(
 
 // @ts-ignore
 window.getWalletStatus = async () => {
-    return walletStatus(walletName);
+    return wallet_status(walletName);
 };
 // @ts-ignore
 window.unlockWallet = async (password: string) => {
@@ -129,11 +128,11 @@ window.unlockWallet = async (password: string) => {
 };
 // @ts-ignore
 window.getBalances = async () => {
-    return getBalances(walletName);
+    return get_balances(walletName);
 };
 // @ts-ignore
 window.getAddress = async () => {
-    return getAddress(walletName);
+    return get_address(walletName);
 };
 // @ts-ignore
 window.getSwapToSign = async () => {
@@ -145,7 +144,7 @@ window.signAndSendSwap = (txHex: string) => {
         throw new Error("No pending promise functions for swap sign request");
     }
 
-    signAndSendSwap(walletName, txHex)
+    sign_and_send_swap_transaction(walletName, txHex)
         .then(resolveSwapSignRequest)
         .catch(rejectSwapSignRequest)
         .then(cleanupPendingSwap);
@@ -175,7 +174,7 @@ window.signLoan = async () => {
     // that the wallet is signing the same transaction the user has authorised
 
     // if we receive an error, we respond directly, else we return the details
-    return await signLoan(walletName).catch(rejectLoanSignRequest);
+    return await sign_loan(walletName).catch(rejectLoanSignRequest);
 };
 
 // @ts-ignore
@@ -191,12 +190,12 @@ window.confirmLoan = async (payload: string) => {
 
 // @ts-ignore
 window.createLoanBackup = async (loanTx: string) => {
-    return createLoanBackup(walletName, loanTx);
+    return create_loan_backup(walletName, loanTx);
 };
 
 // @ts-ignore
 window.loadLoanBackup = async (backupDetails: BackupDetails) => {
-    return loadLoanBackup(backupDetails);
+    return loan_loan_backup(backupDetails);
 };
 
 // @ts-ignore
@@ -210,32 +209,32 @@ window.rejectLoan = () => {
 };
 // @ts-ignore
 window.withdrawAll = async (address: string) => {
-    return withdrawAll(walletName, address);
+    return withdraw_everything_to(walletName, address);
 };
 // @ts-ignore
 window.getOpenLoans = async (): LoanDetails[] => {
-    return getOpenLoans();
+    return get_open_loans();
 };
 // @ts-ignore
 window.repayLoan = async (txid: string): void => {
-    return repayLoan(walletName, txid);
+    return repay_loan(walletName, txid);
 };
 // @ts-ignore
 window.getPastTransactions = async (): Txid[] => {
-    return getPastTransactions(walletName);
+    return get_past_transaction(walletName);
 };
 // @ts-ignore
 window.bip39SeedWords = async (): string => {
-    return bip39SeedWords();
+    return bip39_seed_words();
 };
 // @ts-ignore
 window.createWalletFromBip39 = async (seed_words: string, password: string) => {
-    return createNewBip39Wallet(walletName, seed_words, password);
+    return create_new_bip39_wallet(walletName, seed_words, password);
 };
 
 // @ts-ignore
 window.getBlockHeight = async () => {
-    return getBlockHeight();
+    return get_block_height();
 };
 
 function updateBadge() {

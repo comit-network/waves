@@ -8,12 +8,13 @@ module.exports = function override(config, env) {
     config.resolve.extensions.push(".wasm");
 
     config.module.rules.forEach(rule => {
-        (rule.oneOf || []).forEach(oneOf => {
-            if (oneOf.loader && oneOf.loader.indexOf("file-loader") >= 0) {
-                // Make file-loader ignore WASM files
-                oneOf.exclude.push(/\.wasm$/);
-            }
-        });
+        if (!rule.oneOf) {
+            return;
+        }
+
+        let fileLoader = rule.oneOf[rule.oneOf.length - 1];
+
+        fileLoader.exclude.push(/\.wasm$/);
     });
 
     config.plugins = (config.plugins || []).concat([
@@ -31,6 +32,11 @@ module.exports = function override(config, env) {
             },
         ),
     ]);
+
+    config.experiments = {
+        syncWebAssembly: true,
+        asyncWebAssembly: true,
+    };
 
     return config;
 };

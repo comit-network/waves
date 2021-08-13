@@ -18,7 +18,7 @@ import Debug from "debug";
 import moment from "moment";
 import React, { useState } from "react";
 import { useAsync } from "react-async";
-import { FiCheck, FiClipboard, FiExternalLink } from "react-icons/all";
+import { FiCheck, FiClipboard, FiExternalLink } from "react-icons/fi";
 import { browser } from "webextension-polyfill-ts";
 import { confirmLoan, createLoanBackup, getBlockHeight, rejectLoan, signLoan } from "../background-proxy";
 import { LoanToSign, USDT_TICKER } from "../models";
