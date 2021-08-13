@@ -11,12 +11,6 @@
     "eject": "react-scripts eject",
     "dev": "concurrently \"yarn:start\" \"yarn:watch\""
   },
-  "eslintConfig": {
-    "extends": [
-      "react-app",
-      "react-app/jest"
-    ]
-  },
   "browserslist": {
     "production": [
       ">0.2%",
