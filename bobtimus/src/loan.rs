@@ -117,7 +117,6 @@ pub fn loan_calculation_and_validation(
         current_price,
     )?;
 
-    // TODO: Validate term within min and max bound
     validate_loan_is_acceptable(
         request_price,
         current_price,
@@ -127,6 +126,8 @@ pub fn loan_calculation_and_validation(
         loan_offer.max_principal,
         request_ltv,
         loan_offer.max_ltv,
+        loan_request.term,
+        loan_offer.terms.clone(),
     )??;
 
     let liquidation_price =
@@ -297,6 +298,9 @@ enum LoanValidationError {
         request_ltv: Decimal,
         max_ltv: Decimal,
     },
+
+    #[error("The given term {term} is not allowed")]
+    TermNotAllowed { term: u32 },
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -309,6 +313,8 @@ fn validate_loan_is_acceptable(
     max_principal: LiquidUsdt,
     request_ltv: Decimal,
     max_ltv: Decimal,
+    request_term: u32,
+    terms: Vec<Term>,
 ) -> Result<Result<(), LoanValidationError>> {
     let request_price_dec = Decimal::from(request_price.as_satodollar());
     let current_price_dec = Decimal::from(current_price.as_satodollar());
@@ -352,6 +358,12 @@ fn validate_loan_is_acceptable(
         }));
     }
 
+    if terms.iter().find(|a| a.days == request_term).is_none() {
+        return Ok(Err(LoanValidationError::TermNotAllowed {
+            term: request_term,
+        }));
+    }
+
     Ok(Ok(()))
 }
 
@@ -383,8 +395,10 @@ mod tests {
             max_ltv: dec!(0.75),
             base_interest_rate: dec!(0.05),
 
-            // TODO: Specify terms once term validation is implemented
-            terms: vec![],
+            terms: vec![Term {
+                days: 30,
+                interest_mod: Decimal::ZERO,
+            }],
             collateralizations: vec![],
 
             // irrelevant for this test
@@ -562,6 +576,11 @@ mod tests {
         let max_principal = LiquidUsdt::from_str_in_dollar("10000").unwrap();
         let request_ltv = dec!(0.8);
         let max_ltv = dec!(0.8);
+        let request_term = 30;
+        let terms = vec![Term {
+            days: 30,
+            interest_mod: Decimal::ZERO,
+        }];
 
         validate_loan_is_acceptable(
             request_price,
@@ -572,6 +591,8 @@ mod tests {
             max_principal,
             request_ltv,
             max_ltv,
+            request_term,
+            terms,
         )
         .unwrap()
         .unwrap();
@@ -586,6 +607,11 @@ mod tests {
         let max_principal = LiquidUsdt::from_str_in_dollar("10000").unwrap();
         let request_ltv = dec!(0.8);
         let max_ltv = dec!(0.8);
+        let request_term = 30;
+        let terms = vec![Term {
+            days: 30,
+            interest_mod: Decimal::ZERO,
+        }];
 
         let current_price = LiquidUsdt::from_str_in_dollar("39603.96039603").unwrap();
         let error = validate_loan_is_acceptable(
@@ -597,6 +623,8 @@ mod tests {
             max_principal,
             request_ltv,
             max_ltv,
+            request_term,
+            terms,
         )
         .unwrap()
         .unwrap_err();
@@ -619,6 +647,11 @@ mod tests {
         let max_principal = LiquidUsdt::from_str_in_dollar("10000").unwrap();
         let request_ltv = dec!(0.8);
         let max_ltv = dec!(0.8);
+        let request_term = 30;
+        let terms = vec![Term {
+            days: 30,
+            interest_mod: Decimal::ZERO,
+        }];
 
         let current_price = LiquidUsdt::from_str_in_dollar("44444.44444445").unwrap();
         let error = validate_loan_is_acceptable(
@@ -630,6 +663,8 @@ mod tests {
             max_principal,
             request_ltv,
             max_ltv,
+            request_term,
+            terms,
         )
         .unwrap()
         .unwrap_err();
@@ -652,6 +687,11 @@ mod tests {
         let max_principal = LiquidUsdt::from_str_in_dollar("10000").unwrap();
         let request_ltv = dec!(0.8);
         let max_ltv = dec!(0.8);
+        let request_term = 30;
+        let terms = vec![Term {
+            days: 30,
+            interest_mod: Decimal::ZERO,
+        }];
 
         let request_principal = LiquidUsdt::from_str_in_dollar("999.99999999").unwrap();
         let error = validate_loan_is_acceptable(
@@ -663,6 +703,8 @@ mod tests {
             max_principal,
             request_ltv,
             max_ltv,
+            request_term,
+            terms,
         )
         .unwrap()
         .unwrap_err();
@@ -673,6 +715,57 @@ mod tests {
                 request_principal,
                 min_principal
             }
+        )
+    }
+
+    #[test]
+    fn given_loan_request_with_unknown_term_then_error() {
+        let request_price = LiquidUsdt::from_str_in_dollar("40000").unwrap();
+        let current_price = LiquidUsdt::from_str_in_dollar("39603.96039604").unwrap();
+        let price_fluctuation_interval = (dec!(0.90), dec!(1.01));
+        let request_principal = LiquidUsdt::from_str_in_dollar("1000").unwrap();
+        let min_principal = LiquidUsdt::from_str_in_dollar("1000").unwrap();
+        let max_principal = LiquidUsdt::from_str_in_dollar("10000").unwrap();
+        let request_ltv = dec!(0.8);
+        let max_ltv = dec!(0.8);
+        let request_term = 29;
+
+        let terms = vec![
+            Term {
+                days: 28,
+                interest_mod: Decimal::ZERO,
+            },
+            Term {
+                days: 30,
+                interest_mod: Decimal::ZERO,
+            },
+            Term {
+                days: 60,
+                interest_mod: Decimal::ZERO,
+            },
+            Term {
+                days: 120,
+                interest_mod: Decimal::ZERO,
+            },
+        ];
+        let error = validate_loan_is_acceptable(
+            request_price,
+            current_price,
+            price_fluctuation_interval,
+            request_principal,
+            min_principal,
+            max_principal,
+            request_ltv,
+            max_ltv,
+            request_term,
+            terms,
+        )
+        .unwrap()
+        .unwrap_err();
+
+        assert_eq!(
+            error,
+            LoanValidationError::TermNotAllowed { term: request_term }
         )
     }
 }
