@@ -22,7 +22,7 @@ import {
     sign_loan,
     wallet_status,
     withdraw_everything_to,
-} from "../wallet/index.js";
+} from "../wallet";
 
 // TODO: Is this global or do we need one per file?
 Debug.enable("*");
