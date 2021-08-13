@@ -88,6 +88,22 @@ pub struct ValidatedLoan {
     pub liquidation_price: LiquidUsdt,
 }
 
+#[derive(Debug, Clone)]
+struct LoanValidationParams {
+    request_price: LiquidUsdt,
+    current_price: LiquidUsdt,
+    price_fluctuation_interval: (Decimal, Decimal),
+    request_principal: LiquidUsdt,
+    min_principal: LiquidUsdt,
+    max_principal: LiquidUsdt,
+    request_ltv: Decimal,
+    max_ltv: Decimal,
+    request_term: u32,
+    terms: Vec<Term>,
+    request_collateralization: Decimal,
+    collateralizations: Vec<Collateralization>,
+}
+
 pub fn loan_calculation_and_validation(
     loan_request: &LoanRequest,
     loan_offer: &LoanOffer,
@@ -117,18 +133,20 @@ pub fn loan_calculation_and_validation(
         current_price,
     )?;
 
-    validate_loan_is_acceptable(
+    validate_loan_is_acceptable(LoanValidationParams {
         request_price,
         current_price,
         price_fluctuation_interval,
-        loan_request.principal_amount,
-        loan_offer.min_principal,
-        loan_offer.max_principal,
+        request_principal: loan_request.principal_amount,
+        min_principal: loan_offer.min_principal,
+        max_principal: loan_offer.max_principal,
         request_ltv,
-        loan_offer.max_ltv,
-        loan_request.term,
-        loan_offer.terms.clone(),
-    )??;
+        max_ltv: loan_offer.max_ltv,
+        request_term: loan_request.term,
+        terms: loan_offer.terms.clone(),
+        request_collateralization: loan_request.collateralization,
+        collateralizations: loan_offer.collateralizations.clone(),
+    })??;
 
     let liquidation_price =
         calculate_liquidation_price(repayment_amount, loan_request.collateral_amount)?;
@@ -301,21 +319,32 @@ enum LoanValidationError {
 
     #[error("The given term {term} is not allowed")]
     TermNotAllowed { term: u32 },
+
+    #[error("The given collateralization {request_collateralization} is below the configured minimum {min_collateralization}")]
+    CollateralizationBelowMin {
+        request_collateralization: Decimal,
+        min_collateralization: Decimal,
+    },
 }
 
-#[allow(clippy::too_many_arguments)]
 fn validate_loan_is_acceptable(
-    request_price: LiquidUsdt,
-    current_price: LiquidUsdt,
-    price_fluctuation_interval: (Decimal, Decimal),
-    request_principal: LiquidUsdt,
-    min_principal: LiquidUsdt,
-    max_principal: LiquidUsdt,
-    request_ltv: Decimal,
-    max_ltv: Decimal,
-    request_term: u32,
-    terms: Vec<Term>,
+    loan_validation_params: LoanValidationParams,
 ) -> Result<Result<(), LoanValidationError>> {
+    let LoanValidationParams {
+        request_price,
+        current_price,
+        price_fluctuation_interval,
+        request_principal,
+        min_principal,
+        max_principal,
+        request_ltv,
+        max_ltv,
+        request_term,
+        terms,
+        request_collateralization,
+        collateralizations,
+    } = loan_validation_params;
+
     let request_price_dec = Decimal::from(request_price.as_satodollar());
     let current_price_dec = Decimal::from(current_price.as_satodollar());
 
@@ -349,6 +378,24 @@ fn validate_loan_is_acceptable(
             request_principal,
             max_principal,
         }));
+    }
+
+    // If no collateraliztion thresholds are specified in the offer then we ignore this check and only check for LTV
+    // Note that as a safety net the LTV still outweights the collateralization check.
+    if !collateralizations.is_empty() {
+        let mut sorted_collateralizations = collateralizations.clone();
+        sorted_collateralizations.sort_by(|a, b| a.collateralization.cmp(&b.collateralization));
+        let min_collateralization = sorted_collateralizations
+            .first()
+            .context("Unable to determine minimum collateralization")?
+            .collateralization;
+
+        if request_collateralization < min_collateralization {
+            return Ok(Err(LoanValidationError::CollateralizationBelowMin {
+                request_collateralization,
+                min_collateralization,
+            }));
+        }
     }
 
     if request_ltv > max_ltv {
@@ -568,71 +615,27 @@ mod tests {
 
     #[test]
     fn given_loan_request_acceptable_then_dont_error() {
-        let request_price = LiquidUsdt::from_str_in_dollar("40000").unwrap();
-        let current_price = LiquidUsdt::from_str_in_dollar("39603.96039604").unwrap();
-        let price_fluctuation_interval = (dec!(0.90), dec!(1.01));
-        let request_principal = LiquidUsdt::from_str_in_dollar("1000").unwrap();
-        let min_principal = LiquidUsdt::from_str_in_dollar("1000").unwrap();
-        let max_principal = LiquidUsdt::from_str_in_dollar("10000").unwrap();
-        let request_ltv = dec!(0.8);
-        let max_ltv = dec!(0.8);
-        let request_term = 30;
-        let terms = vec![Term {
-            days: 30,
-            interest_mod: Decimal::ZERO,
-        }];
+        let loan_validation_params = LoanValidationParams::test_defaults();
 
-        validate_loan_is_acceptable(
-            request_price,
-            current_price,
-            price_fluctuation_interval,
-            request_principal,
-            min_principal,
-            max_principal,
-            request_ltv,
-            max_ltv,
-            request_term,
-            terms,
-        )
-        .unwrap()
-        .unwrap();
+        validate_loan_is_acceptable(loan_validation_params)
+            .unwrap()
+            .unwrap();
     }
 
     #[test]
     fn given_loan_request_and_price_drop_lower_then_fluctuation_then_error() {
-        let request_price = LiquidUsdt::from_str_in_dollar("40000").unwrap();
-        let price_fluctuation_interval = (dec!(0.90), dec!(1.01));
-        let request_principal = LiquidUsdt::from_str_in_dollar("1000").unwrap();
-        let min_principal = LiquidUsdt::from_str_in_dollar("1000").unwrap();
-        let max_principal = LiquidUsdt::from_str_in_dollar("10000").unwrap();
-        let request_ltv = dec!(0.8);
-        let max_ltv = dec!(0.8);
-        let request_term = 30;
-        let terms = vec![Term {
-            days: 30,
-            interest_mod: Decimal::ZERO,
-        }];
-
         let current_price = LiquidUsdt::from_str_in_dollar("39603.96039603").unwrap();
-        let error = validate_loan_is_acceptable(
-            request_price,
-            current_price,
-            price_fluctuation_interval,
-            request_principal,
-            min_principal,
-            max_principal,
-            request_ltv,
-            max_ltv,
-            request_term,
-            terms,
-        )
-        .unwrap()
-        .unwrap_err();
+        let loan_validation_params =
+            LoanValidationParams::test_defaults().with_current_price(current_price);
+
+        let error = validate_loan_is_acceptable(loan_validation_params.clone())
+            .unwrap()
+            .unwrap_err();
 
         assert_eq!(
             error,
             LoanValidationError::PriceNotAcceptable {
-                request_price,
+                request_price: loan_validation_params.request_price,
                 current_price
             }
         )
@@ -640,39 +643,18 @@ mod tests {
 
     #[test]
     fn given_loan_request_and_price_raise_higher_then_fluctuation_then_error() {
-        let request_price = LiquidUsdt::from_str_in_dollar("40000").unwrap();
-        let price_fluctuation_interval = (dec!(0.90), dec!(1.01));
-        let request_principal = LiquidUsdt::from_str_in_dollar("1000").unwrap();
-        let min_principal = LiquidUsdt::from_str_in_dollar("1000").unwrap();
-        let max_principal = LiquidUsdt::from_str_in_dollar("10000").unwrap();
-        let request_ltv = dec!(0.8);
-        let max_ltv = dec!(0.8);
-        let request_term = 30;
-        let terms = vec![Term {
-            days: 30,
-            interest_mod: Decimal::ZERO,
-        }];
-
         let current_price = LiquidUsdt::from_str_in_dollar("44444.44444445").unwrap();
-        let error = validate_loan_is_acceptable(
-            request_price,
-            current_price,
-            price_fluctuation_interval,
-            request_principal,
-            min_principal,
-            max_principal,
-            request_ltv,
-            max_ltv,
-            request_term,
-            terms,
-        )
-        .unwrap()
-        .unwrap_err();
+        let loan_validation_params =
+            LoanValidationParams::test_defaults().with_current_price(current_price);
+
+        let error = validate_loan_is_acceptable(loan_validation_params.clone())
+            .unwrap()
+            .unwrap_err();
 
         assert_eq!(
             error,
             LoanValidationError::PriceNotAcceptable {
-                request_price,
+                request_price: loan_validation_params.request_price,
                 current_price
             }
         )
@@ -680,56 +662,25 @@ mod tests {
 
     #[test]
     fn given_loan_request_with_principal_lower_min_then_error() {
-        let request_price = LiquidUsdt::from_str_in_dollar("40000").unwrap();
-        let current_price = LiquidUsdt::from_str_in_dollar("40000").unwrap();
-        let price_fluctuation_interval = (dec!(0.90), dec!(1.01));
-        let min_principal = LiquidUsdt::from_str_in_dollar("1000").unwrap();
-        let max_principal = LiquidUsdt::from_str_in_dollar("10000").unwrap();
-        let request_ltv = dec!(0.8);
-        let max_ltv = dec!(0.8);
-        let request_term = 30;
-        let terms = vec![Term {
-            days: 30,
-            interest_mod: Decimal::ZERO,
-        }];
-
         let request_principal = LiquidUsdt::from_str_in_dollar("999.99999999").unwrap();
-        let error = validate_loan_is_acceptable(
-            request_price,
-            current_price,
-            price_fluctuation_interval,
-            request_principal,
-            min_principal,
-            max_principal,
-            request_ltv,
-            max_ltv,
-            request_term,
-            terms,
-        )
-        .unwrap()
-        .unwrap_err();
+        let loan_validation_params =
+            LoanValidationParams::test_defaults().with_request_principal(request_principal);
+
+        let error = validate_loan_is_acceptable(loan_validation_params.clone())
+            .unwrap()
+            .unwrap_err();
 
         assert_eq!(
             error,
             LoanValidationError::PrincipalBelowMin {
                 request_principal,
-                min_principal
+                min_principal: loan_validation_params.min_principal
             }
         )
     }
 
     #[test]
     fn given_loan_request_with_unknown_term_then_error() {
-        let request_price = LiquidUsdt::from_str_in_dollar("40000").unwrap();
-        let current_price = LiquidUsdt::from_str_in_dollar("39603.96039604").unwrap();
-        let price_fluctuation_interval = (dec!(0.90), dec!(1.01));
-        let request_principal = LiquidUsdt::from_str_in_dollar("1000").unwrap();
-        let min_principal = LiquidUsdt::from_str_in_dollar("1000").unwrap();
-        let max_principal = LiquidUsdt::from_str_in_dollar("10000").unwrap();
-        let request_ltv = dec!(0.8);
-        let max_ltv = dec!(0.8);
-        let request_term = 29;
-
         let terms = vec![
             Term {
                 days: 28,
@@ -748,24 +699,159 @@ mod tests {
                 interest_mod: Decimal::ZERO,
             },
         ];
-        let error = validate_loan_is_acceptable(
-            request_price,
-            current_price,
-            price_fluctuation_interval,
-            request_principal,
-            min_principal,
-            max_principal,
-            request_ltv,
-            max_ltv,
-            request_term,
-            terms,
-        )
-        .unwrap()
-        .unwrap_err();
+        let request_term = 29;
+
+        let loan_validation_params = LoanValidationParams::test_defaults()
+            .with_terms(terms)
+            .with_request_term(request_term);
+
+        let error = validate_loan_is_acceptable(loan_validation_params)
+            .unwrap()
+            .unwrap_err();
 
         assert_eq!(
             error,
             LoanValidationError::TermNotAllowed { term: request_term }
         )
+    }
+
+    #[test]
+    fn given_loan_request_with_collateralization_lower_min_then_error() {
+        let collateralizations = vec![Collateralization {
+            collateralization: dec!(1.5),
+            interest_mod: Decimal::ZERO,
+        }];
+        let request_collateralization = dec!(1.4);
+
+        let loan_validation_params = LoanValidationParams::test_defaults()
+            .with_request_collateralization(request_collateralization)
+            .with_collateralizations(collateralizations.clone());
+
+        let error = validate_loan_is_acceptable(loan_validation_params.clone())
+            .unwrap()
+            .unwrap_err();
+
+        assert_eq!(
+            error,
+            LoanValidationError::CollateralizationBelowMin {
+                request_collateralization: loan_validation_params.request_collateralization,
+                min_collateralization: collateralizations.first().unwrap().collateralization,
+            }
+        )
+    }
+
+    #[test]
+    fn given_loan_request_with_collateralization_higher_max_threshold_then_no_error() {
+        let collateralizations = vec![Collateralization {
+            collateralization: dec!(1.5),
+            interest_mod: Decimal::ZERO,
+        }];
+        let request_collateralization = dec!(10.0);
+
+        let loan_validation_params = LoanValidationParams::test_defaults()
+            .with_request_collateralization(request_collateralization)
+            .with_collateralizations(collateralizations);
+
+        validate_loan_is_acceptable(loan_validation_params.clone())
+            .unwrap()
+            .unwrap();
+    }
+
+    #[allow(unused_variables)]
+    #[allow(dead_code)]
+    impl LoanValidationParams {
+        fn test_defaults() -> Self {
+            let request_price = LiquidUsdt::from_str_in_dollar("40000").unwrap();
+            let current_price = LiquidUsdt::from_str_in_dollar("39603.96039604").unwrap();
+            let price_fluctuation_interval = (dec!(0.90), dec!(1.01));
+            let request_principal = LiquidUsdt::from_str_in_dollar("1000").unwrap();
+            let min_principal = LiquidUsdt::from_str_in_dollar("1000").unwrap();
+            let max_principal = LiquidUsdt::from_str_in_dollar("10000").unwrap();
+            let request_ltv = dec!(0.8);
+            let max_ltv = dec!(0.8);
+            let request_term = 30;
+            let terms = vec![Term {
+                days: 30,
+                interest_mod: Decimal::ZERO,
+            }];
+            let request_collateralization = dec!(1.5);
+            let collateralizations = vec![Collateralization {
+                collateralization: dec!(1.5),
+                interest_mod: Decimal::ZERO,
+            }];
+
+            LoanValidationParams {
+                request_price,
+                current_price,
+                price_fluctuation_interval,
+                request_principal,
+                min_principal,
+                max_principal,
+                request_ltv,
+                max_ltv,
+                request_term,
+                terms,
+                request_collateralization,
+                collateralizations,
+            }
+        }
+
+        pub fn with_request_price(mut self, request_price: LiquidUsdt) -> Self {
+            self.request_price = request_price;
+            self
+        }
+        pub fn with_current_price(mut self, current_price: LiquidUsdt) -> Self {
+            self.current_price = current_price;
+            self
+        }
+        pub fn with_price_fluctuation_interval(
+            mut self,
+            price_fluctuation_interval: (Decimal, Decimal),
+        ) -> Self {
+            self.price_fluctuation_interval = price_fluctuation_interval;
+            self
+        }
+        pub fn with_request_principal(mut self, request_principal: LiquidUsdt) -> Self {
+            self.request_principal = request_principal;
+            self
+        }
+        pub fn with_min_principal(mut self, min_principal: LiquidUsdt) -> Self {
+            self.min_principal = min_principal;
+            self
+        }
+        pub fn with_max_principal(mut self, max_principal: LiquidUsdt) -> Self {
+            self.max_principal = max_principal;
+            self
+        }
+        pub fn with_request_ltv(mut self, request_ltv: Decimal) -> Self {
+            self.request_ltv = request_ltv;
+            self
+        }
+        pub fn with_max_ltv(mut self, max_ltv: Decimal) -> Self {
+            self.max_ltv = max_ltv;
+            self
+        }
+        pub fn with_request_term(mut self, request_term: u32) -> Self {
+            self.request_term = request_term;
+            self
+        }
+        pub fn with_terms(mut self, terms: Vec<Term>) -> Self {
+            self.terms = terms;
+            self
+        }
+        pub fn with_request_collateralization(
+            mut self,
+            request_collateralization: Decimal,
+        ) -> Self {
+            self.request_collateralization = request_collateralization;
+            self
+        }
+        pub fn with_collateralizations(
+            mut self,
+            collateralizations: Vec<Collateralization>,
+        ) -> Self {
+            self.collateralizations = collateralizations;
+            self
+        }
     }
 }
