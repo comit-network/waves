@@ -148,8 +148,11 @@ pub fn loan_calculation_and_validation(
         collateralizations: loan_offer.collateralizations.clone(),
     })??;
 
-    let liquidation_price =
-        calculate_liquidation_price(repayment_amount, loan_request.collateral_amount)?;
+    let liquidation_price = calculate_liquidation_price(
+        repayment_amount,
+        loan_request.collateral_amount,
+        loan_offer.max_ltv,
+    )?;
 
     let validated_loan = ValidatedLoan {
         repayment_amount,
@@ -215,9 +218,26 @@ fn calculate_repayment_amount(
     Ok(repayment_amount)
 }
 
+/// Calculates the liquidation price
+///
+/// The liquidation price must depict the borrower's over-collateralization and the lender's risk hunger.
+/// Thus, the borrower's collateral amount and the lender's maximum LTV ratio are set into relation.
+///
+/// We can use the formula to calculate the current LTV to reason about the liquidation price:
+///
+/// given: repayment_amount / (collateral_amount * current_price) = current_LTV
+///     > repayment_amount = current_ltv * (collateral_amount * current_price)
+///     > repayment_amount / current_ltv = collateral_amount * current_price
+///     > (repayment_amount / current_ltv) / collateral_amount = current_price
+///     > let current_ltv = max_ltv
+/// -----------------------------------------------------------------------------
+/// (repayment_amount / max_ltv) / collateral_amount = liquidation_price
+///
+/// note: collateral_amount in BTC
 fn calculate_liquidation_price(
     repayment_amount: LiquidUsdt,
     collateral_amount: LiquidBtc,
+    max_ltv: Decimal,
 ) -> Result<LiquidUsdt> {
     let repayment_amount = Decimal::from(repayment_amount.as_satodollar());
     let one_btc_as_sat = Decimal::from(Amount::ONE_BTC.as_sat());
@@ -226,8 +246,11 @@ fn calculate_liquidation_price(
         .context("division error")?;
 
     let liquidation_price = repayment_amount
+        .checked_div(max_ltv)
+        .context("division error")?
         .checked_div(collateral_as_btc)
         .context("division error")?;
+
     let liquidation_price = LiquidUsdt::from_satodollar(
         liquidation_price
             .to_u64()
@@ -476,7 +499,7 @@ mod tests {
         );
         assert_eq!(
             liquidation_price,
-            LiquidUsdt::from_str_in_dollar("28571.42857142").unwrap()
+            LiquidUsdt::from_str_in_dollar("38095.23809523").unwrap()
         );
     }
 
@@ -569,12 +592,14 @@ mod tests {
     fn test_calculate_liquidation_price() {
         let repayment_amount = LiquidUsdt::from_str_in_dollar("10500").unwrap();
         let collateral = LiquidBtc::from(Amount::from_btc(0.35).unwrap());
+        let max_ltv = dec!(0.8);
 
-        let liquidation_price = calculate_liquidation_price(repayment_amount, collateral).unwrap();
+        let liquidation_price =
+            calculate_liquidation_price(repayment_amount, collateral, max_ltv).unwrap();
 
         assert_eq!(
             liquidation_price,
-            LiquidUsdt::from_str_in_dollar("30000").unwrap()
+            LiquidUsdt::from_str_in_dollar("37500").unwrap()
         )
     }
 
@@ -583,11 +608,13 @@ mod tests {
         fn test_calculate_liquidation_price_no_panic(
             repayment_amount in 1u64..,
             collateral in 1u64..,
+            max_ltv in 0.0f32..0.9999,
         ) {
             let repayment_amount = LiquidUsdt::from_satodollar(repayment_amount);
             let collateral = LiquidBtc::from(Amount::from_sat(collateral));
+            let max_ltv = Decimal::from_f32(max_ltv).unwrap();
 
-            let _ = calculate_liquidation_price(repayment_amount, collateral).unwrap();
+            let _ = calculate_liquidation_price(repayment_amount, collateral, max_ltv).unwrap();
         }
     }
 
