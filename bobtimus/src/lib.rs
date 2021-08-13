@@ -324,7 +324,9 @@ where
         let loan_offer = self.current_loan_offer();
         // TODO: Make configurable
         let price_fluctuation_interval = (dec!(0.99), dec!(1.01));
-        let current_price = self.rate_service.latest_rate();
+
+        // The bid price is used so the lender is covered under the assumption of selling the asset
+        let current_price = self.rate_service.latest_rate().bid;
 
         let ValidatedLoan {
             repayment_amount,
@@ -333,7 +335,7 @@ where
             &loan_request,
             &loan_offer,
             price_fluctuation_interval,
-            current_price.ask,
+            current_price,
         )?;
 
         let oracle_secret_key = elements::secp256k1_zkp::key::ONE_KEY;

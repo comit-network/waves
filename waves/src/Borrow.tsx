@@ -56,8 +56,9 @@ function Borrow({ dispatch, state, rate, wavesProvider, walletStatusAsyncState }
     // TODO: Let the user define the collateral amount that is within Bobtimus' LTV bounds
     let interestAmount = principalAmount * interestRate;
     let repaymentAmount = principalAmount + interestAmount;
-    // TODO: Is the ask price actually correct here?
-    let collateralAmount = (repaymentAmount * state.collateralization) * (1 / rate.ask);
+
+    // The bid price is used so the lender is covered under the assumption of selling the asset
+    let collateralAmount = (repaymentAmount * state.collateralization) / rate.bid;
 
     let { run: takeLoan, isLoading: isTakingLoan } = useAsync({
         deferFn: async () => {
