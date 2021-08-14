@@ -406,7 +406,7 @@ fn validate_loan_is_acceptable(
     // If no collateraliztion thresholds are specified in the offer then we ignore this check and only check for LTV
     // Note that as a safety net the LTV still outweights the collateralization check.
     if !collateralizations.is_empty() {
-        let mut sorted_collateralizations = collateralizations.clone();
+        let mut sorted_collateralizations = collateralizations;
         sorted_collateralizations.sort_by(|a, b| a.collateralization.cmp(&b.collateralization));
         let min_collateralization = sorted_collateralizations
             .first()
@@ -428,7 +428,7 @@ fn validate_loan_is_acceptable(
         }));
     }
 
-    if terms.iter().find(|a| a.days == request_term).is_none() {
+    if !terms.iter().any(|a| a.days == request_term) {
         return Ok(Err(LoanValidationError::TermNotAllowed {
             term: request_term,
         }));
@@ -845,7 +845,7 @@ mod tests {
             .with_request_collateralization(request_collateralization)
             .with_collateralizations(collateralizations);
 
-        validate_loan_is_acceptable(loan_validation_params.clone())
+        validate_loan_is_acceptable(loan_validation_params)
             .unwrap()
             .unwrap();
     }
