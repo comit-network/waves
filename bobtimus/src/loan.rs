@@ -504,6 +504,72 @@ mod tests {
     }
 
     #[test]
+    fn test_loan_calculation_and_validation_whole_numbers() {
+        // In this test we assume the lender is only slightly over-collateralizing the loan.
+        // For simplicity reasons and reproducibility we set the the exchange rate to 10_500/BTC
+        // This has the effect that the lender over-collateralized with 50% (or a total of 150%),
+        // i.e. 1.5 BTC.
+        let loan_request = LoanRequest {
+            term: 30,
+            principal_amount: LiquidUsdt::from_str_in_dollar("10000").unwrap(),
+            collateralization: dec!(1.5),
+            collateral_amount: Amount::from_btc(1.5).unwrap().into(),
+
+            // irrelevant for this test
+            collateral_inputs: vec![],
+            borrower_pk: PublicKey::from_str("0218845781f631c48f1c9709e23092067d06837f30aa0cd0544ac887fe91ddd166").unwrap(),
+            borrower_address: Address::from_str("el1qq0zel5lg55nvhv9kkrq8gme8hnvp0lemuzcmu086dn2m8laxjgkewkhqnh8vxdnlp4cejs3925j0gu9n9krdgmqm89vku0kc8").unwrap()
+        };
+
+        let loan_offer = LoanOffer {
+            min_principal: LiquidUsdt::from_str_in_dollar("1000").unwrap(),
+            max_principal: LiquidUsdt::from_str_in_dollar("10000").unwrap(),
+            max_ltv: dec!(0.75),
+            base_interest_rate: dec!(0.05),
+
+            terms: vec![Term {
+                days: 30,
+                interest_mod: Decimal::ZERO,
+            }],
+            collateralizations: vec![],
+
+            // irrelevant for this test
+            rate: Rate {
+                ask: Default::default(),
+                bid: Default::default(),
+            },
+            fee_sats_per_vbyte: Default::default(),
+        };
+
+        let current_price = LiquidUsdt::from_str_in_dollar("10500").unwrap();
+        let price_fluctuation_interval = (dec!(0.99), dec!(1.01));
+
+        let ValidatedLoan {
+            repayment_amount,
+            liquidation_price,
+        } = loan_calculation_and_validation(
+            &loan_request,
+            &loan_offer,
+            price_fluctuation_interval,
+            current_price,
+        )
+        .unwrap();
+
+        assert_eq!(
+            repayment_amount,
+            LiquidUsdt::from_str_in_dollar("10500").unwrap()
+        );
+        // The `liquidation_price` is calculated by :
+        // `(repayment_amount / current_ltv) / collateral_amount`
+        // or with numbers in this example:
+        // (10_500 / 0.75 ) / 1.5 = 9333.33333333
+        assert_eq!(
+            liquidation_price,
+            LiquidUsdt::from_str_in_dollar("9333.33333333").unwrap()
+        );
+    }
+
+    #[test]
     fn test_calculate_interest_rate() {
         let term_thresholds = vec![Term {
             days: 30,
