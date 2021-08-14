@@ -126,6 +126,8 @@ pub async fn make_loan_request(
         )
         .map_err(Error::Save)?;
 
+    // TODO: Fix, use new API here
+    #[allow(deprecated)]
     Ok(borrower_state_0.loan_request())
 }
 

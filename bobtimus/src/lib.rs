@@ -43,9 +43,12 @@ pub mod loan;
 pub mod problem;
 pub mod schema;
 
-use crate::loan::{Interest, LoanOffer, LoanRequest};
+use crate::loan::{
+    loan_calculation_and_validation, Collateralization, LoanOffer, LoanRequest, Term, ValidatedLoan,
+};
 pub use amounts::*;
 use elements::bitcoin::PublicKey;
+use rust_decimal::Decimal;
 use rust_decimal_macros::dec;
 use std::{
     convert::TryFrom,
@@ -270,32 +273,70 @@ where
     /// We return the range of possible loan terms to the borrower.
     /// The borrower can then request a loan using parameters that are within our terms.
     pub async fn handle_loan_offer_request(&mut self) -> Result<LoanOffer> {
-        Ok(LoanOffer {
+        Ok(self.current_loan_offer())
+    }
+
+    fn current_loan_offer(&mut self) -> LoanOffer {
+        LoanOffer {
             rate: self.rate_service.latest_rate(),
             // TODO: Dynamic fee estimation
             fee_sats_per_vbyte: Amount::from_sat(1),
-            // TODO: Send sats over the wire and refactor waves reducer to use amount classes
             min_principal: LiquidUsdt::from_str_in_dollar("100")
                 .expect("static value to be convertible"),
             max_principal: LiquidUsdt::from_str_in_dollar("10000")
                 .expect("static value to be convertible"),
+            // TODO: Maximum LTV to be decided by a model
             max_ltv: dec!(0.8),
-            // TODO: Dynamic interest based on current market values
-            interest: vec![Interest {
-                term: 30,
-                interest_rate: dec!(0.15),
-                collateralization: dec!(1.5),
-            }],
-        })
+            // TODO: Interest to be decided by a model
+            base_interest_rate: dec!(0.05),
+            // TODO: Potentially fine-tune the model with these values
+            terms: vec![
+                Term {
+                    days: 30,
+                    interest_mod: Decimal::ZERO,
+                },
+                Term {
+                    days: 60,
+                    interest_mod: Decimal::ZERO,
+                },
+                Term {
+                    days: 120,
+                    interest_mod: Decimal::ZERO,
+                },
+            ],
+            collateralizations: vec![
+                Collateralization {
+                    collateralization: dec!(1.5),
+                    interest_mod: Decimal::ZERO,
+                },
+                Collateralization {
+                    collateralization: dec!(2.0),
+                    interest_mod: Decimal::ZERO,
+                },
+            ],
+        }
     }
 
     /// Handle the borrower's loan request in which she puts up L-BTC as
     /// collateral and we lend L-USDt to her which she will have to
     /// repay in the future.
-    pub async fn handle_loan_request(&mut self, payload: LoanRequest) -> Result<LoanResponse> {
-        // TODO: Ensure that the loan requested is within what we "currently" accept.
-        //  Currently there is no ID for incoming loan requests, that would associate them with an offer,
-        //  so we just have to ensure that the loan is still "acceptable" in the current state of Bobtimus.
+    pub async fn handle_loan_request(&mut self, loan_request: LoanRequest) -> Result<LoanResponse> {
+        let loan_offer = self.current_loan_offer();
+        // TODO: Make configurable
+        let price_fluctuation_interval = (dec!(0.99), dec!(1.01));
+
+        // The bid price is used so the lender is covered under the assumption of selling the asset
+        let current_price = self.rate_service.latest_rate().bid;
+
+        let ValidatedLoan {
+            repayment_amount,
+            liquidation_price,
+        } = loan_calculation_and_validation(
+            &loan_request,
+            &loan_offer,
+            price_fluctuation_interval,
+            current_price,
+        )?;
 
         let oracle_secret_key = elements::secp256k1_zkp::key::ONE_KEY;
         let oralce_priv_key = elements::bitcoin::PrivateKey::new(
@@ -304,7 +345,7 @@ where
         );
         let oracle_pk = PublicKey::from_private_key(&self.secp, &oralce_priv_key);
 
-        let timelock = days_to_unix_timestamp_timelock(payload.term, SystemTime::now())?;
+        let timelock = days_to_unix_timestamp_timelock(loan_request.term, SystemTime::now())?;
 
         let lender_address = self
             .elementsd
@@ -327,22 +368,31 @@ where
         )
         .unwrap();
 
+        let elementsd_client = self.elementsd.clone();
+        let principal_inputs = Self::find_inputs(
+            &elementsd_client,
+            self.usdt_asset_id,
+            loan_request.principal_amount.into(),
+        )
+        .await?;
+
         let lender1 = lender0
-            .interpret(
+            .build_loan_transaction(
                 &mut self.rng,
                 &SECP256K1,
-                {
-                    let elementsd_client = self.elementsd.clone();
-                    |amount, asset| async move {
-                        Self::find_inputs(&elementsd_client, asset, amount).await
-                    }
-                },
-                payload.into(),
-                self.rate_service.latest_rate().bid.as_satodollar(),
+                loan_offer.fee_sats_per_vbyte,
+                (
+                    loan_request.collateral_amount.into(),
+                    loan_request.collateral_inputs,
+                ),
+                (loan_request.principal_amount.into(), principal_inputs),
+                repayment_amount.into(),
+                liquidation_price.as_satodollar(),
+                (loan_request.borrower_pk, loan_request.borrower_address),
                 timelock,
             )
             .await
-            .unwrap();
+            .context("Failed to build loan transaction")?;
 
         let loan_response = lender1.loan_response();
 

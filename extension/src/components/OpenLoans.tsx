@@ -13,9 +13,9 @@ import { Accordion, AccordionButton, AccordionIcon, AccordionItem, AccordionPane
 import Debug from "debug";
 import moment from "moment";
 import * as React from "react";
+import { useState } from "react";
 import { useAsync } from "react-async";
 import { repayLoan } from "../background-proxy";
-import { getBlockHeight } from "../background-proxy";
 import { LoanDetails } from "../models";
 import Btc from "./bitcoin.svg";
 import Usdt from "./tether.svg";
@@ -56,20 +56,13 @@ function OpenLoan({ loanDetails, onRepayed, index }: OpenLoanProps) {
         onReject: (e) => error("Failed to repay loan %s: %s", loanDetails.txid, e),
     });
 
-    const blockHeightHook = useAsync({
-        promiseFn: getBlockHeight,
-        onReject: (e) => error("Failed to fetch block height %s", e),
-    });
-    let { data: blockHeight, reload: reloadBlockHeight } = blockHeightHook;
-
+    let [timestamp, setTimestamp] = useState(Math.floor(Date.now() / 1000));
     useInterval(() => {
-        reloadBlockHeight();
+        setTimestamp(Math.floor(Date.now() / 1000));
     }, 6000); // 1 min
 
-    // format the time nicely into something like : `in 13 hours` or `in 1 month`.
-    // block-height and loan-term are in "blocktime" ^= minutes
-    const deadline = blockHeight
-        ? moment().add(Math.abs(blockHeight - loanDetails.term), "minutes").fromNow()
+    const deadline = timestamp
+        ? moment().add(Math.abs(timestamp - loanDetails.term), "seconds").fromNow()
         : null;
 
     return <AccordionItem>
@@ -128,7 +121,7 @@ function OpenLoan({ loanDetails, onRepayed, index }: OpenLoanProps) {
                         </Box>
                     </HStack>
                     <Box>
-                        Loan term: {loanDetails.term} (due block-height)
+                        Loan term: {loanDetails.term} (due timestamp)
                     </Box>
                     <FormControl id="repayment" isInvalid={repayFailed}>
                         <Box>

@@ -5,7 +5,7 @@ use rust_decimal::{
     Decimal, RoundingStrategy,
 };
 use serde::{Deserialize, Serialize};
-use std::{convert::TryFrom, fmt::Debug};
+use std::{convert::TryFrom, fmt, fmt::Debug};
 
 /// Prices at which 1 L-BTC will be traded, in L-USDt.
 ///
@@ -62,7 +62,7 @@ impl Rate {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Serialize, Default)]
+#[derive(Clone, Copy, PartialEq, PartialOrd, Eq, Serialize, Deserialize, Default)]
 pub struct LiquidUsdt(#[serde(with = "::elements::bitcoin::util::amount::serde::as_sat")] Amount);
 
 impl LiquidUsdt {
@@ -125,8 +125,17 @@ impl TryFrom<f64> for LiquidUsdt {
     }
 }
 
+impl fmt::Display for LiquidUsdt {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        self.0.fmt_value_in(f, Denomination::Bitcoin)?;
+        write!(f, " L-USDT")
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
-pub struct LiquidBtc(#[serde(with = "::elements::bitcoin::util::amount::serde::as_sat")] Amount);
+pub struct LiquidBtc(
+    #[serde(with = "::elements::bitcoin::util::amount::serde::as_sat")] pub Amount,
+);
 
 impl From<Amount> for LiquidBtc {
     fn from(amount: Amount) -> Self {

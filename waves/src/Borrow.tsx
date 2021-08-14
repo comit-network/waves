@@ -3,9 +3,8 @@ import Debug from "debug";
 import React, { Dispatch } from "react";
 import { AsyncState, useAsync } from "react-async";
 import { useHistory } from "react-router-dom";
-import { Action, Asset, BorrowState, Rate } from "./App";
+import { Action, BorrowState, Rate } from "./App";
 import { getLoanOffer, postLoanFinalization, postLoanRequest } from "./Bobtimus";
-import calculateBetaAmount from "./calculateBetaAmount";
 import NumberInput from "./components/NumberInput";
 import RateInfo from "./components/RateInfo";
 import WavesProvider from "./waves-provider";
@@ -48,20 +47,18 @@ function Borrow({ dispatch, state, rate, wavesProvider, walletStatusAsyncState }
         });
     }
 
-    const interestRate = loanOffer ? loanOffer.interest[0].interest_rate : 0;
+    const interestRate = loanOffer ? loanOffer.base_interest_rate : 0;
     const minPrincipal = loanOffer ? loanOffer.min_principal : 0;
     const maxPrincipal = loanOffer ? loanOffer.max_principal : 0;
 
     const principalAmount = Number.parseFloat(state.principalAmount);
 
     // TODO: Let the user define the collateral amount that is within Bobtimus' LTV bounds
-    let collateralAmount = calculateBetaAmount(
-        Asset.USDT,
-        principalAmount,
-        rate,
-    );
-
     let interestAmount = principalAmount * interestRate;
+    let repaymentAmount = principalAmount + interestAmount;
+
+    // The bid price is used so the lender is covered under the assumption of selling the asset
+    let collateralAmount = (repaymentAmount * state.collateralization) / rate.bid;
 
     let { run: takeLoan, isLoading: isTakingLoan } = useAsync({
         deferFn: async () => {
@@ -78,7 +75,12 @@ function Borrow({ dispatch, state, rate, wavesProvider, walletStatusAsyncState }
                     feeRate.toString(),
                 );
 
-                let loanResponse = await postLoanRequest(loanRequestWalletParams, state.loanTermInDays);
+                let loanResponse = await postLoanRequest(
+                    loanRequestWalletParams,
+                    state.loanTermInDays,
+                    state.collateralization,
+                    principalAmount,
+                );
                 debug(JSON.stringify(loanResponse));
 
                 let loanTransaction = await wavesProvider.signLoan(loanResponse);

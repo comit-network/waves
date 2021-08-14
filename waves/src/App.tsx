@@ -49,6 +49,7 @@ export interface BorrowState {
     // user can select
     loanTermInDays: number;
     principalAmount: string;
+    collateralization: number;
 
     // from Bobtimus
     loanOffer: LoanOffer | null;
@@ -109,6 +110,7 @@ const initialState: State = {
         principalAmount: "0.0",
         loanTermInDays: 0,
         loanOffer: null,
+        collateralization: 0,
     },
     wallet: {
         balance: {
@@ -224,7 +226,8 @@ export function reducer(state: State = initialState, action: Action) {
             // TODO: We currently always overwrite upon a new loan offer
             //  This will have to be adapted once we refresh loan offers.
             const principalAmount = action.value.min_principal.toString();
-            const loanTermInDays = action.value.interest[0].term;
+            const loanTermInDays = action.value.terms[0].days;
+            const collateralization = action.value.collateralizations[0].collateralization;
 
             return {
                 ...state,
@@ -232,6 +235,7 @@ export function reducer(state: State = initialState, action: Action) {
                     ...state.borrow,
                     principalAmount,
                     loanTermInDays,
+                    collateralization,
                     loanOffer: action.value,
                 },
             };

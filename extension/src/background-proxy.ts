@@ -106,8 +106,3 @@ export async function getPastTransactions(): Promise<Txid[]> {
     // @ts-ignore
     return proxy.getPastTransactions();
 }
-
-export async function getBlockHeight(): Promise<number> {
-    // @ts-ignore
-    return proxy.getBlockHeight();
-}
