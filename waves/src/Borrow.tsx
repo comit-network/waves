@@ -1,26 +1,15 @@
-import {
-    Box,
-    Button,
-    Center,
-    Divider,
-    Text,
-    Tooltip,
-    useToast,
-    HStack,
-    VStack,
-    useRadioGroup
-} from "@chakra-ui/react";
+import { Box, Button, Center, Divider, HStack, Text, Tooltip, useRadioGroup, useToast, VStack } from "@chakra-ui/react";
 import Debug from "debug";
 import React, { Dispatch } from "react";
 import { AsyncState, useAsync } from "react-async";
 import { useHistory } from "react-router-dom";
 import { Action, BorrowState, Rate } from "./App";
-import {Collateralization, getLoanOffer, postLoanFinalization, postLoanRequest, Term} from "./Bobtimus";
+import { Collateralization, getLoanOffer, postLoanFinalization, postLoanRequest, Term } from "./Bobtimus";
 import NumberInput from "./components/NumberInput";
+import { RadioCard } from "./components/RadioButton";
 import RateInfo from "./components/RateInfo";
 import WavesProvider from "./waves-provider";
 import { Status, WalletStatus } from "./waves-provider/wavesProvider";
-import {RadioCard} from "./RadioButton";
 
 const debug = Debug("Borrow");
 const error = Debug("Borrow:error");
@@ -35,10 +24,10 @@ interface BorrowProps {
 
 interface TermRadioGroupProps {
     dispatch: Dispatch<Action>;
-    terms: Term[]
+    terms: Term[];
 }
 
-function TermRadioGroup({dispatch, terms}: TermRadioGroupProps) {
+function TermRadioGroup({ dispatch, terms }: TermRadioGroupProps) {
     const { getRootProps, getRadioProps } = useRadioGroup({
         name: "framework",
         defaultValue: "react",
@@ -46,7 +35,7 @@ function TermRadioGroup({dispatch, terms}: TermRadioGroupProps) {
             debug("term selected " + data);
             dispatch({
                 type: "UpdateLoanTerm",
-                value:  Number.parseFloat(data.toString()),
+                value: Number.parseFloat(data.toString()),
             });
         },
     });
@@ -56,12 +45,12 @@ function TermRadioGroup({dispatch, terms}: TermRadioGroupProps) {
     return (
         <HStack {...group}>
             {terms.map((value) => {
-                const radio = getRadioProps({ value: value.days.toString() })
+                const radio = getRadioProps({ value: value.days.toString() });
                 return (
                     <RadioCard key={value.days.toString()} {...radio}>
                         {value.days}
                     </RadioCard>
-                )
+                );
             })}
         </HStack>
     );
@@ -69,10 +58,10 @@ function TermRadioGroup({dispatch, terms}: TermRadioGroupProps) {
 
 interface CollateralizationRadioGroupProps {
     dispatch: Dispatch<Action>;
-    collateralizations: Collateralization[]
+    collateralizations: Collateralization[];
 }
 
-function CollateralizatinRadioGroup({dispatch, collateralizations}: CollateralizationRadioGroupProps) {
+function CollateralizatinRadioGroup({ dispatch, collateralizations }: CollateralizationRadioGroupProps) {
     const { getRootProps, getRadioProps } = useRadioGroup({
         name: "framework",
         defaultValue: "react",
@@ -80,7 +69,7 @@ function CollateralizatinRadioGroup({dispatch, collateralizations}: Collateraliz
             debug("collateralization selected " + data);
             dispatch({
                 type: "UpdateLoanCollateralization",
-                value:  Number.parseFloat(data.toString()),
+                value: Number.parseFloat(data.toString()),
             });
         },
     });
@@ -90,12 +79,12 @@ function CollateralizatinRadioGroup({dispatch, collateralizations}: Collateraliz
     return (
         <HStack {...group}>
             {collateralizations.map((value) => {
-                const radio = getRadioProps({ value: value.collateralization.toString() })
+                const radio = getRadioProps({ value: value.collateralization.toString() });
                 return (
                     <RadioCard key={value.collateralization.toString()} {...radio}>
                         {(value.collateralization * 100) + "%"}
                     </RadioCard>
-                )
+                );
             })}
         </HStack>
     );
@@ -266,7 +255,7 @@ function Borrow({ dispatch, state, rate, wavesProvider, walletStatusAsyncState }
                             </Box>
                         </Tooltip>
                         <Text align={"left"} fontWeight="bold">For a loan term of</Text>
-                        <TermRadioGroup dispatch={dispatch} terms={terms}/>
+                        <TermRadioGroup dispatch={dispatch} terms={terms} />
                         <Text align={"left"} fontWeight="bold">At a collateralization rate of</Text>
                         <CollateralizatinRadioGroup dispatch={dispatch} collateralizations={collateralizations} />
                     </VStack>
