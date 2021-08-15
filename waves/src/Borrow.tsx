@@ -181,7 +181,7 @@ function Borrow({ dispatch, state, rate, wavesProvider, walletStatusAsyncState }
                             />
                         </Box>
                     </Tooltip>
-                    <p>Collateral (for LTV of {state.ltv*100}%):</p>
+                    <p>Collateral (for LTV of {state.ltv * 100}%):</p>
                     <NumberInput
                         currency="₿"
                         value={collateralAmount}
