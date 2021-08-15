@@ -1,13 +1,26 @@
-import { Box, Button, Center, Divider, HStack, Text, Tooltip, useRadioGroup, useToast, VStack } from "@chakra-ui/react";
+import {
+    Box,
+    Button,
+    Center,
+    Divider,
+    FormControl,
+    FormLabel,
+    HStack,
+    Radio,
+    RadioGroup,
+    Select,
+    Text,
+    Tooltip,
+    useToast,
+    VStack,
+} from "@chakra-ui/react";
 import Debug from "debug";
 import React, { Dispatch } from "react";
 import { AsyncState, useAsync } from "react-async";
 import { useHistory } from "react-router-dom";
 import { Action, BorrowState, Rate } from "./App";
-import { Collateralization, getLoanOffer, postLoanFinalization, postLoanRequest, Term } from "./Bobtimus";
+import { getLoanOffer, postLoanFinalization, postLoanRequest } from "./Bobtimus";
 import NumberInput from "./components/NumberInput";
-import { RadioCard } from "./components/RadioButton";
-import RateInfo from "./components/RateInfo";
 import WavesProvider from "./waves-provider";
 import { Status, WalletStatus } from "./waves-provider/wavesProvider";
 
@@ -20,74 +33,6 @@ interface BorrowProps {
     state: BorrowState;
     walletStatusAsyncState: AsyncState<WalletStatus>;
     wavesProvider: WavesProvider | undefined;
-}
-
-interface TermRadioGroupProps {
-    dispatch: Dispatch<Action>;
-    terms: Term[];
-}
-
-function TermRadioGroup({ dispatch, terms }: TermRadioGroupProps) {
-    const { getRootProps, getRadioProps } = useRadioGroup({
-        name: "framework",
-        defaultValue: "react",
-        onChange: (data) => {
-            debug("term selected " + data);
-            dispatch({
-                type: "UpdateLoanTerm",
-                value: Number.parseFloat(data.toString()),
-            });
-        },
-    });
-
-    const group = getRootProps();
-
-    return (
-        <HStack {...group}>
-            {terms.map((value) => {
-                const radio = getRadioProps({ value: value.days.toString() });
-                return (
-                    <RadioCard key={value.days.toString()} {...radio}>
-                        {value.days}
-                    </RadioCard>
-                );
-            })}
-        </HStack>
-    );
-}
-
-interface CollateralizationRadioGroupProps {
-    dispatch: Dispatch<Action>;
-    collateralizations: Collateralization[];
-}
-
-function CollateralizatinRadioGroup({ dispatch, collateralizations }: CollateralizationRadioGroupProps) {
-    const { getRootProps, getRadioProps } = useRadioGroup({
-        name: "framework",
-        defaultValue: "react",
-        onChange: (data) => {
-            debug("collateralization selected " + data);
-            dispatch({
-                type: "UpdateLoanCollateralization",
-                value: Number.parseFloat(data.toString()),
-            });
-        },
-    });
-
-    const group = getRootProps();
-
-    return (
-        <HStack {...group}>
-            {collateralizations.map((value) => {
-                const radio = getRadioProps({ value: value.collateralization.toString() });
-                return (
-                    <RadioCard key={value.collateralization.toString()} {...radio}>
-                        {(value.collateralization * 100) + "%"}
-                    </RadioCard>
-                );
-            })}
-        </HStack>
-    );
 }
 
 function Borrow({ dispatch, state, rate, wavesProvider, walletStatusAsyncState }: BorrowProps) {
@@ -131,6 +76,8 @@ function Borrow({ dispatch, state, rate, wavesProvider, walletStatusAsyncState }
 
     let terms = loanOffer ? loanOffer.terms : [];
     let collateralizations = loanOffer ? loanOffer.collateralizations : [];
+
+    const maxLTV = loanOffer ? loanOffer.max_ltv : 0;
 
     let { run: takeLoan, isLoading: isTakingLoan } = useAsync({
         deferFn: async () => {
@@ -230,78 +177,125 @@ function Borrow({ dispatch, state, rate, wavesProvider, walletStatusAsyncState }
         }
     }
 
+    const w = "60%";
+    const w2 = "40%";
+
     return (
         <VStack spacing={4} align="stretch">
-            <Center w={800} h={320}>
-                <HStack spacing={4}>
-                    <VStack padding={4} spacing={4} align="stretch" bg="gray.100" borderRadius={"md"}>
-                        <Text align={"left"} fontWeight="bold">I want to borrow</Text>
-                        <Tooltip
-                            label={"min = " + minPrincipal + " max = " + maxPrincipal}
-                            aria-label="principal"
-                            hasArrow
-                            placement={"right"}
-                        >
-                            <Box>
-                                <NumberInput
-                                    currency="$"
-                                    value={state.principalAmount}
-                                    precision={2}
-                                    step={0.01}
-                                    onAmountChange={onPrincipalAmountChange}
-                                    isDisabled={loanOfferLoading}
-                                    dataCy={"data-cy-principal"}
-                                />
-                            </Box>
-                        </Tooltip>
-                        <Text align={"left"} fontWeight="bold">For a loan term of</Text>
-                        <TermRadioGroup dispatch={dispatch} terms={terms} />
-                        <Text align={"left"} fontWeight="bold">At a collateralization rate of</Text>
-                        <CollateralizatinRadioGroup dispatch={dispatch} collateralizations={collateralizations} />
-                    </VStack>
-                    <Divider orientation={"vertical"} colorscheme="gray.600" />
-                    <VStack
-                        spacing={4}
-                        align="stretch"
-                    >
-                        <Text align={"left"} fontWeight="bold">Collateral amount to be locked up:</Text>
-                        <NumberInput
-                            currency="₿"
-                            value={collateralAmount}
-                            precision={7}
-                            step={0.000001}
-                            onAmountChange={() => {}}
-                            isDisabled={true}
-                            dataCy={"data-cy-collateral"}
-                            textColor={"black"}
-                        />
-                        <Text align={"left"} fontWeight="bold">Interest rate for the loan:</Text>
-                        <NumberInput
-                            currency="%"
-                            value={interestRate * 100}
-                            precision={4}
-                            step={0.01}
-                            onAmountChange={() => {}}
-                            isDisabled={true}
-                            dataCy={"data-cy-interest-rate"}
-                            textColor={"black"}
-                        />
-                        <Text align={"left"} fontWeight="bold">Interest amount paid upon repayment:</Text>
-                        <NumberInput
-                            currency="$"
-                            value={interestAmount}
-                            precision={7}
-                            step={0.01}
-                            onAmountChange={() => {}}
-                            isDisabled={true}
-                            dataCy={"data-cy-interest"}
-                            textColor={"black"}
-                        />
-                    </VStack>
+            <VStack padding={4} spacing={4} align="stretch" bg="gray.100" borderRadius={"md"}>
+                <HStack>
+                    <Box borderRadius={"md"} w={w}>
+                        <FormControl id="principalAmount" isRequired>
+                            <FormLabel>Desired amount</FormLabel>
+                            <Tooltip
+                                label={"min = " + minPrincipal + " max = " + maxPrincipal}
+                                aria-label="principal"
+                                hasArrow
+                                placement={"right"}
+                            >
+                                <Box>
+                                    <NumberInput
+                                        currency="$"
+                                        value={state.principalAmount}
+                                        precision={2}
+                                        step={0.01}
+                                        onAmountChange={onPrincipalAmountChange}
+                                        isDisabled={loanOfferLoading}
+                                        dataCy={"data-cy-principal"}
+                                    />
+                                </Box>
+                            </Tooltip>
+                            {/*<FormHelperText>You will receive this amount into your wallet.</FormHelperText>*/}
+                        </FormControl>
+                    </Box>
+                    <Box borderRadius={"md"} w={w2}>
+                        <VStack>
+                            <Text align={"left"} fontWeight="bold">Interest rate</Text>
+                            <Text align={"left"}>{interestRate * 100}%</Text>
+                        </VStack>
+                    </Box>
                 </HStack>
-            </Center>
 
-            <RateInfo rate={rate} direction={"ask"} />
+                <Divider />
+
+                <HStack>
+                    <Box borderRadius={"md"} w={w}>
+                        <FormControl as="fieldset" id="loanTerm" isRequired>
+                            <FormLabel as="legend">Desired term (in days)</FormLabel>
+                            <RadioGroup
+                                defaultValue="30"
+                                onChange={(data) => {
+                                    debug("term selected " + data);
+                                    dispatch({
+                                        type: "UpdateLoanTerm",
+                                        value: Number.parseFloat(data.toString()),
+                                    });
+                                }}
+                            >
+                                <HStack spacing="24px">
+                                    <Radio value="30">30</Radio>
+                                    <Radio value="90">90</Radio>
+                                    <Radio value="180">180</Radio>
+                                </HStack>
+                            </RadioGroup>
+                            {/*<FormHelperText>For how long do you need the loan.</FormHelperText>*/}
+                        </FormControl>
+                    </Box>
+                    <Box borderRadius={"md"} w={w2}>
+                        <VStack>
+                            <Text align={"left"} fontWeight="bold">Repayment amount</Text>
+                            <Text align={"left"}>{repaymentAmount} USDT</Text>
+                        </VStack>
+                    </Box>
+                </HStack>
+
+                <Divider />
+
+                <HStack>
+                    <Box borderRadius={"md"} w={w}>
+                        <FormControl id="ltvRatio" required>
+                            <FormLabel>Loan-To-Value Ratio (LTV)</FormLabel>
+                            <Select defaultValue="50%" bg="white">
+                                <option>75% LTV</option>
+                                <option>50% LTV</option>
+                                <option>25% LTV</option>
+                            </Select>
+                            {/*<FormHelperText>*/}
+                            {/*    Determines the amount of collateral you need to take out the loan.*/}
+                            {/*</FormHelperText>*/}
+                        </FormControl>
+                    </Box>
+                    <Box borderRadius={"md"} w={w2}>
+                        <VStack>
+                            <Text align={"left"} fontWeight="bold">Required collateral</Text>
+                            <Text align={"left"}>{Math.floor(collateralAmount * 100000) / 10000} BTC</Text>
+                        </VStack>
+                    </Box>
+                </HStack>
+
+                <Divider />
+
+                <HStack>
+                    <Box borderRadius={"md"} w="30%">
+                        <VStack>
+                            <Text align={"left"} fontWeight="bold">Max LTV</Text>
+                            <Text align={"left"} color="red.500">{maxLTV * 100}%</Text>
+                        </VStack>
+                    </Box>
+                    <Box borderRadius={"md"} w="30%">
+                        <VStack>
+                            <Text align={"left"} fontWeight="bold">Current rate</Text>
+                            <Text align={"left"}>{rate.bid}</Text>
+                        </VStack>
+                    </Box>
+                    <Box borderRadius={"md"} w="30%">
+                        <VStack>
+                            <Text align={"left"} fontWeight="bold">Liquidation rate</Text>
+                            <Text align={"left"} color="red.500">{rate.bid}</Text>
+                        </VStack>
+                    </Box>
+                </HStack>
+            </VStack>
 
             <Center>
                 {loanButton}
