@@ -106,6 +106,25 @@ jobs:
           yarn run build
           yarn run test
 
+  extension:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: extension
+    steps:
+      - name: Checkout sources
+        uses: actions/checkout@v2
+
+      - name: Cache node_modules directory
+        uses: actions/cache@v2
+        with:
+          path: extension/node_modules
+          key: node-modules-directory-${{ hashFiles('extension/yarn.lock') }}
+
+      - name: Install dependencies
+        run: yarn
+
+      - run: yarn run eslint .
 
   wasm_wallet_test:
     strategy:
