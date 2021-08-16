@@ -48,7 +48,7 @@ async fn sign_transaction(
 ) -> Result<Transaction, Error> {
     let loan_transaction = borrower
         .sign(|mut transaction| async {
-            let wallet = current(&name, current_wallet).await?;
+            let wallet = current(name, current_wallet).await?;
             let txouts = get_txouts(&wallet, |utxo, txout| Ok(Some((utxo, txout)))).await?;
 
             let mut cache = SigHashCache::new(&transaction);

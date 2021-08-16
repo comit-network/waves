@@ -376,7 +376,7 @@ fn handle_storage_update(event: web_sys::StorageEvent) -> Promise {
     match (event.key().as_deref(), event.new_value().as_deref()) {
         (Some("CHAIN"), Some(new_value)) => {
             let mut guard = CHAIN.lock().expect_throw("could not acquire lock");
-            *guard = Chain::from_str(&new_value)
+            *guard = Chain::from_str(new_value)
                 .expect_throw(&format!("could not parse item: {}", new_value));
         }
         (Some("ESPLORA_API_URL"), Some(new_value)) => {

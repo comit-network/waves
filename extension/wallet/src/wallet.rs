@@ -217,7 +217,7 @@ impl Wallet {
     /// We store the extended private key on disk and as such have to use a constant nonce, otherwise we would not be able to decrypt it again.
     /// The encryption only happens once and as such, there is conceptually only one message and we are not "reusing" the nonce which would be insecure.
     fn encrypted_xprv_key(&self) -> Result<Vec<u8>> {
-        let cipher = Aes256GcmSiv::new(&GenericArray::from_slice(&self.encryption_key));
+        let cipher = Aes256GcmSiv::new(GenericArray::from_slice(&self.encryption_key));
         let xprv = &self.xprv.to_string(Prefix::XPRV);
         let enc_sk = cipher
             .encrypt(

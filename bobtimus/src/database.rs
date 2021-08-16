@@ -52,7 +52,7 @@ impl Sqlite {
         let guard = self.connection.lock().await;
         let connection = &*guard;
 
-        let result = connection.transaction(|| f(&connection))?;
+        let result = connection.transaction(|| f(connection))?;
 
         Ok(result)
     }
