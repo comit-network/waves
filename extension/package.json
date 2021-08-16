@@ -22,7 +22,10 @@
     "extends": [
       "react-app",
       "react-app/jest"
-    ]
+    ],
+    "rules": {
+      "@typescript-eslint/no-floating-promises": "error"
+    }
   },
   "browserslist": {
     "production": [

@@ -78,11 +78,11 @@ addRpcMessageListener("signAndSendSwap", ([txHex]) => {
                 resolveSwapSignRequest = resolve;
                 rejectSwapSignRequest = reject;
 
-                updateBadge();
+                return updateBadge();
             })
             .catch(e => {
                 reject(e);
-                cleanupPendingSwap();
+                return cleanupPendingSwap();
             });
     });
 });
@@ -94,11 +94,11 @@ addRpcMessageListener("signLoan", ([loanRequest]) => {
                 resolveLoanSignRequest = resolve;
                 rejectLoanSignRequest = reject;
 
-                updateBadge();
+                return updateBadge();
             })
             .catch(e => {
                 reject(e);
-                cleanupPendingLoan();
+                return cleanupPendingLoan();
             });
     });
 });
@@ -144,7 +144,7 @@ window.signAndSendSwap = (txHex: string) => {
         throw new Error("No pending promise functions for swap sign request");
     }
 
-    signAndSendSwap(walletName, txHex)
+    return signAndSendSwap(walletName, txHex)
         .then(resolveSwapSignRequest)
         .catch(rejectSwapSignRequest)
         .then(cleanupPendingSwap);
@@ -156,7 +156,7 @@ window.rejectSwap = () => {
     }
 
     rejectSwapSignRequest("User declined signing request");
-    cleanupPendingSwap();
+    return cleanupPendingSwap();
 };
 // @ts-ignore
 window.getLoanToSign = () => {
@@ -205,7 +205,7 @@ window.rejectLoan = () => {
     }
 
     rejectLoanSignRequest("User declined signing request");
-    cleanupPendingLoan();
+    return cleanupPendingLoan();
 };
 // @ts-ignore
 window.withdrawAll = async (address: string) => {
@@ -236,7 +236,7 @@ function updateBadge() {
     let count = 0;
     if (loanToSign) count++;
     if (swapToSign) count++;
-    browser.browserAction.setBadgeText(
+    return browser.browserAction.setBadgeText(
         { text: (count === 0 ? null : count.toString()) },
     );
 }
@@ -253,14 +253,14 @@ function cleanupPendingSwap() {
     resolveSwapSignRequest = null;
     rejectSwapSignRequest = null;
     swapToSign = null;
-    updateBadge();
+    return updateBadge();
 }
 
 function cleanupPendingLoan() {
     resolveLoanSignRequest = null;
     rejectLoanSignRequest = null;
     loanToSign = null;
-    updateBadge();
+    return updateBadge();
 }
 
 // First we check environment variable. If set, we honor it and overwrite settings in local storage.
