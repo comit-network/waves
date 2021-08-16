@@ -379,7 +379,7 @@ where
         let lender1 = lender0
             .build_loan_transaction(
                 &mut self.rng,
-                &SECP256K1,
+                SECP256K1,
                 loan_offer.fee_sats_per_vbyte,
                 (
                     loan_request.collateral_amount.into(),
@@ -490,7 +490,7 @@ pub async fn liquidate_loans(elementsd: &Client, db: Sqlite) -> Result<()> {
         .await?;
 
     for tx in liquidation_txs.iter() {
-        match elementsd.send_raw_transaction(&tx).await {
+        match elementsd.send_raw_transaction(tx).await {
             Ok(txid) => log::info!("Broadcast liquidation transaction {}", txid),
             Err(e) => log::error!("Failed to broadcast liquidation transaction: {}", e),
         };
@@ -661,7 +661,7 @@ mod tests {
                 let mut cache = SigHashCache::new(&tx);
 
                 tx.input[input_index].witness.script_witness =
-                    sign_with_key(&SECP256K1, &mut cache, input_index, &fund_sk_alice, value);
+                    sign_with_key(SECP256K1, &mut cache, input_index, &fund_sk_alice, value);
 
                 Ok(tx)
             }
@@ -781,7 +781,7 @@ mod tests {
                 let mut cache = SigHashCache::new(&tx);
 
                 tx.input[input_index].witness.script_witness =
-                    sign_with_key(&SECP256K1, &mut cache, input_index, &fund_sk_alice, value);
+                    sign_with_key(SECP256K1, &mut cache, input_index, &fund_sk_alice, value);
 
                 Ok(tx)
             }
@@ -830,7 +830,7 @@ mod tests {
     fn make_keypair() -> (SecretKey, PublicKey) {
         let sk = SecretKey::new(&mut thread_rng());
         let pk = PublicKey::from_private_key(
-            &SECP256K1,
+            SECP256K1,
             &PrivateKey {
                 compressed: true,
                 network: Network::Regtest,
