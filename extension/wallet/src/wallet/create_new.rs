@@ -4,7 +4,6 @@ use futures::lock::Mutex;
 use crate::{
     storage::Storage,
     wallet::{ListOfWallets, Wallet},
-    Chain,
 };
 use bip32::{ExtendedPrivateKey, Language, Mnemonic};
 use rand::{thread_rng, RngCore};
@@ -19,7 +18,6 @@ pub async fn create_from_bip39(
     name: String,
     mnemonic: Mnemonic,
     password: String,
-    chain: String,
     current_wallet: &Mutex<Option<Wallet>>,
 ) -> Result<()> {
     let storage = Storage::local_storage()?;
@@ -45,17 +43,14 @@ pub async fn create_from_bip39(
 
     let secret_key_seed = mnemonic.to_seed(password.as_str());
     let xprv = ExtendedPrivateKey::new(secret_key_seed)?;
-    let chain = chain.parse::<Chain>()?;
-    #[allow(deprecated)]
-    let new_wallet = Wallet::initialize_new(name.clone(), password, xprv, chain)?;
+    let new_wallet = Wallet::initialize_new(name.clone(), password, xprv)?;
 
     storage.set_item(&format!("wallets.{}.password", name), hashed_password)?;
-    #[allow(deprecated)]
     storage.set_item(
         &format!("wallets.{}.xprv", name),
         format!(
             "{}${}",
-            hex::encode(new_wallet.sk_salt()),
+            hex::encode(new_wallet.sk_salt),
             hex::encode(new_wallet.encrypted_xprv_key()?)
         ),
     )?;
