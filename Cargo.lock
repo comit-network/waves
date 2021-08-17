@@ -131,32 +131,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "baru"
-version = "0.4.0"
-source = "git+https://github.com/comit-network/baru.git?rev=43b7a057ed030c555ca3599c753ba7a66a703428#43b7a057ed030c555ca3599c753ba7a66a703428"
-dependencies = [
- "aes-gcm-siv",
- "anyhow",
- "async-trait",
- "bdk",
- "bip32",
- "conquer-once",
- "elements",
- "elements-miniscript",
- "futures",
- "hex",
- "hkdf 0.11.0",
- "itertools",
- "log",
- "rand 0.6.5",
- "reqwest",
- "rust_decimal",
- "serde 1.0.126",
- "sha2",
- "thiserror",
-]
-
-[[package]]
 name = "base64"
 version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -303,7 +277,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "async-trait",
- "baru 0.3.0",
+ "baru",
  "bitcoin_hashes 0.9.6",
  "diesel",
  "diesel_migrations",
@@ -413,6 +387,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ddfc5b9aa5d4507acaf872de71051dfd0e309860e88966e1051e462a077aac4f"
 dependencies = [
  "bitflags",
+]
+
+[[package]]
+name = "coin_selection"
+version = "0.1.0"
+dependencies = [
+ "bdk",
+ "elements",
+ "estimate_transaction_size",
+ "thiserror",
 ]
 
 [[package]]
@@ -623,6 +607,10 @@ checksum = "80df024fbc5ac80f87dfef0d9f5209a252f2a497f7f42944cff24d8253cac065"
 dependencies = [
  "cfg-if 1.0.0",
 ]
+
+[[package]]
+name = "estimate_transaction_size"
+version = "0.1.0"
 
 [[package]]
 name = "fnv"
@@ -887,16 +875,6 @@ checksum = "51ab2f639c231793c5f6114bdb9bbe50a7dbbfcd7c7c6bd8475dec2d991e964f"
 dependencies = [
  "digest",
  "hmac 0.10.1",
-]
-
-[[package]]
-name = "hkdf"
-version = "0.11.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "01706d578d5c281058480e673ae4086a9f4710d8df1ad80a5b03e39ece5f886b"
-dependencies = [
- "digest",
- "hmac 0.11.0",
 ]
 
 [[package]]
@@ -2607,16 +2585,17 @@ version = "0.1.0"
 dependencies = [
  "aes-gcm-siv",
  "anyhow",
- "async-trait",
- "baru 0.4.0",
+ "baru",
  "bip32",
+ "coin_selection",
  "conquer-once",
  "console_error_panic_hook",
  "elements",
+ "estimate_transaction_size",
  "futures",
  "getrandom 0.2.3",
  "hex",
- "hkdf 0.10.0",
+ "hkdf",
  "itertools",
  "js-sys",
  "log",
