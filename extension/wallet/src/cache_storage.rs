@@ -6,6 +6,10 @@ pub struct CacheStorage {
     inner: Storage,
 }
 
+// We assume that the javascript API's are threadsafe
+unsafe impl Send for CacheStorage {}
+unsafe impl Sync for CacheStorage {}
+
 impl CacheStorage {
     pub fn new() -> Result<Self> {
         let local_storage = Storage::local_storage().with_context(|| "Could not open storage")?;

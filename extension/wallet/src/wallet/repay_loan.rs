@@ -1,15 +1,15 @@
-use baru::{input::Input, loan::Borrower1, swap::sign_with_key};
-use coin_selection::coin_select;
+use baru::loan::Borrower1;
 use elements::{
-    bitcoin::util::amount::Amount, secp256k1_zkp::SECP256K1, sighash::SigHashCache, OutPoint, Txid,
+    bitcoin::{secp256k1::SECP256K1, util::amount::Amount},
+    Txid,
 };
 use futures::lock::Mutex;
 use rand::thread_rng;
 
 use crate::{
-    esplora::{broadcast, fetch_transaction},
+    esplora::EsploraClient,
     storage::Storage,
-    wallet::{current, get_txouts, LoanDetails},
+    wallet::{current, LoanDetails},
     Wallet, DEFAULT_SAT_PER_VBYTE,
 };
 
@@ -20,10 +20,11 @@ pub async fn repay_loan(
     name: String,
     current_wallet: &Mutex<Option<Wallet>>,
     loan_txid: Txid,
+    client: &EsploraClient,
 ) -> Result<Txid, Error> {
     // TODO: Only abort early if this fails because the transaction
     // hasn't been mined
-    if fetch_transaction(loan_txid).await.is_err() {
+    if client.fetch_transaction(loan_txid).await.is_err() {
         return Err(Error::NoLoan);
     }
 
@@ -35,125 +36,27 @@ pub async fn repay_loan(
         .ok_or(Error::EmptyState)?;
     let borrower = serde_json::from_str::<Borrower1>(&borrower).map_err(Error::Deserialize)?;
 
-    let blinding_key = {
-        let wallet = current(&name, current_wallet)
-            .await
-            .map_err(Error::LoadWallet)?;
-        wallet.blinding_key()
-    };
-
+    // We are selecting coins with an asset which cannot be
+    // used to pay for fees
+    let zero_fee_rate = 0f32;
+    let zero_fee_offset = Amount::ZERO;
     let coin_selector = {
         let name = name.clone();
         |amount, asset| async move {
-            let wallet = current(&name, current_wallet).await?;
-
-            let utxos = get_txouts(&wallet, |utxo, txout| {
-                Ok({
-                    let unblinded_txout = txout.unblind(SECP256K1, blinding_key)?;
-                    let outpoint = OutPoint {
-                        txid: utxo.txid,
-                        vout: utxo.vout,
-                    };
-                    let candidate_asset = unblinded_txout.asset;
-
-                    if candidate_asset == asset {
-                        Some((
-                            coin_selection::Utxo {
-                                outpoint,
-                                value: unblinded_txout.value,
-                                script_pubkey: txout.script_pubkey.clone(),
-                                asset: candidate_asset,
-                            },
-                            txout,
-                        ))
-                    } else {
-                        log::debug!(
-                            "utxo {} with asset id {} is not the target asset, ignoring",
-                            outpoint,
-                            candidate_asset
-                        );
-                        None
-                    }
-                })
-            })
-            .await?;
-
-            // We are selecting coins with an asset which cannot be
-            // used to pay for fees
-            let zero_fee_rate = 0f32;
-            let zero_fee_offset = Amount::ZERO;
-
-            let output = coin_select(
-                utxos.iter().map(|(utxo, _)| utxo).cloned().collect(),
-                amount,
-                zero_fee_rate,
-                zero_fee_offset,
-            )?;
-            let selection = output
-                .coins
-                .iter()
-                .map(|coin| {
-                    let original_txout = utxos
-                        .iter()
-                        .find_map(|(utxo, txout)| (utxo.outpoint == coin.outpoint).then(|| txout))
-                        .expect("same source of utxos")
-                        .clone();
-
-                    Input {
-                        txin: coin.outpoint,
-                        original_txout,
-                        blinding_key,
-                    }
-                })
-                .collect();
-
-            Ok(selection)
+            let mut wallet = current(&name, current_wallet)
+                .await
+                .map_err(Error::LoadWallet)?;
+            wallet.sync(client).await.map_err(Error::SyncWallet)?;
+            wallet.coin_selection(amount, asset, zero_fee_rate, zero_fee_offset)
         }
     };
 
-    let signer = |mut transaction| async {
-        let wallet = current(&name, current_wallet).await?;
-        let txouts = get_txouts(&wallet, |utxo, txout| Ok(Some((utxo, txout)))).await?;
-
-        let mut cache = SigHashCache::new(&transaction);
-
-        let witnesses = transaction
-            .clone()
-            .input
-            .iter()
-            .enumerate()
-            .filter_map(|(index, input)| {
-                txouts
-                    .iter()
-                    .find(|(utxo, _)| {
-                        utxo.txid == input.previous_output.txid
-                            && utxo.vout == input.previous_output.vout
-                    })
-                    .map(|(_, txout)| (index, txout))
-            })
-            .map(|(index, output)| {
-                // TODO: It is convenient to use this import, but
-                // it is weird to use an API from the swap library
-                // here. Maybe we should move it to a common
-                // place, so it can be used for different
-                // protocols
-                let script_witness = sign_with_key(
-                    SECP256K1,
-                    &mut cache,
-                    index,
-                    &wallet.secret_key,
-                    output.value,
-                );
-
-                (index, script_witness)
-            })
-            .collect::<Vec<_>>();
-
-        for (index, witness) in witnesses {
-            transaction.input[index].witness.script_witness = witness
-        }
-
-        Ok(transaction)
+    let signer = |transaction| async {
+        let mut wallet = current(&name, current_wallet)
+            .await
+            .map_err(Error::LoadWallet)?;
+        wallet.sync(client).await.map_err(Error::SyncWallet)?;
+        Ok(wallet.sign(transaction))
     };
 
     let loan_repayment_tx = borrower
@@ -167,7 +70,8 @@ pub async fn repay_loan(
         .await
         .map_err(Error::BuildTransaction)?;
 
-    let repayment_txid = broadcast(loan_repayment_tx)
+    let repayment_txid = client
+        .broadcast(loan_repayment_tx)
         .await
         .map_err(Error::SendTransaction)?;
 
@@ -223,4 +127,6 @@ pub enum Error {
     BuildTransaction(anyhow::Error),
     #[error("Failed to broadcast transaction: {0}")]
     SendTransaction(anyhow::Error),
+    #[error("Could not sync wallet: {0}")]
+    SyncWallet(anyhow::Error),
 }

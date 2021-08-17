@@ -17,7 +17,7 @@ pub async fn get_status(
     let exists = wallets.has(&name);
 
     let guard = current_wallet.lock().await;
-    let loaded = guard.as_ref().map_or(false, |w| w.name == name);
+    let loaded = guard.as_ref().map_or(false, |w| w.name() == name);
 
     Ok(WalletStatus { loaded, exists })
 }

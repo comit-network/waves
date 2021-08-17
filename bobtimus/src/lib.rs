@@ -339,11 +339,11 @@ where
         )?;
 
         let oracle_secret_key = elements::secp256k1_zkp::key::ONE_KEY;
-        let oralce_priv_key = elements::bitcoin::PrivateKey::new(
+        let oracle_priv_key = elements::bitcoin::PrivateKey::new(
             oracle_secret_key,
             elements::bitcoin::Network::Regtest,
         );
-        let oracle_pk = PublicKey::from_private_key(&self.secp, &oralce_priv_key);
+        let oracle_pk = PublicKey::from_private_key(&self.secp, &oracle_priv_key);
 
         let timelock = days_to_unix_timestamp_timelock(loan_request.term, SystemTime::now())?;
 

@@ -13,13 +13,12 @@ default = ["console_error_panic_hook"]
 [dependencies]
 aes-gcm-siv = { version = "0.9", features = ["std"] }
 anyhow = "1"
-baru = "0.3"
+async-trait = "0.1"
+baru = { git = "https://github.com/comit-network/baru.git", rev = "43b7a057ed030c555ca3599c753ba7a66a703428" }
 bip32 = { version = "0.2", features = ["secp256k1-ffi", "bip39"], default-features = false }
-coin_selection = { path = "../../coin_selection" }
 conquer-once = "0.3"
 console_error_panic_hook = { version = "0.1.6", optional = true }
 elements = { version = "0.18", features = ["serde-feature"] }
-estimate_transaction_size = { path = "../../estimate_transaction_size" }
 futures = "0.3"
 getrandom = { version = "0.2", features = ["wasm-bindgen", "js"] }
 hex = "0.4"
