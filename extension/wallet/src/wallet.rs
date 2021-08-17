@@ -605,6 +605,8 @@ mod browser_tests {
 
     #[wasm_bindgen_test]
     pub async fn new_wallet_is_automatically_loaded() {
+        set_elements_chain_in_local_storage();
+
         let current_wallet = Mutex::default();
 
         create_new("wallet-7".to_owned(), "foo".to_owned(), &current_wallet)
@@ -614,7 +616,7 @@ mod browser_tests {
             .await
             .unwrap();
 
-        assert_eq!(status.loaded, true);
+        assert!(matches!(status, WalletStatus::Loaded { .. }));
     }
 
     #[wasm_bindgen_test]
@@ -625,7 +627,7 @@ mod browser_tests {
             .await
             .unwrap();
 
-        assert_eq!(status.exists, false);
+        assert!(matches!(status, WalletStatus::None));
     }
 
     #[wasm_bindgen_test]

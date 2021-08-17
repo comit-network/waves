@@ -6,7 +6,6 @@ import {
     CreateSwapPayload,
     LoanDetails,
     LoanRequestPayload,
-    Status,
     Trade,
     Txid,
     WalletStatus,
@@ -19,16 +18,7 @@ export async function walletStatus(name: string): Promise<WalletStatus> {
     const { wallet_status } = await import("./wallet");
 
     debug("walletStatus");
-    const status = await wallet_status(name);
-
-    if (status.loaded && status.exists) {
-        let address = await getAddress(name);
-        return { status: Status.Loaded, address };
-    } else if (status.exists) {
-        return { status: Status.NotLoaded };
-    } else {
-        return { status: Status.None };
-    }
+    return wallet_status(name);
 }
 
 export async function getAddress(name: string): Promise<Address> {

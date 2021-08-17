@@ -16,14 +16,26 @@ pub async fn get_status(
         .unwrap_or_default();
     let exists = wallets.has(&name);
 
-    let guard = current_wallet.lock().await;
-    let loaded = guard.as_ref().map_or(false, |w| w.name == name);
+    if !exists {
+        return Ok(WalletStatus::None);
+    }
 
-    Ok(WalletStatus { loaded, exists })
+    let guard = current_wallet.lock().await;
+
+    let status = match &*guard {
+        Some(wallet) if wallet.name == name => WalletStatus::Loaded {
+            address: wallet.get_address(),
+        },
+        _ => WalletStatus::NotLoaded,
+    };
+
+    Ok(status)
 }
 
-#[derive(Clone, Copy, Debug, serde::Deserialize, serde::Serialize)]
-pub struct WalletStatus {
-    pub loaded: bool,
-    pub exists: bool,
+#[derive(Clone, Debug, serde::Deserialize, serde::Serialize)]
+#[serde(tag = "status")]
+pub enum WalletStatus {
+    None,
+    Loaded { address: elements::Address },
+    NotLoaded,
 }
