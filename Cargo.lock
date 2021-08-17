@@ -133,7 +133,8 @@ dependencies = [
 [[package]]
 name = "baru"
 version = "0.4.0"
-source = "git+https://github.com/comit-network/baru.git?rev=43b7a057ed030c555ca3599c753ba7a66a703428#43b7a057ed030c555ca3599c753ba7a66a703428"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b45e969d512f4797d62c9a353c673cad386bc195a46243d5d233cadc5ee46ccd"
 dependencies = [
  "aes-gcm-siv",
  "anyhow",
