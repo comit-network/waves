@@ -22,7 +22,7 @@ import {
     unlockWallet,
     walletStatus,
     withdrawAll,
-} from "../wasmProxy";
+} from "./wallet";
 
 // TODO: Is this global or do we need one per file?
 Debug.enable("*");
