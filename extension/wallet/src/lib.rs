@@ -1,12 +1,14 @@
-use std::str::FromStr;
-
+use anyhow::Result;
 use bip32::{Language, Mnemonic};
 use conquer_once::Lazy;
-use elements::{bitcoin::util::amount::Amount, Address, AddressParams, Txid};
+use elements::{
+    bitcoin::util::amount::Amount, encode::serialize_hex, Address, AddressParams, Txid,
+};
 use futures::lock::Mutex;
 use js_sys::Promise;
 use reqwest::Url;
 use rust_decimal::{prelude::ToPrimitive, Decimal, RoundingStrategy};
+use std::str::FromStr;
 use wasm_bindgen::{prelude::*, JsCast};
 use web_sys::window;
 
@@ -84,7 +86,7 @@ pub fn setup() {
     handler.forget();
 }
 
-/// Generates 24 random seed words in english  
+/// Generates 24 random seed words in english
 #[wasm_bindgen]
 pub fn bip39_seed_words() -> Result<JsValue, JsValue> {
     let mnemonic = wallet::bip39_seed_words(Language::English);
@@ -251,9 +253,9 @@ pub async fn make_loan_request(
 #[wasm_bindgen]
 pub async fn sign_loan(wallet_name: String) -> Result<JsValue, JsValue> {
     let loan_tx = map_err_from_anyhow!(wallet::sign_loan(wallet_name, &LOADED_WALLET).await)?;
-    let loan_tx = map_err_from_anyhow!(JsValue::from_serde(&Transaction::from(loan_tx)))?;
+    let loan_tx = serialize_hex(&loan_tx);
 
-    Ok(loan_tx)
+    Ok(JsValue::from_str(&loan_tx))
 }
 
 /// Create a json object which can be used to backup the loan details to the transaction
@@ -265,12 +267,12 @@ pub async fn sign_loan(wallet_name: String) -> Result<JsValue, JsValue> {
 #[wasm_bindgen]
 pub async fn create_loan_backup(
     wallet_name: String,
-    transaction: JsValue,
+    transaction: String,
 ) -> Result<JsValue, JsValue> {
     log::debug!("Received tx: {:?}", transaction);
-    let transaction: Transaction = map_err_from_anyhow!(transaction.into_serde())?;
+    let transaction = map_err_from_anyhow!(deserialize_hex::<elements::Transaction>(&transaction))?;
     let backup_details = map_err_from_anyhow!(
-        wallet::create_loan_backup(wallet_name, &LOADED_WALLET, transaction.inner.txid()).await
+        wallet::create_loan_backup(wallet_name, &LOADED_WALLET, transaction.txid()).await
     )?;
     let backup_details = map_err_from_anyhow!(JsValue::from_serde(&backup_details))?;
     Ok(backup_details)
@@ -291,12 +293,11 @@ pub async fn load_loan_backup(backup_details: JsValue) -> Result<(), JsValue> {
 #[wasm_bindgen]
 pub async fn sign_and_send_swap_transaction(
     wallet_name: String,
-    transaction: JsValue,
+    transaction: String,
 ) -> Result<JsValue, JsValue> {
-    let transaction: Transaction = map_err_from_anyhow!(transaction.into_serde())?;
+    let transaction = map_err_from_anyhow!(deserialize_hex::<elements::Transaction>(&transaction))?;
     let txid = map_err_from_anyhow!(
-        wallet::sign_and_send_swap_transaction(wallet_name, &LOADED_WALLET, transaction.into())
-            .await
+        wallet::sign_and_send_swap_transaction(wallet_name, &LOADED_WALLET, transaction).await
     )?;
     let txid = map_err_from_anyhow!(JsValue::from_serde(&txid))?;
 
@@ -310,10 +311,10 @@ pub async fn sign_and_send_swap_transaction(
 ///
 /// To do so we unblind confidential `TxOut`s whenever necessary.
 #[wasm_bindgen]
-pub async fn extract_trade(wallet_name: String, transaction: JsValue) -> Result<JsValue, JsValue> {
-    let transaction: Transaction = map_err_from_anyhow!(transaction.into_serde())?;
+pub async fn extract_trade(wallet_name: String, transaction: String) -> Result<JsValue, JsValue> {
+    let transaction = map_err_from_anyhow!(deserialize_hex::<elements::Transaction>(&transaction))?;
     let trade = map_err_from_anyhow!(
-        wallet::extract_trade(wallet_name, &LOADED_WALLET, transaction.into()).await
+        wallet::extract_trade(wallet_name, &LOADED_WALLET, transaction).await
     )?;
     let trade = map_err_from_anyhow!(JsValue::from_serde(&trade))?;
 
@@ -442,22 +443,15 @@ impl FromStr for Chain {
 #[error("Unsupported chain: {0}")]
 struct WrongChain(String);
 
-#[derive(serde::Serialize, serde::Deserialize)]
-struct Transaction {
-    #[serde(with = "baru::loan::transaction_as_string")]
-    inner: elements::Transaction,
-}
+/// Companion function to [`elements::encode::serialize_hex`] which unfortunately doesn't exist upstream.
+fn deserialize_hex<T>(string: &str) -> Result<T>
+where
+    T: elements::encode::Decodable,
+{
+    let bytes = hex::decode(string)?;
+    let t = elements::encode::deserialize::<T>(&bytes)?;
 
-impl From<elements::Transaction> for Transaction {
-    fn from(from: elements::Transaction) -> Self {
-        Self { inner: from }
-    }
-}
-
-impl From<Transaction> for elements::Transaction {
-    fn from(from: Transaction) -> Self {
-        from.inner
-    }
+    Ok(t)
 }
 
 fn parse_to_bitcoin_amount(amount: String) -> anyhow::Result<Amount> {

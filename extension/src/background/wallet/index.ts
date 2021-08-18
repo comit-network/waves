@@ -72,16 +72,14 @@ export async function signAndSendSwap(name: string, hex: string): Promise<Txid> 
 
     debug("signAndSendSwap");
 
-    const tx = { inner: hex };
-    return sign_and_send_swap_transaction(name, tx);
+    return sign_and_send_swap_transaction(name, hex);
 }
 
 export async function extractTrade(name: string, hex: string): Promise<Trade> {
     const { extract_trade } = await import("./generated");
 
     debug("extractTrade");
-    const tx = { inner: hex };
-    return extract_trade(name, tx);
+    return extract_trade(name, hex);
 }
 
 // TODO: Replace any with actual LoanResponse interface
@@ -103,8 +101,7 @@ export async function createLoanBackup(name: string, loanTx: string): Promise<Ba
     const { create_loan_backup } = await import("./generated");
 
     debug("createLoanBackup");
-    const tx = { inner: loanTx };
-    return create_loan_backup(name, tx);
+    return create_loan_backup(name, loanTx);
 }
 
 export async function loadLoanBackup(backupDetails: BackupDetails): Promise<void> {
