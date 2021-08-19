@@ -463,25 +463,3 @@ fn parse_to_bitcoin_amount(amount: String) -> anyhow::Result<Amount> {
     let amount = Amount::from_btc(rounded)?;
     Ok(amount)
 }
-
-#[derive(Debug, thiserror::Error)]
-pub enum Error {
-    #[error("Storage error: {0}")]
-    Storage(anyhow::Error),
-    #[error("Failed to save item to storage: {0}")]
-    Save(anyhow::Error),
-    #[error("Failed to load item from storage: {0}")]
-    Load(anyhow::Error),
-    #[error("Loaded empty borrower state")]
-    EmptyBorrowerState,
-    #[error("Loan details were not found")]
-    LoanNotFound,
-    #[error("Serialization failed: {0}")]
-    Serialize(serde_json::Error),
-    #[error("Deserialization failed: {0}")]
-    Deserialize(serde_json::Error),
-    #[error("Loaded empty borrower state")]
-    EmptyState,
-    #[error("Failed to sign transaction: {0}")]
-    Sign(anyhow::Error),
-}

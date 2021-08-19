@@ -1,18 +1,18 @@
+use crate::{
+    storage::Storage,
+    wallet::{current, get_txouts, LoanDetails},
+    Wallet,
+};
+use anyhow::{Context, Result};
 use baru::{loan::Borrower1, swap::sign_with_key};
 use elements::{secp256k1_zkp::SECP256K1, sighash::SigHashCache, Transaction};
 use futures::lock::Mutex;
 
-use crate::{
-    storage::Storage,
-    wallet::{current, get_txouts, LoanDetails},
-    Error, Wallet,
-};
-
 pub(crate) async fn sign_loan(
     name: String,
     current_wallet: &Mutex<Option<Wallet>>,
-) -> Result<Transaction, Error> {
-    let storage = Storage::local_storage().map_err(Error::Storage)?;
+) -> Result<Transaction> {
+    let storage = Storage::local_storage()?;
     // load temporary loan_borrower state. When the frontend _asks_ the extension to
     // sign a loan, the information gets stored in the background script first.
     // When a request to bobtimas was made to actually take the loan,
@@ -31,13 +31,12 @@ pub(crate) async fn sign_loan(
     Ok(loan_transaction)
 }
 
-fn load_borrower_state(storage: &Storage) -> Result<(Borrower1, LoanDetails), Error> {
+fn load_borrower_state(storage: &Storage) -> Result<(Borrower1, LoanDetails)> {
     let borrower = storage
-        .get_item::<String>("borrower_state")
-        .map_err(Error::Load)?
-        .ok_or(Error::EmptyBorrowerState)?;
-    let (borrower, loan_details) =
-        serde_json::from_str::<(Borrower1, LoanDetails)>(&borrower).map_err(Error::Deserialize)?;
+        .get_item::<String>("borrower_state")?
+        .context("No borrower state")?;
+    let (borrower, loan_details) = serde_json::from_str::<(Borrower1, LoanDetails)>(&borrower)
+        .context("Failed to deserialize borrower state")?;
     Ok((borrower, loan_details))
 }
 
@@ -45,7 +44,7 @@ async fn sign_transaction(
     name: &str,
     current_wallet: &Mutex<Option<Wallet>>,
     borrower: &Borrower1,
-) -> Result<Transaction, Error> {
+) -> Result<Transaction> {
     let loan_transaction = borrower
         .sign(|mut transaction| async {
             let wallet = current(name, current_wallet).await?;
@@ -91,7 +90,8 @@ async fn sign_transaction(
             Ok(transaction)
         })
         .await
-        .map_err(Error::Sign)?;
+        .context("Failed to sign transaction")?;
+
     Ok(loan_transaction)
 }
 
@@ -99,40 +99,31 @@ pub fn update_open_loans(
     storage: Storage,
     borrower: &Borrower1,
     loan_details: LoanDetails,
-) -> Result<(), Error> {
+) -> Result<()> {
     let open_loans_key = "open_loans";
-    let mut open_loans = match storage
-        .get_item::<String>(open_loans_key)
-        .map_err(Error::Load)?
-    {
-        Some(open_loans) => serde_json::from_str(&open_loans).map_err(Error::Deserialize)?,
+    let mut open_loans = match storage.get_item::<String>(open_loans_key)? {
+        Some(open_loans) => {
+            serde_json::from_str(&open_loans).context("Failed to deserialize open loans")?
+        }
         None => Vec::<LoanDetails>::new(),
     };
 
     let txid = loan_details.txid;
     if open_loans.iter().all(|item| item.txid != txid) {
         open_loans.push(loan_details);
-        storage
-            .set_item(
-                open_loans_key,
-                serde_json::to_string(&open_loans).map_err(Error::Serialize)?,
-            )
-            .map_err(Error::Save)?;
+        storage.set_item(
+            open_loans_key,
+            serde_json::to_string(&open_loans).context("Failed to serialize open loans")?,
+        )?;
         log::debug!("Stored new open loan: {} ", txid);
     }
 
     let loan_state_key = &format!("loan_state:{}", txid);
-    if storage
-        .get_item::<String>(loan_state_key)
-        .map_err(Error::Load)?
-        .is_none()
-    {
-        storage
-            .set_item(
-                loan_state_key,
-                serde_json::to_string(&borrower).map_err(Error::Serialize)?,
-            )
-            .map_err(Error::Save)?;
+    if storage.get_item::<String>(loan_state_key)?.is_none() {
+        storage.set_item(
+            loan_state_key,
+            serde_json::to_string(&borrower).context("Failed to serialize borrower state")?,
+        )?;
         log::debug!("Stored new loan state: {} ", txid);
     }
 

@@ -48,11 +48,9 @@ pub use get_status::{get_status, WalletStatus};
 pub use get_transaction_history::get_transaction_history;
 pub use load_existing::load_existing;
 pub use loan_backup::{create_loan_backup, load_loan_backup, BackupDetails};
-pub use make_create_swap_payload::{
-    make_buy_create_swap_payload, make_sell_create_swap_payload, Error as MakePayloadError,
-};
-pub use make_loan_request::{make_loan_request, Error as MakeLoanRequestError};
-pub use repay_loan::{repay_loan, Error as RepayLoanError};
+pub use make_create_swap_payload::{make_buy_create_swap_payload, make_sell_create_swap_payload};
+pub use make_loan_request::make_loan_request;
+pub use repay_loan::repay_loan;
 pub(crate) use sign_and_send_swap_transaction::sign_and_send_swap_transaction;
 pub(crate) use sign_loan::sign_loan;
 use std::str::FromStr;
