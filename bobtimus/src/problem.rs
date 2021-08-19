@@ -1,3 +1,4 @@
+use crate::loan::LoanValidationError;
 use baru::swap::{ChangeAmountTooSmall, InputAmountTooSmall, InvalidAssetTypes};
 use http_api_problem::HttpApiProblem;
 use std::error::Error;
@@ -24,13 +25,17 @@ pub fn from_anyhow(e: anyhow::Error) -> HttpApiProblem {
             HttpApiProblem::new("Change amount too small to cover fee.")
                 .set_status(StatusCode::BAD_REQUEST)
         }
+        e if e.is::<LoanValidationError>() => HttpApiProblem::new("Loan Validation Error")
+            .set_status(StatusCode::BAD_REQUEST)
+            .set_detail(e.to_string()),
         e => {
             tracing::error!("unhandled error: {:#}", e);
 
             // early return in this branch to avoid double logging the error
             return HttpApiProblem::with_title_and_type_from_status(
                 StatusCode::INTERNAL_SERVER_ERROR,
-            );
+            )
+            .set_detail(e.to_string());
         }
     };
 

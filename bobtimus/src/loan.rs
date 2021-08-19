@@ -313,7 +313,7 @@ fn calculate_ltv(
 }
 
 #[derive(Debug, PartialEq, thiserror::Error)]
-enum LoanValidationError {
+pub enum LoanValidationError {
     #[error(
         "The given price {request_price} is not acceptable with current price {current_price}"
     )]

@@ -3,6 +3,21 @@ import React, { ReactElement } from "react";
 import { SSEProvider } from "react-hooks-sse";
 import { CreateSwapPayload, LoanRequestPayload, OutPoint } from "./waves-provider/wavesProvider";
 
+export class LoanError extends Error {
+    title: string;
+    description?: string;
+
+    constructor(title: string, description?: string) {
+        super(title);
+        this.title = title;
+        if (description) {
+            this.description = description;
+        }
+
+        Object.setPrototypeOf(this, LoanError.prototype);
+    }
+}
+
 const debug = Debug("bobtimus");
 const BTC_SATS = 100000000;
 
@@ -82,7 +97,7 @@ export async function getLoanOffer(): Promise<LoanOffer> {
 
     if (res.status !== 200) {
         debug("failed to fetch loan offer");
-        throw new Error("failed to fetch loan offer");
+        throw new LoanError("failed to fetch loan offer");
     }
 
     return await res.json();
@@ -117,9 +132,14 @@ export async function postLoanRequest(
         body: JSON.stringify(loanRequest),
     });
 
-    if (res.status !== 200) {
+    if (res.status === 400) {
+        const resp = await res.json();
+        debug("received loan validation error: " + resp.title + resp.detail);
+        throw new LoanError(resp.title, resp.detail);
+    } else if (res.status !== 200) {
         debug("failed to create new loan");
-        throw new Error("failed to create new loan");
+        const resp = await res.json();
+        throw new LoanError("Failed to create new loan", resp.detail);
     }
 
     return await res.json();
@@ -135,9 +155,14 @@ export async function postLoanFinalization(txHex: string) {
         body: JSON.stringify({ tx_hex: txHex }),
     });
 
-    if (res.status !== 200) {
+    if (res.status === 400) {
+        const resp = await res.json();
+        debug("received loan validation error: " + resp.title + resp.detail);
+        throw new LoanError(resp.title, resp.detail);
+    } else if (res.status !== 200) {
         debug("failed to create new loan");
-        throw new Error("failed to create new loan");
+        const resp = await res.json();
+        throw new LoanError("Failed to create new loan", resp.detail);
     }
 
     return await res.json();
