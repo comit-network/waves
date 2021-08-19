@@ -51,45 +51,6 @@ pub async fn fetch_utxos(address: &Address) -> Result<Vec<Utxo>> {
     Ok(utxos)
 }
 
-/// Fetch transaction history for the specified address.
-///
-/// Returns up to 50 mempool transactions plus the first 25 confirmed
-/// transactions. See
-/// https://github.com/blockstream/esplora/blob/master/API.md#get-addressaddresstxs
-/// for more information.
-pub async fn fetch_transaction_history(address: &Address) -> Result<Vec<Txid>> {
-    let esplora_url = {
-        let guard = ESPLORA_API_URL.lock().expect_throw("can get lock");
-        guard.clone()
-    };
-    let path = format!("address/{}/txs", address);
-    let url = esplora_url.join(path.as_str())?;
-    let response = reqwest::get(url.clone())
-        .await
-        .context("failed to fetch transaction history")?;
-
-    if !response.status().is_success() {
-        let error_body = response.text().await?;
-        return Err(anyhow!(
-            "failed to fetch transaction history, esplora returned '{}' from '{}'",
-            error_body,
-            url
-        ));
-    }
-
-    #[derive(serde::Deserialize)]
-    struct HistoryElement {
-        txid: Txid,
-    }
-
-    let response = response
-        .json::<Vec<HistoryElement>>()
-        .await
-        .context("failed to deserialize response")?;
-
-    Ok(response.iter().map(|elem| elem.txid).collect())
-}
-
 /// Fetches a transaction.
 ///
 /// This function makes use of the browsers local storage to avoid spamming the underlying source.

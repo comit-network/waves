@@ -2,12 +2,12 @@ import { Box, HStack, Image, Text } from "@chakra-ui/react";
 import { faPoo } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import React from "react";
-import { BalanceEntry, BalanceUpdate, BTC_TICKER, USDT_TICKER } from "../models";
+import { BalanceEntry, BTC_TICKER, USDT_TICKER } from "../background/api";
 import Btc from "./bitcoin.svg";
 import Usdt from "./tether.svg";
 
 interface BalancesProps {
-    balanceUpdates: BalanceUpdate;
+    balanceUpdates: BalanceEntry[];
 }
 
 function balanceEntry(balance: BalanceEntry) {

@@ -1,31 +1,30 @@
 import { Box, Button, Heading } from "@chakra-ui/react";
 import React from "react";
 import { useAsync } from "react-async";
-import { rejectSwap, signAndSendSwap } from "../background-proxy";
-import { SwapToSign } from "../models";
+import { backgroundPage, Trade } from "../background/api";
 import YouSwapItem from "./SwapItem";
 
 interface ConfirmSwapProps {
     onCancel: () => void;
     onSuccess: () => void;
-    swapToSign: SwapToSign;
+    trade: Trade;
 }
 
 export default function ConfirmSwap(
-    { onCancel, onSuccess, swapToSign }: ConfirmSwapProps,
+    { onCancel, onSuccess, trade }: ConfirmSwapProps,
 ) {
     let { isPending, run } = useAsync({
         deferFn: async () => {
-            await signAndSendSwap(swapToSign.txHex);
+            const page = await backgroundPage();
+            await page.approveSwap();
+
             onSuccess();
         },
     });
 
-    let { decoded } = swapToSign;
-
     return (<Box>
         <form
-            onSubmit={async e => {
+            onSubmit={e => {
                 e.preventDefault();
                 run();
             }}
@@ -33,13 +32,13 @@ export default function ConfirmSwap(
             <Heading>Confirm Swap</Heading>
             <Box>
                 <YouSwapItem
-                    tradeSide={decoded.sell}
+                    tradeSide={trade.sell}
                     action={"send"}
                 />
             </Box>
             <Box>
                 <YouSwapItem
-                    tradeSide={decoded.buy}
+                    tradeSide={trade.buy}
                     action={"receive"}
                 />
             </Box>
@@ -48,7 +47,9 @@ export default function ConfirmSwap(
                 variant="secondary"
                 mr={3}
                 onClick={async () => {
-                    await rejectSwap();
+                    const page = await backgroundPage();
+                    await page.rejectSwap();
+
                     onCancel();
                 }}
             >

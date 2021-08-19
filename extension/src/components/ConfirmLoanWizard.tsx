@@ -19,8 +19,7 @@ import React, { useState } from "react";
 import { useAsync } from "react-async";
 import { FiCheck, FiClipboard, FiExternalLink } from "react-icons/all";
 import { browser } from "webextension-polyfill-ts";
-import { confirmLoan, createLoanBackup, rejectLoan, signLoan } from "../background-proxy";
-import { LoanToSign, USDT_TICKER } from "../models";
+import { backgroundPage, LoanToSign, USDT_TICKER } from "../background/api";
 import YouSwapItem from "./SwapItem";
 import Usdt from "./tether.svg";
 
@@ -38,25 +37,31 @@ const ConfirmLoanWizard = ({ onCancel, onSuccess, loanToSign }: ConfirmLoanWizar
 
     let { isPending: isSigning, run: sign } = useAsync({
         deferFn: async () => {
-            let signedTransaction = await signLoan();
+            const page = await backgroundPage();
+            let signedTransaction = await page.approveLoan();
             setSignedTransaction(signedTransaction);
+
             nextStep();
         },
     });
 
     const { isPending: isDownloading, run: downloadLoanBackup } = useAsync({
         deferFn: async () => {
-            const loanBackup = await createLoanBackup(signedTransaction);
+            const page = await backgroundPage();
+            const loanBackup = await page.createLoanBackup(signedTransaction);
             const file = new Blob([JSON.stringify(loanBackup)], { type: "text/json" });
             const url = URL.createObjectURL(file);
             await browser.downloads.download({ url, filename: "loan-backup.json" });
+
             nextStep();
         },
     });
 
     const { isPending: isPublishing, run: publish } = useAsync({
         deferFn: async () => {
-            await confirmLoan(signedTransaction);
+            const page = await backgroundPage();
+            await page.publishLoan(signedTransaction);
+
             onSuccess();
         },
     });
@@ -80,7 +85,9 @@ const ConfirmLoanWizard = ({ onCancel, onSuccess, loanToSign }: ConfirmLoanWizar
                                 variant="secondary"
                                 mr={3}
                                 onClick={async () => {
-                                    await rejectLoan();
+                                    const page = await backgroundPage();
+                                    await page.rejectLoan();
+
                                     onCancel();
                                 }}
                             >

@@ -20,7 +20,7 @@ import Debug from "debug";
 import * as React from "react";
 import { ChangeEvent, useState } from "react";
 import { useAsync } from "react-async";
-import { bip39SeedWords, createWalletFromBip39 } from "../background-proxy";
+import { backgroundPage } from "../background/api";
 
 Debug.enable("*");
 const debug = Debug("unlock-wallet");
@@ -41,14 +41,18 @@ function CreateWallet({ onUnlock }: CreateWalletProps) {
 
     let { run: createWallet, isPending: isCreatingWallet, isRejected: createWalletIsRejected } = useAsync({
         deferFn: async () => {
-            await createWalletFromBip39(backedUpSeedWords, password);
+            const page = await backgroundPage();
+            await page.createNewWallet(backedUpSeedWords, password);
+
             onUnlock();
         },
         onReject: (e) => debug("Failed to create wallet: %s", e),
     });
     let { run: newSeedWords, isPending: isGeneratingSeedWords, isRejected: generatingSeedWordsFailed } = useAsync({
         deferFn: async () => {
-            let words = await bip39SeedWords();
+            const page = await backgroundPage();
+            const words = await page.generateBip39SeedWords();
+
             setSeedWords(words);
         },
         onReject: (e) => debug("Failed to generate seed words: %s", e),

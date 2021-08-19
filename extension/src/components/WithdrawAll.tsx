@@ -2,14 +2,17 @@ import { Button, FormControl, FormErrorMessage, HStack, Input, Text, VStack } fr
 import * as React from "react";
 import { ChangeEvent } from "react";
 import { useAsync } from "react-async";
-import { withdrawAll } from "../background-proxy";
+import { backgroundPage } from "../background/api";
 
 export default function WithdrawAll() {
     const [withdrawAddress, setWithdrawAddress] = React.useState("");
     const handleWithdrawAddress = (event: ChangeEvent<HTMLInputElement>) => setWithdrawAddress(event.target.value);
 
     let { isLoading: isWithdrawing, isRejected: withdrawFailed, run: withdraw } = useAsync({
-        deferFn: ([address]) => withdrawAll(address),
+        deferFn: async ([address]) => {
+            let page = await backgroundPage();
+            return page.withdrawAll(address);
+        },
         onReject: (error) => console.log("failed to withdraw funds: %s", error),
     });
 

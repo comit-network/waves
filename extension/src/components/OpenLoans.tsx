@@ -15,8 +15,7 @@ import moment from "moment";
 import * as React from "react";
 import { useState } from "react";
 import { useAsync } from "react-async";
-import { repayLoan } from "../background-proxy";
-import { LoanDetails } from "../models";
+import { backgroundPage, LoanDetails } from "../background/api";
 import Btc from "./bitcoin.svg";
 import Usdt from "./tether.svg";
 
@@ -50,7 +49,9 @@ interface OpenLoanProps {
 function OpenLoan({ loanDetails, onRepayed, index }: OpenLoanProps) {
     let { isLoading: isRepaying, isRejected: repayFailed, run: repay } = useAsync({
         deferFn: async () => {
-            await repayLoan(loanDetails.txid);
+            const page = await backgroundPage();
+            await page.repayLoan(loanDetails.txid);
+
             onRepayed();
         },
         onReject: (e) => error("Failed to repay loan %s: %s", loanDetails.txid, e),

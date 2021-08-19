@@ -45,7 +45,6 @@ pub use extract_trade::{extract_trade, Trade};
 pub use get_address::get_address;
 pub use get_balances::get_balances;
 pub use get_status::{get_status, WalletStatus};
-pub use get_transaction_history::get_transaction_history;
 pub use load_existing::load_existing;
 pub use loan_backup::{create_loan_backup, load_loan_backup, BackupDetails};
 pub use make_create_swap_payload::{make_buy_create_swap_payload, make_sell_create_swap_payload};
@@ -54,7 +53,6 @@ pub use repay_loan::repay_loan;
 pub(crate) use sign_and_send_swap_transaction::sign_and_send_swap_transaction;
 pub(crate) use sign_loan::sign_loan;
 use std::str::FromStr;
-pub use unload_current::unload_current;
 pub use withdraw_everything_to::withdraw_everything_to;
 
 mod create_new;
@@ -63,7 +61,6 @@ mod extract_trade;
 mod get_address;
 mod get_balances;
 mod get_status;
-mod get_transaction_history;
 mod load_existing;
 mod loan_backup;
 mod make_create_swap_payload;
@@ -71,7 +68,6 @@ mod make_loan_request;
 mod repay_loan;
 mod sign_and_send_swap_transaction;
 mod sign_loan;
-mod unload_current;
 mod withdraw_everything_to;
 
 async fn get_txouts<T, FM: Fn(Utxo, TxOut) -> Result<Option<T>> + Copy>(
@@ -472,6 +468,17 @@ mod browser_tests {
     use bip32::{Language, Mnemonic};
 
     wasm_bindgen_test::wasm_bindgen_test_configure!(run_in_browser);
+
+    async fn unload_current(current_wallet: &Mutex<Option<Wallet>>) {
+        let mut guard = current_wallet.lock().await;
+
+        if guard.is_none() {
+            log::debug!("Wallet is already unloaded");
+            return;
+        }
+
+        *guard = None;
+    }
 
     async fn create_new(
         name: String,

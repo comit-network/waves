@@ -3,9 +3,8 @@ import { Box, Center, ChakraProvider, Flex, Heading, IconButton, Spacer } from "
 import { faBug } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import * as React from "react";
-import { useAsync } from "react-async";
 import { browser } from "webextension-polyfill-ts";
-import { getBalances, getLoanToSign, getOpenLoans, getSwapToSign, getWalletStatus } from "./background-proxy";
+import { Status } from "./background/api";
 import AddressQr from "./components/AddressQr";
 import WalletBalances from "./components/Balances";
 import ConfirmLoanWizard from "./components/ConfirmLoanWizard";
@@ -14,21 +13,15 @@ import CreateWallet from "./components/CreateWallet";
 import OpenLoans from "./components/OpenLoans";
 import UnlockWallet from "./components/UnlockWallet";
 import WithdrawAll from "./components/WithdrawAll";
-import { Status } from "./models";
 import theme from "./theme";
+import { useBalances, useLoanToSign, useOpenLoans, useSwapToSign, useWalletStatus } from "./walletHooks";
 
 const App = () => {
-    const walletStatusHook = useAsync({ promiseFn: getWalletStatus });
-    const walletBalanceHook = useAsync({ promiseFn: getBalances });
-    const swapToSignHook = useAsync({ promiseFn: getSwapToSign });
-    const loanToSignHook = useAsync({ promiseFn: getLoanToSign });
-    const openLoansHook = useAsync({ promiseFn: getOpenLoans });
-
-    let { data: walletStatus, reload: reloadWalletStatus, error } = walletStatusHook;
-    let { data: balanceUpdates, reload: reloadWalletBalances } = walletBalanceHook;
-    let { data: swapToSign, reload: reloadSwapToSign } = swapToSignHook;
-    let { data: loanToSign, reload: reloadLoanToSign } = loanToSignHook;
-    let { data: openLoans, reload: reloadOpenLoans } = openLoansHook;
+    const { data: walletStatus, reload: reloadWalletStatus, error } = useWalletStatus();
+    const { data: balanceUpdates, reload: reloadWalletBalances } = useBalances();
+    const { data: swapToSign, reload: reloadSwapToSign } = useSwapToSign();
+    const { data: loanToSign, reload: reloadLoanToSign } = useLoanToSign();
+    const { data: openLoans, reload: reloadOpenLoans } = useOpenLoans();
 
     const refreshAll = () => {
         reloadWalletBalances();
@@ -71,7 +64,7 @@ const App = () => {
                         {swapToSign && <ConfirmSwap
                             onCancel={refreshAll}
                             onSuccess={refreshAll}
-                            swapToSign={swapToSign!}
+                            trade={swapToSign!}
                         />}
                         {signLoan
                             && <ConfirmLoanWizard
@@ -97,7 +90,7 @@ const App = () => {
                 {!walletStatus && error
                     && <Center>
                         Something is wrong. Can you catch the <FontAwesomeIcon size="7x" icon={faBug} />?
-                        {error}
+                        {error.toString()}
                     </Center>}
             </Box>
         </ChakraProvider>

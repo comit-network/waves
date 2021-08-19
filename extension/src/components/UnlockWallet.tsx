@@ -3,7 +3,7 @@ import Debug from "debug";
 import * as React from "react";
 import { ChangeEvent, useState } from "react";
 import { useAsync } from "react-async";
-import { unlockWallet } from "../background-proxy";
+import { backgroundPage } from "../background/api";
 
 Debug.enable("*");
 const debug = Debug("unlock-wallet");
@@ -20,7 +20,9 @@ function UnlockWallet({ onUnlock }: UnlockWalletProps) {
 
     let { run, isPending, isRejected } = useAsync({
         deferFn: async () => {
-            await unlockWallet(password);
+            const page = await backgroundPage();
+            await page.unlockWallet(password);
+
             onUnlock();
         },
         onReject: (e) => debug("Failed to unlock wallet: %s", e),
