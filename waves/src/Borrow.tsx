@@ -4,7 +4,7 @@ import React, { Dispatch } from "react";
 import { AsyncState, useAsync } from "react-async";
 import { useHistory } from "react-router-dom";
 import { Action, BorrowState, Rate } from "./App";
-import { getLoanOffer, postLoanFinalization, postLoanRequest } from "./Bobtimus";
+import { getLoanOffer, LoanError, postLoanFinalization, postLoanRequest } from "./Bobtimus";
 import NumberInput from "./components/NumberInput";
 import RateInfo from "./components/RateInfo";
 import WavesProvider from "./waves-provider";
@@ -89,15 +89,27 @@ function Borrow({ dispatch, state, rate, wavesProvider, walletStatusAsyncState }
                 // TODO: Add different page for loaned?
                 history.push(`/trade/swapped/${txid}`);
             } catch (e) {
-                const description = typeof e === "string" ? e : JSON.stringify(e);
+                if (e instanceof LoanError) {
+                    const description = e.description ? e.description : "";
 
-                toast({
-                    title: "Error",
-                    description,
-                    status: "error",
-                    duration: 5000,
-                    isClosable: true,
-                });
+                    toast({
+                        title: e.title,
+                        description,
+                        status: "error",
+                        duration: 10000,
+                        isClosable: true,
+                    });
+                } else {
+                    const description = typeof e === "string" ? e : JSON.stringify(e);
+
+                    toast({
+                        title: "Error",
+                        description,
+                        status: "error",
+                        duration: 5000,
+                        isClosable: true,
+                    });
+                }
             }
         },
     });
