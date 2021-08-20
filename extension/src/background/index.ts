@@ -1,267 +1,146 @@
-import Debug from "debug";
+import debug from "debug";
 import { browser } from "webextension-polyfill-ts";
-import WavesProvider from "../in-page";
-import { BackupDetails, LoanDetails, LoanToSign, SwapToSign, Txid } from "../models";
-import {
-    bip39SeedWords,
-    createLoanBackup,
-    createNewBip39Wallet,
-    extractLoan,
-    extractTrade,
-    getAddress,
-    getBalances,
-    getOpenLoans,
-    getPastTransactions,
-    loadLoanBackup,
-    makeBuyCreateSwapPayload,
-    makeLoanRequestPayload,
-    makeSellCreateSwapPayload,
-    repayLoan,
-    signAndSendSwap,
-    signLoan,
-    unlockWallet,
-    walletStatus,
-    withdrawAll,
-} from "../wasmProxy";
+import { ParametersObject } from "../type-utils";
+import { BackgroundWindow, BackgroundWindowTypescript, EventListenersTypescript, RpcMessage, RpcResponse } from "./api";
 
-// TODO: Is this global or do we need one per file?
-Debug.enable("*");
-const debug = Debug("background");
+// Define the global fields on our background window
+declare let window: BackgroundWindow;
 
-// First thing we load settings
+const log = debug("background-script");
+
 loadSettings();
+initializeEventListeners();
+initializeWindowExtensions();
+initializeWasmModule();
 
-debug("Hello world from background script");
+function loadSettings() {
+    ensureVarSet("ESPLORA_API_URL");
+    ensureVarSet("CHAIN");
+    ensureVarSet("LBTC_ASSET_ID");
+    ensureVarSet("LUSDT_ASSET_ID");
 
-const walletName = "demo";
-
-var swapToSign: SwapToSign | null;
-var resolveSwapSignRequest: ((txid: Txid) => void) | null;
-var rejectSwapSignRequest: ((e: any) => void) | null;
-
-var loanToSign: LoanToSign | null;
-var resolveLoanSignRequest: ((txid: Txid) => void) | null;
-var rejectLoanSignRequest: ((e: any) => void) | null;
-
-export interface RpcMessage<T extends keyof WavesProvider> {
-    type: "rpc-message";
-    method: T;
-    args: Parameters<WavesProvider[T]>;
+    log("Settings loaded");
 }
 
-/*
- * Defines the public interface of the background script.
- *
- * To ensure maximum benefit from the type checker, other components like the content script should only use this function to send messages.
- */
-export function invokeBackgroundScriptRpc(message: Omit<RpcMessage<keyof WavesProvider>, "type">): Promise<any> {
-    return browser.runtime.sendMessage({
-        type: "rpc-message",
-        ...message,
+function initializeEventListeners() {
+    addRpcMessageListener("requestSignSwap", ({ hex }) => {
+        return new Promise(resolve => {
+            window.extractTrade(hex)
+                .then(decoded => {
+                    window.swapToSign = { txHex: hex, decoded };
+                    resolveSwapSignRequest = resolve;
+
+                    return updateBadge();
+                })
+                .catch(e => {
+                    resolve({ Err: e });
+                    return cleanupPendingSwap();
+                });
+        });
     });
+
+    // @ts-ignore: Why does this not work?
+    addRpcMessageListener("requestSignLoan", ({ loanRequest }) => {
+        return new Promise(resolve => {
+            void window.extractLoan(loanRequest)
+                .then(details => {
+                    window.loanToSign = { details };
+                    resolveLoanSignRequest = resolve;
+
+                    return updateBadge();
+                })
+                .catch(e => {
+                    resolve({ Err: e });
+                    return cleanupPendingLoan();
+                });
+        });
+    });
+
+    log("Typescript event listeners initialized");
 }
 
-addRpcMessageListener("walletStatus", () => walletStatus(walletName));
-addRpcMessageListener("getBuyCreateSwapPayload", ([usdt]) => makeBuyCreateSwapPayload(walletName, usdt));
-addRpcMessageListener("getSellCreateSwapPayload", ([btc]) => makeSellCreateSwapPayload(walletName, btc));
-addRpcMessageListener("getNewAddress", () => getAddress(walletName));
-addRpcMessageListener(
-    "makeLoanRequestPayload",
-    ([collateral, feerate]) => makeLoanRequestPayload(walletName, collateral, feerate),
-);
-
-addRpcMessageListener("signAndSendSwap", ([txHex]) => {
-    return new Promise((resolve, reject) => {
-        extractTrade(walletName, txHex)
-            .then(decoded => {
-                swapToSign = { txHex, decoded };
-                resolveSwapSignRequest = resolve;
-                rejectSwapSignRequest = reject;
-
-                return updateBadge();
-            })
-            .catch(e => {
-                reject(e);
-                return cleanupPendingSwap();
-            });
-    });
-});
-addRpcMessageListener("signLoan", ([loanRequest]) => {
-    return new Promise((resolve, reject) => {
-        extractLoan(walletName, loanRequest)
-            .then(details => {
-                loanToSign = { details };
-                resolveLoanSignRequest = resolve;
-                rejectLoanSignRequest = reject;
-
-                return updateBadge();
-            })
-            .catch(e => {
-                reject(e);
-                return cleanupPendingLoan();
-            });
-    });
-});
-
-function addRpcMessageListener<T extends keyof WavesProvider>(
+function addRpcMessageListener<T extends keyof EventListenersTypescript>(
     method: T,
-    callback: (args: Parameters<WavesProvider[T]>) => ReturnType<WavesProvider[T]>,
+    callback: (args: ParametersObject<EventListenersTypescript[T]>) => Promise<RpcResponse<T>>,
 ) {
     browser.runtime.onMessage.addListener((msg: RpcMessage<T>) => {
         if (msg.type !== "rpc-message" || msg.method !== method) {
             return;
         }
 
-        debug(`Received: %o`, msg);
+        log(`Received: %o`, msg);
 
         return callback(msg.args);
     });
 }
 
-// @ts-ignore
-window.getWalletStatus = async () => {
-    return walletStatus(walletName);
-};
-// @ts-ignore
-window.unlockWallet = async (password: string) => {
-    return unlockWallet(walletName, password);
-};
-// @ts-ignore
-window.getBalances = async () => {
-    return getBalances(walletName);
-};
-// @ts-ignore
-window.getAddress = async () => {
-    return getAddress(walletName);
-};
-// @ts-ignore
-window.getSwapToSign = async () => {
-    return swapToSign;
-};
-// @ts-ignore
-window.signAndSendSwap = (txHex: string) => {
-    if (!resolveSwapSignRequest || !rejectSwapSignRequest) {
-        throw new Error("No pending promise functions for swap sign request");
-    }
+function initializeWindowExtensions() {
+    const windowExt: BackgroundWindowTypescript = {
+        swapToSign: null,
+        loanToSign: null,
+        approveSwap: async () => {
+            if (!resolveSwapSignRequest || !window.swapToSign) {
+                throw new Error("No pending promise function for swap sign request");
+            }
 
-    return signAndSendSwap(walletName, txHex)
-        .then(resolveSwapSignRequest)
-        .catch(rejectSwapSignRequest)
-        .then(cleanupPendingSwap);
-};
-// @ts-ignore
-window.rejectSwap = () => {
-    if (!resolveSwapSignRequest || !rejectSwapSignRequest) {
-        throw new Error("No pending promise functions for swap sign request");
-    }
+            try {
+                const txid = await window.signAndSendSwap(window.swapToSign.txHex);
+                resolveSwapSignRequest({ Ok: txid });
+            } catch (e) {
+                resolveSwapSignRequest({ Err: e });
+            } finally {
+                await cleanupPendingSwap();
+            }
+        },
+        rejectSwap: () => {
+            if (!resolveSwapSignRequest) {
+                throw new Error("No pending promise function for swap sign request");
+            }
 
-    rejectSwapSignRequest("User declined signing request");
-    return cleanupPendingSwap();
-};
-// @ts-ignore
-window.getLoanToSign = () => {
-    return loanToSign;
-};
-// @ts-ignore
-window.signLoan = async () => {
-    if (!resolveLoanSignRequest || !rejectLoanSignRequest) {
-        throw new Error("No pending promise functions for loan sign request");
-    }
+            resolveSwapSignRequest({ Err: "User declined signing request" });
+            return cleanupPendingSwap();
+        },
+        approveLoan: () => {
+            if (!resolveLoanSignRequest || !window.loanToSign) {
+                throw new Error("No pending promise function for loan sign request");
+            }
 
-    // TODO: Currently, we assume that whatever the user has verified
-    // on the pop-up matches what is stored in the extension's
-    // storage. It would be better to send around the swap ID to check
-    // that the wallet is signing the same transaction the user has authorised
+            return window.signLoan();
+        },
+        rejectLoan: () => {
+            if (!resolveLoanSignRequest) {
+                throw new Error("No pending promise function for loan sign request");
+            }
 
-    // if we receive an error, we respond directly, else we return the details
-    return await signLoan(walletName).catch(rejectLoanSignRequest);
-};
+            resolveLoanSignRequest({ Err: "User declined signing request" });
+            return cleanupPendingLoan();
+        },
+        publishLoan: async (tx: string) => {
+            if (!resolveLoanSignRequest) {
+                throw new Error("No pending promise function for loan sign request");
+            }
+            // once sent to the page, we assume the business is done.
+            // TODO: a feedback loop is required where the wallet gets told if bobtimus successfully published the transaction
+            resolveLoanSignRequest({ Ok: tx });
+            await cleanupPendingLoan();
+        },
+    };
 
-// @ts-ignore
-window.confirmLoan = async (payload: string) => {
-    if (!resolveLoanSignRequest || !rejectLoanSignRequest) {
-        throw new Error("No pending promise functions for loan sign request");
-    }
-    // once sent to the page, we assume the business is done.
-    // TODO: a feedback loop is required where the wallet gets told if bobtimus successfully published the transaction
-    resolveLoanSignRequest(payload);
-    await cleanupPendingLoan();
-};
+    Object.assign(window, windowExt);
 
-// @ts-ignore
-window.createLoanBackup = async (loanTx: string) => {
-    return createLoanBackup(walletName, loanTx);
-};
-
-// @ts-ignore
-window.loadLoanBackup = async (backupDetails: BackupDetails) => {
-    return loadLoanBackup(backupDetails);
-};
-
-// @ts-ignore
-window.rejectLoan = () => {
-    if (!resolveLoanSignRequest || !rejectLoanSignRequest) {
-        throw new Error("No pending promise functions for loan sign request");
-    }
-
-    rejectLoanSignRequest("User declined signing request");
-    return cleanupPendingLoan();
-};
-// @ts-ignore
-window.withdrawAll = async (address: string) => {
-    return withdrawAll(walletName, address);
-};
-// @ts-ignore
-window.getOpenLoans = async (): LoanDetails[] => {
-    return getOpenLoans();
-};
-// @ts-ignore
-window.repayLoan = async (txid: string): void => {
-    return repayLoan(walletName, txid);
-};
-// @ts-ignore
-window.getPastTransactions = async (): Txid[] => {
-    return getPastTransactions(walletName);
-};
-// @ts-ignore
-window.bip39SeedWords = async (): string => {
-    return bip39SeedWords();
-};
-// @ts-ignore
-window.createWalletFromBip39 = async (seed_words: string, password: string) => {
-    return createNewBip39Wallet(walletName, seed_words, password);
-};
-
-function updateBadge() {
-    let count = 0;
-    if (loanToSign) count++;
-    if (swapToSign) count++;
-    return browser.browserAction.setBadgeText(
-        { text: (count === 0 ? null : count.toString()) },
-    );
+    log("Typescript window extensions initialized");
 }
 
-function loadSettings() {
-    debug("Loading settings");
-    ensureVarSet("ESPLORA_API_URL");
-    ensureVarSet("CHAIN");
-    ensureVarSet("LBTC_ASSET_ID");
-    ensureVarSet("LUSDT_ASSET_ID");
+function initializeWasmModule() {
+    void import("./wallet/generated").then(wallet => {
+        wallet.initialize();
+        log("WASM module initialized");
+    });
 }
 
-function cleanupPendingSwap() {
-    resolveSwapSignRequest = null;
-    rejectSwapSignRequest = null;
-    swapToSign = null;
-    return updateBadge();
-}
-
-function cleanupPendingLoan() {
-    resolveLoanSignRequest = null;
-    rejectLoanSignRequest = null;
-    loanToSign = null;
-    return updateBadge();
-}
+// Private fields of the background script
+var resolveSwapSignRequest: ((response: RpcResponse<"requestSignSwap">) => void) | null;
+var resolveLoanSignRequest: ((response: RpcResponse<"requestSignLoan">) => void) | null;
 
 // First we check environment variable. If set, we honor it and overwrite settings in local storage.
 // For the environment variable we add the prefix `REACT_APP_`.
@@ -271,7 +150,29 @@ function ensureVarSet(name: string) {
     const uppercase = name.toUpperCase();
     const value = process.env[`REACT_APP_${uppercase}`];
     if (value) {
-        debug(`Environment variable provided, overwriting storage: ${name}:${value}`);
+        log(`Environment variable provided, overwriting storage: ${name}:${value}`);
         localStorage.setItem(name, value);
     }
+}
+
+function updateBadge() {
+    let count = 0;
+    if (window.loanToSign) count++;
+    if (window.swapToSign) count++;
+
+    return browser.browserAction.setBadgeText(
+        { text: (count === 0 ? null : count.toString()) },
+    );
+}
+
+function cleanupPendingSwap() {
+    resolveSwapSignRequest = null;
+    window.swapToSign = null;
+    return updateBadge();
+}
+
+function cleanupPendingLoan() {
+    resolveLoanSignRequest = null;
+    window.loanToSign = null;
+    return updateBadge();
 }

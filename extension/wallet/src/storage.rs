@@ -36,7 +36,8 @@ impl Storage {
         T: FromStr,
         <T as FromStr>::Err: StdError + Send + Sync + 'static,
     {
-        let value = map_err_to_anyhow!(self.inner.get_item(name))?;
+        let value = map_err_to_anyhow!(self.inner.get_item(name))
+            .with_context(|| format!("Failed to get item from key {}", name))?;
 
         let value = match value {
             Some(value) => value,
@@ -52,13 +53,15 @@ impl Storage {
     where
         V: ToString,
     {
-        map_err_to_anyhow!(self.inner.set_item(name, &value.to_string()))?;
+        map_err_to_anyhow!(self.inner.set_item(name, &value.to_string()))
+            .with_context(|| format!("Failed to set item to key {}", name))?;
 
         Ok(())
     }
 
     pub fn remove_item(&self, name: &str) -> Result<()> {
-        map_err_to_anyhow!(self.inner.remove_item(name))?;
+        map_err_to_anyhow!(self.inner.remove_item(name))
+            .with_context(|| format!("Failed to remove item from key {}", name))?;
 
         Ok(())
     }

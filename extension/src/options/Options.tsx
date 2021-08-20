@@ -17,7 +17,7 @@ import {
 import Debug from "debug";
 import { ChangeEvent, useState } from "react";
 import * as React from "react";
-import { loadLoanBackup } from "../background-proxy";
+import { backgroundPage } from "../background/api";
 import "./Options.css";
 
 Debug.enable("*");
@@ -46,8 +46,10 @@ function Options() {
         let file = e.target.files[0];
         fileReader.readAsText(file, "UTF-8");
         fileReader.onload = async (e) => {
+            const page = await backgroundPage();
+
             let backupDetails = JSON.parse(e.target!.result as string);
-            await loadLoanBackup(backupDetails);
+            await page.loadLoanBackup(backupDetails);
         };
     };
 

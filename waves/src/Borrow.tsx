@@ -7,7 +7,7 @@ import { Action, BorrowState, Rate } from "./App";
 import { getLoanOffer, LoanError, postLoanFinalization, postLoanRequest } from "./Bobtimus";
 import NumberInput from "./components/NumberInput";
 import RateInfo from "./components/RateInfo";
-import WavesProvider from "./waves-provider";
+import { Wallet } from "./waves-provider";
 import { Status, WalletStatus } from "./waves-provider/wavesProvider";
 
 const debug = Debug("Borrow");
@@ -18,7 +18,7 @@ interface BorrowProps {
     rate: Rate;
     state: BorrowState;
     walletStatusAsyncState: AsyncState<WalletStatus>;
-    wavesProvider: WavesProvider | undefined;
+    wavesProvider: Wallet | undefined;
 }
 
 function Borrow({ dispatch, state, rate, wavesProvider, walletStatusAsyncState }: BorrowProps) {
@@ -83,7 +83,7 @@ function Borrow({ dispatch, state, rate, wavesProvider, walletStatusAsyncState }
                 );
                 debug(JSON.stringify(loanResponse));
 
-                let loanTransaction = await wavesProvider.signLoan(loanResponse);
+                let loanTransaction = await wavesProvider.requestSignLoan(loanResponse);
                 let txid = await postLoanFinalization(loanTransaction);
 
                 // TODO: Add different page for loaned?

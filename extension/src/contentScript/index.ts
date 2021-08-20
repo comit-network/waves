@@ -1,53 +1,51 @@
 import Debug from "debug";
 import { AsyncReturnType } from "type-fest";
 import { browser } from "webextension-polyfill-ts";
-import { invokeBackgroundScriptRpc } from "../background";
-import WavesProvider from "../in-page";
+import { invokeEventListener, Wallet } from "../background/api";
+import { ParametersObject } from "../type-utils";
 
 Debug.enable("*");
 const debug = Debug("content");
 
 debug("Hello world from content script");
 
-export interface RequestMessage<T extends keyof WavesProvider> {
-    type: "request";
-    method: T;
-    args: Parameters<WavesProvider[T]>;
+export interface RpcRequest<T extends keyof Wallet> {
+    type: "wallet-rpc-request";
     id: string;
+    method: T;
+    args: ParametersObject<Wallet[T]>;
 }
 
-export interface ResponseMessage<T extends keyof WavesProvider> {
-    type: "response";
+export interface RpcResponse<T extends keyof Wallet> {
+    type: "wallet-rpc-response";
     id: string;
-    ok?: AsyncReturnType<WavesProvider[T]>;
+    ok?: AsyncReturnType<Wallet[T]>;
     err?: string;
 }
 
-window.addEventListener("message", (event: MessageEvent<RequestMessage<keyof WavesProvider>>) => {
-    if (event.source !== window || event.data.type !== "request") {
-        return;
+window.addEventListener("message", (event: MessageEvent<RpcRequest<keyof Wallet>>) => {
+    if (event.source === window && event.data.type === "wallet-rpc-request") {
+        invokeEventListener({
+            method: event.data.method,
+            args: event.data.args,
+        }).then(ok => {
+            let responseMessage: RpcResponse<keyof Wallet> = {
+                type: "wallet-rpc-response",
+                id: event.data.id,
+                ok,
+            };
+
+            window.postMessage(responseMessage, "*");
+        }).catch(err => {
+            let responseMessage: RpcResponse<keyof Wallet> = {
+                type: "wallet-rpc-response",
+                id: event.data.id,
+                err: err.toString(),
+            };
+
+            window.postMessage(responseMessage, "*");
+        });
     }
-
-    invokeBackgroundScriptRpc({
-        method: event.data.method,
-        args: event.data.args,
-    }).then(ok => {
-        let responseMessage: ResponseMessage<keyof WavesProvider> = {
-            type: "response",
-            id: event.data.id,
-            ok,
-        };
-
-        window.postMessage(responseMessage, "*");
-    }).catch(err => {
-        let responseMessage: ResponseMessage<keyof WavesProvider> = {
-            type: "response",
-            id: event.data.id,
-            err: err.toString(), // Unfortunately, we have to send a string representation here
-        };
-
-        window.postMessage(responseMessage, "*");
-    });
 });
 
 /**

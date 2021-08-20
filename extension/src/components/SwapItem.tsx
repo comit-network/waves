@@ -1,6 +1,6 @@
 import { Box, Center, Flex, Grid, GridItem, Image, Spacer, Text } from "@chakra-ui/react";
 import React from "react";
-import { BTC_TICKER, TradeSide, USDT_TICKER } from "../models";
+import { BTC_TICKER, TradeSide, USDT_TICKER } from "../background/api";
 import Bitcoin from "./bitcoin.svg";
 import Usdt from "./tether.svg";
 

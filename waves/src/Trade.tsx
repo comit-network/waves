@@ -10,7 +10,7 @@ import calculateBetaAmount, { getDirection } from "./calculateBetaAmount";
 import AssetSelector from "./components/AssetSelector";
 import ExchangeIcon from "./components/ExchangeIcon";
 import RateInfo from "./components/RateInfo";
-import WavesProvider from "./waves-provider";
+import { Wallet } from "./waves-provider";
 import { Status, WalletStatus } from "./waves-provider/wavesProvider";
 
 const debug = Debug("Swap");
@@ -21,7 +21,7 @@ interface SwapProps {
     dispatch: Dispatch<Action>;
     rate: Rate;
     walletStatusAsyncState: AsyncState<WalletStatus>;
-    wavesProvider: WavesProvider | undefined;
+    wavesProvider: Wallet | undefined;
 }
 
 function Trade({ state, dispatch, rate, walletStatusAsyncState, wavesProvider }: SwapProps) {
@@ -46,14 +46,14 @@ function Trade({ state, dispatch, rate, walletStatusAsyncState, wavesProvider }:
             let tx;
             try {
                 if (state.alpha.type === Asset.LBTC) {
-                    const payload = await wavesProvider.getSellCreateSwapPayload(state.alpha.amount.toString());
+                    const payload = await wavesProvider.makeSellCreateSwapPayload(state.alpha.amount.toString());
                     tx = await postSellPayload(payload);
                 } else {
-                    const payload = await wavesProvider.getBuyCreateSwapPayload(state.alpha.amount.toString());
+                    const payload = await wavesProvider.makeBuyCreateSwapPayload(state.alpha.amount.toString());
                     tx = await postBuyPayload(payload);
                 }
 
-                let txid = await wavesProvider.signAndSendSwap(tx);
+                let txid = await wavesProvider.requestSignSwap(tx);
 
                 history.push(`/trade/swapped/${txid}`);
             } catch (e) {

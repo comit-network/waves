@@ -3,6 +3,7 @@ use crate::{
     wallet::{current, get_txouts, Wallet},
     BTC_ASSET_ID, USDT_ASSET_ID,
 };
+use anyhow::{Context, Result};
 use baru::{
     input::Input,
     loan::{Borrower0, LoanRequest},
@@ -19,7 +20,7 @@ pub async fn make_loan_request(
     current_wallet: &Mutex<Option<Wallet>>,
     collateral_amount: Amount,
     fee_rate: Amount,
-) -> Result<LoanRequest, Error> {
+) -> Result<LoanRequest> {
     let btc_asset_id = {
         let guard = BTC_ASSET_ID.lock().expect_throw("can get lock");
         *guard
@@ -30,9 +31,7 @@ pub async fn make_loan_request(
     };
 
     let (address, blinding_key) = {
-        let wallet = current(&name, current_wallet)
-            .await
-            .map_err(Error::LoadWallet)?;
+        let wallet = current(&name, current_wallet).await?;
 
         let address = wallet.get_address();
         let blinding_key = wallet.blinding_key();
@@ -116,33 +115,17 @@ pub async fn make_loan_request(
         usdt_asset_id,
     )
     .await
-    .map_err(Error::BuildBorrowerState)?;
+    .context("Failed to create `Borrower0`")?;
 
-    let storage = Storage::local_storage().map_err(Error::Storage)?;
-    storage
-        .set_item(
-            "borrower_state",
-            serde_json::to_string(&borrower_state_0).map_err(Error::Serialize)?,
-        )
-        .map_err(Error::Save)?;
+    let storage = Storage::local_storage()?;
+    storage.set_item(
+        "borrower_state",
+        serde_json::to_string(&borrower_state_0).context("Failed to serialize `Borrower0`")?,
+    )?;
 
     // TODO: Fix, use new API here
     #[allow(deprecated)]
     Ok(borrower_state_0.loan_request())
-}
-
-#[derive(Debug, thiserror::Error)]
-pub enum Error {
-    #[error("Wallet is not loaded {0}")]
-    LoadWallet(anyhow::Error),
-    #[error("Failed to construct borrower state: {0}")]
-    BuildBorrowerState(anyhow::Error),
-    #[error("Storage error: {0}")]
-    Storage(anyhow::Error),
-    #[error("Failed to save item to storage: {0}")]
-    Save(anyhow::Error),
-    #[error("Serialization failed: {0}")]
-    Serialize(serde_json::Error),
 }
 
 /// Calculate the fee offset required for the coin selection algorithm.

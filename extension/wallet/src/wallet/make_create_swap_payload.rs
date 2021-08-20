@@ -2,6 +2,7 @@ use crate::{
     wallet::{current, get_txouts, CreateSwapPayload, SwapUtxo, Wallet},
     BTC_ASSET_ID, USDT_ASSET_ID,
 };
+use anyhow::{Context, Result};
 use coin_selection::{self, coin_select};
 use elements::{bitcoin::Amount, secp256k1_zkp::SECP256K1, AssetId, OutPoint};
 use estimate_transaction_size::avg_vbytes;
@@ -12,7 +13,7 @@ pub async fn make_buy_create_swap_payload(
     name: String,
     current_wallet: &Mutex<Option<Wallet>>,
     sell_amount: Amount,
-) -> Result<CreateSwapPayload, Error> {
+) -> Result<CreateSwapPayload> {
     let btc_asset_id = {
         let guard = BTC_ASSET_ID.lock().expect_throw("can get lock");
         *guard
@@ -36,7 +37,7 @@ pub async fn make_sell_create_swap_payload(
     name: String,
     current_wallet: &Mutex<Option<Wallet>>,
     sell_amount: Amount,
-) -> Result<CreateSwapPayload, Error> {
+) -> Result<CreateSwapPayload> {
     let btc_asset_id = {
         let guard = BTC_ASSET_ID.lock().expect_throw("can get lock");
         *guard
@@ -57,10 +58,8 @@ async fn make_create_swap_payload(
     sell_amount: Amount,
     sell_asset: AssetId,
     fee_asset: AssetId,
-) -> Result<CreateSwapPayload, Error> {
-    let wallet = current(&name, current_wallet)
-        .await
-        .map_err(Error::LoadWallet)?;
+) -> Result<CreateSwapPayload> {
+    let wallet = current(&name, current_wallet).await?;
     let blinding_key = wallet.blinding_key();
 
     let utxos = get_txouts(&wallet, |utxo, txout| {
@@ -90,7 +89,7 @@ async fn make_create_swap_payload(
         })
     })
     .await
-    .map_err(Error::GetTxOuts)?;
+    .context("Failed to get UTXOs")?;
 
     let (bobs_fee_rate, fee_offset) = if fee_asset == sell_asset {
         // Bob currently hardcodes a fee-rate of 1 sat / vbyte, hence
@@ -111,7 +110,7 @@ async fn make_create_swap_payload(
         bobs_fee_rate.as_sat() as f32,
         fee_offset,
     )
-    .map_err(Error::CoinSelection)?;
+    .context("Failed to select UTXOs")?;
 
     Ok(CreateSwapPayload {
         address: wallet.get_address(),
@@ -125,16 +124,6 @@ async fn make_create_swap_payload(
             .collect(),
         amount: output.target_amount,
     })
-}
-
-#[derive(Debug, thiserror::Error)]
-pub enum Error {
-    #[error("Wallet is not loaded: {0}")]
-    LoadWallet(anyhow::Error),
-    #[error("Coin selection: {0}")]
-    CoinSelection(coin_selection::Error),
-    #[error("Failed to get transaction outputs: {0}")]
-    GetTxOuts(anyhow::Error),
 }
 
 /// Calculate the fee offset required for the coin selection algorithm.

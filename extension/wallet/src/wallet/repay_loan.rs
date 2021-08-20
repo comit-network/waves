@@ -1,3 +1,10 @@
+use crate::{
+    esplora::{broadcast, fetch_transaction},
+    storage::Storage,
+    wallet::{current, get_txouts, LoanDetails},
+    Wallet, DEFAULT_SAT_PER_VBYTE,
+};
+use anyhow::{bail, Context, Result};
 use baru::{input::Input, loan::Borrower1, swap::sign_with_key};
 use coin_selection::coin_select;
 use elements::{
@@ -6,13 +13,6 @@ use elements::{
 use futures::lock::Mutex;
 use rand::thread_rng;
 
-use crate::{
-    esplora::{broadcast, fetch_transaction},
-    storage::Storage,
-    wallet::{current, get_txouts, LoanDetails},
-    Wallet, DEFAULT_SAT_PER_VBYTE,
-};
-
 // TODO: Parts of the implementation are very similar to what we do in
 // `sign_and_send_swap_transaction`. We could extract common
 // functionality into crate-local functions
@@ -20,25 +20,23 @@ pub async fn repay_loan(
     name: String,
     current_wallet: &Mutex<Option<Wallet>>,
     loan_txid: Txid,
-) -> Result<Txid, Error> {
+) -> Result<Txid> {
     // TODO: Only abort early if this fails because the transaction
     // hasn't been mined
     if fetch_transaction(loan_txid).await.is_err() {
-        return Err(Error::NoLoan);
+        bail!("No loan with txid {}", loan_txid)
     }
 
-    let storage = Storage::local_storage().map_err(Error::Storage)?;
+    let storage = Storage::local_storage()?;
 
     let borrower = storage
-        .get_item::<String>(&format!("loan_state:{}", loan_txid))
-        .map_err(Error::Load)?
-        .ok_or(Error::EmptyState)?;
-    let borrower = serde_json::from_str::<Borrower1>(&borrower).map_err(Error::Deserialize)?;
+        .get_item::<String>(&format!("loan_state:{}", loan_txid))?
+        .context("Unable to find state for loan")?;
+    let borrower = serde_json::from_str::<Borrower1>(&borrower)
+        .context("Failed to deserialize `Borrower1`")?;
 
     let blinding_key = {
-        let wallet = current(&name, current_wallet)
-            .await
-            .map_err(Error::LoadWallet)?;
+        let wallet = current(&name, current_wallet).await?;
         wallet.blinding_key()
     };
 
@@ -165,23 +163,20 @@ pub async fn repay_loan(
             Amount::from_sat(DEFAULT_SAT_PER_VBYTE),
         )
         .await
-        .map_err(Error::BuildTransaction)?;
+        .context("Failed to build repayment transaction")?;
 
     let repayment_txid = broadcast(loan_repayment_tx)
         .await
-        .map_err(Error::SendTransaction)?;
+        .context("Failed to send transaction")?;
 
     // TODO: Make sure that we can safely forget this i.e. sufficient
     // confirmations
-    storage
-        .remove_item(&format!("loan_state:{}", loan_txid))
-        .map_err(Error::Delete)?;
+    storage.remove_item(&format!("loan_state:{}", loan_txid))?;
 
-    let open_loans = match storage
-        .get_item::<String>("open_loans")
-        .map_err(Error::Load)?
-    {
-        Some(open_loans) => serde_json::from_str(&open_loans).map_err(Error::Deserialize)?,
+    let open_loans = match storage.get_item::<String>("open_loans")? {
+        Some(open_loans) => {
+            serde_json::from_str(&open_loans).context("Failed to deserialize open loans")?
+        }
         None => Vec::<LoanDetails>::new(),
     };
 
@@ -189,38 +184,10 @@ pub async fn repay_loan(
         .iter()
         .filter(|details| loan_txid != details.txid)
         .collect::<Vec<_>>();
-    storage
-        .set_item(
-            "open_loans",
-            serde_json::to_string(&open_loans).map_err(Error::Serialize)?,
-        )
-        .map_err(Error::Save)?;
+    storage.set_item(
+        "open_loans",
+        serde_json::to_string(&open_loans).context("Failed to serialize open loans")?,
+    )?;
 
     Ok(repayment_txid)
-}
-
-#[derive(Debug, thiserror::Error)]
-pub enum Error {
-    #[error("Loan transaction not found in the blockchain")]
-    NoLoan,
-    #[error("Storage error: {0}")]
-    Storage(anyhow::Error),
-    #[error("Failed to load item from storage: {0}")]
-    Load(anyhow::Error),
-    #[error("Deserialization failed: {0}")]
-    Deserialize(serde_json::Error),
-    #[error("Serialization failed: {0}")]
-    Serialize(serde_json::Error),
-    #[error("Failed to delete item from storage: {0}")]
-    Delete(anyhow::Error),
-    #[error("Failed to save item to storage: {0}")]
-    Save(anyhow::Error),
-    #[error("Loaded empty loan state")]
-    EmptyState,
-    #[error("Wallet is not loaded: {0}")]
-    LoadWallet(anyhow::Error),
-    #[error("Failed to construct loan repayment transaction: {0}")]
-    BuildTransaction(anyhow::Error),
-    #[error("Failed to broadcast transaction: {0}")]
-    SendTransaction(anyhow::Error),
 }

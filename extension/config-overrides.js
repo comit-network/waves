@@ -1,6 +1,7 @@
 const path = require("path");
 const WasmPackPlugin = require("@wasm-tool/wasm-pack-plugin");
 const webpack = require("webpack");
+const fs = require("fs");
 
 module.exports = function override(config, env) {
     config.entry.in_page = path.join(__dirname, "src", "in-page", "index.ts");
@@ -16,10 +17,14 @@ module.exports = function override(config, env) {
         });
     });
 
+    let outDir = path.resolve(__dirname, "src/background/wallet/generated");
+
+    fs.mkdirSync(outDir, { recursive: true });
+
     config.plugins = (config.plugins || []).concat([
         new WasmPackPlugin({
             crateDirectory: path.resolve(__dirname, "wallet/"),
-            outDir: path.resolve(__dirname, "src/wallet"),
+            outDir,
         }),
         // delete the warning about "Critical dependency: the request of a dependency is an expression" in the generated binding code
         new webpack.ContextReplacementPlugin(
